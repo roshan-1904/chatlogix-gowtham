@@ -1,0 +1,5 @@
+{
+  "category": "grocery",
+  "languageHint": "en",
+  "description": "Tabular-only sample (CSV) — exercises the no-vision branch end-to-end. Real brochure cases (5x restaurant, 3x grocery, 2x electronics) drop in alongside this one with `pages/page_N.png` + `vision-recording.json`."
+}

@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc:*)",
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(npx prisma *)",
+      "Bash(xargs grep *)",
+      "Bash(npm i *)",
+      "Bash(awk -F= '{print $1\"=<redacted>\"}')",
+      "Bash(grep -n \"catalogImportEnabled\\\\|\\\\\\\\.category\\\\b\" c:/Projects/ChatLogix/backend/src/routes/vendors.ts)",
+      "Bash(npm run *)",
+      "Bash(npx eslint *)",
+      "Bash(git stash *)",
+      "Bash(npx vitest *)",
+      "Bash(npx tsx *)",
+      "Bash(node ./node_modules/typescript/bin/tsc --noEmit)",
+      "Bash(node ./node_modules/vitest/vitest.mjs run src/services/__tests__/catalog src/routes/__tests__/catalog src/services/__tests__/vendorAIConfig)",
+      "Bash(pm2 list *)",
+      "Bash(netstat -ano)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Projects\\\\chat-logix\" -Directory)",
+      "Bash(Select-Object Name)",
+      "Bash(grep -E \"\\\\.ts$\")",
+      "Bash(ls \"C:\\\\Projects\\\\MediSaaS\\\\roadmap\" 2>&1 | head -50)",
+      "Read(//c/Projects/MediSaaS/roadmap/**)",
+      "Bash(mkdir -p c:/Projects/chat-logix/roadmap/css c:/Projects/chat-logix/roadmap/js c:/Projects/chat-logix/roadmap/data/foundation c:/Projects/chat-logix/roadmap/data/phase1 c:/Projects/chat-logix/roadmap/data/phase2 c:/Projects/chat-logix/roadmap/data/phase3 && ls c:/Projects/chat-logix/roadmap)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Projects\\\\chat-logix\" -Directory)",
+      "Bash(grep -v \":0$\")",
+      "Bash(rm -f c:/Projects/chat-logix/roadmap/data/foundation/*.js c:/Projects/chat-logix/roadmap/data/phase1/*.js c:/Projects/chat-logix/roadmap/data/phase2/*.js c:/Projects/chat-logix/roadmap/data/phase3/*.js && ls c:/Projects/chat-logix/roadmap/data c:/Projects/chat-logix/roadmap/data/foundation c:/Projects/chat-logix/roadmap/data/phase1 c:/Projects/chat-logix/roadmap/data/phase2 c:/Projects/chat-logix/roadmap/data/phase3)",
+      "Bash(git checkout *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
+    ],
+    "additionalDirectories": [
+      "c:\\Projects\\chat-logix\\roadmap",
+      "c:\\Projects\\chat-logix\\roadmap\\data\\foundation"
+    ]
+  }
+}

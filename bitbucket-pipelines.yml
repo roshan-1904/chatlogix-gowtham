@@ -1,0 +1,95 @@
+image: node:18
+
+definitions:
+  caches:
+    backend-npm: backend/node_modules
+    frontend-npm: frontend_v2/node_modules
+
+  steps:
+    - step: &build-backend
+        name: Build backend
+        caches:
+          - backend-npm
+        script:
+          - cd backend
+          - npm ci
+          - npx prisma generate
+          - npm run build
+        artifacts:
+          - backend/dist/**
+          - backend/prisma/**
+          - backend/package.json
+          - backend/package-lock.json
+
+    - step: &build-frontend
+        name: Build frontend
+        caches:
+          - frontend-npm
+        script:
+          - cd frontend_v2
+          - |
+            cat > apps/web-vendor/.env.production <<EOF
+            VITE_API_URL=${VITE_API_URL}
+            VITE_RECAPTCHA_SITE_KEY=${VITE_RECAPTCHA_SITE_KEY}
+            VITE_ENVIRONMENT=${VITE_ENVIRONMENT:-production}
+            EOF
+          - npm ci
+          - npm run build
+        artifacts:
+          - frontend_v2/apps/web-vendor/dist/**
+          - frontend_v2/apps/web-admin/dist/**
+
+    - step: &deploy-lambdas
+        name: Deploy Lambda functions
+        script:
+          - apt-get update -y && apt-get install -y zip unzip curl
+          - curl -sS "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+          - cd /tmp && unzip -q awscliv2.zip && ./aws/install && cd -
+          - cd backend
+          - npm ci
+          - npx prisma generate
+          - npm prune --production
+          - |
+            for fn in chatlogix-whatsapp-response-dispatcher chatlogix-media-fetcher chatlogix-incoming-response-generator chatlogix-webhook-handler chatlogix-order-recovery; do
+              echo "=== Packaging $fn ==="
+              zip_path=/tmp/$fn.zip
+              rm -f "$zip_path"
+              zip -rq "$zip_path" dist node_modules prisma package.json
+              echo "=== Uploading $fn to S3 ==="
+              aws s3 cp "$zip_path" "s3://${LAMBDA_S3_BUCKET}/functions/$fn/${BITBUCKET_COMMIT}.zip" --region "${AWS_DEFAULT_REGION}"
+              echo "=== Updating Lambda $fn ==="
+              aws lambda update-function-code \
+                --function-name "$fn" \
+                --s3-bucket "${LAMBDA_S3_BUCKET}" \
+                --s3-key "functions/$fn/${BITBUCKET_COMMIT}.zip" \
+                --region "${AWS_DEFAULT_REGION}" \
+                --publish
+              aws lambda wait function-updated --function-name "$fn" --region "${AWS_DEFAULT_REGION}"
+              echo "=== $fn deployed ==="
+            done
+
+    - step: &deploy-ec2
+        name: Deploy API + workers to Lightsail
+        deployment: production
+        script:
+          - pipe: atlassian/ssh-run:0.4.1
+            variables:
+              SSH_USER: $EC2_USER
+              SERVER: $EC2_HOST
+              MODE: 'script'
+              COMMAND: 'scripts/deployment/deploy-ec2.sh'
+
+pipelines:
+  branches:
+    master:
+      - parallel:
+          - step: *build-backend
+          - step: *build-frontend
+      - step: *deploy-lambdas
+      - step: *deploy-ec2
+
+  pull-requests:
+    '**':
+      - parallel:
+          - step: *build-backend
+          - step: *build-frontend

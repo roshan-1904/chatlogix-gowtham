@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ChatLogix — Developer Roadmap</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-inner">
+    <div class="logo">
+      <span class="logo-icon">💬</span>
+      <div>
+        <div class="logo-name">ChatLogix</div>
+        <div class="logo-sub">Developer Roadmap</div>
+      </div>
+    </div>
+    <div class="header-meta">
+      <div class="progress-wrap">
+        <div class="progress-label">
+          <span id="hdr-done">0</span> / <span id="hdr-total">0</span> modules
+        </div>
+        <div class="progress-bar-outer"><div class="progress-bar-inner" id="hdr-bar"></div></div>
+      </div>
+      <div class="filter-wrap">
+        <input class="search-box" id="search" type="search" placeholder="Search modules…" />
+        <select class="filter-sel" id="filter-tag">
+          <option value="">All tags</option>
+        </select>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main id="main-content"></main>
+
+<div class="overlay" id="overlay" onclick="closeDrawer()"></div>
+
+<aside class="drawer" id="drawer">
+  <button class="drawer-close" onclick="closeDrawer()">✕</button>
+  <div class="drawer-body" id="drawer-body"></div>
+</aside>
+
+<!-- Data: global registry must be initialized first -->
+<script>window.CL_DATA = { phases: [], modules: [] };</script>
+
+<!-- Phase definitions -->
+<script src="data/phases.js"></script>
+
+<!-- Foundation (Phase 0) -->
+<script src="data/foundation/arch.js"></script>
+<script src="data/foundation/pipeline.js"></script>
+<script src="data/foundation/catalog.js"></script>
+<script src="data/foundation/ux.js"></script>
+<script src="data/foundation/biz.js"></script>
+
+<!-- Phase 1 — Production Hardening -->
+<script src="data/phase1/m01-payments.js"></script>
+<script src="data/phase1/m02-shipping.js"></script>
+<script src="data/phase1/m03-handoff.js"></script>
+<script src="data/phase1/m04-notifications.js"></script>
+<script src="data/phase1/m05-tests.js"></script>
+<script src="data/phase1/m06-feature-flags.js"></script>
+
+<!-- Phase 2 — Growth & Operations -->
+<script src="data/phase2/m07-admin-panel.js"></script>
+<script src="data/phase2/m08-mobile.js"></script>
+<script src="data/phase2/m09-crm.js"></script>
+<script src="data/phase2/m10-analytics.js"></script>
+<script src="data/phase2/m11-audit.js"></script>
+<script src="data/phase2/m12-self-serve.js"></script>
+
+<!-- Phase 3 — Intelligence & Scale -->
+<script src="data/phase3/m13-vector-memory.js"></script>
+<script src="data/phase3/m14-marketplace.js"></script>
+<script src="data/phase3/m15-vendor-api.js"></script>
+<script src="data/phase3/m16-whitelabel.js"></script>
+<script src="data/phase3/m17-tts-campaigns.js"></script>
+
+<!-- App logic (must be last — reads from CL_DATA populated above) -->
+<script src="js/app.js"></script>
+
+</body>
+</html>

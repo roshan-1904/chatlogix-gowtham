@@ -1,0 +1,51 @@
+{
+  "name": "vendor-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "main": "expo/AppEntry.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web",
+    "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf node_modules .expo dist"
+  },
+  "dependencies": {
+    "@chatlogix/api-client": "file:../../packages/api-client",
+    "@chatlogix/auth": "file:../../packages/auth",
+    "@chatlogix/config": "file:../../packages/config",
+    "@chatlogix/design-tokens": "file:../../packages/design-tokens",
+    "@chatlogix/hooks": "file:../../packages/hooks",
+    "@chatlogix/schemas": "file:../../packages/schemas",
+    "@chatlogix/ui": "file:../../packages/ui",
+    "@chatlogix/utils": "file:../../packages/utils",
+    "@react-navigation/native": "^6.1.9",
+    "@react-navigation/native-stack": "^6.9.17",
+    "@react-navigation/bottom-tabs": "^6.5.11",
+    "@tanstack/react-query": "^5.17.0",
+    "expo": "~50.0.0",
+    "expo-constants": "~15.4.0",
+    "expo-status-bar": "~1.11.1",
+    "nativewind": "^2.0.11",
+    "react": "18.2.0",
+    "react-native": "0.73.0",
+    "react-native-safe-area-context": "4.8.2",
+    "react-native-screens": "~3.29.0",
+    "react-hook-form": "^7.49.3",
+    "zustand": "^4.4.7",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.20.0",
+    "@types/react": "~18.2.45",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "babel-plugin-module-resolver": "^5.0.0",
+    "eslint": "^8.57.0",
+    "tailwindcss": "3.3.2",
+    "typescript": "^5.6.2"
+  }
+}
+

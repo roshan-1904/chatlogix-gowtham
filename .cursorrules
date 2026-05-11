@@ -1,0 +1,277 @@
+# ChatLogix Cursor Rules
+
+## Primary Business Goal
+
+**Chat-Based Order Assistance via WhatsApp**
+
+ChatLogix enables customers to place orders and get questions answered through natural WhatsApp conversations. The multi-stage AI system automates **90% of vendor time** spent on repetitive questions, allowing vendors to focus on their business while AI handles customer service.
+
+**Success Metrics:**
+- 90% reduction in vendor time on repetitive questions
+- Natural, conversational order placement experience
+- Automated question answering (product inquiries, order status, etc.)
+- Complete order processing without manual intervention
+
+**Technical optimizations (cost, quality, validation) support this primary goal by making the system:**
+- Affordable to run at scale (<$0.0022 per message)
+- High quality (natural conversations, 4.0+/5 naturalness score)
+- Reliable (complete orders, accurate answers)
+
+## Project Overview
+ChatLogix is a WhatsApp-based e-commerce SaaS platform with AI-powered conversation management. The platform helps small vendors manage customer interactions, catalogs, and orders through WhatsApp.
+
+## Tech Stack
+
+### Backend
+- **Runtime:** Node.js 18+ with TypeScript (ES modules)
+- **Framework:** Express.js
+- **Database:** PostgreSQL with Prisma ORM
+- **Queue System:** BullMQ with Redis
+- **AI:** OpenAI API (GPT models)
+- **Authentication:** JWT tokens
+- **Logging:** Pino with rotating file streams
+- **Validation:** Zod schemas
+
+### Frontend
+- **Framework:** React 18+ with TypeScript
+- **Build Tool:** Vite
+- **Styling:** TailwindCSS
+- **State Management:** Zustand + TanStack Query
+- **Forms:** React Hook Form + Zod
+- **Monorepo:** Turborepo (frontend_v2)
+
+### Infrastructure
+- **Containerization:** Docker
+- **Queue:** Redis (BullMQ)
+- **Storage:** AWS S3
+- **Deployment:** AWS Lambda, ECS/Fargate
+
+## Code Style & Conventions
+
+### TypeScript
+- Use strict TypeScript configuration
+- Prefer type inference where possible
+- Use interfaces for object shapes, types for unions/intersections
+- Always type function parameters and return types
+- Use `const` assertions for literal types
+- Prefer `async/await` over promises
+
+### Naming Conventions
+- **Files:** camelCase for utilities, kebab-case for routes/components
+- **Variables/Functions:** camelCase
+- **Classes:** PascalCase
+- **Constants:** UPPER_SNAKE_CASE
+- **Types/Interfaces:** PascalCase with descriptive names
+- **Database Models:** PascalCase (Prisma convention)
+
+### Code Organization
+- Group imports: external → internal → types
+- Use barrel exports (`index.ts`) for clean imports
+- Keep functions focused and single-purpose
+- Extract complex logic into utility functions
+- Use service classes for business logic
+
+### Error Handling
+- Always use try-catch for async operations
+- Return Result types or throw typed errors
+- Log errors with context using Pino logger
+- Use Zod for input validation
+- Provide meaningful error messages
+
+### API Design
+- Use RESTful conventions
+- Version APIs (`/api/v1/...`)
+- Return consistent response formats
+- Use proper HTTP status codes
+- Include request/response validation with Zod
+
+### Database
+- Use Prisma for all database operations
+- Write migrations for schema changes
+- Use transactions for multi-step operations
+- Index frequently queried fields
+- Use raw SQL only when necessary (document why)
+
+### Testing
+- Write unit tests for business logic
+- Use Vitest for testing
+- Aim for 90%+ code coverage
+- Test error cases and edge cases
+- Mock external dependencies
+
+## Project Structure
+
+```
+ChatLogix/
+├── backend/          # Express API, workers, services
+│   ├── src/
+│   │   ├── routes/   # API route handlers
+│   │   ├── services/ # Business logic services
+│   │   ├── workers/  # Background job workers
+│   │   ├── middleware/ # Express middleware
+│   │   ├── utils/    # Utility functions
+│   │   └── types/    # TypeScript type definitions
+│   ├── prisma/       # Database schema and migrations
+│   └── scripts/      # Utility scripts
+├── frontend_v2/      # Monorepo (Turborepo)
+│   ├── apps/         # Applications (web-vendor, web-admin, vendor-mobile)
+│   └── packages/     # Shared packages
+├── docs/             # Project documentation
+└── requirements/     # Requirements and planning docs
+```
+
+## Key Patterns & Practices
+
+### Multi-Stage AI Processing
+- The system uses a multi-stage AI pipeline for conversation processing
+- Stages include: memory extraction, intent classification, context fetching, prompt building, response generation
+- Each stage is a separate service with clear responsibilities
+- Use caching to optimize performance
+
+### Worker Pattern
+- Background jobs run in separate worker processes
+- Use BullMQ queues for job management
+- Workers: incoming, text, response, multi-stage-ai
+- Always handle job failures gracefully
+
+### Service Layer Pattern
+- Business logic lives in service classes
+- Services are independent and testable
+- Use dependency injection where appropriate
+- Services handle their own error cases
+
+### Conversation Memory
+- Store conversation context in ConversationMemory model
+- Extract key facts, preferences, and ongoing topics
+- Update memory incrementally as conversation progresses
+- Use memory to provide context-aware responses
+
+## Important Files & Locations
+
+### Backend
+- `backend/src/index.ts` - Main entry point
+- `backend/prisma/schema.prisma` - Database schema
+- `backend/src/services/` - Core business logic
+- `backend/src/workers/` - Background workers
+- `backend/src/routes/` - API endpoints
+
+### Frontend
+- `frontend_v2/apps/web-vendor/` - Vendor web app
+- `frontend_v2/apps/web-admin/` - Admin web app
+- `frontend_v2/packages/` - Shared packages
+
+### Documentation
+- `docs/` - All project documentation
+- `requirements/` - Requirements and planning
+- `backend/README.md` - Backend setup guide
+
+## Common Tasks
+
+### Adding a New API Endpoint
+1. Create route handler in `backend/src/routes/`
+2. Add service method in appropriate service file
+3. Add Zod schema for validation
+4. Add error handling
+5. Update API documentation
+6. Write tests
+
+### Adding a New Database Model
+1. Update `backend/prisma/schema.prisma`
+2. Create migration: `npm run prisma:migrate`
+3. Generate Prisma client: `npm run prisma:generate`
+4. Create service methods for CRUD operations
+5. Add validation schemas
+
+### Adding a New Worker
+1. Create worker file in `backend/src/workers/`
+2. Define job types and queue names
+3. Add worker startup script to package.json
+4. Handle job processing and errors
+5. Add monitoring/logging
+
+## Best Practices
+
+### Performance
+- Cache frequently accessed data (Redis)
+- Use database indexes appropriately
+- Limit AI prompt sizes (500-800 tokens)
+- Batch database operations when possible
+- Use connection pooling
+
+### Security
+- Validate all inputs with Zod
+- Use parameterized queries (Prisma handles this)
+- Sanitize user inputs
+- Use environment variables for secrets
+- Implement rate limiting
+- Use HTTPS in production
+
+### Logging
+- Use structured logging with Pino
+- Log at appropriate levels (info, warn, error)
+- Include context in log messages
+- Don't log sensitive information
+- Use rotating log files
+
+### Documentation
+- Write clear JSDoc comments for public APIs
+- Keep README files updated
+- Document complex algorithms
+- Include examples in documentation
+- Update docs when code changes
+
+## Environment Variables
+- Never commit `.env` files
+- Use `.env.example` as template
+- Document all required variables
+- Use descriptive variable names
+- Group related variables
+
+## Git Workflow
+- Use descriptive commit messages
+- Create feature branches
+- Keep commits focused and atomic
+- Review code before merging
+- Update documentation with changes
+
+## When Writing Code
+
+1. **Think First:** Understand the problem before coding
+2. **Plan:** Consider edge cases and error scenarios
+3. **Write:** Follow conventions and patterns
+4. **Test:** Write tests for new functionality
+5. **Document:** Update docs and add comments
+6. **Review:** Check for improvements and optimizations
+
+## Common Pitfalls to Avoid
+
+- Don't ignore TypeScript errors
+- Don't use `any` type (use `unknown` if needed)
+- Don't commit console.log statements (use logger)
+- Don't hardcode values (use config/env)
+- Don't skip error handling
+- Don't forget to handle async errors
+- Don't create circular dependencies
+- Don't ignore linting errors
+
+## AI Integration Guidelines
+
+- Always handle API rate limits
+- Implement retry logic with exponential backoff
+- Cache AI responses when appropriate
+- Monitor token usage and costs
+- Use appropriate models for each task
+- Handle API failures gracefully
+- Log AI requests/responses for debugging
+
+## Questions to Ask Before Coding
+
+1. What problem am I solving?
+2. Are there existing patterns I should follow?
+3. What edge cases need handling?
+4. How will this be tested?
+5. What could go wrong?
+6. Is this the simplest solution?
+7. Will this scale?
+8. Is this secure?
+

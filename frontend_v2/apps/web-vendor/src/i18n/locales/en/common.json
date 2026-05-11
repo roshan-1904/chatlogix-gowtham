@@ -1,0 +1,14 @@
+{
+  "actions": {
+    "close": "Close",
+    "open": "Open",
+    "download": "Download",
+    "play": "Play",
+    "pause": "Pause",
+    "previous": "Previous",
+    "next": "Next"
+  },
+  "time": {
+    "now": "Just now"
+  }
+}

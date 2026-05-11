@@ -1,0 +1,19 @@
+INSERT INTO "public"."_prisma_migrations" ("id", "checksum", "finished_at", "migration_name", "logs", "rolled_back_at", "started_at", "applied_steps_count") VALUES ('034b811b-c665-4d39-b704-c5eec65028c2', '66e86371fdb4ad914356781faadb7b9bc246d6e0d392bc49b92be99ca2af14c4', '2025-10-29 23:31:43.357071+00', '20251029082343_add_ai_model_to_vendor', null, null, '2025-10-29 23:31:43.189031+00', '1'), ('49b72441-6e3b-46cc-8ac1-556c3bcb6a80', 'eef5860887a87d7590a37e4705ae866274d417ba2ba20d43e280fe883733d243', '2025-10-21 07:42:26.715661+00', '20251020145300_init', null, null, '2025-10-21 07:42:26.465283+00', '1'), ('840f4f1f-8b93-4c79-b85c-aec885b7eeaa', '2faf09a61299897b0cefb334f0507e71d7fa2d9940a7938147a7036f9e0e3dbc', '2025-10-29 23:31:32.537629+00', '20251026131044_add_customizable_prompt_titles_and_content', '', null, '2025-10-29 23:31:32.537629+00', '0'), ('9b16e910-812c-4562-aaf8-3d7b4cdc8fed', '2faf09a61299897b0cefb334f0507e71d7fa2d9940a7938147a7036f9e0e3dbc', null, '20251026131044_add_customizable_prompt_titles_and_content', 'A migration failed to apply. New migrations cannot be applied before the error is recovered from. Read more about how to resolve migration issues in a production database: https://pris.ly/d/migrate-resolve
+
+Migration name: 20251026131044_add_customizable_prompt_titles_and_content
+
+Database error code: 42701
+
+Database error:
+ERROR: column "aiContentResponsibilities" of relation "Vendor" already exists
+
+DbError { severity: "ERROR", parsed_severity: Some(Error), code: SqlState(E42701), message: "column \"aiContentResponsibilities\" of relation \"Vendor\" already exists", detail: None, hint: None, position: None, where_: None, schema: None, table: None, column: None, datatype: None, constraint: None, file: Some("tablecmds.c"), line: Some(7445), routine: Some("check_for_column_name_collision") }
+
+   0: sql_schema_connector::apply_migration::apply_script
+           with migration_name="20251026131044_add_customizable_prompt_titles_and_content"
+             at schema-engine\connectors\sql-schema-connector\src\apply_migration.rs:106
+   1: schema_core::commands::apply_migrations::Applying migration
+           with migration_name="20251026131044_add_customizable_prompt_titles_and_content"
+             at schema-engine\core\src\commands\apply_migrations.rs:91
+   2: schema_core::state::ApplyMigrations
+             at schema-engine\core\src\state.rs:226', '2025-10-29 23:31:32.471514+00', '2025-10-29 23:30:26.173679+00', '0'), ('9c28d8f1-c003-4ccb-bcd2-d317f2b14d4b', 'e935e97dfee22bbe8968a506230c539bdcba09d44ec08adda9485305418d7cfa', '2025-10-21 17:54:02.375043+00', '20251021175401_add_current_order_to_customer_insights', null, null, '2025-10-21 17:54:01.934594+00', '1'), ('ac20df5a-8955-4fa8-b658-47736b531788', '091c6004f3360ae0b3e9ba9dec97e8a0c95d272f0c506aebfecf4b89cb041338', '2025-11-01 16:25:18.512108+00', '20251101211705_add_detailed_customer_fields', null, null, '2025-11-01 16:25:18.251674+00', '1'), ('bb203e1b-3fc8-4067-91d0-09e5d90bcb27', 'ee697958a85eb0ec2e9117bd5046d3f5a632f931032c9a7944fe2554583c1d70', '2025-10-21 07:47:23.185355+00', '20251021074722_', null, null, '2025-10-21 07:47:22.981053+00', '1'), ('c468cf73-a282-43e3-aeb0-2d328cee8ffe', '7c15245f72e7b54af589b85731c9eb71148b40a036b2e43402faed9b021e7917', '2025-10-29 23:31:43.599106+00', '20251030045810_remove_unused_ai_fields', null, null, '2025-10-29 23:31:43.428135+00', '1'), ('eef22e5e-0388-476b-9639-241033254d7d', 'd63a003d97d1563454655e6891e82b0f653ce6547fe179a0306ea2f215160e2c', '2025-10-21 18:24:36.3363+00', '20251021182435_add_delivery_fields_to_customer_insights', null, null, '2025-10-21 18:24:35.904525+00', '1'), ('ff13df95-f6ce-479e-84e0-c6ab5f23d566', 'cdb5762b3fba0b881053a840fa9bed0b199940eb2e46bac8fbcb9765eaf04635', '2025-10-26 13:21:42.368992+00', '20251026131044_add_customizable_prompt_section_content', null, null, '2025-10-26 13:21:42.171037+00', '1');

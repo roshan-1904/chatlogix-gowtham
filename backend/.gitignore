@@ -1,0 +1,44 @@
+# Node / TypeScript
+node_modules/
+*.tsbuildinfo
+
+# Build outputs
+/dist/
+/build/
+.tmp/
+.temp/
+
+# Logs
+logs/
+log/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Coverage
+coverage/
+
+# IDE / Editor
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Prisma (local SQLite databases only)
+prisma/*.db
+prisma/*.db-journal
+
+# Uploads / temp runtime files
+uploads/
+*.pid
+*.pid.lock
+
+# Misc
+*.zip

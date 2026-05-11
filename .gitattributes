@@ -1,0 +1,7 @@
+# Force LF line endings for shell scripts and CI configs.
+# Without this, Windows checkouts convert these to CRLF, which breaks
+# bash scripts executed on Linux runners (Bitbucket Pipelines, EC2 deploys).
+bitbucket-pipelines.yml text eol=lf
+*.sh                    text eol=lf
+*.yml                   text eol=lf
+*.yaml                  text eol=lf

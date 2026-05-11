@@ -1,0 +1,55 @@
+{
+  "media": {
+    "loading": "Loading media…",
+    "failed": "Couldn't load media",
+    "expired": "Media expired",
+    "unsupported": "Unsupported media",
+    "downloadFile": "Download file",
+    "openInNewTab": "Open in new tab",
+    "fileSize": "{{size}}",
+    "duration": "{{minutes}}:{{seconds}}"
+  },
+  "status": {
+    "sending": "Sending…",
+    "sent": "Sent",
+    "delivered": "Delivered",
+    "read": "Read",
+    "failed": "Failed to send",
+    "pending": "Pending",
+    "failedTooltip": "Failed: {{reason}}"
+  },
+  "reactions": {
+    "tooltipSingle": "{{name}} reacted with {{emoji}}",
+    "tooltipMultiple": "{{names}} reacted with {{emoji}}",
+    "tooltipMore": "{{names}} and {{count}} more reacted with {{emoji}}"
+  },
+  "reply": {
+    "missing": "Original message unavailable",
+    "previewLabel": "Replying to {{sender}}"
+  },
+  "lightbox": {
+    "close": "Close lightbox",
+    "previous": "Previous media",
+    "next": "Next media"
+  },
+  "audio": {
+    "play": "Play audio",
+    "pause": "Pause audio",
+    "seek": "Seek audio"
+  },
+  "location": {
+    "openInMaps": "Open in Google Maps",
+    "addressLabel": "Address"
+  },
+  "contact": {
+    "callPhone": "Call",
+    "messageOnWhatsApp": "Message on WhatsApp"
+  },
+  "interactive": {
+    "buttonReply": "Selected: {{label}}",
+    "listReply": "Chose: {{label}}"
+  },
+  "sticker": {
+    "label": "Sticker"
+  }
+}

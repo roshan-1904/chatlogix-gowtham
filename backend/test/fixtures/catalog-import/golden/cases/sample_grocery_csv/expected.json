@@ -1,0 +1,7 @@
+[
+  { "name": "Basmati Rice", "sku": "RICE001", "basePrice": 15000, "baseUnit": "kg", "baseQuantity": 1 },
+  { "name": "Toor Dal",     "sku": "DAL001",  "basePrice": 18000, "baseUnit": "kg", "baseQuantity": 1 },
+  { "name": "Sunflower Oil","sku": "OIL001",  "basePrice": 21000, "baseUnit": "litre", "baseQuantity": 1 },
+  { "name": "Sugar",        "sku": "SUG001",  "basePrice": 5500,  "baseUnit": "kg", "baseQuantity": 1 },
+  { "name": "Tea Powder",   "sku": "TEA001",  "basePrice": 52000, "baseUnit": "kg", "baseQuantity": 1 }
+]

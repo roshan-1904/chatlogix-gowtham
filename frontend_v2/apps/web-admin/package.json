@@ -1,0 +1,47 @@
+{
+  "name": "web-admin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 3001",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf dist node_modules"
+  },
+  "dependencies": {
+    "@chatlogix/api-client": "file:../../packages/api-client",
+    "@chatlogix/auth": "file:../../packages/auth",
+    "@chatlogix/config": "file:../../packages/config",
+    "@chatlogix/design-tokens": "file:../../packages/design-tokens",
+    "@chatlogix/hooks": "file:../../packages/hooks",
+    "@chatlogix/schemas": "file:../../packages/schemas",
+    "@chatlogix/ui": "file:../../packages/ui",
+    "@chatlogix/utils": "file:../../packages/utils",
+    "@tanstack/react-query": "^5.17.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-hook-form": "^7.49.3",
+    "react-router-dom": "^7.9.5",
+    "zustand": "^4.4.7",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.7",
+    "@types/react-dom": "^18.3.0",
+    "@typescript-eslint/eslint-plugin": "^6.21.0",
+    "@typescript-eslint/parser": "^6.21.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.17",
+    "eslint": "^8.57.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.5",
+    "postcss": "^8.4.33",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.6.2",
+    "vite": "^5.1.0"
+  }
+}
+

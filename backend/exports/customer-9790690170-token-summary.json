@@ -1,0 +1,22 @@
+{
+  "generatedAt": "2026-04-13T18:32:44.981Z",
+  "requestedPhone": "9790690170",
+  "conversationCount": 1,
+  "totals": {
+    "totalAiTokensUsed": 26587,
+    "totalMessages": 20,
+    "totalAiMessages": 10
+  },
+  "conversations": [
+    {
+      "conversationId": "0b6baec5-0a1c-4508-a26b-cbc98cb07fca",
+      "vendorName": "Ibell Creations",
+      "customerPhone": "919790690170",
+      "createdAt": "2026-04-12T10:59:31.498Z",
+      "updatedAt": "2026-04-12T10:59:31.498Z",
+      "messageCount": 20,
+      "aiMessageCount": 10,
+      "totalAiTokensUsed": 26587
+    }
+  ]
+}

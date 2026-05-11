@@ -1,0 +1,220 @@
+import { Prisma } from '@prisma/client';
+import { prisma } from '../db/prisma.js';
+import { logger } from '../logger.js';
+import type {
+  AnalyzeRequest,
+  CommitRequest,
+  NormalizedProductDraft
+} from '../routes/schemas/catalogImport.js';
+import {
+  createJob,
+  mergeJobResult,
+  recordTokenUsage,
+  setJobStatus
+} from './catalogImportAuditService.js';
+import { extract } from './catalogExtractionService.js';
+import { commit as commitProducts, type CommitSummary } from './catalogCommitService.js';
+import { assertKeyBelongsToVendor } from './fileIntakeService.js';
+import { recordCatalogImportSpend } from './billingService.js';
+import { catalogImportEventBus } from './catalogImportEventBus.js';
+import { classifyRow } from './catalogNormalizationService.js';
+
+export interface AnalyzeStart {
+  jobId: string;
+  status: 'queued' | 'processing' | 'ready' | 'failed';
+}
+
+export async function startAnalyze(vendorId: string, req: AnalyzeRequest): Promise<AnalyzeStart> {
+  for (const key of req.brochureImageKeys) assertKeyBelongsToVendor(key, vendorId);
+  if (req.tabularFileKey) assertKeyBelongsToVendor(req.tabularFileKey, vendorId);
+
+  const job = await createJob({
+    vendorId,
+    inputManifest: {
+      brochureImageKeys: req.brochureImageKeys,
+      tabularFileKey: req.tabularFileKey ?? null,
+      importOptions: req.importOptions
+    }
+  });
+
+  // Phase 1 runs extraction inline and synchronously. Phase 2 moves to
+  // `Promise.allSettled` with a semaphore and SSE emitter; API will 202 early.
+  runExtractionInBackground(vendorId, job.id, req).catch((err) => {
+    logger.error({ err, jobId: job.id }, 'catalog_import_analyze_failed');
+  });
+
+  return { jobId: job.id, status: 'queued' };
+}
+
+async function runExtractionInBackground(
+  vendorId: string,
+  jobId: string,
+  req: AnalyzeRequest
+): Promise<void> {
+  await setJobStatus(jobId, 'processing');
+  const startedAt = Date.now();
+  logger.info(
+    {
+      jobId,
+      vendorId,
+      phase: 'analyze',
+      imageCount: req.brochureImageKeys.length,
+      hasTabular: !!req.tabularFileKey
+    },
+    'catalog_import_analyze_started'
+  );
+  try {
+    const result = await extract({
+      jobId,
+      vendorId,
+      imageKeys: req.brochureImageKeys,
+      tabularFileKey: req.tabularFileKey,
+      category: req.importOptions.category,
+      languageHint: req.importOptions.languageHint
+    });
+
+    await recordTokenUsage(jobId, result.tokenUsage as unknown as Prisma.InputJsonValue);
+    if (result.tokenUsage.totalPaise > 0) {
+      await recordCatalogImportSpend({
+        vendorId,
+        jobId,
+        paiseCost: result.tokenUsage.totalPaise
+      });
+    }
+
+    await mergeJobResult(jobId, {
+      normalizedProducts: result.normalizedProducts,
+      warnings: result.warnings,
+      pageProgress: result.pageProgress
+    });
+    await setJobStatus(jobId, 'ready');
+    const durationMs = Date.now() - startedAt;
+    logger.info(
+      {
+        jobId,
+        vendorId,
+        phase: 'analyze',
+        durationMs,
+        productCount: result.normalizedProducts.length,
+        warnings: result.warnings.length,
+        tokensUsed:
+          (result.tokenUsage.vision?.totalTokens ?? 0) +
+          (result.tokenUsage.enrichment?.totalTokens ?? 0),
+        costPaise: result.tokenUsage.totalPaise
+      },
+      'catalog_import_analyze_completed'
+    );
+    catalogImportEventBus.emit(jobId, 'job.complete', {
+      productCount: result.normalizedProducts.length,
+      totalPaise: result.tokenUsage.totalPaise,
+      warnings: result.warnings.length
+    });
+  } catch (err) {
+    const durationMs = Date.now() - startedAt;
+    logger.error(
+      { err, jobId, vendorId, phase: 'analyze', durationMs },
+      'catalog_import_extraction_error'
+    );
+    await setJobStatus(jobId, 'failed', (err as Error).message);
+    catalogImportEventBus.emit(jobId, 'job.failed', { reason: (err as Error).message });
+  }
+}
+
+interface CachedSummary {
+  idempotencyKey: string;
+  summary: CommitSummary;
+}
+
+interface JobResultShape {
+  commitSummary?: CachedSummary;
+  commitSummaryWave2?: CachedSummary;
+  normalizedProducts?: NormalizedProductDraft[];
+  deferred?: Array<{ row: NormalizedProductDraft; warnings: string[]; rowStatus: string }>;
+}
+
+export async function commit(vendorId: string, req: CommitRequest): Promise<{
+  summary: CommitSummary;
+  replayed: boolean;
+}> {
+  const job = await prisma.catalogImportJob.findUnique({ where: { id: req.jobId } });
+  if (!job || job.vendorId !== vendorId) {
+    throw Object.assign(new Error('job_not_found'), { code: 'JOB_NOT_FOUND' });
+  }
+  const result = (job.result as JobResultShape | null) ?? {};
+
+  // Replay check: stored idempotency key must match incoming one exactly.
+  const cacheKey = req.wave === 2 ? 'commitSummaryWave2' : 'commitSummary';
+  const cached = result[cacheKey];
+  if (cached?.idempotencyKey === req.idempotencyKey && cached.summary) {
+    logger.info(
+      {
+        jobId: req.jobId,
+        vendorId,
+        phase: 'commit',
+        wave: req.wave,
+        replayed: true
+      },
+      'catalog_import_commit_replayed'
+    );
+    return { summary: cached.summary, replayed: true };
+  }
+
+  const startedAt = Date.now();
+  logger.info(
+    {
+      jobId: req.jobId,
+      vendorId,
+      phase: 'commit',
+      wave: req.wave,
+      dryRun: req.dryRun,
+      rowCount: req.approvedProducts.length
+    },
+    'catalog_import_commit_started'
+  );
+  const summary = await commitProducts(vendorId, req, req.applyAIConfig);
+  const durationMs = Date.now() - startedAt;
+  logger.info(
+    {
+      jobId: req.jobId,
+      vendorId,
+      phase: 'commit',
+      wave: req.wave,
+      dryRun: req.dryRun,
+      durationMs,
+      createdCount: summary.createdCount,
+      updatedCount: summary.updatedCount,
+      skippedCount: summary.skippedCount,
+      failedCount: summary.failed.length,
+      aiConfigApplied: summary.aiConfigApplied
+    },
+    'catalog_import_commit_completed'
+  );
+
+  if (!req.dryRun) {
+    // Compute deferred[] after Wave 1: rows the extraction surfaced that the
+    // vendor did NOT include in approvedProducts. Wave 2 will commit these.
+    if (req.wave === 1) {
+      const approvedIds = new Set(req.approvedProducts.map((p) => p.rowId));
+      const allDrafts = result.normalizedProducts ?? [];
+      const deferred = allDrafts
+        .filter((d) => !approvedIds.has(d.rowId))
+        .map((d) => {
+          const { warnings } = classifyRow(d);
+          return { row: d, warnings, rowStatus: 'needs_review' };
+        });
+      summary.deferredCount = deferred.length;
+      await mergeJobResult(req.jobId, {
+        [cacheKey]: { idempotencyKey: req.idempotencyKey, summary },
+        deferred,
+        committedAt: new Date().toISOString()
+      });
+    } else {
+      await mergeJobResult(req.jobId, {
+        [cacheKey]: { idempotencyKey: req.idempotencyKey, summary },
+        committedAt: new Date().toISOString()
+      });
+    }
+  }
+
+  return { summary, replayed: false };
+}

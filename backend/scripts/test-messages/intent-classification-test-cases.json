@@ -1,0 +1,1539 @@
+{
+  "testCases": [
+    {
+      "message": "Hi",
+      "expectedPrimaryIntent": "greeting",
+      "expectedSecondaryIntents": [],
+      "description": "Simple greeting"
+    },
+    {
+      "message": "Hello, good morning",
+      "expectedPrimaryIntent": "greeting",
+      "expectedSecondaryIntents": [],
+      "description": "Formal greeting"
+    },
+    {
+      "message": "Namaste",
+      "expectedPrimaryIntent": "greeting",
+      "expectedSecondaryIntents": [],
+      "description": "Traditional greeting"
+    },
+    {
+      "message": "Do you have chocolate brownies?",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Product availability question"
+    },
+    {
+      "message": "What's the price of Karuppu Kavuni Brownie?",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Price inquiry"
+    },
+    {
+      "message": "Is Mapillai Samba available?",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Availability check"
+    },
+    {
+      "message": "What products do you have?",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "General product inquiry"
+    },
+    {
+      "message": "Tell me about your brownies",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Product information request"
+    },
+    {
+      "message": "I want 2kg brownie",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "New order placement"
+    },
+    {
+      "message": "I'll take 1kg Karuppu Kavuni Brownie",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Order with product name"
+    },
+    {
+      "message": "I need 3 boxes",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Order with quantity"
+    },
+    {
+      "message": "Give me 5kg brownie",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Order with imperative"
+    },
+    {
+      "message": "make it 5 boxes",
+      "expectedPrimaryIntent": "order_update",
+      "expectedSecondaryIntents": [],
+      "description": "Quantity update pattern",
+      "context": {
+        "hasExistingOrder": true
+      }
+    },
+    {
+      "message": "change to 3kg",
+      "expectedPrimaryIntent": "order_update",
+      "expectedSecondaryIntents": [],
+      "description": "Change quantity",
+      "context": {
+        "hasExistingOrder": true
+      }
+    },
+    {
+      "message": "make it as 5",
+      "expectedPrimaryIntent": "order_update",
+      "expectedSecondaryIntents": [],
+      "description": "Quantity update with 'as'",
+      "context": {
+        "hasExistingOrder": true
+      }
+    },
+    {
+      "message": "I like to make it as 5 boxes",
+      "expectedPrimaryIntent": "order_update",
+      "expectedSecondaryIntents": [],
+      "description": "Polite quantity update",
+      "context": {
+        "hasExistingOrder": true
+      }
+    },
+    {
+      "message": "add 2 more boxes",
+      "expectedPrimaryIntent": "order_update",
+      "expectedSecondaryIntents": [],
+      "description": "Add items",
+      "context": {
+        "hasExistingOrder": true
+      }
+    },
+    {
+      "message": "remove 1 box from order",
+      "expectedPrimaryIntent": "order_update",
+      "expectedSecondaryIntents": [],
+      "description": "Remove items",
+      "context": {
+        "hasExistingOrder": true
+      }
+    },
+    {
+      "message": "update quantity to 10",
+      "expectedPrimaryIntent": "order_update",
+      "expectedSecondaryIntents": [],
+      "description": "Explicit update",
+      "context": {
+        "hasExistingOrder": true
+      }
+    },
+    {
+      "message": "where is my order?",
+      "expectedPrimaryIntent": "order_status",
+      "expectedSecondaryIntents": [],
+      "description": "Order tracking"
+    },
+    {
+      "message": "what's the status of my order?",
+      "expectedPrimaryIntent": "order_status",
+      "expectedSecondaryIntents": [],
+      "description": "Status inquiry"
+    },
+    {
+      "message": "when will my order arrive?",
+      "expectedPrimaryIntent": "order_status",
+      "expectedSecondaryIntents": [],
+      "description": "Delivery time inquiry"
+    },
+    {
+      "message": "track my order",
+      "expectedPrimaryIntent": "order_status",
+      "expectedSecondaryIntents": [],
+      "description": "Order tracking request"
+    },
+    {
+      "message": "Hi, do you have chocolate brownies?",
+      "expectedPrimaryIntent": "greeting",
+      "expectedSecondaryIntents": ["product_inquiry"],
+      "description": "Greeting + Product inquiry"
+    },
+    {
+      "message": "Hello, what's the price?",
+      "expectedPrimaryIntent": "greeting",
+      "expectedSecondaryIntents": ["product_inquiry"],
+      "description": "Greeting + Price inquiry"
+    },
+    {
+      "message": "I like to make it as 5 boxes, and do you have any other varieties?",
+      "expectedPrimaryIntent": "order_update",
+      "expectedSecondaryIntents": ["product_inquiry"],
+      "description": "Order update + Product inquiry",
+      "context": {
+        "hasExistingOrder": true
+      }
+    },
+    {
+      "message": "make it 5 and tell me about other products",
+      "expectedPrimaryIntent": "order_update",
+      "expectedSecondaryIntents": ["product_inquiry"],
+      "description": "Order update + Product inquiry (concise)",
+      "context": {
+        "hasExistingOrder": true
+      }
+    },
+    {
+      "message": "can I talk to a human?",
+      "expectedPrimaryIntent": "support",
+      "expectedSecondaryIntents": [],
+      "description": "Human handoff request"
+    },
+    {
+      "message": "I want to speak with an agent",
+      "expectedPrimaryIntent": "support",
+      "expectedSecondaryIntents": [],
+      "description": "Agent request"
+    },
+    {
+      "message": "connect me to customer service",
+      "expectedPrimaryIntent": "support",
+      "expectedSecondaryIntents": [],
+      "description": "Customer service request"
+    },
+    {
+      "message": "yes, confirm my order",
+      "expectedPrimaryIntent": "confirm_order",
+      "expectedSecondaryIntents": [],
+      "description": "Order confirmation"
+    },
+    {
+      "message": "ok, proceed",
+      "expectedPrimaryIntent": "confirm_order",
+      "expectedSecondaryIntents": [],
+      "description": "Proceed confirmation"
+    },
+    {
+      "message": "go ahead",
+      "expectedPrimaryIntent": "confirm_order",
+      "expectedSecondaryIntents": [],
+      "description": "Go ahead confirmation"
+    },
+    {
+      "message": "cancel my order",
+      "expectedPrimaryIntent": "cancel_order",
+      "expectedSecondaryIntents": [],
+      "description": "Order cancellation"
+    },
+    {
+      "message": "remove my order",
+      "expectedPrimaryIntent": "cancel_order",
+      "expectedSecondaryIntents": [],
+      "description": "Remove order"
+    },
+    {
+      "message": "I don't want this order anymore",
+      "expectedPrimaryIntent": "cancel_order",
+      "expectedSecondaryIntents": [],
+      "description": "Cancel order (polite)"
+    },
+    {
+      "message": "yes",
+      "expectedPrimaryIntent": "confirm_order",
+      "expectedSecondaryIntents": [],
+      "description": "Ambiguous yes - should check context"
+    },
+    {
+      "message": "make it 5",
+      "expectedPrimaryIntent": "order_update",
+      "expectedSecondaryIntents": [],
+      "description": "Short quantity update",
+      "context": {
+        "hasExistingOrder": true
+      }
+    },
+    {
+      "message": "I want something for tomorrow",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Order with delivery date"
+    },
+    {
+      "message": "Do you deliver to Coimbatore?",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Delivery location inquiry"
+    },
+    {
+      "message": "How long does delivery take?",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Delivery time inquiry"
+    },
+    {
+      "message": "What payment methods do you accept?",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Payment method inquiry"
+    },
+    {
+      "message": "I'm allergic to nuts",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Order with dietary restriction"
+    },
+    {
+      "message": "Please deliver before 8 PM",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Order with delivery time preference"
+    },
+    {
+      "message": "Actually, change the address to Tower 11",
+      "expectedPrimaryIntent": "order_update",
+      "expectedSecondaryIntents": [],
+      "description": "Address update",
+      "context": {
+        "hasExistingOrder": true
+      }
+    },
+    {
+      "message": "Can you change delivery time to 7 PM?",
+      "expectedPrimaryIntent": "order_update",
+      "expectedSecondaryIntents": [],
+      "description": "Delivery time update",
+      "context": {
+        "hasExistingOrder": true
+      }
+    },
+    {
+      "message": "is chocolate brownie available?",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Availability question (lowercase)"
+    },
+    {
+      "message": "DO YOU HAVE BROWNIES?",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Uppercase message"
+    },
+    {
+      "message": "hi i want 2kg brownie",
+      "expectedPrimaryIntent": "greeting",
+      "expectedSecondaryIntents": ["order_new"],
+      "description": "Greeting + Order (no punctuation)"
+    },
+    {
+      "message": "make it 5 boxes please",
+      "expectedPrimaryIntent": "order_update",
+      "expectedSecondaryIntents": [],
+      "description": "Polite update request",
+      "context": {
+        "hasExistingOrder": true
+      }
+    },
+    {
+      "message": "vanakkam",
+      "expectedPrimaryIntent": "greeting",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil greeting"
+    },
+    {
+      "message": "namaskara",
+      "expectedPrimaryIntent": "greeting",
+      "expectedSecondaryIntents": [],
+      "description": "Kannada greeting"
+    },
+    {
+      "message": "namaskaram",
+      "expectedPrimaryIntent": "greeting",
+      "expectedSecondaryIntents": [],
+      "description": "Telugu/Malayalam greeting"
+    },
+    {
+      "message": "enna irukku",
+      "expectedPrimaryIntent": "greeting",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil casual greeting"
+    },
+    {
+      "message": "howsit",
+      "expectedPrimaryIntent": "greeting",
+      "expectedSecondaryIntents": [],
+      "description": "Casual greeting"
+    },
+    {
+      "message": "bro enna products irukku",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Tanglish - What products available"
+    },
+    {
+      "message": "brownie irukka",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - Is brownie available"
+    },
+    {
+      "message": "brownie ideya",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Kannada - Is brownie available"
+    },
+    {
+      "message": "brownie unda",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Malayalam - Is brownie available"
+    },
+    {
+      "message": "brownie undha",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Telugu - Is brownie available"
+    },
+    {
+      "message": "enna price",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Tanglish - What price"
+    },
+    {
+      "message": "evlo price",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - How much price"
+    },
+    {
+      "message": "yestu price",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Kannada - How much price"
+    },
+    {
+      "message": "ethra price",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Malayalam - How much price"
+    },
+    {
+      "message": "entha price",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Telugu - How much price"
+    },
+    {
+      "message": "1kg brownie venum",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - I want 1kg brownie"
+    },
+    {
+      "message": "2kg brownie beku",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Kannada - I want 2kg brownie"
+    },
+    {
+      "message": "1kg brownie vende",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Malayalam - I want 1kg brownie"
+    },
+    {
+      "message": "2kg brownie kavali",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Telugu - I want 2kg brownie"
+    },
+    {
+      "message": "naan 3kg order pannanum",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - I want to order 3kg"
+    },
+    {
+      "message": "nange 2kg order madi",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Kannada - I want to order 2kg"
+    },
+    {
+      "message": "enikku 1kg order cheyyanam",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Malayalam - I want to order 1kg"
+    },
+    {
+      "message": "naku 2kg order cheyali",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Telugu - I want to order 2kg"
+    },
+    {
+      "message": "5 boxes pannu",
+      "expectedPrimaryIntent": "order_update",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - Make it 5 boxes",
+      "context": {
+        "hasExistingOrder": true
+      }
+    },
+    {
+      "message": "5 boxes maadi",
+      "expectedPrimaryIntent": "order_update",
+      "expectedSecondaryIntents": [],
+      "description": "Kannada - Make it 5 boxes",
+      "context": {
+        "hasExistingOrder": true
+      }
+    },
+    {
+      "message": "5 boxes aakku",
+      "expectedPrimaryIntent": "order_update",
+      "expectedSecondaryIntents": [],
+      "description": "Malayalam - Make it 5 boxes",
+      "context": {
+        "hasExistingOrder": true
+      }
+    },
+    {
+      "message": "5 boxes cheyandi",
+      "expectedPrimaryIntent": "order_update",
+      "expectedSecondaryIntents": [],
+      "description": "Telugu - Make it 5 boxes",
+      "context": {
+        "hasExistingOrder": true
+      }
+    },
+    {
+      "message": "5ku change pannu",
+      "expectedPrimaryIntent": "order_update",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - Change to 5",
+      "context": {
+        "hasExistingOrder": true
+      }
+    },
+    {
+      "message": "5ge change maadi",
+      "expectedPrimaryIntent": "order_update",
+      "expectedSecondaryIntents": [],
+      "description": "Kannada - Change to 5",
+      "context": {
+        "hasExistingOrder": true
+      }
+    },
+    {
+      "message": "5ku maari aakku",
+      "expectedPrimaryIntent": "order_update",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - Change to 5",
+      "context": {
+        "hasExistingOrder": true
+      }
+    },
+    {
+      "message": "innum 2 add pannu",
+      "expectedPrimaryIntent": "order_update",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - Add 2 more",
+      "context": {
+        "hasExistingOrder": true
+      }
+    },
+    {
+      "message": "innu 2 add maadi",
+      "expectedPrimaryIntent": "order_update",
+      "expectedSecondaryIntents": [],
+      "description": "Kannada - Add 2 more",
+      "context": {
+        "hasExistingOrder": true
+      }
+    },
+    {
+      "message": "koode 2 add cheyyu",
+      "expectedPrimaryIntent": "order_update",
+      "expectedSecondaryIntents": [],
+      "description": "Malayalam - Add 2 more",
+      "context": {
+        "hasExistingOrder": true
+      }
+    },
+    {
+      "message": "inko 2 add cheyandi",
+      "expectedPrimaryIntent": "order_update",
+      "expectedSecondaryIntents": [],
+      "description": "Telugu - Add 2 more",
+      "context": {
+        "hasExistingOrder": true
+      }
+    },
+    {
+      "message": "en order enge irukku",
+      "expectedPrimaryIntent": "order_status",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - Where is my order"
+    },
+    {
+      "message": "nanna order elli ide",
+      "expectedPrimaryIntent": "order_status",
+      "expectedSecondaryIntents": [],
+      "description": "Kannada - Where is my order"
+    },
+    {
+      "message": "ente order evideya",
+      "expectedPrimaryIntent": "order_status",
+      "expectedSecondaryIntents": [],
+      "description": "Malayalam - Where is my order"
+    },
+    {
+      "message": "na order ekkada undhi",
+      "expectedPrimaryIntent": "order_status",
+      "expectedSecondaryIntents": [],
+      "description": "Telugu - Where is my order"
+    },
+    {
+      "message": "en order status enna",
+      "expectedPrimaryIntent": "order_status",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - What is my order status"
+    },
+    {
+      "message": "nanna order status enu",
+      "expectedPrimaryIntent": "order_status",
+      "expectedSecondaryIntents": [],
+      "description": "Kannada - What is my order status"
+    },
+    {
+      "message": "ente order status entha",
+      "expectedPrimaryIntent": "order_status",
+      "expectedSecondaryIntents": [],
+      "description": "Malayalam - What is my order status"
+    },
+    {
+      "message": "na order status entha",
+      "expectedPrimaryIntent": "order_status",
+      "expectedSecondaryIntents": [],
+      "description": "Telugu - What is my order status"
+    },
+    {
+      "message": "human kitta pesalam",
+      "expectedPrimaryIntent": "support",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - Can talk to human"
+    },
+    {
+      "message": "human jothe matadbeku",
+      "expectedPrimaryIntent": "support",
+      "expectedSecondaryIntents": [],
+      "description": "Kannada - Want to talk to human"
+    },
+    {
+      "message": "humanodu parayam",
+      "expectedPrimaryIntent": "support",
+      "expectedSecondaryIntents": [],
+      "description": "Malayalam - Can talk to human"
+    },
+    {
+      "message": "human tho matladali",
+      "expectedPrimaryIntent": "support",
+      "expectedSecondaryIntents": [],
+      "description": "Telugu - Want to talk to human"
+    },
+    {
+      "message": "ok confirm pannu",
+      "expectedPrimaryIntent": "confirm_order",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - Ok confirm"
+    },
+    {
+      "message": "ok confirm maadi",
+      "expectedPrimaryIntent": "confirm_order",
+      "expectedSecondaryIntents": [],
+      "description": "Kannada - Ok confirm"
+    },
+    {
+      "message": "ok confirm cheyyu",
+      "expectedPrimaryIntent": "confirm_order",
+      "expectedSecondaryIntents": [],
+      "description": "Malayalam - Ok confirm"
+    },
+    {
+      "message": "ok confirm cheyandi",
+      "expectedPrimaryIntent": "confirm_order",
+      "expectedSecondaryIntents": [],
+      "description": "Telugu - Ok confirm"
+    },
+    {
+      "message": "aama confirm pannu",
+      "expectedPrimaryIntent": "confirm_order",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - Yes confirm"
+    },
+    {
+      "message": "houdu confirm maadi",
+      "expectedPrimaryIntent": "confirm_order",
+      "expectedSecondaryIntents": [],
+      "description": "Kannada - Yes confirm"
+    },
+    {
+      "message": "athe confirm cheyyu",
+      "expectedPrimaryIntent": "confirm_order",
+      "expectedSecondaryIntents": [],
+      "description": "Malayalam - Yes confirm"
+    },
+    {
+      "message": "avunu confirm cheyandi",
+      "expectedPrimaryIntent": "confirm_order",
+      "expectedSecondaryIntents": [],
+      "description": "Telugu - Yes confirm"
+    },
+    {
+      "message": "order cancel pannu",
+      "expectedPrimaryIntent": "cancel_order",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - Cancel order"
+    },
+    {
+      "message": "order cancel maadi",
+      "expectedPrimaryIntent": "cancel_order",
+      "expectedSecondaryIntents": [],
+      "description": "Kannada - Cancel order"
+    },
+    {
+      "message": "order cancel cheyyu",
+      "expectedPrimaryIntent": "cancel_order",
+      "expectedSecondaryIntents": [],
+      "description": "Malayalam - Cancel order"
+    },
+    {
+      "message": "order cancel cheyandi",
+      "expectedPrimaryIntent": "cancel_order",
+      "expectedSecondaryIntents": [],
+      "description": "Telugu - Cancel order"
+    },
+    {
+      "message": "bro 2kg brownie venum",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Tanglish - Bro I want 2kg brownie"
+    },
+    {
+      "message": "anna price enna",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Tanglish - Brother what price"
+    },
+    {
+      "message": "sir brownie irukka",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Tanglish - Sir is brownie available"
+    },
+    {
+      "message": "madam 1kg venum",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Tanglish - Madam I want 1kg"
+    },
+    {
+      "message": "hi bro enna products irukku",
+      "expectedPrimaryIntent": "greeting",
+      "expectedSecondaryIntents": ["product_inquiry"],
+      "description": "Tanglish - Hi bro what products available"
+    },
+    {
+      "message": "vanakkam brownie irukka",
+      "expectedPrimaryIntent": "greeting",
+      "expectedSecondaryIntents": ["product_inquiry"],
+      "description": "Tamil - Greeting + Is brownie available"
+    },
+    {
+      "message": "namaskara brownie ideya",
+      "expectedPrimaryIntent": "greeting",
+      "expectedSecondaryIntents": ["product_inquiry"],
+      "description": "Kannada - Greeting + Is brownie available"
+    },
+    {
+      "message": "namaskaram brownie unda",
+      "expectedPrimaryIntent": "greeting",
+      "expectedSecondaryIntents": ["product_inquiry"],
+      "description": "Malayalam - Greeting + Is brownie available"
+    },
+    {
+      "message": "namaskaram brownie undha",
+      "expectedPrimaryIntent": "greeting",
+      "expectedSecondaryIntents": ["product_inquiry"],
+      "description": "Telugu - Greeting + Is brownie available"
+    },
+    {
+      "message": "5ku change pannu bro",
+      "expectedPrimaryIntent": "order_update",
+      "expectedSecondaryIntents": [],
+      "description": "Tanglish - Change to 5 bro",
+      "context": {
+        "hasExistingOrder": true
+      }
+    },
+    {
+      "message": "innum 2 add pannu please",
+      "expectedPrimaryIntent": "order_update",
+      "expectedSecondaryIntents": [],
+      "description": "Tanglish - Add 2 more please",
+      "context": {
+        "hasExistingOrder": true
+      }
+    },
+    {
+      "message": "enna delivery time",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Tanglish - What delivery time"
+    },
+    {
+      "message": "evlo time la varum",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - In how much time will it come"
+    },
+    {
+      "message": "yestu time ge barutte",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Kannada - In how much time will it come"
+    },
+    {
+      "message": "ethra time il varum",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Malayalam - In how much time will it come"
+    },
+    {
+      "message": "enta time ki vastundi",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Telugu - In how much time will it come"
+    },
+    {
+      "message": "naale deliver pannu",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - Deliver tomorrow"
+    },
+    {
+      "message": "naale deliver maadi",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Kannada - Deliver tomorrow"
+    },
+    {
+      "message": "naale deliver cheyyu",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Malayalam - Deliver tomorrow"
+    },
+    {
+      "message": "repu deliver cheyandi",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Telugu - Deliver tomorrow"
+    },
+    {
+      "message": "morning la deliver pannu",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - Deliver in morning"
+    },
+    {
+      "message": "beligge deliver maadi",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Kannada - Deliver in morning"
+    },
+    {
+      "message": "ravile deliver cheyyu",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Malayalam - Deliver in morning"
+    },
+    {
+      "message": "udayam deliver cheyandi",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Telugu - Deliver in morning"
+    },
+    {
+      "message": "evening la deliver pannu",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - Deliver in evening"
+    },
+    {
+      "message": "sanje deliver maadi",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Kannada - Deliver in evening"
+    },
+    {
+      "message": "ravile deliver cheyyu",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Malayalam - Deliver in evening"
+    },
+    {
+      "message": "sayantram deliver cheyandi",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Telugu - Deliver in evening"
+    },
+    {
+      "message": "cash kodukalam",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - Can give cash"
+    },
+    {
+      "message": "cash kodbeku",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Kannada - Want to give cash"
+    },
+    {
+      "message": "cash kodukkam",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Malayalam - Can give cash"
+    },
+    {
+      "message": "cash ivvachu",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Telugu - Can give cash"
+    },
+    {
+      "message": "address change pannu",
+      "expectedPrimaryIntent": "order_update",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - Change address",
+      "context": {
+        "hasExistingOrder": true
+      }
+    },
+    {
+      "message": "address change maadi",
+      "expectedPrimaryIntent": "order_update",
+      "expectedSecondaryIntents": [],
+      "description": "Kannada - Change address",
+      "context": {
+        "hasExistingOrder": true
+      }
+    },
+    {
+      "message": "address change cheyyu",
+      "expectedPrimaryIntent": "order_update",
+      "expectedSecondaryIntents": [],
+      "description": "Malayalam - Change address",
+      "context": {
+        "hasExistingOrder": true
+      }
+    },
+    {
+      "message": "address change cheyandi",
+      "expectedPrimaryIntent": "order_update",
+      "expectedSecondaryIntents": [],
+      "description": "Telugu - Change address",
+      "context": {
+        "hasExistingOrder": true
+      }
+    },
+    {
+      "message": "sugar less venum",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - Want sugar less"
+    },
+    {
+      "message": "sugar less beku",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Kannada - Want sugar less"
+    },
+    {
+      "message": "sugar kuravayirikkanam",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Malayalam - Should be less sugar"
+    },
+    {
+      "message": "sugar takkuva kavali",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Telugu - Want less sugar"
+    },
+    {
+      "message": "diabetic ku ok ah",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - Is it ok for diabetic"
+    },
+    {
+      "message": "diabetic ge ok na",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Kannada - Is it ok for diabetic"
+    },
+    {
+      "message": "diabetic ku ok ano",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Malayalam - Is it ok for diabetic"
+    },
+    {
+      "message": "diabetic ki ok ah",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Telugu - Is it ok for diabetic"
+    },
+    {
+      "message": "kids ku safe ah",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - Is it safe for kids"
+    },
+    {
+      "message": "maklu ge safe na",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Kannada - Is it safe for kids"
+    },
+    {
+      "message": "kuttikalkku safe ano",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Malayalam - Is it safe for kids"
+    },
+    {
+      "message": "pillalaki safe ah",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Telugu - Is it safe for kids"
+    },
+    {
+      "message": "birthday ku venum",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - Want for birthday"
+    },
+    {
+      "message": "birthday ge beku",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Kannada - Want for birthday"
+    },
+    {
+      "message": "birthday ku vende",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Malayalam - Want for birthday"
+    },
+    {
+      "message": "birthday ki kavali",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Telugu - Want for birthday"
+    },
+    {
+      "message": "gift wrap pannu",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - Gift wrap"
+    },
+    {
+      "message": "gift wrap maadi",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Kannada - Gift wrap"
+    },
+    {
+      "message": "gift wrap cheyyu",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Malayalam - Gift wrap"
+    },
+    {
+      "message": "gift wrap cheyandi",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Telugu - Gift wrap"
+    },
+    {
+      "message": "fast delivery venum",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - Want fast delivery"
+    },
+    {
+      "message": "fast delivery beku",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Kannada - Want fast delivery"
+    },
+    {
+      "message": "fast delivery vende",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Malayalam - Want fast delivery"
+    },
+    {
+      "message": "fast delivery kavali",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Telugu - Want fast delivery"
+    },
+    {
+      "message": "free delivery irukka",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - Is free delivery available"
+    },
+    {
+      "message": "free delivery ideya",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Kannada - Is free delivery available"
+    },
+    {
+      "message": "free delivery unda",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Malayalam - Is free delivery available"
+    },
+    {
+      "message": "free delivery undha",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Telugu - Is free delivery available"
+    },
+    {
+      "message": "online payment pannalam",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - Can do online payment"
+    },
+    {
+      "message": "online payment maadbeku",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Kannada - Want to do online payment"
+    },
+    {
+      "message": "online payment cheyyam",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Malayalam - Can do online payment"
+    },
+    {
+      "message": "online payment cheyachu",
+      "expectedPrimaryIntent": "product_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Telugu - Can do online payment"
+    },
+    {
+      "message": "phone number kuduthuten",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - I gave phone number"
+    },
+    {
+      "message": "phone number kottide",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Kannada - I gave phone number"
+    },
+    {
+      "message": "phone number koduthu",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Malayalam - I gave phone number"
+    },
+    {
+      "message": "phone number ichanu",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Telugu - I gave phone number"
+    },
+    {
+      "message": "address kuduthuten",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - I gave address"
+    },
+    {
+      "message": "address kottide",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Kannada - I gave address"
+    },
+    {
+      "message": "address koduthu",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Malayalam - I gave address"
+    },
+    {
+      "message": "address ichanu",
+      "expectedPrimaryIntent": "order_new",
+      "expectedSecondaryIntents": [],
+      "description": "Telugu - I gave address"
+    },
+    {
+      "message": "thanks",
+      "expectedPrimaryIntent": "greeting",
+      "expectedSecondaryIntents": [],
+      "description": "Thank you"
+    },
+    {
+      "message": "nandri",
+      "expectedPrimaryIntent": "greeting",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - Thank you"
+    },
+    {
+      "message": "dhanyavadagalu",
+      "expectedPrimaryIntent": "greeting",
+      "expectedSecondaryIntents": [],
+      "description": "Kannada - Thank you"
+    },
+    {
+      "message": "nandi",
+      "expectedPrimaryIntent": "greeting",
+      "expectedSecondaryIntents": [],
+      "description": "Malayalam - Thank you"
+    },
+    {
+      "message": "dhanyavadalu",
+      "expectedPrimaryIntent": "greeting",
+      "expectedSecondaryIntents": [],
+      "description": "Telugu - Thank you"
+    },
+    {
+      "message": "ok bye",
+      "expectedPrimaryIntent": "greeting",
+      "expectedSecondaryIntents": [],
+      "description": "Goodbye"
+    },
+    {
+      "message": "poitu varen",
+      "expectedPrimaryIntent": "greeting",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - I'm going"
+    },
+    {
+      "message": "hogutini",
+      "expectedPrimaryIntent": "greeting",
+      "expectedSecondaryIntents": [],
+      "description": "Kannada - I'm going"
+    },
+    {
+      "message": "poyittu varam",
+      "expectedPrimaryIntent": "greeting",
+      "expectedSecondaryIntents": [],
+      "description": "Malayalam - I'm going"
+    },
+    {
+      "message": "velthunna",
+      "expectedPrimaryIntent": "greeting",
+      "expectedSecondaryIntents": [],
+      "description": "Telugu - I'm going"
+    },
+    
+    // ========== PAYMENT INQUIRY TEST CASES ==========
+    {
+      "message": "What payment methods do you accept?",
+      "expectedPrimaryIntent": "payment_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Payment method question - English"
+    },
+    {
+      "message": "Can I pay by cash?",
+      "expectedPrimaryIntent": "payment_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Cash payment question"
+    },
+    {
+      "message": "Do you accept UPI?",
+      "expectedPrimaryIntent": "payment_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "UPI payment question"
+    },
+    {
+      "message": "online payment pannalam",
+      "expectedPrimaryIntent": "payment_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - Can do online payment"
+    },
+    {
+      "message": "cash kodukalam",
+      "expectedPrimaryIntent": "payment_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - Can give cash"
+    },
+    {
+      "message": "cash kodbeku",
+      "expectedPrimaryIntent": "payment_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Kannada - Need cash"
+    },
+    {
+      "message": "What's the payment process?",
+      "expectedPrimaryIntent": "payment_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Payment process question"
+    },
+    {
+      "message": "Is COD available?",
+      "expectedPrimaryIntent": "payment_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "COD availability question"
+    },
+    
+    // ========== DELIVERY INQUIRY TEST CASES ==========
+    {
+      "message": "Do you deliver to Coimbatore?",
+      "expectedPrimaryIntent": "delivery_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Delivery location question"
+    },
+    {
+      "message": "What's the delivery time?",
+      "expectedPrimaryIntent": "delivery_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Delivery time question"
+    },
+    {
+      "message": "Is free delivery available?",
+      "expectedPrimaryIntent": "delivery_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Free delivery question"
+    },
+    {
+      "message": "free delivery irukka",
+      "expectedPrimaryIntent": "delivery_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - Is free delivery available"
+    },
+    {
+      "message": "evlo time la varum",
+      "expectedPrimaryIntent": "delivery_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - In how much time will it come"
+    },
+    {
+      "message": "How long does delivery take?",
+      "expectedPrimaryIntent": "delivery_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Delivery duration question"
+    },
+    {
+      "message": "Do you deliver to my area?",
+      "expectedPrimaryIntent": "delivery_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Delivery area question"
+    },
+    
+    // ========== COMPLAINT TEST CASES ==========
+    {
+      "message": "My order was damaged",
+      "expectedPrimaryIntent": "complaint",
+      "expectedSecondaryIntents": [],
+      "description": "Complaint about damaged order"
+    },
+    {
+      "message": "Wrong item received",
+      "expectedPrimaryIntent": "complaint",
+      "expectedSecondaryIntents": [],
+      "description": "Complaint about wrong item"
+    },
+    {
+      "message": "Quality is poor",
+      "expectedPrimaryIntent": "complaint",
+      "expectedSecondaryIntents": [],
+      "description": "Quality complaint"
+    },
+    {
+      "message": "Order is late",
+      "expectedPrimaryIntent": "complaint",
+      "expectedSecondaryIntents": [],
+      "description": "Delivery delay complaint"
+    },
+    {
+      "message": "Item is broken",
+      "expectedPrimaryIntent": "complaint",
+      "expectedSecondaryIntents": [],
+      "description": "Broken item complaint"
+    },
+    {
+      "message": "Not satisfied with service",
+      "expectedPrimaryIntent": "complaint",
+      "expectedSecondaryIntents": [],
+      "description": "Service complaint"
+    },
+    
+    // ========== REFUND REQUEST TEST CASES ==========
+    {
+      "message": "I want a refund",
+      "expectedPrimaryIntent": "refund_request",
+      "expectedSecondaryIntents": [],
+      "description": "Refund request"
+    },
+    {
+      "message": "Return my money",
+      "expectedPrimaryIntent": "refund_request",
+      "expectedSecondaryIntents": [],
+      "description": "Money back request"
+    },
+    {
+      "message": "Refund for damaged item",
+      "expectedPrimaryIntent": "refund_request",
+      "expectedSecondaryIntents": [],
+      "description": "Refund for specific reason"
+    },
+    {
+      "message": "refund venum",
+      "expectedPrimaryIntent": "refund_request",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - Need refund"
+    },
+    {
+      "message": "Give me my money back",
+      "expectedPrimaryIntent": "refund_request",
+      "expectedSecondaryIntents": [],
+      "description": "Money back request"
+    },
+    
+    // ========== FEEDBACK TEST CASES ==========
+    {
+      "message": "Great service, thank you!",
+      "expectedPrimaryIntent": "feedback",
+      "expectedSecondaryIntents": [],
+      "description": "Positive feedback"
+    },
+    {
+      "message": "Product was excellent",
+      "expectedPrimaryIntent": "feedback",
+      "expectedSecondaryIntents": [],
+      "description": "Product feedback"
+    },
+    {
+      "message": "5 stars",
+      "expectedPrimaryIntent": "feedback",
+      "expectedSecondaryIntents": [],
+      "description": "Rating feedback"
+    },
+    {
+      "message": "Very happy with order",
+      "expectedPrimaryIntent": "feedback",
+      "expectedSecondaryIntents": [],
+      "description": "Satisfaction feedback"
+    },
+    {
+      "message": "nandri",
+      "expectedPrimaryIntent": "feedback",
+      "expectedSecondaryIntents": [],
+      "description": "Tamil - Thank you (after service)"
+    },
+    
+    // ========== RETURN REQUEST TEST CASES ==========
+    {
+      "message": "I want to return this",
+      "expectedPrimaryIntent": "return_request",
+      "expectedSecondaryIntents": [],
+      "description": "Return request"
+    },
+    {
+      "message": "Can I exchange this?",
+      "expectedPrimaryIntent": "return_request",
+      "expectedSecondaryIntents": [],
+      "description": "Exchange request"
+    },
+    {
+      "message": "Return item",
+      "expectedPrimaryIntent": "return_request",
+      "expectedSecondaryIntents": [],
+      "description": "Simple return request"
+    },
+    {
+      "message": "Swap this for another size",
+      "expectedPrimaryIntent": "return_request",
+      "expectedSecondaryIntents": [],
+      "description": "Exchange for different size"
+    },
+    
+    // ========== ACCOUNT INQUIRY TEST CASES ==========
+    {
+      "message": "Update my address",
+      "expectedPrimaryIntent": "account_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Address update request"
+    },
+    {
+      "message": "Change my phone number",
+      "expectedPrimaryIntent": "account_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Phone update request"
+    },
+    {
+      "message": "My account details",
+      "expectedPrimaryIntent": "account_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Account details request"
+    },
+    {
+      "message": "Update profile",
+      "expectedPrimaryIntent": "account_inquiry",
+      "expectedSecondaryIntents": [],
+      "description": "Profile update request"
+    },
+    
+    // ========== REPEAT ORDER TEST CASES ==========
+    {
+      "message": "Same as last time",
+      "expectedPrimaryIntent": "repeat_order",
+      "expectedSecondaryIntents": [],
+      "description": "Repeat last order"
+    },
+    {
+      "message": "Repeat my last order",
+      "expectedPrimaryIntent": "repeat_order",
+      "expectedSecondaryIntents": [],
+      "description": "Explicit repeat request"
+    },
+    {
+      "message": "Order again",
+      "expectedPrimaryIntent": "repeat_order",
+      "expectedSecondaryIntents": [],
+      "description": "Reorder request"
+    },
+    {
+      "message": "Same order as before",
+      "expectedPrimaryIntent": "repeat_order",
+      "expectedSecondaryIntents": [],
+      "description": "Same order request"
+    },
+    {
+      "message": "I want the same thing",
+      "expectedPrimaryIntent": "repeat_order",
+      "expectedSecondaryIntents": [],
+      "description": "Same items request"
+    }
+  ]
+}
+

@@ -1,0 +1,43 @@
+# Expo
+.expo/
+.expo-shared/
+dist/
+web-build/
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Environment
+.env
+.env.local
+
+# OS
+.DS_Store
+*.pem
+
+# IDE
+.vscode/
+.idea/
+
+# EAS
+eas.json.local
+
+# iOS
+ios/
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.xcuserstate
+project.xcworkspace/
+xcuserdata/
+
+# Android
+android/
+*.apk
+*.aab
+.gradle/
+local.properties
+

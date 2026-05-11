@@ -1,0 +1,631 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Vendor {
+  id                             String                @id @default(uuid())
+  businessName                   String
+  phone                          String
+  email                          String
+  subscriptionPlan               String
+  subscriptionStatus             String                @default("active")
+  walletBalance                  Int                   @default(0)
+  createdAt                      DateTime              @default(now())
+  updatedAt                      DateTime              @updatedAt
+  aiBotName                      String?
+  aiPersonality                  String?
+  aiSystemPrompt                 String?
+  aiProducts                     String?
+  aiGreeting                     String?
+  aiClosing                      String?
+  aiModel                        String?               @default("gpt-4.1-mini")
+  aiPreparationTimeMinutes       Int?
+  aiContentResponsibilities      String?
+  aiContentConversationRules     String?
+  aiContentImportantInstructions String?
+  role                           String?
+  registrationStatus             String?
+  firebaseUid                    String?
+  registeredAt                   DateTime?
+  approvedAt                     DateTime?
+  approvedBy                     String?
+  aiResponseFormat               String?
+  notificationSettings           Json?
+  matchingConfig                 Json?
+  timezone                       String                @default("Asia/Kolkata") @db.VarChar(191)
+  orderPrefix                    String?               @db.VarChar(191)
+  minimumOrderValue              Int?
+  aiDeliveryInstructions         String?
+  aiPickupDeliveryAddress        String?
+  aiToneExample                  String?
+  category                       String?               @db.VarChar(50)
+  askForPreferredDeliveryDate    Boolean               @default(false)
+  orderPreparationConfig         Json?
+  catalogImportEnabled           Boolean               @default(false)
+  featureFlags                   Json?
+  billingHistory                 BillingHistory[]
+  catalogImportJobs              CatalogImportJob[]
+  conversations                  Conversation[]
+  conversationMemories           ConversationMemory[]
+  correctionHistory              CorrectionHistory[]
+  creditUsages                   CreditUsage[]
+  customerInsights               CustomerInsights[]
+  notificationHistory            NotificationHistory[]
+  orders                         Order[]
+  products                       Product[]
+  qualityMetrics                 QualityMetrics[]
+  stageExecutionLogs             StageExecutionLog[]
+  walletTransactions             WalletTransaction[]
+  whatsappNumbers                WhatsAppNumber[]
+
+  @@map("Vendor")
+}
+
+model Customer {
+  id                  String                @id @default(uuid())
+  phone               String                @unique
+  lastInteraction     DateTime?
+  conversations       Conversation[]
+  customerInsights    CustomerInsights[]
+  notificationHistory NotificationHistory[]
+  orders              Order[]
+  reactions           MessageReaction[]
+
+  @@map("Customer")
+}
+
+model Conversation {
+  id                 String              @id @default(uuid())
+  vendorId           String
+  customerId         String
+  status             String              @default("open")
+  aiPaused           Boolean             @default(false)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  customer           Customer            @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  vendor             Vendor              @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  conversationMemory ConversationMemory?
+  correctionHistory  CorrectionHistory[]
+  creditUsages       CreditUsage[]
+  messages           Message[]
+  orders             Order[]
+  qualityMetrics     QualityMetrics[]
+  stageExecutionLogs StageExecutionLog[]
+
+  @@index([vendorId, createdAt(sort: Desc)], map: "idx_conversation_vendor_created")
+  @@index([vendorId, status], map: "idx_conversation_vendor_status")
+  @@index([vendorId, updatedAt(sort: Desc)], map: "idx_conversation_vendor_updated")
+  @@map("Conversation")
+}
+
+model Message {
+  id                    String                @id @default(uuid())
+  conversationId        String
+  senderType            String
+  content               String
+  type                  MessageType
+  timestamp             DateTime              @default(now())
+  aiTokensUsed          Int                   @default(0)
+  aiCostUsd             Float?                @default(0)
+  aiPromptTokens        Int                   @default(0)
+  aiCompletionTokens    Int                   @default(0)
+  aiPrimaryModel        String?
+  aiModelBreakdown      Json?
+  aiCostEstimated       Boolean               @default(false)
+  normalizedContent     String?
+  normalizationMetadata Json?
+  messageSummary        String?
+  expectedNextAction    String?
+  summaryMetadata       Json?
+  whatsappMessageId     String?               @unique
+  replyToMessageId      String?
+  status                MessageStatus         @default(pending)
+  failureReason         String?
+  structuredPayload     Json?
+  editedAt              DateTime?
+  deletedAt             DateTime?
+  conversation          Conversation          @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  replyToMessage        Message?              @relation("MessageReply", fields: [replyToMessageId], references: [id], onDelete: SetNull)
+  replies               Message[]             @relation("MessageReply")
+  media                 MessageMedia?
+  reactions             MessageReaction[]
+  statusEvents          MessageStatusEvent[]
+  reactionHistory       MessageReactionHistory[]
+
+  @@index([conversationId, timestamp])
+  @@index([conversationId, timestamp(sort: Desc)], map: "idx_message_conversation_timestamp")
+  @@index([replyToMessageId])
+  @@map("Message")
+}
+
+model CreditUsage {
+  id               String       @id @default(uuid())
+  vendorId         String
+  conversationId   String
+  creditsConsumed  Int
+  usageDate        DateTime     @default(now())
+  conversationType MessageType
+  conversation     Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  vendor           Vendor       @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@index([vendorId, usageDate(sort: Desc)], map: "idx_creditusage_vendor_date")
+  @@index([vendorId, conversationType], map: "idx_creditusage_vendor_type")
+  @@map("CreditUsage")
+}
+
+model BillingHistory {
+  id                String   @id @default(uuid())
+  vendorId          String
+  billingDate       DateTime @default(now())
+  planPrice         Int      @default(0)
+  extraUsageCharges Int      @default(0)
+  totalAmount       Int      @default(0)
+  paymentStatus     String   @default("pending")
+  vendor            Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@map("BillingHistory")
+}
+
+model WalletTransaction {
+  id              String                @id @default(uuid())
+  vendorId        String
+  transactionType WalletTransactionType
+  amount          Int
+  balanceBefore   Int
+  balanceAfter    Int
+  transactionDate DateTime              @default(now())
+  vendor          Vendor                @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@map("WalletTransaction")
+}
+
+model WhatsAppNumber {
+  id            String   @id @default(uuid())
+  vendorId      String
+  phoneNumberId String   @unique
+  wabaId        String
+  createdAt     DateTime @default(now())
+  vendor        Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@map("WhatsAppNumber")
+}
+
+model Order {
+  id                   String                @id @default(uuid())
+  vendorId             String
+  customerId           String
+  conversationId       String
+  orderNumber          String                @unique
+  status               OrderStatus           @default(pending)
+  items                Json
+  totalAmount          Int
+  deliveryAddress      String?
+  deliveryInstructions String?
+  specialRequests      String?
+  estimatedDelivery    DateTime?
+  confirmedAt          DateTime?
+  preparedAt           DateTime?
+  deliveredAt          DateTime?
+  cancelledAt          DateTime?
+  cancellationReason   String?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  sendNotifications    Boolean               @default(true)
+  notificationHistory  NotificationHistory[]
+  auditLogs            OrderAuditLog[]
+  alerts               OrderAlert[]
+  conversation         Conversation          @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  customer             Customer              @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  vendor               Vendor                @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@index([vendorId, createdAt(sort: Desc)], map: "idx_order_vendor_created")
+  @@index([vendorId, status], map: "idx_order_vendor_status")
+  @@index([vendorId, status, createdAt(sort: Desc)], map: "idx_order_vendor_status_created")
+  @@map("Order")
+}
+
+model OrderAuditLog {
+  id            String   @id @default(uuid())
+  orderId       String
+  action        String
+  changes       Json
+  intent        String?
+  previousState Json?
+  newState      Json?
+  timestamp     DateTime @default(now())
+  order         Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([timestamp])
+  @@map("OrderAuditLog")
+}
+
+model OrderAlert {
+  id        String   @id @default(uuid())
+  orderId   String
+  type      String
+  severity  String
+  message   String
+  resolved  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([resolved])
+  @@index([createdAt])
+  @@map("OrderAlert")
+}
+
+model CustomerInsights {
+  id                     String   @id @default(uuid())
+  customerId             String
+  vendorId               String
+  customerName           String?
+  alternativePhoneNumber String?
+  email                  String?
+  preferredLanguage      String?
+  basicDetails           String?
+  purchaseHistory        String?
+  preferences            String?
+  communicationStyle     String?
+  currentOrder           String?
+  primaryDeliveryAddress String?
+  deliveryAddress        String?
+  deliveryInstructions   String?
+  whatsappLocation       Json?
+  specialRequests        String?
+  specialOccasions       Json?
+  dietaryRestrictions    String?
+  paymentPreferences     String?
+  lastUpdated            DateTime @updatedAt
+  createdAt              DateTime @default(now())
+  customer               Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  vendor                 Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, vendorId])
+  @@map("CustomerInsights")
+}
+
+model NotificationHistory {
+  id                String             @id @default(uuid())
+  vendorId          String
+  orderId           String?
+  customerId        String
+  notificationType  NotificationType
+  templateName      String?
+  status            NotificationStatus @default(pending)
+  whatsappMessageId String?
+  errorMessage      String?
+  retryCount        Int                @default(0)
+  sentAt            DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @default(now()) @updatedAt
+  customer          Customer           @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  order             Order?             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  vendor            Vendor             @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@index([vendorId, createdAt])
+  @@index([orderId])
+  @@index([status])
+  @@map("NotificationHistory")
+}
+
+model Admin {
+  id          String   @id @default(uuid())
+  phone       String
+  email       String
+  name        String
+  firebaseUid String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("Admin")
+}
+
+model Product {
+  id               String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  vendorId         String
+  name             String   @db.VarChar(255)
+  sku              String?  @db.VarChar(64)
+  description      String?
+  keywords         String[] @default([])
+  baseUnit         String   @db.VarChar(20)
+  baseQuantity     Decimal  @default(1) @db.Decimal(10, 3)
+  basePrice        Int
+  isDivisible      Boolean  @default(false)
+  variants         Json?
+  isActive         Boolean  @default(true)
+  inStock          Boolean  @default(true)
+  stockQuantity    Decimal? @db.Decimal(10, 3)
+  minOrderQuantity Decimal? @db.Decimal(10, 3)
+  maxOrderQuantity Decimal? @db.Decimal(10, 3)
+  category         String?  @db.VarChar(100)
+  imageUrl         String?  @db.VarChar(255)
+  tags             String[] @default([])
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @default(now()) @updatedAt
+  vendor           Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@unique([vendorId, name])
+  @@unique([vendorId, sku], name: "Product_vendorId_sku_key")
+  @@index([vendorId])
+  @@index([vendorId, isActive])
+  @@index([vendorId, isActive, category])
+  @@index([category])
+  @@index([vendorId, isActive], map: "idx_product_vendor_active")
+  @@index([vendorId, inStock], map: "idx_product_vendor_stock")
+  @@map("Product")
+}
+
+model CatalogImportJob {
+  id             String   @id @default(uuid())
+  vendorId       String
+  status         String
+  inputManifest  Json
+  result         Json?
+  error          String?
+  tokenUsage     Json?
+  idempotencyKey String?  @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  vendor         Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@index([vendorId, status])
+  @@index([createdAt])
+  @@map("CatalogImportJob")
+}
+
+model ConversationMemory {
+  id                  String       @id @default(uuid())
+  conversationId      String       @unique
+  vendorId            String
+  keyFacts            Json         @default("[]")
+  ongoingTopics       Json         @default("[]")
+  customerPreferences Json         @default("{}")
+  lastOrderSummary    String?
+  conversationSummary String       @default("")
+  importantContext    Json         @default("[]")
+  turnNumber          Int          @default(0)
+  conversationStage   String       @default("greeting")
+  lastUpdated         DateTime     @default(now()) @updatedAt
+  createdAt           DateTime     @default(now())
+  conversation        Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  vendor              Vendor       @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@index([vendorId])
+  @@index([conversationId])
+  @@index([lastUpdated])
+  @@map("ConversationMemory")
+}
+
+model CorrectionHistory {
+  id                String       @id @default(uuid())
+  conversationId    String
+  messageId         String
+  vendorId          String
+  correctedField    String
+  originalValue     String
+  correctedValue    String
+  confidence        Float
+  previousMessages  Json?
+  correctionPattern String?
+  createdAt         DateTime     @default(now())
+  conversation      Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  vendor            Vendor       @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([vendorId])
+  @@index([createdAt])
+  @@map("CorrectionHistory")
+}
+
+model QualityMetrics {
+  id                String       @id @default(uuid())
+  conversationId    String
+  messageId         String
+  vendorId          String
+  naturalnessScore  Float
+  completenessScore Float
+  continuityScore   Float
+  overallScore      Float
+  stagesExecuted    Json         @default("[]")
+  totalTokensUsed   Int          @default(0)
+  totalCost         Float        @default(0)
+  totalDuration     Int
+  issues            Json?
+  createdAt         DateTime     @default(now())
+  conversation      Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  vendor            Vendor       @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([vendorId])
+  @@index([createdAt])
+  @@index([overallScore])
+  @@map("QualityMetrics")
+}
+
+model StageExecutionLog {
+  id             String       @id @default(uuid())
+  conversationId String
+  messageId      String
+  vendorId       String
+  stageName      String
+  stageType      String
+  success        Boolean
+  duration       Int
+  tokensUsed     Int?         @default(0)
+  cost           Float?       @default(0)
+  model          String?
+  promptTokens   Int          @default(0)
+  completionTokens Int        @default(0)
+  errorType      String?
+  errorMessage   String?
+  fallbackUsed   Boolean      @default(false)
+  inputSize      Int?
+  outputSize     Int?
+  createdAt      DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  vendor         Vendor       @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([vendorId])
+  @@index([stageName])
+  @@index([createdAt])
+  @@index([success])
+  @@map("StageExecutionLog")
+}
+
+model MessageMedia {
+  id              String          @id @default(uuid())
+  messageId       String          @unique
+  whatsappMediaId String?
+  s3Bucket        String?
+  s3Key           String?
+  mimeType        String?
+  filename        String?
+  caption         String?
+  durationSec     Int?
+  width           Int?
+  height          Int?
+  fileSizeBytes   Int?
+  fetchState      MediaFetchState @default(pending)
+  fetchAttempts   Int             @default(0)
+  lastFetchError  String?
+  fetchedAt       DateTime?
+  expiresAt       DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  message         Message         @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([fetchState, createdAt])
+  @@map("MessageMedia")
+}
+
+model MessageStatusEvent {
+  id         String        @id @default(uuid())
+  messageId  String
+  status     MessageStatus
+  occurredAt DateTime
+  recordedAt DateTime      @default(now())
+  rawPayload Json?
+  message    Message       @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, status, occurredAt])
+  @@index([messageId, occurredAt])
+  @@map("MessageStatusEvent")
+}
+
+model MessageReaction {
+  id         String   @id @default(uuid())
+  messageId  String
+  reactorId  String
+  emoji      String
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  message    Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  reactor    Customer @relation(fields: [reactorId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, reactorId])
+  @@index([messageId, active])
+  @@map("MessageReaction")
+}
+
+model MessageReactionHistory {
+  id         String         @id @default(uuid())
+  messageId  String
+  reactorId  String
+  emoji      String?
+  action     ReactionAction
+  occurredAt DateTime
+  recordedAt DateTime       @default(now())
+  message    Message        @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId, occurredAt])
+  @@map("MessageReactionHistory")
+}
+
+enum MessageType {
+  text
+  audio
+  image
+  document
+  video
+  location
+  sticker
+  contact
+  interactive
+
+  @@map("MessageType")
+}
+
+enum MessageStatus {
+  pending
+  processing
+  sent
+  delivered
+  read
+  failed
+
+  @@map("MessageStatus")
+}
+
+enum MediaFetchState {
+  pending
+  ready
+  failed
+  expired
+
+  @@map("MediaFetchState")
+}
+
+enum ReactionAction {
+  added
+  changed
+  removed
+
+  @@map("ReactionAction")
+}
+
+enum WalletTransactionType {
+  recharge
+  deduction
+  refund
+
+  @@map("WalletTransactionType")
+}
+
+enum OrderStatus {
+  pending
+  confirmed
+  preparing
+  ready
+  out_for_delivery
+  delivered
+  cancelled
+
+  @@map("OrderStatus")
+}
+
+enum NotificationType {
+  order_status_update
+  payment_link
+  shipping_update
+  custom_template
+
+  @@map("NotificationType")
+}
+
+enum NotificationStatus {
+  pending
+  sent
+  failed
+  retrying
+
+  @@map("NotificationStatus")
+}

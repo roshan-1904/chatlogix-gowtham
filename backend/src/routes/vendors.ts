@@ -1,0 +1,1073 @@
+import express from 'express';
+import { prisma } from '../db/prisma.js';
+import { requireRole, requireVendorAccess } from '../middleware/authorize.js';
+import { createDatabaseError, asyncHandlerWithContext, createValidationError, ErrorType, ErrorSeverity } from '../middleware/errorHandler.js';
+import { z } from 'zod';
+import { dashboardStatsRateLimit } from '../middleware/rateLimit.js';
+import { getDashboardStats } from '../services/dashboardStatsService.js';
+import type { DateRangePreset } from '../utils/dateRange.js';
+import { sendPhoneVerificationCode, verifyPhoneChange } from '../services/settingsVerification.js';
+import { sendEmailVerificationCode, verifyEmailChange } from '../services/emailVerification.js';
+import {
+  phoneVerificationSendSchema,
+  phoneVerificationConfirmSchema,
+  emailVerificationSendSchema,
+  emailVerificationConfirmSchema,
+  businessInfoSchema,
+  aiConfigSchema,
+  orderSettingsSchema,
+  notificationSettingsSchema,
+  matchingConfigSchema,
+  timezoneSchema,
+} from '../utils/validation/settingsSchemas.js';
+import { settingsRateLimit } from '../middleware/settingsRateLimit.js';
+import { buildAIPromptsUpdate } from '../services/vendorAIConfigService.js';
+
+export const vendorsRouter = express.Router();
+
+// Helper function to handle Prisma errors consistently
+function handlePrismaError(error: any, operation: string, table: string, next: express.NextFunction) {
+  const isConnectionError = error?.code === 'P1001' || 
+                            error?.name === 'PrismaClientInitializationError' ||
+                            error?.message?.includes("Can't reach database server") ||
+                            error?.message?.includes('ECONNREFUSED') ||
+                            error?.message?.includes('ETIMEDOUT');
+  
+  if (isConnectionError) {
+    const dbError = createDatabaseError(
+      'Database connection unavailable. Please check your database connection settings.',
+      operation,
+      table
+    );
+    dbError.statusCode = 503; // Service Unavailable
+    return next(dbError);
+  }
+  
+  // For other database errors, pass to error handler
+  const dbError = createDatabaseError(
+    error?.message || 'Database operation failed',
+    operation,
+    table
+  );
+  return next(dbError);
+}
+
+const vendorListSelect = {
+  id: true,
+  businessName: true,
+  phone: true,
+  email: true,
+  subscriptionPlan: true,
+  subscriptionStatus: true,
+  walletBalance: true,
+  createdAt: true
+};
+
+// GET /api/vendors - List vendors (admin -> all, vendor -> own)
+vendorsRouter.get('/', requireRole('admin', 'vendor'), async (req, res) => {
+  try {
+    const isAdmin = req.user?.roles?.includes('admin');
+
+    if (isAdmin) {
+      const vendors = await prisma.vendor.findMany({
+        select: vendorListSelect
+      });
+      return res.json(vendors);
+    }
+
+    const vendorId = req.user?.vendorId;
+    if (!vendorId) {
+      return res.status(403).json({ error: 'vendor_context_missing' });
+    }
+
+    const vendor = await prisma.vendor.findUnique({
+      where: { id: vendorId },
+      select: vendorListSelect
+    });
+
+    if (!vendor) {
+      return res.status(404).json({ error: 'Vendor not found' });
+    }
+
+    return res.json([vendor]);
+  } catch (error) {
+    console.error('Error fetching vendors:', error);
+    res.status(500).json({ error: 'Failed to fetch vendors' });
+  }
+});
+
+vendorsRouter.post('/register', requireRole('admin'), async (req, res) => {
+  const { businessName, phone, email, subscriptionPlan } = req.body || {};
+  if (!businessName || !phone || !email) return res.status(400).json({ error: 'missing_fields' });
+  const vendor = await prisma.vendor.create({
+    data: {
+      businessName,
+      phone,
+      email,
+      subscriptionPlan: subscriptionPlan || 'Starter',
+      walletBalance: 0
+    }
+  });
+  res.json(vendor);
+});
+
+vendorsRouter.get('/:id/usage-analytics', requireVendorAccess(req => req.params.id), async (req, res, next) => {
+  try {
+    const vendorId = req.params.id;
+    const total = await prisma.creditUsage.aggregate({
+      where: { vendorId },
+      _sum: { creditsConsumed: true }
+    });
+    res.json({ vendorId, creditsUsed: total._sum.creditsConsumed || 0 });
+  } catch (error: any) {
+    return handlePrismaError(error, 'aggregate', 'CreditUsage', next);
+  }
+});
+
+vendorsRouter.get('/:id/config', requireVendorAccess(req => req.params.id), async (req, res, next) => {
+  try {
+    const vendor = await prisma.vendor.findUnique({ 
+      where: { id: req.params.id },
+      select: {
+        id: true,
+        businessName: true,
+        subscriptionPlan: true,
+        subscriptionStatus: true,
+        walletBalance: true,
+        aiBotName: true,
+        aiPersonality: true,
+        aiSystemPrompt: true,
+        aiGreeting: true,
+        aiClosing: true,
+        aiPreparationTimeMinutes: true,
+        aiDeliveryInstructions: true,
+        aiPickupDeliveryAddress: true,
+        aiToneExample: true,
+        category: true,
+        catalogImportEnabled: true
+      }
+    });
+    if (!vendor) return res.status(404).json({ error: 'not_found' });
+    res.json({
+      id: vendor.id,
+      businessName: vendor.businessName,
+      plan: vendor.subscriptionPlan,
+      status: vendor.subscriptionStatus,
+      walletBalance: vendor.walletBalance,
+      category: vendor.category ?? null,
+      catalogImportEnabled: !!vendor.catalogImportEnabled,
+      ai: {
+        botName: vendor.aiBotName,
+        personality: vendor.aiPersonality,
+        systemPrompt: vendor.aiSystemPrompt,
+        greeting: vendor.aiGreeting,
+        closing: vendor.aiClosing,
+        preparationTimeMinutes: vendor.aiPreparationTimeMinutes || null,
+        deliveryInstructions: vendor.aiDeliveryInstructions,
+        pickupDeliveryAddress: vendor.aiPickupDeliveryAddress,
+        toneExample: vendor.aiToneExample
+      }
+    });
+  } catch (error: any) {
+    return handlePrismaError(error, 'findUnique', 'Vendor', next);
+  }
+});
+
+// Update vendor AI prompts/config
+vendorsRouter.put('/:id/ai-prompts', requireVendorAccess(req => req.params.id), settingsRateLimit, async (req, res) => {
+  const vendorId = req.params.id;
+  const data = buildAIPromptsUpdate(req.body || {});
+  const vendor = await prisma.vendor.update({ where: { id: vendorId }, data });
+  res.json({ ok: true, id: vendor.id });
+});
+
+vendorsRouter.post('/:id/recharge-wallet', requireRole('admin'), async (req, res) => {
+  const vendorId = req.params.id;
+  const amount = Number(req.body?.amount || 0);
+  if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ error: 'invalid_amount' });
+  const vendor = await prisma.vendor.findUnique({ where: { id: vendorId } });
+  if (!vendor) return res.status(404).json({ error: 'not_found' });
+  const before = vendor.walletBalance;
+  const after = before + amount;
+  await prisma.$transaction([
+    prisma.vendor.update({ where: { id: vendorId }, data: { walletBalance: after } }),
+    prisma.walletTransaction.create({
+      data: {
+        vendorId,
+        transactionType: 'recharge',
+        amount,
+        balanceBefore: before,
+        balanceAfter: after
+      }
+    })
+  ]);
+  res.json({ vendorId, walletBalance: after });
+});
+
+vendorsRouter.post('/:id/upgrade-plan', requireRole('admin'), async (req, res) => {
+  const vendorId = req.params.id;
+  const plan = req.body?.plan as string;
+  const allowed = ['Starter', 'Pro', 'Business', 'Enterprise'];
+  if (!allowed.includes(plan)) return res.status(400).json({ error: 'invalid_plan' });
+  const vendor = await prisma.vendor.update({ where: { id: vendorId }, data: { subscriptionPlan: plan } });
+  res.json({ id: vendor.id, plan: vendor.subscriptionPlan });
+});
+
+async function getVendorConversationsWithMeta(options: {
+  vendorId: string;
+  page: number;
+  limit: number;
+  searchQuery?: string;
+}) {
+  const { vendorId, page, limit, searchQuery } = options;
+
+  const where: any = {
+    vendorId,
+    messages: {
+      some: {},
+    },
+  };
+
+  if (searchQuery && searchQuery.trim()) {
+    const q = searchQuery.trim().toLowerCase();
+    where.OR = [
+      {
+        customer: {
+          phone: {
+            contains: q,
+            mode: 'insensitive',
+          },
+        },
+      },
+      {
+        customer: {
+          customerInsights: {
+            some: {
+              vendorId,
+              customerName: {
+                contains: q,
+                mode: 'insensitive',
+              },
+            },
+          },
+        },
+      },
+    ];
+  }
+
+  const total = await prisma.conversation.count({ where });
+
+  const conversations = await prisma.conversation.findMany({
+    where,
+    skip: (page - 1) * limit,
+    take: limit,
+    orderBy: { updatedAt: 'desc' },
+    include: {
+      customer: true,
+      messages: {
+        orderBy: { timestamp: 'desc' },
+        take: 1,
+        select: {
+          id: true,
+          content: true,
+          timestamp: true,
+          senderType: true,
+          type: true,
+        },
+      },
+      orders: {
+        select: {
+          id: true,
+          status: true,
+          totalAmount: true,
+          createdAt: true,
+        },
+      },
+      _count: {
+        select: {
+          messages: true,
+        },
+      },
+    },
+  });
+
+  const customerIds = conversations.map((c) => c.customerId);
+  const insightNames = await prisma.customerInsights.findMany({
+    where: {
+      vendorId,
+      customerId: { in: customerIds },
+    },
+    select: {
+      customerId: true,
+      customerName: true,
+    },
+  });
+
+  const nameMap = new Map<string, string | null>();
+  for (const row of insightNames) {
+    nameMap.set(row.customerId, row.customerName || null);
+  }
+
+  const now = Date.now();
+
+  const conversationsWithMeta = conversations.map((conv) => {
+    const lastMessage = conv.messages[0] || null;
+    const orders = conv.orders || [];
+
+    const orderCount = orders.length;
+    const totalSpent = orders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+    const activeOrders = orders.filter(
+      (o) => o.status !== 'delivered' && o.status !== 'cancelled',
+    );
+    const hasActiveOrder = activeOrders.length > 0;
+    const activeOrderStatus =
+      hasActiveOrder ? activeOrders[activeOrders.length - 1].status : null;
+
+    const minutesSinceLastMessage = lastMessage
+      ? Math.floor((now - new Date(lastMessage.timestamp).getTime()) / 60000)
+      : null;
+
+    return {
+      id: conv.id,
+      vendorId: conv.vendorId,
+      customerId: conv.customerId,
+      status: conv.status,
+      aiPaused: conv.aiPaused,
+      createdAt: conv.createdAt,
+      updatedAt: conv.updatedAt,
+      customerName: nameMap.get(conv.customerId) || null,
+      customer: {
+        id: conv.customer.id,
+        phone: conv.customer.phone,
+      },
+      _count: {
+        messages: conv._count?.messages || 0,
+      },
+      lastMessage,
+      orderCount,
+      totalSpent,
+      hasActiveOrder,
+      activeOrderStatus,
+      lastMessageSender: lastMessage?.senderType ?? null,
+      minutesSinceLastMessage,
+      // Add lastMessageTimestamp for sorting
+      lastMessageTimestamp: lastMessage?.timestamp || conv.updatedAt,
+    };
+  });
+
+  // Sort by minutesSinceLastMessage (ascending - most recent first)
+  // This matches the Dashboard Recent Conversations widget sorting
+  conversationsWithMeta.sort((a, b) => {
+    // Handle null values - put conversations without messages at the end
+    if (a.minutesSinceLastMessage === null && b.minutesSinceLastMessage === null) {
+      return 0;
+    }
+    if (a.minutesSinceLastMessage === null) return 1; // a goes to end
+    if (b.minutesSinceLastMessage === null) return -1; // b goes to end
+    
+    // Sort by minutesSinceLastMessage ascending (smaller = more recent = first)
+    return a.minutesSinceLastMessage - b.minutesSinceLastMessage;
+  });
+
+  const hasMore = page * limit < total;
+
+  return {
+    conversations: conversationsWithMeta,
+    total,
+    page,
+    hasMore,
+  };
+}
+
+// GET /api/vendors/:id/conversations - List vendor conversations (with optional pagination)
+vendorsRouter.get(
+  '/:id/conversations',
+  requireVendorAccess((req) => req.params.id),
+  async (req, res, next) => {
+    try {
+      const vendorId = req.params.id;
+      const page = Number.parseInt((req.query.page as string) || '0', 10) || 0;
+      const limit = Number.parseInt((req.query.limit as string) || '50', 10) || 50;
+
+      // Backwards-compatible behavior: if no page is specified, return an array like before
+      if (!page) {
+        const result = await getVendorConversationsWithMeta({
+          vendorId,
+          page: 1,
+          limit,
+        });
+        return res.json(result.conversations);
+      }
+
+      const result = await getVendorConversationsWithMeta({
+        vendorId,
+        page,
+        limit,
+      });
+
+      return res.json(result);
+    } catch (error: any) {
+      return handlePrismaError(error, 'findMany', 'Conversation', next);
+    }
+  },
+);
+
+// GET /api/vendors/:id/conversations/search - Search conversations by customer name or phone
+vendorsRouter.get(
+  '/:id/conversations/search',
+  requireVendorAccess((req) => req.params.id),
+  async (req, res, next) => {
+    try {
+      const vendorId = req.params.id;
+      const searchQuery = (req.query.q as string) || '';
+      const page = Number.parseInt((req.query.page as string) || '1', 10) || 1;
+      const limit = Number.parseInt((req.query.limit as string) || '20', 10) || 20;
+
+      if (!searchQuery.trim()) {
+        return res.json({
+          conversations: [],
+          total: 0,
+          page: 1,
+          hasMore: false,
+        });
+      }
+
+      const result = await getVendorConversationsWithMeta({
+        vendorId,
+        page,
+        limit,
+        searchQuery,
+      });
+
+      return res.json(result);
+    } catch (error: any) {
+      return handlePrismaError(error, 'findMany', 'Conversation', next);
+    }
+  },
+);
+
+// Map vendor to a WhatsApp phone_number_id
+vendorsRouter.post('/:id/map-wa-number', requireRole('admin'), async (req, res) => {
+  const vendorId = req.params.id;
+  const phoneNumberId = req.body?.phoneNumberId as string;
+  const wabaId = req.body?.wabaId as string;
+  if (!phoneNumberId || !wabaId) return res.status(400).json({ error: 'missing_fields' });
+  // Upsert mapping
+  const wa = await prisma.whatsAppNumber.upsert({
+    where: { phoneNumberId },
+    update: { vendorId, wabaId },
+    create: { vendorId, phoneNumberId, wabaId }
+  });
+  res.json(wa);
+});
+
+// GET /api/vendors/:id/ai-config - Get complete AI configuration
+vendorsRouter.get('/:id/ai-config', requireVendorAccess(req => req.params.id), async (req, res) => {
+  try {
+    const vendorId = req.params.id;
+    
+    const vendor = await prisma.vendor.findUnique({
+      where: { id: vendorId },
+      select: {
+        id: true,
+        businessName: true,
+        aiBotName: true,
+        aiPersonality: true,
+        aiSystemPrompt: true,
+        aiProducts: true,
+        aiGreeting: true,
+        aiClosing: true,
+        aiPreparationTimeMinutes: true,
+        aiDeliveryInstructions: true,
+        aiPickupDeliveryAddress: true,
+        aiToneExample: true,
+        aiContentResponsibilities: true,
+        aiContentConversationRules: true,
+        aiContentImportantInstructions: true
+      }
+    });
+
+    if (!vendor) {
+      return res.status(404).json({ error: 'Vendor not found' });
+    }
+
+    res.json({
+      vendorId: vendor.id,
+      businessName: vendor.businessName,
+      ai: {
+        botName: vendor.aiBotName,
+        personality: vendor.aiPersonality,
+        systemPrompt: vendor.aiSystemPrompt,
+        products: vendor.aiProducts,
+        greeting: vendor.aiGreeting,
+        closing: vendor.aiClosing,
+        preparationTimeMinutes: vendor.aiPreparationTimeMinutes,
+        deliveryInstructions: vendor.aiDeliveryInstructions,
+        pickupDeliveryAddress: vendor.aiPickupDeliveryAddress,
+        toneExample: vendor.aiToneExample,
+        contentResponsibilities: vendor.aiContentResponsibilities,
+        contentConversationRules: vendor.aiContentConversationRules,
+        contentImportantInstructions: vendor.aiContentImportantInstructions
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching AI configuration:', error);
+    res.status(500).json({ error: 'Failed to fetch AI configuration' });
+  }
+});
+
+// GET /api/vendors/:id/order-settings - Get order settings
+vendorsRouter.get('/:id/order-settings', requireVendorAccess(req => req.params.id), async (req, res) => {
+  try {
+    const vendorId = req.params.id;
+    
+    const vendor = await prisma.vendor.findUnique({
+      where: { id: vendorId },
+      select: {
+        category: true,
+        askForPreferredDeliveryDate: true,
+        orderPreparationConfig: true,
+        orderPrefix: true,
+        minimumOrderValue: true,
+        aiPreparationTimeMinutes: true // For backward compatibility
+      }
+    });
+
+    if (!vendor) {
+      return res.status(404).json({ error: 'Vendor not found' });
+    }
+
+    res.json({
+      category: vendor.category,
+      askForPreferredDeliveryDate: vendor.askForPreferredDeliveryDate ?? false,
+      orderPreparationConfig: vendor.orderPreparationConfig,
+      orderPrefix: vendor.orderPrefix,
+      minimumOrderValue: vendor.minimumOrderValue,
+      // Backward compatibility
+      aiPreparationTimeMinutes: vendor.aiPreparationTimeMinutes
+    });
+  } catch (error) {
+    console.error('Error fetching order settings:', error);
+    res.status(500).json({ error: 'Failed to fetch order settings' });
+  }
+});
+
+// PUT /api/vendors/:id/order-settings - Update order settings
+vendorsRouter.put('/:id/order-settings', requireVendorAccess(req => req.params.id), settingsRateLimit, asyncHandlerWithContext(async (req: any, res: any) => {
+  const vendorId = req.params.id;
+  const validated = orderSettingsSchema.parse(req.body);
+
+  // Validate orderPreparationConfig if provided
+  if (validated.orderPreparationConfig) {
+    const config = validated.orderPreparationConfig as any;
+    if (!config.type) {
+      throw createValidationError('orderPreparationConfig.type is required', 'orderPreparationConfig.type');
+    }
+    
+    const validTypes = ['after_order', 'fixed_minutes', 'variable', 'ready_to_ship'];
+    if (!validTypes.includes(config.type)) {
+      throw createValidationError(
+        `orderPreparationConfig.type must be one of: ${validTypes.join(', ')}`,
+        'orderPreparationConfig.type'
+      );
+    }
+    
+    if (config.type === 'fixed_minutes' && !config.fixedMinutes) {
+      throw createValidationError(
+        'orderPreparationConfig.fixedMinutes is required for fixed_minutes type',
+        'orderPreparationConfig.fixedMinutes'
+      );
+    }
+  }
+
+  const updateData: any = {};
+  if (validated.category !== undefined) updateData.category = validated.category;
+  if (validated.askForPreferredDeliveryDate !== undefined) {
+    updateData.askForPreferredDeliveryDate = validated.askForPreferredDeliveryDate;
+  }
+  if (validated.orderPreparationConfig !== undefined) {
+    updateData.orderPreparationConfig = validated.orderPreparationConfig;
+  }
+  if (validated.orderPrefix !== undefined) {
+    updateData.orderPrefix = validated.orderPrefix;
+  }
+  if (validated.minimumOrderValue !== undefined) {
+    updateData.minimumOrderValue = validated.minimumOrderValue;
+  }
+
+  const vendor = await prisma.vendor.update({
+    where: { id: vendorId },
+    data: updateData,
+    select: {
+      id: true,
+      category: true,
+      askForPreferredDeliveryDate: true,
+      orderPreparationConfig: true,
+      orderPrefix: true,
+      minimumOrderValue: true,
+    }
+  });
+
+  res.json({
+    id: vendor.id,
+    category: vendor.category,
+    askForPreferredDeliveryDate: vendor.askForPreferredDeliveryDate,
+    orderPreparationConfig: vendor.orderPreparationConfig,
+    orderPrefix: vendor.orderPrefix,
+    minimumOrderValue: vendor.minimumOrderValue,
+  });
+}));
+
+// GET /api/vendors/:id/customer-insights - Get customer insights for vendor
+vendorsRouter.get('/:id/customer-insights', requireVendorAccess(req => req.params.id), async (req, res) => {
+  try {
+    const vendorId = req.params.id;
+    const { customerId } = req.query;
+
+    if (!customerId) {
+      return res.status(400).json({ error: 'customerId query parameter is required' });
+    }
+
+    const insights = await prisma.customerInsights.findUnique({
+      where: {
+        customerId_vendorId: {
+          customerId: customerId as string,
+          vendorId
+        }
+      }
+    });
+
+    if (!insights) {
+      return res.json({
+        customerId,
+        vendorId,
+        insights: null,
+        message: 'No insights found for this customer-vendor pair'
+      });
+    }
+
+    // Parse JSON fields if they exist
+    const whatsappLocation = insights.whatsappLocation 
+      ? (typeof insights.whatsappLocation === 'string' 
+          ? JSON.parse(insights.whatsappLocation) 
+          : insights.whatsappLocation)
+      : undefined;
+    
+    const specialOccasions = insights.specialOccasions
+      ? (typeof insights.specialOccasions === 'string'
+          ? JSON.parse(insights.specialOccasions)
+          : insights.specialOccasions)
+      : undefined;
+
+    res.json({
+      customerId,
+      vendorId,
+      insights: {
+        customerName: insights.customerName,
+        alternativePhoneNumber: insights.alternativePhoneNumber,
+        email: insights.email,
+        preferredLanguage: insights.preferredLanguage,
+        basicDetails: insights.basicDetails,
+        purchaseHistory: insights.purchaseHistory,
+        preferences: insights.preferences,
+        communicationStyle: insights.communicationStyle,
+        currentOrder: insights.currentOrder,
+        primaryDeliveryAddress: insights.primaryDeliveryAddress,
+        deliveryAddress: insights.deliveryAddress,
+        deliveryInstructions: insights.deliveryInstructions,
+        whatsappLocation: whatsappLocation,
+        specialRequests: insights.specialRequests,
+        specialOccasions: specialOccasions,
+        dietaryRestrictions: insights.dietaryRestrictions,
+        paymentPreferences: insights.paymentPreferences,
+        lastUpdated: insights.lastUpdated,
+        createdAt: insights.createdAt
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching customer insights:', error);
+    res.status(500).json({ error: 'Failed to fetch customer insights' });
+  }
+});
+
+// Validation schemas for dashboard stats endpoint
+const DashboardStatsParamsSchema = z.object({
+  id: z.string().min(1, 'Vendor ID is required'),
+});
+
+const DashboardStatsQuerySchema = z
+  .object({
+    dateRange: z
+      .enum(['thisWeek', 'thisMonth', 'last3Months', 'last6Months', 'thisFinancialYear', 'custom'])
+      .optional()
+      .default('thisMonth'),
+    startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format. Use YYYY-MM-DD').optional(),
+    endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format. Use YYYY-MM-DD').optional(),
+  })
+  .refine(
+    (data) => {
+      // If custom, both startDate and endDate are required
+      if (data.dateRange === 'custom') {
+        return data.startDate !== undefined && data.endDate !== undefined;
+      }
+      return true;
+    },
+    {
+      message: 'startDate and endDate are required when dateRange is custom',
+    }
+  )
+  .refine(
+    (data) => {
+      // Validate date range doesn't exceed 1 year
+      if (data.startDate && data.endDate) {
+        const start = new Date(data.startDate);
+        const end = new Date(data.endDate);
+        const maxEnd = new Date(start);
+        maxEnd.setFullYear(maxEnd.getFullYear() + 1);
+        return end <= maxEnd;
+      }
+      return true;
+    },
+    {
+      message: 'Date range cannot exceed 1 year',
+    }
+  );
+
+// GET /api/vendors/:id/dashboard-stats - Get comprehensive dashboard statistics
+vendorsRouter.get(
+  '/:id/dashboard-stats',
+  requireVendorAccess((req) => req.params.id),
+  dashboardStatsRateLimit,
+  asyncHandlerWithContext(async (req: any, res: any) => {
+    // Validate request parameters and query
+    let validatedParams: z.infer<typeof DashboardStatsParamsSchema>;
+    let validatedQuery: z.infer<typeof DashboardStatsQuerySchema>;
+
+    try {
+      validatedParams = DashboardStatsParamsSchema.parse(req.params);
+      validatedQuery = DashboardStatsQuerySchema.parse(req.query);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        throw createValidationError(
+          error.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join(', '),
+          'request',
+          req.query
+        );
+      }
+      throw error;
+    }
+
+    const vendorId = validatedParams.id;
+    const dateRangePreset = validatedQuery.dateRange as DateRangePreset;
+    const startDate = validatedQuery.startDate;
+    const endDate = validatedQuery.endDate;
+
+    // Get dashboard stats with caching
+    const stats = await getDashboardStats(vendorId, dateRangePreset, startDate, endDate);
+
+    res.json(stats);
+  }, ErrorType.BUSINESS_LOGIC, ErrorSeverity.MEDIUM)
+);
+
+// ============================================
+// SETTINGS VERIFICATION ROUTES
+// ============================================
+
+/**
+ * POST /api/vendors/:id/verify-phone/send
+ * Send phone verification code for settings update
+ */
+vendorsRouter.post(
+  '/:id/verify-phone/send',
+  requireVendorAccess(req => req.params.id),
+  asyncHandlerWithContext(async (req: any, res: any) => {
+    const vendorId = req.params.id;
+    const validated = phoneVerificationSendSchema.parse(req.body);
+    
+    const result = await sendPhoneVerificationCode(vendorId, validated.newPhoneNumber);
+    
+    res.json({
+      sessionInfo: result.sessionInfo,
+      expiresIn: 300, // 5 minutes
+    });
+  })
+);
+
+/**
+ * POST /api/vendors/:id/verify-phone/confirm
+ * Confirm phone verification code
+ */
+vendorsRouter.post(
+  '/:id/verify-phone/confirm',
+  requireVendorAccess(req => req.params.id),
+  asyncHandlerWithContext(async (req: any, res: any) => {
+    const vendorId = req.params.id;
+    const validated = phoneVerificationConfirmSchema.parse(req.body);
+    
+    const result = await verifyPhoneChange(vendorId, validated.sessionInfo, validated.code);
+    
+    res.json({
+      success: result.success,
+    });
+  })
+);
+
+/**
+ * POST /api/vendors/:id/verify-email/send
+ * Send email verification code for settings update
+ */
+vendorsRouter.post(
+  '/:id/verify-email/send',
+  requireVendorAccess(req => req.params.id),
+  asyncHandlerWithContext(async (req: any, res: any) => {
+    const vendorId = req.params.id;
+    const validated = emailVerificationSendSchema.parse(req.body);
+    
+    const result = await sendEmailVerificationCode(vendorId, validated.newEmail);
+    
+    res.json({
+      sessionInfo: result.sessionInfo,
+      expiresIn: 600, // 10 minutes
+    });
+  })
+);
+
+/**
+ * POST /api/vendors/:id/verify-email/confirm
+ * Confirm email verification code
+ */
+vendorsRouter.post(
+  '/:id/verify-email/confirm',
+  requireVendorAccess(req => req.params.id),
+  asyncHandlerWithContext(async (req: any, res: any) => {
+    const vendorId = req.params.id;
+    const validated = emailVerificationConfirmSchema.parse(req.body);
+    
+    const result = await verifyEmailChange(vendorId, validated.sessionInfo, validated.code);
+    
+    res.json({
+      success: result.success,
+    });
+  })
+);
+
+// ============================================
+// SETTINGS ROUTES
+// ============================================
+
+/**
+ * GET /api/vendors/:id/business-info
+ * Get business information
+ */
+vendorsRouter.get(
+  '/:id/business-info',
+  requireVendorAccess(req => req.params.id),
+  asyncHandlerWithContext(async (req: any, res: any) => {
+    const vendorId = req.params.id;
+    
+    const vendor = await prisma.vendor.findUnique({
+      where: { id: vendorId },
+      select: {
+        id: true,
+        businessName: true,
+        phone: true,
+        email: true,
+        category: true,
+        updatedAt: true,
+      },
+    });
+    
+    if (!vendor) {
+      return res.status(404).json({ error: 'Vendor not found' });
+    }
+    
+    res.json(vendor);
+  })
+);
+
+/**
+ * PUT /api/vendors/:id/business-info
+ * Update business information (name, phone, email, category)
+ */
+vendorsRouter.put(
+  '/:id/business-info',
+  requireVendorAccess(req => req.params.id),
+  settingsRateLimit,
+  asyncHandlerWithContext(async (req: any, res: any) => {
+    const vendorId = req.params.id;
+    const validated = businessInfoSchema.parse(req.body);
+    
+    const vendor = await prisma.vendor.update({
+      where: { id: vendorId },
+      data: {
+        businessName: validated.businessName,
+        phone: validated.phone,
+        email: validated.email,
+        category: validated.category ?? null,
+      },
+      select: {
+        id: true,
+        businessName: true,
+        phone: true,
+        email: true,
+        category: true,
+        updatedAt: true,
+      },
+    });
+    
+    res.json(vendor);
+  })
+);
+
+/**
+ * GET /api/vendors/:id/notification-settings
+ * Get notification settings
+ */
+vendorsRouter.get(
+  '/:id/notification-settings',
+  requireVendorAccess(req => req.params.id),
+  asyncHandlerWithContext(async (req: any, res: any) => {
+    const vendorId = req.params.id;
+    
+    const vendor = await prisma.vendor.findUnique({
+      where: { id: vendorId },
+      select: {
+        id: true,
+        notificationSettings: true,
+      },
+    });
+    
+    if (!vendor) {
+      return res.status(404).json({ error: 'Vendor not found' });
+    }
+    
+    res.json({
+      vendorId: vendor.id,
+      notificationSettings: vendor.notificationSettings || {},
+    });
+  })
+);
+
+/**
+ * PUT /api/vendors/:id/notification-settings
+ * Update notification settings
+ */
+vendorsRouter.put(
+  '/:id/notification-settings',
+  requireVendorAccess(req => req.params.id),
+  settingsRateLimit,
+  asyncHandlerWithContext(async (req: any, res: any) => {
+    const vendorId = req.params.id;
+    const validated = notificationSettingsSchema.parse(req.body);
+    
+    const vendor = await prisma.vendor.update({
+      where: { id: vendorId },
+      data: {
+        notificationSettings: validated as any,
+      },
+      select: {
+        id: true,
+        notificationSettings: true,
+        updatedAt: true,
+      },
+    });
+    
+    res.json({
+      vendorId: vendor.id,
+      notificationSettings: vendor.notificationSettings,
+    });
+  })
+);
+
+/**
+ * GET /api/vendors/:id/matching-config
+ * Get product matching configuration
+ */
+vendorsRouter.get(
+  '/:id/matching-config',
+  requireVendorAccess(req => req.params.id),
+  asyncHandlerWithContext(async (req: any, res: any) => {
+    const vendorId = req.params.id;
+    
+    const vendor = await prisma.vendor.findUnique({
+      where: { id: vendorId },
+      select: {
+        id: true,
+        matchingConfig: true,
+      },
+    });
+    
+    if (!vendor) {
+      return res.status(404).json({ error: 'Vendor not found' });
+    }
+    
+    res.json({
+      vendorId: vendor.id,
+      matchingConfig: vendor.matchingConfig || {},
+    });
+  })
+);
+
+/**
+ * PUT /api/vendors/:id/matching-config
+ * Update product matching configuration
+ */
+vendorsRouter.put(
+  '/:id/matching-config',
+  requireVendorAccess(req => req.params.id),
+  settingsRateLimit,
+  asyncHandlerWithContext(async (req: any, res: any) => {
+    const vendorId = req.params.id;
+    const validated = matchingConfigSchema.parse(req.body);
+    
+    const vendor = await prisma.vendor.update({
+      where: { id: vendorId },
+      data: {
+        matchingConfig: validated as any,
+      },
+      select: {
+        id: true,
+        matchingConfig: true,
+        updatedAt: true,
+      },
+    });
+    
+    res.json({
+      vendorId: vendor.id,
+      matchingConfig: vendor.matchingConfig,
+    });
+  })
+);
+
+/**
+ * PUT /api/vendors/:id/timezone
+ * Update timezone
+ */
+vendorsRouter.put(
+  '/:id/timezone',
+  requireVendorAccess(req => req.params.id),
+  settingsRateLimit,
+  asyncHandlerWithContext(async (req: any, res: any) => {
+    const vendorId = req.params.id;
+    const validated = timezoneSchema.parse(req.body);
+    
+    const vendor = await prisma.vendor.update({
+      where: { id: vendorId },
+      data: {
+        timezone: validated.timezone,
+      },
+      select: {
+        id: true,
+        timezone: true,
+        updatedAt: true,
+      },
+    });
+    
+    res.json({
+      vendorId: vendor.id,
+      timezone: vendor.timezone,
+    });
+  })
+);
+
+

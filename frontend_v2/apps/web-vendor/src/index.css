@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark;
+  color: rgba(255, 255, 255, 0.87);
+  background-color: #242424;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background-color: #ffffff;
+  color: #111827; /* text-gray-900 */
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* Global form input styles - ensure black text */
+input,
+textarea,
+select,
+option {
+  color: #111827 !important; /* text-gray-900 equivalent */
+}
+
+/* Ensure inputs have proper background and text color */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="tel"],
+input[type="url"],
+input[type="search"],
+textarea,
+select {
+  color: #111827 !important; /* text-gray-900 */
+  background-color: #ffffff !important;
+}
+
+/* For disabled inputs, use a lighter gray but still readable */
+input:disabled,
+textarea:disabled,
+select:disabled {
+  color: #6b7280 !important; /* text-gray-500 */
+  background-color: #f3f4f6 !important; /* bg-gray-100 */
+}
+
+/* Placeholder text should be gray */
+input::placeholder,
+textarea::placeholder {
+  color: #9ca3af !important; /* text-gray-400 */
+}
+
+/* Select dropdown */
+select option {
+  color: #111827 !important;
+  background-color: #ffffff !important;
+}
+
+/* Custom scrollbar for conversation list */
+.conversation-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.conversation-scrollbar::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
+}
+
+.conversation-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.conversation-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+

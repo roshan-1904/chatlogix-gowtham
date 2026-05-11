@@ -1,0 +1,40 @@
+{
+  "compilerOptions": {
+    "target": "ES2021",
+    "lib": ["ES2021", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "allowJs": true,
+    "checkJs": false,
+    "jsx": "react-jsx",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "removeComments": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "baseUrl": ".",
+    "paths": {
+      "@chatlogix/ui": ["./packages/ui/src"],
+      "@chatlogix/design-tokens": ["./packages/design-tokens/src"],
+      "@chatlogix/api-client": ["./packages/api-client/src"],
+      "@chatlogix/hooks": ["./packages/hooks/src"],
+      "@chatlogix/schemas": ["./packages/schemas/src"],
+      "@chatlogix/utils": ["./packages/utils/src"],
+      "@chatlogix/config": ["./packages/config/src"],
+      "@chatlogix/auth": ["./packages/auth/src"]
+    }
+  },
+  "exclude": ["node_modules", "dist", "build", ".turbo"]
+}
+

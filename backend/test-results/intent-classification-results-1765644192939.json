@@ -1,0 +1,4239 @@
+{
+  "timestamp": "2025-12-13T16:55:59.782Z",
+  "totalTests": 194,
+  "passed": 138,
+  "failed": 56,
+  "passRate": "71.13%",
+  "averageTimeMs": 3942,
+  "minTimeMs": 2011,
+  "maxTimeMs": 8283,
+  "results": [
+    {
+      "testCase": {
+        "message": "Hi",
+        "expectedPrimaryIntent": "greeting",
+        "expectedSecondaryIntents": [],
+        "description": "Simple greeting"
+      },
+      "actual": {
+        "primaryIntent": "greeting",
+        "secondaryIntents": [],
+        "confidence": 1,
+        "reasoning": "The customer is simply greeting, which is the primary intent. No other intents are present."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3527
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "Hello, good morning",
+        "expectedPrimaryIntent": "greeting",
+        "expectedSecondaryIntents": [],
+        "description": "Formal greeting"
+      },
+      "actual": {
+        "primaryIntent": "greeting",
+        "secondaryIntents": [],
+        "confidence": 1,
+        "reasoning": "The customer is greeting, which is the primary intent detected. No other intents are present."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3470
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "Namaste",
+        "expectedPrimaryIntent": "greeting",
+        "expectedSecondaryIntents": [],
+        "description": "Traditional greeting"
+      },
+      "actual": {
+        "primaryIntent": "greeting",
+        "secondaryIntents": [],
+        "confidence": 1,
+        "reasoning": "The customer is greeting with 'Namaste', which is classified as a greeting intent. There are no other queries present in the message."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3691
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "Do you have chocolate brownies?",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Product availability question"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.95,
+        "reasoning": "The customer is inquiring about the availability of chocolate brownies, which is classified as a product inquiry."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3686
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "What's the price of Karuppu Kavuni Brownie?",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Price inquiry"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.95,
+        "reasoning": "The customer is asking for the price of a specific product, which qualifies as a product inquiry. No other intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3135
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "Is Mapillai Samba available?",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Availability check"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 1,
+        "reasoning": "The customer is asking about the availability of Mapillai Samba, which qualifies as a product inquiry."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3461
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "What products do you have?",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "General product inquiry"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.95,
+        "reasoning": "The customer is inquiring about the products available, which qualifies as a product inquiry intent."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3400
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "Tell me about your brownies",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Product information request"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.95,
+        "reasoning": "The customer is asking for information about brownies, which falls under product inquiry. No other intents are present."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 2979
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "I want 2kg brownie",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "New order placement"
+      },
+      "actual": {
+        "primaryIntent": "order_new",
+        "secondaryIntents": [],
+        "confidence": 0.95,
+        "reasoning": "The customer explicitly states they want to order 2kg of brownie, which classifies as a new order (order_new). No secondary intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3944
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "I'll take 1kg Karuppu Kavuni Brownie",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Order with product name"
+      },
+      "actual": {
+        "primaryIntent": "order_new",
+        "secondaryIntents": [],
+        "confidence": 0.95,
+        "reasoning": "The customer is placing a new order for 1kg of Karuppu Kavuni Brownie, which classifies as order_new. No other intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 4000
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "I need 3 boxes",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Order with quantity"
+      },
+      "actual": {
+        "primaryIntent": "order_new",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer expresses a need to order 3 boxes, indicating a new order (order_new). No secondary intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 4510
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "Give me 5kg brownie",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Order with imperative"
+      },
+      "actual": {
+        "primaryIntent": "order_new",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is placing a new order for 5kg of brownies, which is classified as 'order_new'. There are no secondary intents present."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 4273
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "make it 5 boxes",
+        "expectedPrimaryIntent": "order_update",
+        "expectedSecondaryIntents": [],
+        "description": "Quantity update pattern",
+        "context": {
+          "hasExistingOrder": true
+        }
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 1,
+        "reasoning": "The message contains a quantity modification pattern ('make it 5 boxes') which indicates an update to the existing order. No other intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 5116
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "change to 3kg",
+        "expectedPrimaryIntent": "order_update",
+        "expectedSecondaryIntents": [],
+        "description": "Change quantity",
+        "context": {
+          "hasExistingOrder": true
+        }
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 1,
+        "reasoning": "The message contains a clear order update pattern ('change to 3kg') and there is an existing pending order, which classifies it as 'order_update'. No other intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 4312
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "make it as 5",
+        "expectedPrimaryIntent": "order_update",
+        "expectedSecondaryIntents": [],
+        "description": "Quantity update with 'as'",
+        "context": {
+          "hasExistingOrder": true
+        }
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 0.95,
+        "reasoning": "The message contains a quantity modification pattern ('make it as 5'), indicating a change in the existing order quantity. There are no other intents present."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 4154
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "I like to make it as 5 boxes",
+        "expectedPrimaryIntent": "order_update",
+        "expectedSecondaryIntents": [],
+        "description": "Polite quantity update",
+        "context": {
+          "hasExistingOrder": true
+        }
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 1,
+        "reasoning": "The customer wants to change the quantity of their existing order to 5 boxes, which qualifies as an order update."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 5460
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "add 2 more boxes",
+        "expectedPrimaryIntent": "order_update",
+        "expectedSecondaryIntents": [],
+        "description": "Add items",
+        "context": {
+          "hasExistingOrder": true
+        }
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 1,
+        "reasoning": "The customer is requesting to add more items to their existing order, which qualifies as an order update. There are no other intents present."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 4656
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "remove 1 box from order",
+        "expectedPrimaryIntent": "order_update",
+        "expectedSecondaryIntents": [],
+        "description": "Remove items",
+        "context": {
+          "hasExistingOrder": true
+        }
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 1,
+        "reasoning": "The customer is requesting to remove an item from their existing order, which classifies as an order update. No other intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 4251
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "update quantity to 10",
+        "expectedPrimaryIntent": "order_update",
+        "expectedSecondaryIntents": [],
+        "description": "Explicit update",
+        "context": {
+          "hasExistingOrder": true
+        }
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 1,
+        "reasoning": "The customer is updating the quantity of an existing order, which is classified as order_update. No other intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 5253
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "where is my order?",
+        "expectedPrimaryIntent": "order_status",
+        "expectedSecondaryIntents": [],
+        "description": "Order tracking"
+      },
+      "actual": {
+        "primaryIntent": "order_status",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is asking about the status of their order, which indicates an order_status intent. No other intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 2011
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "what's the status of my order?",
+        "expectedPrimaryIntent": "order_status",
+        "expectedSecondaryIntents": [],
+        "description": "Status inquiry"
+      },
+      "actual": {
+        "primaryIntent": "order_status",
+        "secondaryIntents": [],
+        "confidence": 0.95,
+        "reasoning": "The customer is inquiring about the status of their order, which directly corresponds to the order_status intent."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 2797
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "when will my order arrive?",
+        "expectedPrimaryIntent": "order_status",
+        "expectedSecondaryIntents": [],
+        "description": "Delivery time inquiry"
+      },
+      "actual": {
+        "primaryIntent": "order_status",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is asking about the arrival time of their order, which indicates they want to know the status of an existing order (order_status). There are no other intents present in the message."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 5783
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "track my order",
+        "expectedPrimaryIntent": "order_status",
+        "expectedSecondaryIntents": [],
+        "description": "Order tracking request"
+      },
+      "actual": {
+        "primaryIntent": "order_status",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is asking to track their order, which indicates they want to know the status of an existing order (order_status). No other intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 4163
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "Hi, do you have chocolate brownies?",
+        "expectedPrimaryIntent": "greeting",
+        "expectedSecondaryIntents": [
+          "product_inquiry"
+        ],
+        "description": "Greeting + Product inquiry"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [
+          "greeting"
+        ],
+        "confidence": 0.95,
+        "reasoning": "The customer greets (greeting) and inquires about the availability of chocolate brownies (product_inquiry)."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"greeting\" but got \"product_inquiry\"",
+        "Missing secondary intents: product_inquiry",
+        "Note: Unexpected secondary intents detected: greeting"
+      ],
+      "performance": {
+        "timeMs": 4141
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "Hello, what's the price?",
+        "expectedPrimaryIntent": "greeting",
+        "expectedSecondaryIntents": [
+          "product_inquiry"
+        ],
+        "description": "Greeting + Price inquiry"
+      },
+      "actual": {
+        "primaryIntent": "greeting",
+        "secondaryIntents": [
+          "product_inquiry"
+        ],
+        "confidence": 0.9,
+        "reasoning": "The customer greets (greeting) and also asks about the price (product_inquiry), indicating an interest in a product's cost."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3753
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "I like to make it as 5 boxes, and do you have any other varieties?",
+        "expectedPrimaryIntent": "order_update",
+        "expectedSecondaryIntents": [
+          "product_inquiry"
+        ],
+        "description": "Order update + Product inquiry",
+        "context": {
+          "hasExistingOrder": true
+        }
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 1,
+        "reasoning": "The customer wants to change the quantity of their existing order to 5 boxes, which qualifies as an order update."
+      },
+      "passed": false,
+      "issues": [
+        "Missing secondary intents: product_inquiry"
+      ],
+      "performance": {
+        "timeMs": 4915
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "make it 5 and tell me about other products",
+        "expectedPrimaryIntent": "order_update",
+        "expectedSecondaryIntents": [
+          "product_inquiry"
+        ],
+        "description": "Order update + Product inquiry (concise)",
+        "context": {
+          "hasExistingOrder": true
+        }
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [
+          "product_inquiry"
+        ],
+        "confidence": 0.95,
+        "reasoning": "The customer wants to change the quantity of their existing order (order_update) and also inquires about other products (product_inquiry)."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 4406
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "can I talk to a human?",
+        "expectedPrimaryIntent": "support",
+        "expectedSecondaryIntents": [],
+        "description": "Human handoff request"
+      },
+      "actual": {
+        "primaryIntent": "support",
+        "secondaryIntents": [],
+        "confidence": 1,
+        "reasoning": "The customer explicitly requests to talk to a human, which is classified as a support intent."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3222
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "I want to speak with an agent",
+        "expectedPrimaryIntent": "support",
+        "expectedSecondaryIntents": [],
+        "description": "Agent request"
+      },
+      "actual": {
+        "primaryIntent": "support",
+        "secondaryIntents": [],
+        "confidence": 1,
+        "reasoning": "The customer explicitly requests to speak with an agent, which is classified as a support intent."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3398
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "connect me to customer service",
+        "expectedPrimaryIntent": "support",
+        "expectedSecondaryIntents": [],
+        "description": "Customer service request"
+      },
+      "actual": {
+        "primaryIntent": "support",
+        "secondaryIntents": [],
+        "confidence": 1,
+        "reasoning": "The customer explicitly requests to connect with customer service, indicating a need for human assistance (support intent). No other intents are present."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 2657
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "yes, confirm my order",
+        "expectedPrimaryIntent": "confirm_order",
+        "expectedSecondaryIntents": [],
+        "description": "Order confirmation"
+      },
+      "actual": {
+        "primaryIntent": "confirm_order",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is explicitly confirming their order, which classifies as confirm_order. No other intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3652
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "ok, proceed",
+        "expectedPrimaryIntent": "confirm_order",
+        "expectedSecondaryIntents": [],
+        "description": "Proceed confirmation"
+      },
+      "actual": {
+        "primaryIntent": "confirm_order",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer message 'ok, proceed' indicates a confirmation of an action, which is classified as confirm_order. No other intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 4265
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "go ahead",
+        "expectedPrimaryIntent": "confirm_order",
+        "expectedSecondaryIntents": [],
+        "description": "Go ahead confirmation"
+      },
+      "actual": {
+        "primaryIntent": "confirm_order",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The message 'go ahead' indicates a confirmation to proceed with an action, which aligns with the intent of confirming an order. No secondary intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 4053
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "cancel my order",
+        "expectedPrimaryIntent": "cancel_order",
+        "expectedSecondaryIntents": [],
+        "description": "Order cancellation"
+      },
+      "actual": {
+        "primaryIntent": "cancel_order",
+        "secondaryIntents": [],
+        "confidence": 1,
+        "reasoning": "The customer explicitly requested to cancel their order, which is classified as cancel_order. No other intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3521
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "remove my order",
+        "expectedPrimaryIntent": "cancel_order",
+        "expectedSecondaryIntents": [],
+        "description": "Remove order"
+      },
+      "actual": {
+        "primaryIntent": "cancel_order",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer explicitly requests to remove their order, indicating a clear intent to cancel it (cancel_order). No secondary intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3761
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "I don't want this order anymore",
+        "expectedPrimaryIntent": "cancel_order",
+        "expectedSecondaryIntents": [],
+        "description": "Cancel order (polite)"
+      },
+      "actual": {
+        "primaryIntent": "cancel_order",
+        "secondaryIntents": [],
+        "confidence": 1,
+        "reasoning": "The customer explicitly states they don't want the order anymore, indicating a clear intent to cancel the order (cancel_order). No other intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 2940
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "yes",
+        "expectedPrimaryIntent": "confirm_order",
+        "expectedSecondaryIntents": [],
+        "description": "Ambiguous yes - should check context"
+      },
+      "actual": {
+        "primaryIntent": "confirm_order",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer responded with 'yes', indicating confirmation of an order. No other intents or information were present in the message."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3468
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "make it 5",
+        "expectedPrimaryIntent": "order_update",
+        "expectedSecondaryIntents": [],
+        "description": "Short quantity update",
+        "context": {
+          "hasExistingOrder": true
+        }
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 0.95,
+        "reasoning": "The message contains a quantity change pattern ('make it 5'), indicating a modification to the existing order. There are no other intents detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 4781
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "I want something for tomorrow",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Order with delivery date"
+      },
+      "actual": {
+        "primaryIntent": "order_new",
+        "secondaryIntents": [],
+        "confidence": 0.8,
+        "reasoning": "The customer expresses a desire to order something for tomorrow, indicating a new order intent (order_new). No specific products or quantities are mentioned, but the urgency is high due to the mention of 'tomorrow'. More context is needed to identify what they want to order."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 4285
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "Do you deliver to Coimbatore?",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Delivery location inquiry"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is inquiring about delivery availability to Coimbatore, which falls under product inquiry regarding service availability."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3053
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "How long does delivery take?",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Delivery time inquiry"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is inquiring about the delivery time, which falls under product inquiry as it relates to service availability."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3026
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "What payment methods do you accept?",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Payment method inquiry"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is asking about payment methods, which is a product inquiry regarding the services offered."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3551
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "I'm allergic to nuts",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Order with dietary restriction"
+      },
+      "actual": {
+        "primaryIntent": "other",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is stating an allergy, which does not fit into any specific actionable intent like ordering or inquiries, hence classified as 'other'. No secondary intents are detected."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"order_new\" but got \"other\""
+      ],
+      "performance": {
+        "timeMs": 3676
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "Please deliver before 8 PM",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Order with delivery time preference"
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is requesting a modification to the delivery time, which indicates an update to an existing order (order_update). There are no secondary intents detected."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"order_new\" but got \"order_update\""
+      ],
+      "performance": {
+        "timeMs": 4628
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "Actually, change the address to Tower 11",
+        "expectedPrimaryIntent": "order_update",
+        "expectedSecondaryIntents": [],
+        "description": "Address update",
+        "context": {
+          "hasExistingOrder": true
+        }
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 1,
+        "reasoning": "The customer is requesting to change the delivery address, which is a modification to the existing order, thus classified as order_update."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3541
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "Can you change delivery time to 7 PM?",
+        "expectedPrimaryIntent": "order_update",
+        "expectedSecondaryIntents": [],
+        "description": "Delivery time update",
+        "context": {
+          "hasExistingOrder": true
+        }
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 1,
+        "reasoning": "The customer is requesting to change the delivery time, which qualifies as an order update. No other intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3649
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "is chocolate brownie available?",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Availability question (lowercase)"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 1,
+        "reasoning": "The customer is asking about the availability of a specific product, which qualifies as a product inquiry."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3577
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "DO YOU HAVE BROWNIES?",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Uppercase message"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.95,
+        "reasoning": "The customer is asking about the availability of chocolate brownies, which qualifies as a product inquiry."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3717
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "hi i want 2kg brownie",
+        "expectedPrimaryIntent": "greeting",
+        "expectedSecondaryIntents": [
+          "order_new"
+        ],
+        "description": "Greeting + Order (no punctuation)"
+      },
+      "actual": {
+        "primaryIntent": "order_new",
+        "secondaryIntents": [
+          "greeting"
+        ],
+        "confidence": 0.95,
+        "reasoning": "The customer greets (greeting) and expresses a desire to place a new order for 2kg of brownies (order_new)."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"greeting\" but got \"order_new\"",
+        "Missing secondary intents: order_new",
+        "Note: Unexpected secondary intents detected: greeting"
+      ],
+      "performance": {
+        "timeMs": 3352
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "make it 5 boxes please",
+        "expectedPrimaryIntent": "order_update",
+        "expectedSecondaryIntents": [],
+        "description": "Polite update request",
+        "context": {
+          "hasExistingOrder": true
+        }
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 1,
+        "reasoning": "The message contains a quantity modification pattern ('make it 5 boxes') which indicates an update to the existing order. Therefore, it is classified as 'order_update'. No other intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 4932
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "vanakkam",
+        "expectedPrimaryIntent": "greeting",
+        "expectedSecondaryIntents": [],
+        "description": "Tamil greeting"
+      },
+      "actual": {
+        "primaryIntent": "greeting",
+        "secondaryIntents": [],
+        "confidence": 1,
+        "reasoning": "The customer is greeting with 'vanakkam', which is classified as a greeting intent. No other intents are present."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3645
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "namaskara",
+        "expectedPrimaryIntent": "greeting",
+        "expectedSecondaryIntents": [],
+        "description": "Kannada greeting"
+      },
+      "actual": {
+        "primaryIntent": "greeting",
+        "secondaryIntents": [],
+        "confidence": 1,
+        "reasoning": "The customer is greeting, which is the primary intent detected. No other intents are present."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 2779
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "namaskaram",
+        "expectedPrimaryIntent": "greeting",
+        "expectedSecondaryIntents": [],
+        "description": "Telugu/Malayalam greeting"
+      },
+      "actual": {
+        "primaryIntent": "greeting",
+        "secondaryIntents": [],
+        "confidence": 1,
+        "reasoning": "The message is a greeting ('namaskaram'), and there are no other intents present."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 2903
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "enna irukku",
+        "expectedPrimaryIntent": "greeting",
+        "expectedSecondaryIntents": [],
+        "description": "Tamil casual greeting"
+      },
+      "actual": {
+        "primaryIntent": "greeting",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The message 'enna irukku' is a greeting in Tamil, indicating the customer is starting a conversation without any specific requests."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 4106
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "howsit",
+        "expectedPrimaryIntent": "greeting",
+        "expectedSecondaryIntents": [],
+        "description": "Casual greeting"
+      },
+      "actual": {
+        "primaryIntent": "greeting",
+        "secondaryIntents": [],
+        "confidence": 1,
+        "reasoning": "The message is a casual greeting ('howsit'), which is classified as the primary intent. There are no other intents present."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3638
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "bro enna products irukku",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Tanglish - What products available"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is inquiring about the products available ('enna products irukku' translates to 'what products are there'), which qualifies as a product inquiry."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3276
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "brownie irukka",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Tamil - Is brownie available"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is inquiring about the availability of brownies, which qualifies as a product inquiry intent."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3843
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "brownie ideya",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Kannada - Is brownie available"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is inquiring about 'brownie ideya', which suggests they are looking for information about brownies. This qualifies as a product inquiry. No other intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3502
+      },
+      "language": "kannada"
+    },
+    {
+      "testCase": {
+        "message": "brownie unda",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Malayalam - Is brownie available"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.85,
+        "reasoning": "The customer is inquiring about 'brownie', indicating a product inquiry. No other intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3650
+      },
+      "language": "malayalam"
+    },
+    {
+      "testCase": {
+        "message": "brownie undha",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Telugu - Is brownie available"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is inquiring about the availability of brownies ('undha' suggests a question about availability). No other intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3544
+      },
+      "language": "telugu"
+    },
+    {
+      "testCase": {
+        "message": "enna price",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Tanglish - What price"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is inquiring about the price, which falls under product inquiry intent."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3190
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "evlo price",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Tamil - How much price"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is asking for the price of 'evlo', which falls under product inquiry. No other intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3595
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "yestu price",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Kannada - How much price"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is asking for the price of a product (likely 'yestu'), which qualifies as a product inquiry intent."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3974
+      },
+      "language": "kannada"
+    },
+    {
+      "testCase": {
+        "message": "ethra price",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Malayalam - How much price"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.95,
+        "reasoning": "The customer is asking for the price of 'ethra', which indicates a product inquiry intent."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3923
+      },
+      "language": "malayalam"
+    },
+    {
+      "testCase": {
+        "message": "entha price",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Telugu - How much price"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is asking about the price, which falls under product inquiry. There are no other intents present."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3858
+      },
+      "language": "telugu"
+    },
+    {
+      "testCase": {
+        "message": "1kg brownie venum",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Tamil - I want 1kg brownie"
+      },
+      "actual": {
+        "primaryIntent": "order_new",
+        "secondaryIntents": [
+          "product_inquiry"
+        ],
+        "confidence": 0.9,
+        "reasoning": "The customer is placing a new order for 1kg of brownie venum (order_new) and does not ask about availability, but the mention of the product implies a product inquiry as well."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 4261
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "2kg brownie beku",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Kannada - I want 2kg brownie"
+      },
+      "actual": {
+        "primaryIntent": "order_new",
+        "secondaryIntents": [
+          "product_inquiry"
+        ],
+        "confidence": 0.9,
+        "reasoning": "The customer is indicating a desire to order 2kg of brownies (order_new) and is also implicitly inquiring about the product (product_inquiry)."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3258
+      },
+      "language": "kannada"
+    },
+    {
+      "testCase": {
+        "message": "1kg brownie vende",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Malayalam - I want 1kg brownie"
+      },
+      "actual": {
+        "primaryIntent": "order_new",
+        "secondaryIntents": [
+          "product_inquiry"
+        ],
+        "confidence": 0.9,
+        "reasoning": "The customer is placing a new order for 1kg of brownie venum (order_new) and implicitly inquiring about the product (product_inquiry)."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 4227
+      },
+      "language": "malayalam"
+    },
+    {
+      "testCase": {
+        "message": "2kg brownie kavali",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Telugu - I want 2kg brownie"
+      },
+      "actual": {
+        "primaryIntent": "order_new",
+        "secondaryIntents": [
+          "product_inquiry"
+        ],
+        "confidence": 0.9,
+        "reasoning": "Customer wants to place a new order for 2kg of brownies (order_new) and mentions the product (product_inquiry)."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3923
+      },
+      "language": "telugu"
+    },
+    {
+      "testCase": {
+        "message": "naan 3kg order pannanum",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Tamil - I want to order 3kg"
+      },
+      "actual": {
+        "primaryIntent": "order_new",
+        "secondaryIntents": [],
+        "confidence": 0.95,
+        "reasoning": "The customer is placing a new order for 3kg of naan (order_new). There are no secondary intents detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3515
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "nange 2kg order madi",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Kannada - I want to order 2kg"
+      },
+      "actual": {
+        "primaryIntent": "order_new",
+        "secondaryIntents": [],
+        "confidence": 0.95,
+        "reasoning": "The customer is placing a new order for 2kg of an unspecified product, which indicates an 'order_new' intent."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3134
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "enikku 1kg order cheyyanam",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Malayalam - I want to order 1kg"
+      },
+      "actual": {
+        "primaryIntent": "order_new",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is expressing a desire to place a new order for 1kg of an unspecified product (order_new). No other intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 2748
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "naku 2kg order cheyali",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Telugu - I want to order 2kg"
+      },
+      "actual": {
+        "primaryIntent": "order_new",
+        "secondaryIntents": [],
+        "confidence": 0.95,
+        "reasoning": "The customer is indicating a desire to place a new order for 2kg of something, which classifies as order_new. No other intents are present."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3552
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "5 boxes pannu",
+        "expectedPrimaryIntent": "order_update",
+        "expectedSecondaryIntents": [],
+        "description": "Tamil - Make it 5 boxes",
+        "context": {
+          "hasExistingOrder": true
+        }
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is indicating a change in quantity for an existing order, which classifies as an order_update intent."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3140
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "5 boxes maadi",
+        "expectedPrimaryIntent": "order_update",
+        "expectedSecondaryIntents": [],
+        "description": "Kannada - Make it 5 boxes",
+        "context": {
+          "hasExistingOrder": true
+        }
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is requesting to change the quantity of their existing order to 5 boxes, which qualifies as an order update. No other intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 4396
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "5 boxes aakku",
+        "expectedPrimaryIntent": "order_update",
+        "expectedSecondaryIntents": [],
+        "description": "Malayalam - Make it 5 boxes",
+        "context": {
+          "hasExistingOrder": true
+        }
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is indicating a change in quantity for their existing order (5 boxes), which qualifies as an order_update intent."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3307
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "5 boxes cheyandi",
+        "expectedPrimaryIntent": "order_update",
+        "expectedSecondaryIntents": [],
+        "description": "Telugu - Make it 5 boxes",
+        "context": {
+          "hasExistingOrder": true
+        }
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is requesting to change the quantity of their existing order to 5 boxes, which qualifies as an order update intent."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3200
+      },
+      "language": "telugu"
+    },
+    {
+      "testCase": {
+        "message": "5ku change pannu",
+        "expectedPrimaryIntent": "order_update",
+        "expectedSecondaryIntents": [],
+        "description": "Tamil - Change to 5",
+        "context": {
+          "hasExistingOrder": true
+        }
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is requesting to change the quantity of their existing order, which classifies as an order_update intent."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3163
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "5ge change maadi",
+        "expectedPrimaryIntent": "order_update",
+        "expectedSecondaryIntents": [],
+        "description": "Kannada - Change to 5",
+        "context": {
+          "hasExistingOrder": true
+        }
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is requesting to change the quantity of their existing order to 5, which classifies as an order_update intent."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3435
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "5ku maari aakku",
+        "expectedPrimaryIntent": "order_update",
+        "expectedSecondaryIntents": [],
+        "description": "Tamil - Change to 5",
+        "context": {
+          "hasExistingOrder": true
+        }
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 0.85,
+        "reasoning": "The customer is indicating a change in quantity for their existing order, which qualifies as an order_update intent. No other intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3466
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "innum 2 add pannu",
+        "expectedPrimaryIntent": "order_update",
+        "expectedSecondaryIntents": [],
+        "description": "Tamil - Add 2 more",
+        "context": {
+          "hasExistingOrder": true
+        }
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is requesting to add 2 more items to their existing order, which qualifies as an order update intent."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3508
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "innu 2 add maadi",
+        "expectedPrimaryIntent": "order_update",
+        "expectedSecondaryIntents": [],
+        "description": "Kannada - Add 2 more",
+        "context": {
+          "hasExistingOrder": true
+        }
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is requesting to add 2 items to their existing order, which classifies as an order update. There are no secondary intents detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3852
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "koode 2 add cheyyu",
+        "expectedPrimaryIntent": "order_update",
+        "expectedSecondaryIntents": [],
+        "description": "Malayalam - Add 2 more",
+        "context": {
+          "hasExistingOrder": true
+        }
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is requesting to add 2 more items to their existing order, which qualifies as an order update."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3253
+      },
+      "language": "malayalam"
+    },
+    {
+      "testCase": {
+        "message": "inko 2 add cheyandi",
+        "expectedPrimaryIntent": "order_update",
+        "expectedSecondaryIntents": [],
+        "description": "Telugu - Add 2 more",
+        "context": {
+          "hasExistingOrder": true
+        }
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is requesting to add 2 more items to their existing order, which classifies as an order_update intent."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3698
+      },
+      "language": "telugu"
+    },
+    {
+      "testCase": {
+        "message": "en order enge irukku",
+        "expectedPrimaryIntent": "order_status",
+        "expectedSecondaryIntents": [],
+        "description": "Tamil - Where is my order"
+      },
+      "actual": {
+        "primaryIntent": "order_status",
+        "secondaryIntents": [],
+        "confidence": 0.8,
+        "reasoning": "The customer is asking about the status of their order ('en order enge irukku' translates to 'where is my order?'), which indicates an order_status intent. No secondary intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 2915
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "nanna order elli ide",
+        "expectedPrimaryIntent": "order_status",
+        "expectedSecondaryIntents": [],
+        "description": "Kannada - Where is my order"
+      },
+      "actual": {
+        "primaryIntent": "order_status",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is asking about the status of their order ('nanna order elli ide' translates to 'where is my order'), which indicates an order_status intent."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 4299
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "ente order evideya",
+        "expectedPrimaryIntent": "order_status",
+        "expectedSecondaryIntents": [],
+        "description": "Malayalam - Where is my order"
+      },
+      "actual": {
+        "primaryIntent": "order_status",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is asking about the status of their order ('ente order evideya' translates to 'where is my order'), which indicates an 'order_status' intent."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3332
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "na order ekkada undhi",
+        "expectedPrimaryIntent": "order_status",
+        "expectedSecondaryIntents": [],
+        "description": "Telugu - Where is my order"
+      },
+      "actual": {
+        "primaryIntent": "order_status",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is asking about the status of their order ('ekkada undhi' translates to 'where is it?'), indicating an order_status intent."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3299
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "en order status enna",
+        "expectedPrimaryIntent": "order_status",
+        "expectedSecondaryIntents": [],
+        "description": "Tamil - What is my order status"
+      },
+      "actual": {
+        "primaryIntent": "order_status",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is asking about the status of their order, which clearly indicates an order_status intent. No other intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 2868
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "nanna order status enu",
+        "expectedPrimaryIntent": "order_status",
+        "expectedSecondaryIntents": [],
+        "description": "Kannada - What is my order status"
+      },
+      "actual": {
+        "primaryIntent": "order_status",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is asking about the status of their order ('nanna order elli ide' translates to 'where is my order'), which classifies as order_status."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 4529
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "ente order status entha",
+        "expectedPrimaryIntent": "order_status",
+        "expectedSecondaryIntents": [],
+        "description": "Malayalam - What is my order status"
+      },
+      "actual": {
+        "primaryIntent": "order_status",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is asking about the status of their order, which indicates an order_status intent. No other intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3511
+      },
+      "language": "telugu"
+    },
+    {
+      "testCase": {
+        "message": "na order status entha",
+        "expectedPrimaryIntent": "order_status",
+        "expectedSecondaryIntents": [],
+        "description": "Telugu - What is my order status"
+      },
+      "actual": {
+        "primaryIntent": "order_status",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is asking about the status of their order, which is classified as order_status. There are no other intents present in the message."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3408
+      },
+      "language": "telugu"
+    },
+    {
+      "testCase": {
+        "message": "human kitta pesalam",
+        "expectedPrimaryIntent": "support",
+        "expectedSecondaryIntents": [],
+        "description": "Tamil - Can talk to human"
+      },
+      "actual": {
+        "primaryIntent": "support",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is explicitly requesting to speak with a human, which indicates a support intent."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 2657
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "human jothe matadbeku",
+        "expectedPrimaryIntent": "support",
+        "expectedSecondaryIntents": [],
+        "description": "Kannada - Want to talk to human"
+      },
+      "actual": {
+        "primaryIntent": "support",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer explicitly requests to talk to a human, which classifies as a support intent."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3156
+      },
+      "language": "kannada"
+    },
+    {
+      "testCase": {
+        "message": "humanodu parayam",
+        "expectedPrimaryIntent": "support",
+        "expectedSecondaryIntents": [],
+        "description": "Malayalam - Can talk to human"
+      },
+      "actual": {
+        "primaryIntent": "support",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is requesting to speak with a human, indicating a need for support. No other intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 4351
+      },
+      "language": "malayalam"
+    },
+    {
+      "testCase": {
+        "message": "human tho matladali",
+        "expectedPrimaryIntent": "support",
+        "expectedSecondaryIntents": [],
+        "description": "Telugu - Want to talk to human"
+      },
+      "actual": {
+        "primaryIntent": "support",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is requesting to speak with a human, indicating a need for support. No other intents are present."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3562
+      },
+      "language": "telugu"
+    },
+    {
+      "testCase": {
+        "message": "ok confirm pannu",
+        "expectedPrimaryIntent": "confirm_order",
+        "expectedSecondaryIntents": [],
+        "description": "Tamil - Ok confirm"
+      },
+      "actual": {
+        "primaryIntent": "confirm_order",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is confirming an action with the phrase 'ok confirm pannu', which indicates a confirmation intent. No other intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 5209
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "ok confirm maadi",
+        "expectedPrimaryIntent": "confirm_order",
+        "expectedSecondaryIntents": [],
+        "description": "Kannada - Ok confirm"
+      },
+      "actual": {
+        "primaryIntent": "confirm_order",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is confirming an order with the phrase 'ok confirm maadi', which indicates a clear intent to finalize an order. No secondary intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3530
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "ok confirm cheyyu",
+        "expectedPrimaryIntent": "confirm_order",
+        "expectedSecondaryIntents": [],
+        "description": "Malayalam - Ok confirm"
+      },
+      "actual": {
+        "primaryIntent": "confirm_order",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is confirming an order with the phrase 'ok confirm cheyyu', indicating a clear intent to finalize an order."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 4579
+      },
+      "language": "malayalam"
+    },
+    {
+      "testCase": {
+        "message": "ok confirm cheyandi",
+        "expectedPrimaryIntent": "confirm_order",
+        "expectedSecondaryIntents": [],
+        "description": "Telugu - Ok confirm"
+      },
+      "actual": {
+        "primaryIntent": "confirm_order",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is confirming something with 'ok confirm cheyyu', indicating a confirmation intent. There are no other intents present."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3580
+      },
+      "language": "telugu"
+    },
+    {
+      "testCase": {
+        "message": "aama confirm pannu",
+        "expectedPrimaryIntent": "confirm_order",
+        "expectedSecondaryIntents": [],
+        "description": "Tamil - Yes confirm"
+      },
+      "actual": {
+        "primaryIntent": "confirm_order",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is explicitly asking to confirm an order, which falls under the confirm_order intent. No secondary intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3338
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "houdu confirm maadi",
+        "expectedPrimaryIntent": "confirm_order",
+        "expectedSecondaryIntents": [],
+        "description": "Kannada - Yes confirm"
+      },
+      "actual": {
+        "primaryIntent": "confirm_order",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is explicitly asking to confirm an order ('confirm maadi'), which falls under the confirm_order intent. There are no other intents present in the message."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3300
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "athe confirm cheyyu",
+        "expectedPrimaryIntent": "confirm_order",
+        "expectedSecondaryIntents": [],
+        "description": "Malayalam - Yes confirm"
+      },
+      "actual": {
+        "primaryIntent": "confirm_order",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is explicitly asking to confirm something, which aligns with the confirm_order intent. There are no other intents detected in the message."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3570
+      },
+      "language": "malayalam"
+    },
+    {
+      "testCase": {
+        "message": "avunu confirm cheyandi",
+        "expectedPrimaryIntent": "confirm_order",
+        "expectedSecondaryIntents": [],
+        "description": "Telugu - Yes confirm"
+      },
+      "actual": {
+        "primaryIntent": "confirm_order",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is explicitly asking to confirm an order ('confirm cheyandi'), which falls under the confirm_order intent. No other intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3313
+      },
+      "language": "telugu"
+    },
+    {
+      "testCase": {
+        "message": "order cancel pannu",
+        "expectedPrimaryIntent": "cancel_order",
+        "expectedSecondaryIntents": [],
+        "description": "Tamil - Cancel order"
+      },
+      "actual": {
+        "primaryIntent": "cancel_order",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The primary intent detected is cancel_order as the customer is requesting to cancel an order. No secondary intents were identified."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3642
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "order cancel maadi",
+        "expectedPrimaryIntent": "cancel_order",
+        "expectedSecondaryIntents": [],
+        "description": "Kannada - Cancel order"
+      },
+      "actual": {
+        "primaryIntent": "cancel_order",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is explicitly requesting to cancel an order, which is classified as cancel_order. No other intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3242
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "order cancel cheyyu",
+        "expectedPrimaryIntent": "cancel_order",
+        "expectedSecondaryIntents": [],
+        "description": "Malayalam - Cancel order"
+      },
+      "actual": {
+        "primaryIntent": "cancel_order",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is requesting to cancel an order, which is identified as the primary intent. No other intents were detected in the message."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3301
+      },
+      "language": "malayalam"
+    },
+    {
+      "testCase": {
+        "message": "order cancel cheyandi",
+        "expectedPrimaryIntent": "cancel_order",
+        "expectedSecondaryIntents": [],
+        "description": "Telugu - Cancel order"
+      },
+      "actual": {
+        "primaryIntent": "cancel_order",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is explicitly requesting to cancel an order, which is classified as cancel_order. No other intents were detected in the message."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3214
+      },
+      "language": "telugu"
+    },
+    {
+      "testCase": {
+        "message": "bro 2kg brownie venum",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Tanglish - Bro I want 2kg brownie"
+      },
+      "actual": {
+        "primaryIntent": "order_new",
+        "secondaryIntents": [
+          "product_inquiry"
+        ],
+        "confidence": 0.9,
+        "reasoning": "The customer is placing a new order for 2kg of brownie venum (order_new) and the mention of the product indicates a product inquiry as well."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3773
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "anna price enna",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Tanglish - Brother what price"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is asking about the price of 'anna', which qualifies as a product inquiry."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3167
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "sir brownie irukka",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Tanglish - Sir is brownie available"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is inquiring about the availability of brownies, which qualifies as a product inquiry intent."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3323
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "madam 1kg venum",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Tanglish - Madam I want 1kg"
+      },
+      "actual": {
+        "primaryIntent": "order_new",
+        "secondaryIntents": [
+          "product_inquiry"
+        ],
+        "confidence": 0.85,
+        "reasoning": "The customer is indicating a desire to place a new order for 1kg of 'venum' (order_new) and the mention of 'madam' suggests a polite inquiry, which could imply they are checking for availability (product_inquiry)."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 4096
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "hi bro enna products irukku",
+        "expectedPrimaryIntent": "greeting",
+        "expectedSecondaryIntents": [
+          "product_inquiry"
+        ],
+        "description": "Tanglish - Hi bro what products available"
+      },
+      "actual": {
+        "primaryIntent": "greeting",
+        "secondaryIntents": [
+          "product_inquiry"
+        ],
+        "confidence": 0.85,
+        "reasoning": "The customer greets with 'hi' (greeting) and asks about available products (product_inquiry)."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3769
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "vanakkam brownie irukka",
+        "expectedPrimaryIntent": "greeting",
+        "expectedSecondaryIntents": [
+          "product_inquiry"
+        ],
+        "description": "Tamil - Greeting + Is brownie available"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [
+          "greeting"
+        ],
+        "confidence": 0.9,
+        "reasoning": "The customer greets (greeting) and inquires about the availability of brownies (product_inquiry)."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"greeting\" but got \"product_inquiry\"",
+        "Missing secondary intents: product_inquiry",
+        "Note: Unexpected secondary intents detected: greeting"
+      ],
+      "performance": {
+        "timeMs": 3718
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "namaskara brownie ideya",
+        "expectedPrimaryIntent": "greeting",
+        "expectedSecondaryIntents": [
+          "product_inquiry"
+        ],
+        "description": "Kannada - Greeting + Is brownie available"
+      },
+      "actual": {
+        "primaryIntent": "greeting",
+        "secondaryIntents": [
+          "product_inquiry"
+        ],
+        "confidence": 0.85,
+        "reasoning": "The customer greets with 'namaskara' (greeting) and mentions 'brownie', which indicates a product inquiry about brownies. The primary intent is greeting, while the secondary intent is product inquiry."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3382
+      },
+      "language": "kannada"
+    },
+    {
+      "testCase": {
+        "message": "namaskaram brownie unda",
+        "expectedPrimaryIntent": "greeting",
+        "expectedSecondaryIntents": [
+          "product_inquiry"
+        ],
+        "description": "Malayalam - Greeting + Is brownie available"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [
+          "greeting"
+        ],
+        "confidence": 0.9,
+        "reasoning": "The customer greets (greeting) and inquires about the availability of brownies (product_inquiry)."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"greeting\" but got \"product_inquiry\"",
+        "Missing secondary intents: product_inquiry",
+        "Note: Unexpected secondary intents detected: greeting"
+      ],
+      "performance": {
+        "timeMs": 4052
+      },
+      "language": "malayalam"
+    },
+    {
+      "testCase": {
+        "message": "namaskaram brownie undha",
+        "expectedPrimaryIntent": "greeting",
+        "expectedSecondaryIntents": [
+          "product_inquiry"
+        ],
+        "description": "Telugu - Greeting + Is brownie available"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [
+          "greeting"
+        ],
+        "confidence": 0.9,
+        "reasoning": "The customer greets with 'namaskaram' (greeting) and inquires about the availability of 'brownie' (product_inquiry)."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"greeting\" but got \"product_inquiry\"",
+        "Missing secondary intents: product_inquiry",
+        "Note: Unexpected secondary intents detected: greeting"
+      ],
+      "performance": {
+        "timeMs": 3923
+      },
+      "language": "telugu"
+    },
+    {
+      "testCase": {
+        "message": "5ku change pannu bro",
+        "expectedPrimaryIntent": "order_update",
+        "expectedSecondaryIntents": [],
+        "description": "Tanglish - Change to 5 bro",
+        "context": {
+          "hasExistingOrder": true
+        }
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is indicating a change in quantity with 'change pannu', which suggests they want to modify their existing order. There are no secondary intents detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3530
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "innum 2 add pannu please",
+        "expectedPrimaryIntent": "order_update",
+        "expectedSecondaryIntents": [],
+        "description": "Tanglish - Add 2 more please",
+        "context": {
+          "hasExistingOrder": true
+        }
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is requesting to add 2 more items to their existing order, which indicates an order update. There are no other intents detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3725
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "enna delivery time",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Tanglish - What delivery time"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is inquiring about the delivery time, which falls under product inquiry since it relates to service availability."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 4457
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "evlo time la varum",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Tamil - In how much time will it come"
+      },
+      "actual": {
+        "primaryIntent": "other",
+        "secondaryIntents": [],
+        "confidence": 0.7,
+        "reasoning": "The message appears to be asking about the time of arrival but lacks clarity and specific context, thus classified as 'other'. No secondary intents were detected."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"product_inquiry\" but got \"other\""
+      ],
+      "performance": {
+        "timeMs": 4390
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "yestu time ge barutte",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Kannada - In how much time will it come"
+      },
+      "actual": {
+        "primaryIntent": "greeting",
+        "secondaryIntents": [],
+        "confidence": 0.8,
+        "reasoning": "The message appears to be a greeting in a different language, indicating the start of a conversation without any specific requests or queries."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"product_inquiry\" but got \"greeting\""
+      ],
+      "performance": {
+        "timeMs": 3621
+      },
+      "language": "kannada"
+    },
+    {
+      "testCase": {
+        "message": "ethra time il varum",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Malayalam - In how much time will it come"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is asking about the time something will arrive, which indicates a product inquiry regarding availability or delivery timing."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 4018
+      },
+      "language": "malayalam"
+    },
+    {
+      "testCase": {
+        "message": "enta time ki vastundi",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Telugu - In how much time will it come"
+      },
+      "actual": {
+        "primaryIntent": "other",
+        "secondaryIntents": [],
+        "confidence": 0.7,
+        "reasoning": "The message does not contain a clear intent related to products, orders, or support; it appears to be a general inquiry about time, thus classified as 'other'."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"product_inquiry\" but got \"other\""
+      ],
+      "performance": {
+        "timeMs": 6421
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "naale deliver pannu",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Tamil - Deliver tomorrow"
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is requesting a delivery to be made tomorrow ('naale deliver pannu'), indicating a modification to an existing order or a new delivery request, classified as order_update."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"order_new\" but got \"order_update\""
+      ],
+      "performance": {
+        "timeMs": 2904
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "naale deliver maadi",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Kannada - Deliver tomorrow"
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is requesting a delivery for tomorrow ('naale deliver pannu'), indicating a modification to an existing order's delivery schedule, which classifies as order_update."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"order_new\" but got \"order_update\""
+      ],
+      "performance": {
+        "timeMs": 2989
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "naale deliver cheyyu",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Malayalam - Deliver tomorrow"
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is requesting to schedule a delivery for tomorrow ('naale deliver pannu'), indicating a modification to an existing order's delivery details, which classifies as order_update."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"order_new\" but got \"order_update\""
+      ],
+      "performance": {
+        "timeMs": 3845
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "repu deliver cheyandi",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Telugu - Deliver tomorrow"
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is requesting to deliver something, which indicates a modification to an existing order or delivery request (order_update). No other intents were detected."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"order_new\" but got \"order_update\""
+      ],
+      "performance": {
+        "timeMs": 3085
+      },
+      "language": "telugu"
+    },
+    {
+      "testCase": {
+        "message": "morning la deliver pannu",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Tamil - Deliver in morning"
+      },
+      "actual": {
+        "primaryIntent": "greeting",
+        "secondaryIntents": [
+          "order_update"
+        ],
+        "confidence": 0.85,
+        "reasoning": "The message starts with a greeting ('morning') and implies a request for delivery ('deliver pannu'), which suggests an order update or delivery request. However, since it does not specify details about an existing order, the primary intent is classified as greeting."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"order_new\" but got \"greeting\""
+      ],
+      "performance": {
+        "timeMs": 4281
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "beligge deliver maadi",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Kannada - Deliver in morning"
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is requesting to deliver something, indicating a modification related to delivery (order_update). No other intents were detected."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"order_new\" but got \"order_update\""
+      ],
+      "performance": {
+        "timeMs": 3082
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "ravile deliver cheyyu",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Malayalam - Deliver in morning"
+      },
+      "actual": {
+        "primaryIntent": "order_new",
+        "secondaryIntents": [],
+        "confidence": 0.8,
+        "reasoning": "The customer is requesting a delivery (order_new) but does not specify any product or details, indicating a need for more context."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3936
+      },
+      "language": "malayalam"
+    },
+    {
+      "testCase": {
+        "message": "udayam deliver cheyandi",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Telugu - Deliver in morning"
+      },
+      "actual": {
+        "primaryIntent": "order_new",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is requesting to deliver 'udayam', indicating a desire to place a new order (order_new). There are no secondary intents detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3699
+      },
+      "language": "telugu"
+    },
+    {
+      "testCase": {
+        "message": "evening la deliver pannu",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Tamil - Deliver in evening"
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [
+          "greeting"
+        ],
+        "confidence": 0.85,
+        "reasoning": "The customer is requesting to deliver something (order_update) and also greets with 'evening' (greeting). The intent to modify delivery is prioritized."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"order_new\" but got \"order_update\""
+      ],
+      "performance": {
+        "timeMs": 3785
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "sanje deliver maadi",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Kannada - Deliver in evening"
+      },
+      "actual": {
+        "primaryIntent": "order_new",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is requesting to place a new order for 'sanje' (order_new). There are no secondary intents detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3429
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "ravile deliver cheyyu",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Malayalam - Deliver in evening"
+      },
+      "actual": {
+        "primaryIntent": "order_new",
+        "secondaryIntents": [],
+        "confidence": 0.8,
+        "reasoning": "The customer is requesting a delivery (order_new) but does not specify what they want to order. No secondary intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 4916
+      },
+      "language": "malayalam"
+    },
+    {
+      "testCase": {
+        "message": "sayantram deliver cheyandi",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Telugu - Deliver in evening"
+      },
+      "actual": {
+        "primaryIntent": "order_new",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is requesting to place a new order for 'sayantram' (order_new). No secondary intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3332
+      },
+      "language": "telugu"
+    },
+    {
+      "testCase": {
+        "message": "cash kodukalam",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Tamil - Can give cash"
+      },
+      "actual": {
+        "primaryIntent": "order_new",
+        "secondaryIntents": [],
+        "confidence": 0.8,
+        "reasoning": "The phrase 'cash kodukalam' suggests the customer is indicating a desire to make a payment or order something with cash, which aligns with placing a new order (order_new). No secondary intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3742
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "cash kodbeku",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Kannada - Want to give cash"
+      },
+      "actual": {
+        "primaryIntent": "other",
+        "secondaryIntents": [],
+        "confidence": 0.5,
+        "reasoning": "The message 'cash kodbeku' does not clearly indicate any specific intent related to orders or inquiries. It seems to be a request for cash, which does not fit into the predefined categories, thus classified as 'other'. More context is needed to determine the customer's specific needs."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"order_new\" but got \"other\"",
+        "Low confidence: 0.50 (expected >= 0.7)"
+      ],
+      "performance": {
+        "timeMs": 3458
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "cash kodukkam",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Malayalam - Can give cash"
+      },
+      "actual": {
+        "primaryIntent": "order_new",
+        "secondaryIntents": [],
+        "confidence": 0.8,
+        "reasoning": "The phrase 'cash kodukkam' suggests a desire to make a payment or place an order, indicating an intention to order something (order_new). No specific products or quantities were mentioned, and no other intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 4939
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "cash ivvachu",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Telugu - Can give cash"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.8,
+        "reasoning": "The customer is asking about the availability of cash (product_inquiry). No other intents were detected."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"order_new\" but got \"product_inquiry\""
+      ],
+      "performance": {
+        "timeMs": 4232
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "address change pannu",
+        "expectedPrimaryIntent": "order_update",
+        "expectedSecondaryIntents": [],
+        "description": "Tamil - Change address",
+        "context": {
+          "hasExistingOrder": true
+        }
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is requesting to change the delivery address, which qualifies as an order update. No other intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 4456
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "address change maadi",
+        "expectedPrimaryIntent": "order_update",
+        "expectedSecondaryIntents": [],
+        "description": "Kannada - Change address",
+        "context": {
+          "hasExistingOrder": true
+        }
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is indicating a need to change the delivery address, which qualifies as an order update. There are no secondary intents detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3849
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "address change cheyyu",
+        "expectedPrimaryIntent": "order_update",
+        "expectedSecondaryIntents": [],
+        "description": "Malayalam - Change address",
+        "context": {
+          "hasExistingOrder": true
+        }
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is requesting to change the delivery address, which indicates an update to the existing order. There are no other intents detected in the message."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 4630
+      },
+      "language": "malayalam"
+    },
+    {
+      "testCase": {
+        "message": "address change cheyandi",
+        "expectedPrimaryIntent": "order_update",
+        "expectedSecondaryIntents": [],
+        "description": "Telugu - Change address",
+        "context": {
+          "hasExistingOrder": true
+        }
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is requesting to change the delivery address, which is classified as an order update. There are no secondary intents detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3760
+      },
+      "language": "telugu"
+    },
+    {
+      "testCase": {
+        "message": "sugar less venum",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Tamil - Want sugar less"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.8,
+        "reasoning": "The customer is inquiring about a product named 'sugar less venum', indicating a product inquiry intent. No other intents were detected."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"order_new\" but got \"product_inquiry\""
+      ],
+      "performance": {
+        "timeMs": 5913
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "sugar less beku",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Kannada - Want sugar less"
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [
+          "product_inquiry"
+        ],
+        "confidence": 0.85,
+        "reasoning": "The customer is indicating a desire to modify the quantity of sugar (order_update) by specifying 'less', while also implying a request for sugar (product_inquiry)."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"order_new\" but got \"order_update\""
+      ],
+      "performance": {
+        "timeMs": 4243
+      },
+      "language": "kannada"
+    },
+    {
+      "testCase": {
+        "message": "sugar kuravayirikkanam",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Malayalam - Should be less sugar"
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is indicating a desire to reduce the quantity of sugar (order_update). No secondary intents were detected."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"order_new\" but got \"order_update\""
+      ],
+      "performance": {
+        "timeMs": 4945
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "sugar takkuva kavali",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Telugu - Want less sugar"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is inquiring about the availability of sugar ('sugar takkuva kavali' translates to 'need sugar'). There are no secondary intents detected."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"order_new\" but got \"product_inquiry\""
+      ],
+      "performance": {
+        "timeMs": 3861
+      },
+      "language": "telugu"
+    },
+    {
+      "testCase": {
+        "message": "diabetic ku ok ah",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Tamil - Is it ok for diabetic"
+      },
+      "actual": {
+        "primaryIntent": "other",
+        "secondaryIntents": [],
+        "confidence": 0.5,
+        "reasoning": "The message does not clearly indicate a specific intent related to orders or inquiries. It appears to be a personal statement or question that requires more context to determine the customer's needs."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"product_inquiry\" but got \"other\"",
+        "Low confidence: 0.50 (expected >= 0.7)"
+      ],
+      "performance": {
+        "timeMs": 3527
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "diabetic ge ok na",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Kannada - Is it ok for diabetic"
+      },
+      "actual": {
+        "primaryIntent": "other",
+        "secondaryIntents": [],
+        "confidence": 0.5,
+        "reasoning": "The message does not clearly indicate a specific intent related to ordering, product inquiry, or support. It seems to be a general statement or question, possibly about a product related to diabetes, but lacks clarity and context."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"product_inquiry\" but got \"other\"",
+        "Low confidence: 0.50 (expected >= 0.7)"
+      ],
+      "performance": {
+        "timeMs": 5219
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "diabetic ku ok ano",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Malayalam - Is it ok for diabetic"
+      },
+      "actual": {
+        "primaryIntent": "other",
+        "secondaryIntents": [],
+        "confidence": 0.5,
+        "reasoning": "The message does not clearly indicate a specific intent related to orders or inquiries, and seems to be a statement or question about diabetes. No other intents were detected."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"product_inquiry\" but got \"other\"",
+        "Low confidence: 0.50 (expected >= 0.7)"
+      ],
+      "performance": {
+        "timeMs": 4344
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "diabetic ki ok ah",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Telugu - Is it ok for diabetic"
+      },
+      "actual": {
+        "primaryIntent": "other",
+        "secondaryIntents": [],
+        "confidence": 0.5,
+        "reasoning": "The message does not clearly indicate a specific intent related to orders or inquiries about products, thus classified as 'other'. No secondary intents detected."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"product_inquiry\" but got \"other\"",
+        "Low confidence: 0.50 (expected >= 0.7)"
+      ],
+      "performance": {
+        "timeMs": 3431
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "kids ku safe ah",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Tamil - Is it safe for kids"
+      },
+      "actual": {
+        "primaryIntent": "other",
+        "secondaryIntents": [],
+        "confidence": 0.5,
+        "reasoning": "The message does not clearly indicate a specific intent related to ordering or inquiries; it seems to express a general concern or question, thus classified as 'other'. No secondary intents were detected."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"product_inquiry\" but got \"other\"",
+        "Low confidence: 0.50 (expected >= 0.7)"
+      ],
+      "performance": {
+        "timeMs": 3905
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "maklu ge safe na",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Kannada - Is it safe for kids"
+      },
+      "actual": {
+        "primaryIntent": "other",
+        "secondaryIntents": [],
+        "confidence": 0.5,
+        "reasoning": "The message appears to be in a different language or contains unclear content, making it difficult to classify into a specific intent. No clear product inquiries or order-related requests are identified."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"product_inquiry\" but got \"other\"",
+        "Low confidence: 0.50 (expected >= 0.7)"
+      ],
+      "performance": {
+        "timeMs": 3379
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "kuttikalkku safe ano",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Malayalam - Is it safe for kids"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is inquiring about the safety of 'kuttikalkku', which qualifies as a product inquiry."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3773
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "pillalaki safe ah",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Telugu - Is it safe for kids"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is inquiring about the safety of 'pillalaki', which indicates a product inquiry. No other intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 4862
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "birthday ku venum",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Tamil - Want for birthday"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is inquiring about something related to 'birthday' (likely a product or service), which qualifies as a product inquiry. No secondary intents were detected."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"order_new\" but got \"product_inquiry\""
+      ],
+      "performance": {
+        "timeMs": 4438
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "birthday ge beku",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Kannada - Want for birthday"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.8,
+        "reasoning": "The customer is inquiring about something related to 'birthday', which indicates a product inquiry. No other intents were detected."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"order_new\" but got \"product_inquiry\""
+      ],
+      "performance": {
+        "timeMs": 4308
+      },
+      "language": "kannada"
+    },
+    {
+      "testCase": {
+        "message": "birthday ku vende",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Malayalam - Want for birthday"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is inquiring about something related to 'birthday' (likely a product or service), which qualifies as a product inquiry. No secondary intents were detected."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"order_new\" but got \"product_inquiry\""
+      ],
+      "performance": {
+        "timeMs": 4511
+      },
+      "language": "malayalam"
+    },
+    {
+      "testCase": {
+        "message": "birthday ki kavali",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Telugu - Want for birthday"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.8,
+        "reasoning": "The customer is inquiring about something related to 'birthday', which suggests they are looking for products or services related to birthdays (product_inquiry). No secondary intents were detected."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"order_new\" but got \"product_inquiry\""
+      ],
+      "performance": {
+        "timeMs": 3527
+      },
+      "language": "telugu"
+    },
+    {
+      "testCase": {
+        "message": "gift wrap pannu",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Tamil - Gift wrap"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.8,
+        "reasoning": "The customer is inquiring about gift wrapping services (product_inquiry). No other intents were detected."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"order_new\" but got \"product_inquiry\""
+      ],
+      "performance": {
+        "timeMs": 3014
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "gift wrap maadi",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Kannada - Gift wrap"
+      },
+      "actual": {
+        "primaryIntent": "other",
+        "secondaryIntents": [],
+        "confidence": 0.8,
+        "reasoning": "The message requests gift wrapping, which doesn't fit into the predefined intents. It is categorized as 'other' with a special request detected, but lacks context for further action."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"order_new\" but got \"other\""
+      ],
+      "performance": {
+        "timeMs": 5607
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "gift wrap cheyyu",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Malayalam - Gift wrap"
+      },
+      "actual": {
+        "primaryIntent": "other",
+        "secondaryIntents": [],
+        "confidence": 0.7,
+        "reasoning": "The customer is requesting gift wrapping, which does not fit into the defined intents. There are no other identifiable intents or specific products mentioned."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"order_new\" but got \"other\""
+      ],
+      "performance": {
+        "timeMs": 5312
+      },
+      "language": "malayalam"
+    },
+    {
+      "testCase": {
+        "message": "gift wrap cheyandi",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Telugu - Gift wrap"
+      },
+      "actual": {
+        "primaryIntent": "other",
+        "secondaryIntents": [],
+        "confidence": 0.7,
+        "reasoning": "The customer is requesting gift wrapping ('cheyyu' translates to 'do' in English), which does not fit into the predefined intents. Therefore, it is classified as 'other'. No secondary intents were detected."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"order_new\" but got \"other\""
+      ],
+      "performance": {
+        "timeMs": 5462
+      },
+      "language": "telugu"
+    },
+    {
+      "testCase": {
+        "message": "fast delivery venum",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Tamil - Want fast delivery"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.85,
+        "reasoning": "The customer is inquiring about the delivery speed related to 'venum', which indicates a product inquiry. No other intents were detected."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"order_new\" but got \"product_inquiry\""
+      ],
+      "performance": {
+        "timeMs": 4500
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "fast delivery beku",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Kannada - Want fast delivery"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.85,
+        "reasoning": "The customer is inquiring about the delivery speed for a product named 'venum', which indicates a product inquiry. No other intents were detected."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"order_new\" but got \"product_inquiry\""
+      ],
+      "performance": {
+        "timeMs": 6825
+      },
+      "language": "kannada"
+    },
+    {
+      "testCase": {
+        "message": "fast delivery vende",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Malayalam - Want fast delivery"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is inquiring about the availability of 'venum' and mentions 'fast delivery', indicating they are interested in a product inquiry regarding delivery options."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"order_new\" but got \"product_inquiry\""
+      ],
+      "performance": {
+        "timeMs": 4170
+      },
+      "language": "malayalam"
+    },
+    {
+      "testCase": {
+        "message": "fast delivery kavali",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Telugu - Want fast delivery"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.85,
+        "reasoning": "The customer is inquiring about the delivery speed for a product named 'venum', indicating a product inquiry intent. There are no secondary intents detected."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"order_new\" but got \"product_inquiry\""
+      ],
+      "performance": {
+        "timeMs": 4392
+      },
+      "language": "telugu"
+    },
+    {
+      "testCase": {
+        "message": "free delivery irukka",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Tamil - Is free delivery available"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is inquiring about the availability of free delivery (product_inquiry). No other intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3519
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "free delivery ideya",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Kannada - Is free delivery available"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is inquiring about the availability of free delivery (product_inquiry). No other intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3324
+      },
+      "language": "kannada"
+    },
+    {
+      "testCase": {
+        "message": "free delivery unda",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Malayalam - Is free delivery available"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is inquiring about the availability of free delivery (product_inquiry). No other intents were detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 4526
+      },
+      "language": "malayalam"
+    },
+    {
+      "testCase": {
+        "message": "free delivery undha",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Telugu - Is free delivery available"
+      },
+      "actual": {
+        "primaryIntent": "product_inquiry",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is inquiring about the availability of free delivery (product_inquiry). There are no secondary intents detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3703
+      },
+      "language": "telugu"
+    },
+    {
+      "testCase": {
+        "message": "online payment pannalam",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Tamil - Can do online payment"
+      },
+      "actual": {
+        "primaryIntent": "other",
+        "secondaryIntents": [],
+        "confidence": 0.7,
+        "reasoning": "The customer mentions 'online payment' which does not fit into the defined intents. It seems to be a request for information or assistance regarding online payment, but lacks clarity on specific actions or queries."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"product_inquiry\" but got \"other\""
+      ],
+      "performance": {
+        "timeMs": 4536
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "online payment maadbeku",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Kannada - Want to do online payment"
+      },
+      "actual": {
+        "primaryIntent": "other",
+        "secondaryIntents": [],
+        "confidence": 0.7,
+        "reasoning": "The message suggests a request related to online payment, but it lacks specific details or context to classify it under a more defined intent. Therefore, it is categorized as 'other' and needs more context for clarity."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"product_inquiry\" but got \"other\""
+      ],
+      "performance": {
+        "timeMs": 4475
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "online payment cheyyam",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Malayalam - Can do online payment"
+      },
+      "actual": {
+        "primaryIntent": "other",
+        "secondaryIntents": [],
+        "confidence": 0.7,
+        "reasoning": "The message mentions 'online payment' which suggests a query about payment options, but it lacks specific details or context to classify it under a defined intent. Therefore, it is categorized as 'other' with a need for more context."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"product_inquiry\" but got \"other\""
+      ],
+      "performance": {
+        "timeMs": 4525
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "online payment cheyachu",
+        "expectedPrimaryIntent": "product_inquiry",
+        "expectedSecondaryIntents": [],
+        "description": "Telugu - Can do online payment"
+      },
+      "actual": {
+        "primaryIntent": "other",
+        "secondaryIntents": [],
+        "confidence": 0.7,
+        "reasoning": "The message indicates a request about online payment, but lacks specific details or context about what the customer needs. No other intents were detected."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"product_inquiry\" but got \"other\""
+      ],
+      "performance": {
+        "timeMs": 3979
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "phone number kuduthuten",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Tamil - I gave phone number"
+      },
+      "actual": {
+        "primaryIntent": "other",
+        "secondaryIntents": [],
+        "confidence": 0.7,
+        "reasoning": "The message does not clearly indicate a specific intent related to ordering or inquiries; it seems to be a statement about providing a phone number. Therefore, it is classified as 'other' with no secondary intents detected."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"order_new\" but got \"other\""
+      ],
+      "performance": {
+        "timeMs": 4029
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "phone number kottide",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Kannada - I gave phone number"
+      },
+      "actual": {
+        "primaryIntent": "other",
+        "secondaryIntents": [],
+        "confidence": 0.5,
+        "reasoning": "The message does not clearly indicate a specific intent related to orders or inquiries, and it appears to be a statement in a different language. Therefore, it is classified as 'other'. No secondary intents were detected."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"order_new\" but got \"other\"",
+        "Low confidence: 0.50 (expected >= 0.7)"
+      ],
+      "performance": {
+        "timeMs": 5490
+      },
+      "language": "kannada"
+    },
+    {
+      "testCase": {
+        "message": "phone number koduthu",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Malayalam - I gave phone number"
+      },
+      "actual": {
+        "primaryIntent": "other",
+        "secondaryIntents": [],
+        "confidence": 0.7,
+        "reasoning": "The message seems to indicate a request for a phone number, but lacks clarity and context, thus classified as 'other'. No secondary intents detected."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"order_new\" but got \"other\""
+      ],
+      "performance": {
+        "timeMs": 4746
+      },
+      "language": "malayalam"
+    },
+    {
+      "testCase": {
+        "message": "phone number ichanu",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Telugu - I gave phone number"
+      },
+      "actual": {
+        "primaryIntent": "other",
+        "secondaryIntents": [],
+        "confidence": 0.7,
+        "reasoning": "The message does not clearly indicate a specific intent related to orders, inquiries, or support. It seems to be a statement about providing a phone number, which does not fit into the defined categories."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"order_new\" but got \"other\""
+      ],
+      "performance": {
+        "timeMs": 8283
+      },
+      "language": "telugu"
+    },
+    {
+      "testCase": {
+        "message": "address kuduthuten",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Tamil - I gave address"
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The message indicates a delivery address is being provided, which is classified as an order update intent. There are no secondary intents detected."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"order_new\" but got \"order_update\""
+      ],
+      "performance": {
+        "timeMs": 3843
+      },
+      "language": "tamil"
+    },
+    {
+      "testCase": {
+        "message": "address kottide",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Kannada - I gave address"
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer provided an address, which indicates a modification to an existing order's delivery information (order_update). There are no secondary intents detected."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"order_new\" but got \"order_update\""
+      ],
+      "performance": {
+        "timeMs": 3686
+      },
+      "language": "kannada"
+    },
+    {
+      "testCase": {
+        "message": "address koduthu",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Malayalam - I gave address"
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The message indicates that the customer is providing an address, which is classified as an order update related to delivery information."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"order_new\" but got \"order_update\""
+      ],
+      "performance": {
+        "timeMs": 6086
+      },
+      "language": "malayalam"
+    },
+    {
+      "testCase": {
+        "message": "address ichanu",
+        "expectedPrimaryIntent": "order_new",
+        "expectedSecondaryIntents": [],
+        "description": "Telugu - I gave address"
+      },
+      "actual": {
+        "primaryIntent": "order_update",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer provided an address, which indicates a modification to an existing order's delivery information (order_update). No other intents were detected."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"order_new\" but got \"order_update\""
+      ],
+      "performance": {
+        "timeMs": 6815
+      },
+      "language": "telugu"
+    },
+    {
+      "testCase": {
+        "message": "thanks",
+        "expectedPrimaryIntent": "greeting",
+        "expectedSecondaryIntents": [],
+        "description": "Thank you"
+      },
+      "actual": {
+        "primaryIntent": "greeting",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is expressing gratitude, which is categorized as a greeting. There are no other intents present in the message."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3841
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "nandri",
+        "expectedPrimaryIntent": "greeting",
+        "expectedSecondaryIntents": [],
+        "description": "Tamil - Thank you"
+      },
+      "actual": {
+        "primaryIntent": "greeting",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The message 'nandri' is a form of greeting, indicating appreciation or thanks, which aligns with the greeting intent."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3606
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "dhanyavadagalu",
+        "expectedPrimaryIntent": "greeting",
+        "expectedSecondaryIntents": [],
+        "description": "Kannada - Thank you"
+      },
+      "actual": {
+        "primaryIntent": "greeting",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer is expressing gratitude in Kannada, which indicates a greeting. No other intents are present."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 4020
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "nandi",
+        "expectedPrimaryIntent": "greeting",
+        "expectedSecondaryIntents": [],
+        "description": "Malayalam - Thank you"
+      },
+      "actual": {
+        "primaryIntent": "greeting",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The customer message 'nandi' appears to be a greeting. There are no other intents detected."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 4398
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "dhanyavadalu",
+        "expectedPrimaryIntent": "greeting",
+        "expectedSecondaryIntents": [],
+        "description": "Telugu - Thank you"
+      },
+      "actual": {
+        "primaryIntent": "greeting",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The message 'dhanyavadalu' is a form of greeting or expression of thanks, indicating a friendly start to the conversation."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 4478
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "ok bye",
+        "expectedPrimaryIntent": "greeting",
+        "expectedSecondaryIntents": [],
+        "description": "Goodbye"
+      },
+      "actual": {
+        "primaryIntent": "greeting",
+        "secondaryIntents": [],
+        "confidence": 0.8,
+        "reasoning": "The customer is saying goodbye, which indicates the end of the conversation. This is classified as a greeting intent, as it is a form of salutation."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 3781
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "poitu varen",
+        "expectedPrimaryIntent": "greeting",
+        "expectedSecondaryIntents": [],
+        "description": "Tamil - I'm going"
+      },
+      "actual": {
+        "primaryIntent": "greeting",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The message 'poitu varen' is a greeting in Tamil, indicating the start of a conversation without any specific requests or inquiries."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 4125
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "hogutini",
+        "expectedPrimaryIntent": "greeting",
+        "expectedSecondaryIntents": [],
+        "description": "Kannada - I'm going"
+      },
+      "actual": {
+        "primaryIntent": "other",
+        "secondaryIntents": [],
+        "confidence": 0.5,
+        "reasoning": "The message 'hogutini' does not provide clear information or intent, making it difficult to classify. It appears to be a misspelling or incomplete query, hence classified as 'other' with a need for more context."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"greeting\" but got \"other\"",
+        "Low confidence: 0.50 (expected >= 0.7)"
+      ],
+      "performance": {
+        "timeMs": 4956
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "poyittu varam",
+        "expectedPrimaryIntent": "greeting",
+        "expectedSecondaryIntents": [],
+        "description": "Malayalam - I'm going"
+      },
+      "actual": {
+        "primaryIntent": "greeting",
+        "secondaryIntents": [],
+        "confidence": 0.9,
+        "reasoning": "The message 'poyittu varam' is a greeting in Tamil, indicating the customer is starting a conversation without any specific request or inquiry."
+      },
+      "passed": true,
+      "issues": [],
+      "performance": {
+        "timeMs": 4195
+      },
+      "language": "english"
+    },
+    {
+      "testCase": {
+        "message": "velthunna",
+        "expectedPrimaryIntent": "greeting",
+        "expectedSecondaryIntents": [],
+        "description": "Telugu - I'm going"
+      },
+      "actual": {
+        "primaryIntent": "other",
+        "secondaryIntents": [],
+        "confidence": 0.5,
+        "reasoning": "The message 'velthunna' does not clearly indicate any specific intent related to orders, inquiries, or support, and requires more context to determine the customer's needs."
+      },
+      "passed": false,
+      "issues": [
+        "Expected primary intent \"greeting\" but got \"other\"",
+        "Low confidence: 0.50 (expected >= 0.7)"
+      ],
+      "performance": {
+        "timeMs": 4554
+      },
+      "language": "english"
+    }
+  ],
+  "accuracyByIntent": {
+    "greeting": {
+      "total": 26,
+      "passed": 19,
+      "passRate": "73.08%"
+    },
+    "product_inquiry": {
+      "total": 43,
+      "passed": 30,
+      "passRate": "69.77%"
+    },
+    "order_new": {
+      "total": 57,
+      "passed": 22,
+      "passRate": "38.60%"
+    },
+    "order_update": {
+      "total": 30,
+      "passed": 29,
+      "passRate": "96.67%"
+    },
+    "order_status": {
+      "total": 12,
+      "passed": 12,
+      "passRate": "100.00%"
+    },
+    "support": {
+      "total": 7,
+      "passed": 7,
+      "passRate": "100.00%"
+    },
+    "confirm_order": {
+      "total": 12,
+      "passed": 12,
+      "passRate": "100.00%"
+    },
+    "cancel_order": {
+      "total": 7,
+      "passed": 7,
+      "passRate": "100.00%"
+    }
+  },
+  "accuracyByLanguage": {
+    "english": {
+      "total": 93,
+      "passed": 72,
+      "passRate": "77.42%"
+    },
+    "tamil": {
+      "total": 47,
+      "passed": 32,
+      "passRate": "68.09%"
+    },
+    "kannada": {
+      "total": 12,
+      "passed": 6,
+      "passRate": "50.00%"
+    },
+    "malayalam": {
+      "total": 19,
+      "passed": 13,
+      "passRate": "68.42%"
+    },
+    "telugu": {
+      "total": 23,
+      "passed": 15,
+      "passRate": "65.22%"
+    }
+  }
+}

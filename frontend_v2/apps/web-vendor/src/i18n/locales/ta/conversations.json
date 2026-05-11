@@ -1,0 +1,55 @@
+{
+  "media": {
+    "loading": "மீடியாவை ஏற்றுகிறது…",
+    "failed": "மீடியாவை ஏற்ற முடியவில்லை",
+    "expired": "மீடியா காலாவதியானது",
+    "unsupported": "ஆதரிக்கப்படாத மீடியா",
+    "downloadFile": "கோப்பைப் பதிவிறக்கு",
+    "openInNewTab": "புதிய தாவலில் திற",
+    "fileSize": "{{size}}",
+    "duration": "{{minutes}}:{{seconds}}"
+  },
+  "status": {
+    "sending": "அனுப்புகிறது…",
+    "sent": "அனுப்பப்பட்டது",
+    "delivered": "வழங்கப்பட்டது",
+    "read": "படிக்கப்பட்டது",
+    "failed": "அனுப்ப முடியவில்லை",
+    "pending": "காத்திருக்கிறது",
+    "failedTooltip": "தோல்வி: {{reason}}"
+  },
+  "reactions": {
+    "tooltipSingle": "{{name}} {{emoji}} என்று எதிர்வினையாற்றினார்",
+    "tooltipMultiple": "{{names}} {{emoji}} என்று எதிர்வினையாற்றினர்",
+    "tooltipMore": "{{names}} மற்றும் மேலும் {{count}} பேர் {{emoji}} என்று எதிர்வினையாற்றினர்"
+  },
+  "reply": {
+    "missing": "மூல செய்தி கிடைக்கவில்லை",
+    "previewLabel": "{{sender}} செய்திக்கு பதிலளிக்கிறது"
+  },
+  "lightbox": {
+    "close": "லைட்பாக்ஸை மூடு",
+    "previous": "முந்தைய மீடியா",
+    "next": "அடுத்த மீடியா"
+  },
+  "audio": {
+    "play": "ஒலியை இயக்கு",
+    "pause": "ஒலியை இடைநிறுத்து",
+    "seek": "ஒலியில் நகர்த்து"
+  },
+  "location": {
+    "openInMaps": "Google Maps-இல் திற",
+    "addressLabel": "முகவரி"
+  },
+  "contact": {
+    "callPhone": "அழை",
+    "messageOnWhatsApp": "WhatsApp-இல் செய்தி அனுப்பு"
+  },
+  "interactive": {
+    "buttonReply": "தேர்ந்தெடுக்கப்பட்டது: {{label}}",
+    "listReply": "தேர்வு: {{label}}"
+  },
+  "sticker": {
+    "label": "ஸ்டிக்கர்"
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "media": {
+    "loading": "मीडिया लोड हो रहा है…",
+    "failed": "मीडिया लोड नहीं हो सका",
+    "expired": "मीडिया समाप्त हो गया है",
+    "unsupported": "असमर्थित मीडिया",
+    "downloadFile": "फ़ाइल डाउनलोड करें",
+    "openInNewTab": "नए टैब में खोलें",
+    "fileSize": "{{size}}",
+    "duration": "{{minutes}}:{{seconds}}"
+  },
+  "status": {
+    "sending": "भेजा जा रहा है…",
+    "sent": "भेजा गया",
+    "delivered": "पहुँचाया गया",
+    "read": "पढ़ा गया",
+    "failed": "भेजने में विफल",
+    "pending": "लंबित",
+    "failedTooltip": "विफल: {{reason}}"
+  },
+  "reactions": {
+    "tooltipSingle": "{{name}} ने {{emoji}} के साथ प्रतिक्रिया दी",
+    "tooltipMultiple": "{{names}} ने {{emoji}} के साथ प्रतिक्रिया दी",
+    "tooltipMore": "{{names}} और {{count}} अन्य ने {{emoji}} के साथ प्रतिक्रिया दी"
+  },
+  "reply": {
+    "missing": "मूल संदेश उपलब्ध नहीं है",
+    "previewLabel": "{{sender}} को उत्तर"
+  },
+  "lightbox": {
+    "close": "लाइटबॉक्स बंद करें",
+    "previous": "पिछला मीडिया",
+    "next": "अगला मीडिया"
+  },
+  "audio": {
+    "play": "ऑडियो चलाएँ",
+    "pause": "ऑडियो रोकें",
+    "seek": "ऑडियो में जाएँ"
+  },
+  "location": {
+    "openInMaps": "Google Maps में खोलें",
+    "addressLabel": "पता"
+  },
+  "contact": {
+    "callPhone": "कॉल करें",
+    "messageOnWhatsApp": "WhatsApp पर संदेश भेजें"
+  },
+  "interactive": {
+    "buttonReply": "चयनित: {{label}}",
+    "listReply": "चुना: {{label}}"
+  },
+  "sticker": {
+    "label": "स्टिकर"
+  }
+}
