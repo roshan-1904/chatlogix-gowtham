@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+jobs:
+  build-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Generate Prisma client
+        working-directory: backend
+        run: npx prisma generate
+
+      - name: Build
+        working-directory: backend
+        run: npm run build
+
+      - name: Upload backend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-dist
+          path: |
+            backend/dist/**
+            backend/prisma/**
+            backend/package.json
+            backend/package-lock.json
+          retention-days: 7
+
+  build-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+          cache-dependency-path: frontend_v2/package-lock.json
+
+      - name: Write .env.production
+        working-directory: frontend_v2/apps/web-vendor
+        run: |
+          cat > .env.production <<EOF
+          VITE_API_URL=${{ vars.VITE_API_URL }}
+          VITE_RECAPTCHA_SITE_KEY=${{ secrets.VITE_RECAPTCHA_SITE_KEY }}
+          VITE_ENVIRONMENT=${{ vars.VITE_ENVIRONMENT }}
+          EOF
+
+      - name: Install dependencies
+        working-directory: frontend_v2
+        run: npm ci
+
+      - name: Build
+        working-directory: frontend_v2
+        run: npm run build
+
+      - name: Upload frontend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: |
+            frontend_v2/apps/web-vendor/dist/**
+            frontend_v2/apps/web-admin/dist/**
+          retention-days: 7
