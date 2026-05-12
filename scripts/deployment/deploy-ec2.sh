@@ -6,16 +6,18 @@ cd /home/bitnami/chatlogix
 git fetch origin
 git reset --hard origin/master
 
+rm -rf backend/dist \
+       frontend_v2/apps/web-vendor/dist \
+       frontend_v2/apps/web-admin/dist
+
+tar -xzf /tmp/chatlogix-dist.tar.gz -C .
+rm -f /tmp/chatlogix-dist.tar.gz
+
 cd backend
 npm ci
 npx prisma generate
 npx prisma migrate deploy
-npm run build
-
-cd ../frontend_v2
-npm ci
-npm run build
-
 cd ..
+
 pm2 reload ecosystem.config.js --env production
 pm2 save

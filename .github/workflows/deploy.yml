@@ -86,12 +86,47 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Download backend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-dist
+          path: artifacts/backend-dist
+
+      - name: Download frontend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: artifacts/frontend-dist
+
+      - name: Pack pre-built dist directories into a tarball
+        run: |
+          mkdir -p stage/backend
+          mkdir -p stage/frontend_v2/apps/web-vendor
+          mkdir -p stage/frontend_v2/apps/web-admin
+
+          cp -r artifacts/backend-dist/backend/dist stage/backend/dist
+
+          if [ -d artifacts/frontend-dist/frontend_v2/apps/web-vendor/dist ]; then
+            cp -r artifacts/frontend-dist/frontend_v2/apps/web-vendor/dist stage/frontend_v2/apps/web-vendor/dist
+          fi
+          if [ -d artifacts/frontend-dist/frontend_v2/apps/web-admin/dist ]; then
+            cp -r artifacts/frontend-dist/frontend_v2/apps/web-admin/dist stage/frontend_v2/apps/web-admin/dist
+          fi
+
+          tar -czf chatlogix-dist.tar.gz -C stage .
+          ls -lh chatlogix-dist.tar.gz
+
       - name: Set up SSH
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Upload dist tarball to EC2
+        run: |
+          scp -i ~/.ssh/id_ed25519 chatlogix-dist.tar.gz \
+              "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:/tmp/chatlogix-dist.tar.gz"
 
       - name: Run deploy script on EC2
         run: |
