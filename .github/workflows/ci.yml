@@ -31,16 +31,21 @@ jobs:
         working-directory: backend
         run: npm run build
 
+      - name: Stage backend artifact
+        run: |
+          mkdir -p _artifact/backend
+          cp -r backend/dist _artifact/backend/dist
+          cp -r backend/prisma _artifact/backend/prisma
+          cp backend/package.json _artifact/backend/package.json
+          cp backend/package-lock.json _artifact/backend/package-lock.json
+
       - name: Upload backend artifact
         uses: actions/upload-artifact@v4
         with:
           name: backend-dist
-          path: |
-            backend/dist/**
-            backend/prisma/**
-            backend/package.json
-            backend/package-lock.json
+          path: _artifact/
           retention-days: 7
+          include-hidden-files: false
 
   build-frontend:
     runs-on: ubuntu-latest
@@ -71,11 +76,21 @@ jobs:
         working-directory: frontend_v2
         run: npm run build
 
+      - name: Stage frontend artifact
+        run: |
+          mkdir -p _artifact/frontend_v2/apps/web-vendor
+          mkdir -p _artifact/frontend_v2/apps/web-admin
+          if [ -d frontend_v2/apps/web-vendor/dist ]; then
+            cp -r frontend_v2/apps/web-vendor/dist _artifact/frontend_v2/apps/web-vendor/dist
+          fi
+          if [ -d frontend_v2/apps/web-admin/dist ]; then
+            cp -r frontend_v2/apps/web-admin/dist _artifact/frontend_v2/apps/web-admin/dist
+          fi
+
       - name: Upload frontend artifact
         uses: actions/upload-artifact@v4
         with:
           name: frontend-dist
-          path: |
-            frontend_v2/apps/web-vendor/dist/**
-            frontend_v2/apps/web-admin/dist/**
+          path: _artifact/
           retention-days: 7
+          include-hidden-files: false

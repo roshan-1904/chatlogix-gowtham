@@ -27,7 +27,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: backend-dist
-          path: backend
+          path: .
 
       - name: Install production deps
         working-directory: backend
@@ -101,16 +101,15 @@ jobs:
       - name: Pack pre-built dist directories into a tarball
         run: |
           mkdir -p stage/backend
-          mkdir -p stage/frontend_v2/apps/web-vendor
-          mkdir -p stage/frontend_v2/apps/web-admin
+          mkdir -p stage/frontend
 
           cp -r artifacts/backend-dist/backend/dist stage/backend/dist
 
           if [ -d artifacts/frontend-dist/frontend_v2/apps/web-vendor/dist ]; then
-            cp -r artifacts/frontend-dist/frontend_v2/apps/web-vendor/dist stage/frontend_v2/apps/web-vendor/dist
-          fi
-          if [ -d artifacts/frontend-dist/frontend_v2/apps/web-admin/dist ]; then
-            cp -r artifacts/frontend-dist/frontend_v2/apps/web-admin/dist stage/frontend_v2/apps/web-admin/dist
+            cp -r artifacts/frontend-dist/frontend_v2/apps/web-vendor/dist stage/frontend/dist
+          else
+            echo "ERROR: web-vendor dist not found in artifact" >&2
+            exit 1
           fi
 
           tar -czf chatlogix-dist.tar.gz -C stage .

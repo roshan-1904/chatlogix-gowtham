@@ -6,9 +6,8 @@ cd /home/bitnami/chatlogix
 git fetch origin
 git reset --hard origin/master
 
-rm -rf backend/dist \
-       frontend_v2/apps/web-vendor/dist \
-       frontend_v2/apps/web-admin/dist
+rm -rf backend/dist frontend/dist
+mkdir -p frontend
 
 tar -xzf /tmp/chatlogix-dist.tar.gz -C .
 rm -f /tmp/chatlogix-dist.tar.gz
