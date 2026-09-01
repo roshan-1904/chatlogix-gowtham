@@ -1,5 +1,10 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // "native" keeps local dev / CI (Debian-based runners) working; the Lambda
+  // functions run on Amazon Linux, which Prisma maps to rhel-openssl-3.0.x —
+  // without it every DB call in every Lambda fails with
+  // "could not locate the Query Engine for runtime rhel-openssl-3.0.x".
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
