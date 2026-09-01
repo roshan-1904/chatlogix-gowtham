@@ -10,34 +10,44 @@ import { logMessageToFile } from '../../services/webhookFallbackService.js';
  * AWS Lambda handler for processing WhatsApp webhook events
  * Handles incoming messages and routes them to appropriate processing queues
  */
+// API Gateway HTTP APIs (payload format 2.0) don't populate the REST-API-shaped
+// top-level `httpMethod` field — the method only lives at requestContext.http.method.
+// Read both so this handler works regardless of which payload format is configured.
+function getHttpMethod(event: APIGatewayProxyEvent): string | undefined {
+  return event.httpMethod
+    || (event.requestContext as unknown as { http?: { method?: string } })?.http?.method;
+}
+
+function getSourceIp(event: APIGatewayProxyEvent): string {
+  return event.requestContext?.identity?.sourceIp
+    || (event.requestContext as unknown as { http?: { sourceIp?: string } })?.http?.sourceIp
+    || 'unknown';
+}
+
 export const handler: APIGatewayProxyHandler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   const operationId = createOperationId('lambda_webhook_handler');
+  const httpMethod = getHttpMethod(event);
   const stepLogger = new StepLogger(operationId, 'Lambda Webhook Handler', {
-    httpMethod: event.httpMethod,
+    httpMethod,
     path: event.path,
-    userAgent: event.headers['User-Agent'] || 'unknown',
-    // API Gateway HTTP APIs don't populate requestContext.identity the way REST APIs
-    // do — only requestContext.http.sourceIp exists there. Read defensively so a
-    // shape mismatch never crashes the handler before it can even respond to Meta.
-    sourceIp: event.requestContext?.identity?.sourceIp
-      || (event.requestContext as unknown as { http?: { sourceIp?: string } })?.http?.sourceIp
-      || 'unknown'
+    userAgent: event.headers['User-Agent'] || event.headers['user-agent'] || 'unknown',
+    sourceIp: getSourceIp(event)
   });
 
   try {
     stepLogger.step('Validating webhook request');
-    
+
     // Handle GET request for webhook verification
-    if (event.httpMethod === 'GET') {
+    if (httpMethod === 'GET') {
       return await handleWebhookVerification(event, stepLogger);
     }
 
     // Handle POST request for incoming messages
-    if (event.httpMethod === 'POST') {
+    if (httpMethod === 'POST') {
       return await handleIncomingMessage(event, stepLogger);
     }
 
-    stepLogger.warn('Unsupported HTTP method', { method: event.httpMethod });
+    stepLogger.warn('Unsupported HTTP method', { method: httpMethod });
     return {
       statusCode: 405,
       headers: {
@@ -50,8 +60,8 @@ export const handler: APIGatewayProxyHandler = async (event: APIGatewayProxyEven
     };
 
   } catch (error) {
-    stepLogger.error(error as Error, { 
-      httpMethod: event.httpMethod,
+    stepLogger.error(error as Error, {
+      httpMethod,
       path: event.path,
       lambdaContext: {
         memory: process.env.AWS_LAMBDA_FUNCTION_MEMORY_SIZE,
@@ -59,10 +69,10 @@ export const handler: APIGatewayProxyHandler = async (event: APIGatewayProxyEven
         region: process.env.AWS_REGION
       }
     });
-    
-    logger.error({ 
-      error, 
-      httpMethod: event.httpMethod,
+
+    logger.error({
+      error,
+      httpMethod,
       path: event.path
     }, 'Lambda webhook handler failed');
     
