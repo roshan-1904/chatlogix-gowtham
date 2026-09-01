@@ -450,7 +450,13 @@ export OPENAI_API_KEY="sk-..."
 # ... (all other required variables)
 ```
 
-**6. Build Failures**
+**6. Unzipped package exceeds 250 MB**
+```
+InvalidParameterValueException: Unzipped size must be smaller than 262144000 bytes
+```
+AWS rejects the zip even if the compressed file is well under 50/250 MB. The GitHub/Bitbucket deploy jobs run `backend/scripts/package-lambda.sh`, which drops Prisma's engine cache, extra query engines, and packages the Lambda handlers never import. Do not `zip dist node_modules prisma package.json` raw.
+
+**7. Build Failures**
 ```bash
 # Error: TypeScript compilation failed
 # Solution: Fix TypeScript errors

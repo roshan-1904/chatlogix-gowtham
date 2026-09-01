@@ -566,6 +566,7 @@ git push origin master
 - **"Bucket does not exist"** → the bucket name in `LAMBDA_S3_BUCKET` doesn't match Phase 2.
 - **"Permission denied (publickey)"** → SSH key not on Lightsail (Phase 9.2) or the public IP changed.
 - **"Function not found"** → Lambda function name doesn't match what's in `bitbucket-pipelines.yml`.
+- **"Unzipped size must be smaller than 262144000 bytes"** → the Lambda zip expanded past AWS's 250 MB limit. Deploy now slims the package via `backend/scripts/package-lambda.sh`; do not zip raw `node_modules`.
 - **"prisma migrate deploy" error** → DATABASE_URL on EC2 wrong; SSH in and check `cat backend/.env`.
 
 ### Step 11.3 — Verify deployment

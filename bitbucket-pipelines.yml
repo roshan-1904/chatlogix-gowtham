@@ -49,14 +49,13 @@ definitions:
           - npm ci
           - npx prisma generate
           - npm prune --production
+          # One slim zip for all functions. Zipping raw node_modules exceeds AWS's
+          # 250 MB unzipped limit (InvalidParameterValueException on UpdateFunctionCode).
+          - bash scripts/package-lambda.sh /tmp/lambda.zip
           - |
             for fn in chatlogix-whatsapp-response-dispatcher chatlogix-media-fetcher chatlogix-incoming-response-generator chatlogix-webhook-handler chatlogix-order-recovery; do
-              echo "=== Packaging $fn ==="
-              zip_path=/tmp/$fn.zip
-              rm -f "$zip_path"
-              zip -rq "$zip_path" dist node_modules prisma package.json
               echo "=== Uploading $fn to S3 ==="
-              aws s3 cp "$zip_path" "s3://${LAMBDA_S3_BUCKET}/functions/$fn/${BITBUCKET_COMMIT}.zip" --region "${AWS_DEFAULT_REGION}"
+              aws s3 cp /tmp/lambda.zip "s3://${LAMBDA_S3_BUCKET}/functions/$fn/${BITBUCKET_COMMIT}.zip" --region "${AWS_DEFAULT_REGION}"
               echo "=== Updating Lambda $fn ==="
               aws lambda update-function-code \
                 --function-name "$fn" \

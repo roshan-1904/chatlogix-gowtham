@@ -230,7 +230,11 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.AWS_DEFAULT_REGION }}
 
-      - name: Package and deploy each Lambda
+      - name: Package Lambda zip
+        working-directory: backend
+        run: bash scripts/package-lambda.sh /tmp/lambda.zip
+
+      - name: Deploy each Lambda
         working-directory: backend
         env:
           LAMBDA_S3_BUCKET: ${{ vars.LAMBDA_S3_BUCKET }}
@@ -241,13 +245,8 @@ jobs:
                     chatlogix-incoming-response-generator \
                     chatlogix-webhook-handler \
                     chatlogix-order-recovery; do
-            echo "=== Packaging $fn ==="
-            zip_path=/tmp/$fn.zip
-            rm -f "$zip_path"
-            zip -rq "$zip_path" dist node_modules prisma package.json
-
             echo "=== Uploading $fn to S3 ==="
-            aws s3 cp "$zip_path" \
+            aws s3 cp /tmp/lambda.zip \
               "s3://${LAMBDA_S3_BUCKET}/functions/$fn/${GITHUB_SHA}.zip" \
               --region "${AWS_DEFAULT_REGION}"
 
