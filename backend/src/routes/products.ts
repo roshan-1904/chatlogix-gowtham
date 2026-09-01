@@ -3,6 +3,7 @@ import { prisma } from '../db/prisma.js';
 import { requireRole } from '../middleware/authorize.js';
 import { logger } from '../logger.js';
 import { z } from 'zod';
+import { invalidateCompactCatalog } from '../conversation/prefetch.js';
 
 export const productsRouter = express.Router();
 
@@ -237,7 +238,11 @@ productsRouter.post('/', requireRole('vendor', 'admin'), async (req, res) => {
         vendorId
       }
     });
-    
+
+    // conversation processor's compact catalog cache (spec §24) must not
+    // serve a stale product list after a write.
+    await invalidateCompactCatalog(vendorId);
+
     res.status(201).json(product);
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -310,7 +315,9 @@ productsRouter.put('/:id', requireRole('vendor', 'admin'), async (req, res) => {
       where: { id: req.params.id },
       data: validated
     });
-    
+
+    await invalidateCompactCatalog(existing.vendorId);
+
     res.json(product);
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -354,7 +361,9 @@ productsRouter.delete('/:id', requireRole('vendor', 'admin'), async (req, res) =
       where: { id: req.params.id },
       data: { isActive: false }
     });
-    
+
+    await invalidateCompactCatalog(existing.vendorId);
+
     res.json(product);
   } catch (error) {
     logger.error({ error, productId: req.params.id }, 'Failed to delete product');
@@ -506,7 +515,12 @@ productsRouter.post('/bulk', requireRole('vendor', 'admin'), async (req, res) =>
       },
       data: updateData
     });
-    
+
+    // Bulk edits can span multiple vendors under an admin caller — invalidate
+    // each affected vendor's compact catalog, not just the caller's own.
+    const affectedVendorIds = [...new Set(products.map(p => p.vendorId))];
+    await Promise.all(affectedVendorIds.map(id => invalidateCompactCatalog(id)));
+
     res.json({
       success: true,
       updated: result.count,

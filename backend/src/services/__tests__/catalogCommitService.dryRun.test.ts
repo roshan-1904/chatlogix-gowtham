@@ -39,6 +39,11 @@ vi.mock('../vendorAIConfigService.js', () => ({
   applyAIPrompts: (...args: unknown[]) => applyAIPromptsMock(...args)
 }));
 
+const invalidateCompactCatalogMock = vi.fn();
+vi.mock('../../conversation/prefetch.js', () => ({
+  invalidateCompactCatalog: (...args: unknown[]) => invalidateCompactCatalogMock(...args)
+}));
+
 import { commit } from '../catalogCommitService.js';
 
 function makeDraft(over: Partial<NormalizedProductDraft> = {}): NormalizedProductDraft {

@@ -55,6 +55,7 @@ model Vendor {
   correctionHistory              CorrectionHistory[]
   creditUsages                   CreditUsage[]
   customerInsights               CustomerInsights[]
+  messageProcessing              MessageProcessing[]
   notificationHistory            NotificationHistory[]
   orders                         Order[]
   products                       Product[]
@@ -92,6 +93,7 @@ model Conversation {
   conversationMemory ConversationMemory?
   correctionHistory  CorrectionHistory[]
   creditUsages       CreditUsage[]
+  messageProcessing  MessageProcessing[]
   messages           Message[]
   orders             Order[]
   qualityMetrics     QualityMetrics[]
@@ -150,12 +152,38 @@ model CreditUsage {
   creditsConsumed  Int
   usageDate        DateTime     @default(now())
   conversationType MessageType
+  externalId       String?      @unique
   conversation     Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   vendor           Vendor       @relation(fields: [vendorId], references: [id], onDelete: Cascade)
 
   @@index([vendorId, usageDate(sort: Desc)], map: "idx_creditusage_vendor_date")
   @@index([vendorId, conversationType], map: "idx_creditusage_vendor_type")
   @@map("CreditUsage")
+}
+
+model MessageProcessing {
+  id                String                  @id @default(uuid())
+  whatsappMessageId String                  @unique
+  vendorId          String
+  conversationId    String
+  status            MessageProcessingStatus @default(received)
+  attempt           Int                     @default(0)
+  errorClass        String?
+  errorMessage      String?
+  latencyMs         Int?
+  promptTokens      Int                     @default(0)
+  completionTokens  Int                     @default(0)
+  model             String?
+  queuedAt          DateTime?
+  debitedAt         DateTime?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  vendor            Vendor                  @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  conversation       Conversation            @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([status, queuedAt], map: "idx_messageprocessing_status_queued")
+  @@index([status, debitedAt, queuedAt], map: "idx_messageprocessing_debit_sweep")
+  @@map("MessageProcessing")
 }
 
 model BillingHistory {
@@ -344,6 +372,7 @@ model Product {
   stockQuantity    Decimal? @db.Decimal(10, 3)
   minOrderQuantity Decimal? @db.Decimal(10, 3)
   maxOrderQuantity Decimal? @db.Decimal(10, 3)
+  fulfillmentType  FulfillmentType @default(made_to_order)
   category         String?  @db.VarChar(100)
   imageUrl         String?  @db.VarChar(255)
   tags             String[] @default([])
@@ -610,6 +639,25 @@ enum OrderStatus {
   cancelled
 
   @@map("OrderStatus")
+}
+
+enum FulfillmentType {
+  stock
+  made_to_order
+
+  @@map("FulfillmentType")
+}
+
+enum MessageProcessingStatus {
+  received
+  locked
+  llm1
+  applied
+  verified
+  queued
+  failed
+
+  @@map("MessageProcessingStatus")
 }
 
 enum NotificationType {

@@ -33,12 +33,17 @@ export async function publishToQueue(
   );
 }
 
-export async function receiveMessages(queueUrl: string, maxMessages = 10) {
+// `visibilityTimeout` defaults to the prior hardcoded 30s so every existing
+// caller is unaffected. The new conversation-processor local worker (Step 10)
+// passes a longer value — a burst-merge+lock-retry+LLM sequence can approach
+// 15-30s at p99, and 30s was already tight before that (see
+// docs/CONVERSATION_PROCESSOR_IMPLEMENTATION_PLAN.md Step 8).
+export async function receiveMessages(queueUrl: string, maxMessages = 10, visibilityTimeout = 30) {
   const res = await sqsClient.send(new ReceiveMessageCommand({
     QueueUrl: queueUrl,
     MaxNumberOfMessages: maxMessages,
     WaitTimeSeconds: 20,
-    VisibilityTimeout: 30
+    VisibilityTimeout: visibilityTimeout
   }));
   return res.Messages ?? [];
 }

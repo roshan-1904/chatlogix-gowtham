@@ -8,6 +8,7 @@ import type {
   NormalizedProductDraft
 } from '../routes/schemas/catalogImport.js';
 import { applyAIPrompts } from './vendorAIConfigService.js';
+import { invalidateCompactCatalog } from '../conversation/prefetch.js';
 
 export interface CommitSummary {
   createdCount: number;
@@ -163,6 +164,12 @@ export async function commit(
     });
   } catch (err) {
     if (!(err instanceof DryRunRollback)) throw err;
+  }
+
+  // conversation processor's compact catalog cache (spec §24) must not serve
+  // a stale product list after a real (non-dry-run) commit.
+  if (!req.dryRun && (summary.createdCount > 0 || summary.updatedCount > 0)) {
+    await invalidateCompactCatalog(vendorId);
   }
 
   // The catalogImportService.commit() orchestrator owns the audit-shape

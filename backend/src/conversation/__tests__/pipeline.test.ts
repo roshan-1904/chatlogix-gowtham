@@ -1,0 +1,425 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+// Every value referenced inside a vi.mock() factory must come from
+// vi.hoisted() — a plain `const` declared before the mock call is still in
+// its temporal dead zone when the (also-hoisted) factory runs at import
+// time (see Step 6/8's notes in the implementation plan for why).
+const {
+  persistTurnMock,
+  debitAfterEnqueueMock,
+  publishToQueueMock,
+  messageProcessingUpdateMany,
+  conversationFindUnique,
+  logStageMock,
+  logLatencyMock,
+  logCountMock,
+  resolveIdentityMock,
+  acquireLockMock,
+  releaseLockMock,
+  MockLockContentionError,
+  MockLockUnavailableError,
+  upsertInboundMessageMock,
+  canProcessMessageMock,
+  stashForBurstMergeMock,
+  mergeDebouncedMock,
+  prefetchHotSetMock,
+  runLlm1Mock,
+  applyMock,
+  runLlm2Mock,
+  selectFinalReplyMock,
+  triggerHandoffMock,
+  notifyVendorNewOrderMock
+} = vi.hoisted(() => {
+  class MockLockContentionError extends Error {}
+  class MockLockUnavailableError extends Error {}
+  return {
+    persistTurnMock: vi.fn(),
+    debitAfterEnqueueMock: vi.fn(),
+    publishToQueueMock: vi.fn(),
+    messageProcessingUpdateMany: vi.fn(),
+    conversationFindUnique: vi.fn(),
+    logStageMock: vi.fn(),
+    logLatencyMock: vi.fn(),
+    logCountMock: vi.fn(),
+    resolveIdentityMock: vi.fn(),
+    acquireLockMock: vi.fn(),
+    releaseLockMock: vi.fn(),
+    MockLockContentionError,
+    MockLockUnavailableError,
+    upsertInboundMessageMock: vi.fn(),
+    canProcessMessageMock: vi.fn(),
+    stashForBurstMergeMock: vi.fn(),
+    mergeDebouncedMock: vi.fn(),
+    prefetchHotSetMock: vi.fn(),
+    runLlm1Mock: vi.fn(),
+    applyMock: vi.fn(),
+    runLlm2Mock: vi.fn(),
+    selectFinalReplyMock: vi.fn(),
+    triggerHandoffMock: vi.fn(),
+    notifyVendorNewOrderMock: vi.fn()
+  };
+});
+
+vi.mock('../persist.js', () => ({ persistTurn: (...args: unknown[]) => persistTurnMock(...args) }));
+vi.mock('../billing.js', () => ({ debitAfterEnqueue: (...args: unknown[]) => debitAfterEnqueueMock(...args) }));
+vi.mock('../../queue/sqsClient.js', () => ({ publishToQueue: (...args: unknown[]) => publishToQueueMock(...args) }));
+vi.mock('../../config/env.js', () => ({ env: { RESPONSE_QUEUE_URL: 'https://sqs.example/response-queue' } }));
+vi.mock('../../db/prisma.js', () => ({
+  prisma: {
+    messageProcessing: { updateMany: (...args: unknown[]) => messageProcessingUpdateMany(...args) },
+    conversation: { findUnique: (...args: unknown[]) => conversationFindUnique(...args) }
+  }
+}));
+vi.mock('../../logger.js', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } }));
+vi.mock('../metrics.js', () => ({
+  logStage: (...args: unknown[]) => logStageMock(...args),
+  logLatency: (...args: unknown[]) => logLatencyMock(...args),
+  logCount: (...args: unknown[]) => logCountMock(...args)
+}));
+vi.mock('../identity.js', () => ({ resolveIdentity: (...args: unknown[]) => resolveIdentityMock(...args) }));
+vi.mock('../lock.js', () => ({
+  acquireLock: (...args: unknown[]) => acquireLockMock(...args),
+  releaseLock: (...args: unknown[]) => releaseLockMock(...args),
+  LockContentionError: MockLockContentionError,
+  LockUnavailableError: MockLockUnavailableError
+}));
+vi.mock('../idempotency.js', () => ({ upsertInboundMessage: (...args: unknown[]) => upsertInboundMessageMock(...args) }));
+vi.mock('../../services/billingService.js', () => ({ canProcessMessage: (...args: unknown[]) => canProcessMessageMock(...args) }));
+vi.mock('../burstMerge.js', () => ({
+  stashForBurstMerge: (...args: unknown[]) => stashForBurstMergeMock(...args),
+  mergeDebounced: (...args: unknown[]) => mergeDebouncedMock(...args)
+}));
+vi.mock('../prefetch.js', () => ({ prefetchHotSet: (...args: unknown[]) => prefetchHotSetMock(...args) }));
+vi.mock('../llm/llm1.js', () => ({ runLlm1: (...args: unknown[]) => runLlm1Mock(...args) }));
+vi.mock('../cart/engine.js', () => ({ apply: (...args: unknown[]) => applyMock(...args) }));
+vi.mock('../llm/llm2.js', () => ({
+  runLlm2: (...args: unknown[]) => runLlm2Mock(...args),
+  selectFinalReply: (...args: unknown[]) => selectFinalReplyMock(...args)
+}));
+vi.mock('../handoff.js', () => ({ triggerHandoff: (...args: unknown[]) => triggerHandoffMock(...args) }));
+vi.mock('../../services/whatsappTemplateService.js', () => ({
+  WhatsAppTemplateService: vi.fn().mockImplementation(() => ({
+    notifyVendorNewOrder: (...args: unknown[]) => notifyVendorNewOrderMock(...args)
+  }))
+}));
+
+import { finalizeTurn, processMessage } from '../pipeline.js';
+import type { CartSnapshot } from '../types.js';
+
+const snapshot: CartSnapshot = {
+  orderId: 'order-1',
+  status: 'pending',
+  items: [],
+  totalPaise: 0,
+  customerName: null,
+  address: null,
+  missing: ['name', 'address', 'items']
+};
+
+const baseInput = {
+  vendorId: 'vendor-1',
+  conversationId: 'conv-1',
+  customerId: 'customer-1',
+  customerPhone: '+911234567890',
+  phoneNumberId: 'waba-phone-1',
+  whatsappMessageId: 'wamid.1',
+  snapshot,
+  finalText: 'Here is your order summary.',
+  language: 'en',
+  intent: 'order_item',
+  tokenMeta: { model: 'gpt-4.1-mini', promptTokens: 100, completionTokens: 50 }
+};
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  persistTurnMock.mockResolvedValue({ assistantMessageId: 'assistant-msg-1' });
+  messageProcessingUpdateMany.mockResolvedValue({ count: 1 });
+  debitAfterEnqueueMock.mockResolvedValue('debited');
+});
+
+describe('finalizeTurn', () => {
+  it('persists before publishing, and publishes before debiting (§7 steps 8-10 order)', async () => {
+    const callOrder: string[] = [];
+    persistTurnMock.mockImplementation(async () => {
+      callOrder.push('persist');
+      return { assistantMessageId: 'assistant-msg-1' };
+    });
+    publishToQueueMock.mockImplementation(async () => {
+      callOrder.push('publish');
+    });
+    debitAfterEnqueueMock.mockImplementation(async () => {
+      callOrder.push('debit');
+      return 'debited';
+    });
+
+    await finalizeTurn(baseInput);
+
+    expect(callOrder).toEqual(['persist', 'publish', 'debit']);
+  });
+
+  it('publishes with phoneNumberId and messageId — the two fields missing from spec §19\'s example JSON', async () => {
+    await finalizeTurn(baseInput);
+
+    expect(publishToQueueMock).toHaveBeenCalledWith('https://sqs.example/response-queue', {
+      type: 'text',
+      to: '+911234567890',
+      text: 'Here is your order summary.',
+      conversationId: 'conv-1',
+      vendorId: 'vendor-1',
+      customerId: 'customer-1',
+      phoneNumberId: 'waba-phone-1',
+      messageId: 'assistant-msg-1',
+      metadata: { intent: 'order_item', processor: 'conversation-v1', traceId: 'wamid.1' }
+    });
+  });
+
+  it('marks MessageProcessing queued (with queuedAt) right after publish succeeds', async () => {
+    await finalizeTurn(baseInput);
+
+    const call = messageProcessingUpdateMany.mock.calls[0][0];
+    expect(call.where).toEqual({ whatsappMessageId: 'wamid.1' });
+    expect(call.data.status).toBe('queued');
+    expect(call.data.queuedAt).toBeInstanceOf(Date);
+  });
+
+  it('returns publishedAt (a Step 11 addition) so callers can compute LatencyMs against the actual publish moment', async () => {
+    const before = Date.now();
+    const result = await finalizeTurn(baseInput);
+    expect(result.publishedAt).toBeGreaterThanOrEqual(before);
+    expect(result.publishedAt).toBeLessThanOrEqual(Date.now());
+  });
+
+  it('does not rethrow when the inline debit fails, and logs DebitFail', async () => {
+    debitAfterEnqueueMock.mockRejectedValue(new Error('wallet update failed'));
+
+    await expect(finalizeTurn(baseInput)).resolves.toEqual({ publishedAt: expect.any(Number) });
+
+    expect(logCountMock).toHaveBeenCalledWith('DebitFail', { vendorId: 'vendor-1', context: 'inline' });
+  });
+
+  it('propagates a persist failure (nothing has been sent to the customer yet, safe to retry)', async () => {
+    persistTurnMock.mockRejectedValue(new Error('db down'));
+
+    await expect(finalizeTurn(baseInput)).rejects.toThrow('db down');
+    expect(publishToQueueMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('processMessage', () => {
+  const identity = { vendorId: 'vendor-1', customerId: 'customer-1', conversationId: 'conv-1' };
+  const rawInput = {
+    vendorId: 'vendor-1',
+    phoneNumberId: 'waba-phone-1',
+    customerPhone: '+911234567890',
+    content: '2 brownies please',
+    whatsappMessageId: 'wamid.1'
+  };
+  const hotSet = {
+    vendorConfig: { aiModel: 'gpt-4.1-mini' },
+    compactCatalog: [],
+    memory: null,
+    pendingOrder: null,
+    insights: null,
+    recentMessages: []
+  };
+  const llm1Result = {
+    language: 'en',
+    intent: 'order_item',
+    ops: [{ type: 'add', productId: 'prod-1', qty: 2 }],
+    draftReply: 'Sure, added 2 brownies!',
+    confidence: 0.9,
+    needsVerify: false,
+    model: 'gpt-4.1-mini',
+    promptTokens: 500,
+    completionTokens: 40
+  };
+  const applyResult = { snapshot: { ...snapshot, orderId: 'order-1' }, mutated: true, rejectedOps: [] };
+
+  beforeEach(() => {
+    resolveIdentityMock.mockResolvedValue(identity);
+    acquireLockMock.mockResolvedValue({ token: 'lock-token-1' });
+    upsertInboundMessageMock.mockResolvedValue({ messageId: 'inbound-msg-1', alreadyProcessed: false });
+    conversationFindUnique.mockResolvedValue({ aiPaused: false });
+    canProcessMessageMock.mockResolvedValue({ allowed: true });
+    mergeDebouncedMock.mockImplementation(async (_id: string, content: string) => content);
+    prefetchHotSetMock.mockResolvedValue(hotSet);
+    runLlm1Mock.mockResolvedValue(llm1Result);
+    applyMock.mockResolvedValue(applyResult);
+    runLlm2Mock.mockResolvedValue({ skipped: true });
+    selectFinalReplyMock.mockReturnValue({ finalReply: 'final text', usedEngineRenderer: false });
+    persistTurnMock.mockResolvedValue({ assistantMessageId: 'assistant-msg-1' });
+    publishToQueueMock.mockResolvedValue(undefined);
+    debitAfterEnqueueMock.mockResolvedValue('debited');
+    notifyVendorNewOrderMock.mockResolvedValue({ success: true, queued: true });
+  });
+
+  it('happy path: runs the full pipeline, releases the lock, and reports ProcessorSuccess', async () => {
+    await processMessage(rawInput);
+
+    expect(resolveIdentityMock).toHaveBeenCalledWith({ vendorId: 'vendor-1', phoneNumberId: 'waba-phone-1', customerPhone: '+911234567890' });
+    expect(acquireLockMock).toHaveBeenCalledWith('conv-1');
+    expect(runLlm1Mock).toHaveBeenCalled();
+    expect(applyMock).toHaveBeenCalled();
+    expect(persistTurnMock).toHaveBeenCalled();
+    expect(releaseLockMock).toHaveBeenCalledWith('conv-1', 'lock-token-1');
+    expect(logCountMock).toHaveBeenCalledWith('ProcessorSuccess', { vendorId: 'vendor-1' });
+  });
+
+  it('§23: logs the required timestamp checkpoints in order — handler_start, prefetch_done, llm1_done, cart_apply_done, response_queue_published', async () => {
+    await processMessage(rawInput);
+
+    const stages = logStageMock.mock.calls.map((call) => call[0]);
+    expect(stages).toEqual(['handler_start', 'prefetch_done', 'llm1_done', 'cart_apply_done', 'llm2_skipped', 'response_queue_published']);
+  });
+
+  it('§23: llm1_done carries promptTokens/completionTokens/model, and Llm1Ms is timed', async () => {
+    await processMessage(rawInput);
+
+    const llm1StageCall = logStageMock.mock.calls.find((call) => call[0] === 'llm1_done');
+    expect(llm1StageCall?.[2]).toEqual({ promptTokens: 500, completionTokens: 40, model: 'gpt-4.1-mini' });
+    expect(logLatencyMock).toHaveBeenCalledWith('Llm1Ms', expect.any(Number), { vendorId: 'vendor-1' });
+  });
+
+  it('logs Llm2Skipped when LLM-2 does not run, or Llm2Ms when it does', async () => {
+    await processMessage(rawInput);
+    expect(logCountMock).toHaveBeenCalledWith('Llm2Skipped', { vendorId: 'vendor-1' });
+
+    vi.clearAllMocks();
+    resolveIdentityMock.mockResolvedValue(identity);
+    acquireLockMock.mockResolvedValue({ token: 'lock-token-1' });
+    upsertInboundMessageMock.mockResolvedValue({ messageId: 'inbound-msg-1', alreadyProcessed: false });
+    conversationFindUnique.mockResolvedValue({ aiPaused: false });
+    canProcessMessageMock.mockResolvedValue({ allowed: true });
+    mergeDebouncedMock.mockImplementation(async (_id: string, content: string) => content);
+    prefetchHotSetMock.mockResolvedValue(hotSet);
+    runLlm1Mock.mockResolvedValue(llm1Result);
+    applyMock.mockResolvedValue(applyResult);
+    runLlm2Mock.mockResolvedValue({ skipped: false, finalReply: 'polished', promptTokens: 1, completionTokens: 1 });
+    selectFinalReplyMock.mockReturnValue({ finalReply: 'final text', usedEngineRenderer: false });
+    persistTurnMock.mockResolvedValue({ assistantMessageId: 'assistant-msg-1' });
+
+    await processMessage(rawInput);
+    expect(logLatencyMock).toHaveBeenCalledWith('Llm2Ms', expect.any(Number), { vendorId: 'vendor-1' });
+    expect(logCountMock).not.toHaveBeenCalledWith('Llm2Skipped', expect.anything());
+  });
+
+  it('emits LatencyMs measured start-to-publish, not including the debit attempt', async () => {
+    await processMessage(rawInput);
+
+    expect(logLatencyMock).toHaveBeenCalledWith('LatencyMs', expect.any(Number), { vendorId: 'vendor-1' });
+  });
+
+  it('lock contention: logs LockContention, stashes the content for the lock-holder, then rethrows so SQS retries', async () => {
+    acquireLockMock.mockRejectedValue(new MockLockContentionError('locked'));
+
+    await expect(processMessage(rawInput)).rejects.toThrow(MockLockContentionError);
+
+    expect(logCountMock).toHaveBeenCalledWith('LockContention', { vendorId: 'vendor-1' });
+    expect(stashForBurstMergeMock).toHaveBeenCalledWith('conv-1', '2 brownies please');
+    expect(runLlm1Mock).not.toHaveBeenCalled();
+  });
+
+  it('lock unavailable (Redis down): logs LockUnavailable, does NOT stash, still rethrows', async () => {
+    acquireLockMock.mockRejectedValue(new MockLockUnavailableError('redis down'));
+
+    await expect(processMessage(rawInput)).rejects.toThrow(MockLockUnavailableError);
+
+    expect(logCountMock).toHaveBeenCalledWith('LockUnavailable', { vendorId: 'vendor-1' });
+    expect(stashForBurstMergeMock).not.toHaveBeenCalled();
+  });
+
+  it('CartEngine.apply failure: logs CartApplyFail before rethrowing', async () => {
+    applyMock.mockRejectedValue(new Error('deadlock'));
+
+    await expect(processMessage(rawInput)).rejects.toThrow('deadlock');
+
+    expect(logCountMock).toHaveBeenCalledWith('CartApplyFail', { vendorId: 'vendor-1' });
+  });
+
+  it('duplicate whatsappMessageId: returns early (success exit), never runs LLM-1, still releases the lock', async () => {
+    upsertInboundMessageMock.mockResolvedValue({ messageId: 'inbound-msg-1', alreadyProcessed: true });
+
+    await processMessage(rawInput);
+
+    expect(runLlm1Mock).not.toHaveBeenCalled();
+    expect(persistTurnMock).not.toHaveBeenCalled();
+    expect(releaseLockMock).toHaveBeenCalled();
+  });
+
+  it('aiPaused guard: stores inbound only, no LLM, no reply published, no debit', async () => {
+    conversationFindUnique.mockResolvedValue({ aiPaused: true });
+
+    await processMessage(rawInput);
+
+    expect(runLlm1Mock).not.toHaveBeenCalled();
+    expect(publishToQueueMock).not.toHaveBeenCalled();
+    expect(debitAfterEnqueueMock).not.toHaveBeenCalled();
+    expect(releaseLockMock).toHaveBeenCalled();
+  });
+
+  it('wallet guard: publishes the templated reply, no LLM, no debit', async () => {
+    canProcessMessageMock.mockResolvedValue({ allowed: false, reason: 'insufficient_balance' });
+
+    await processMessage(rawInput);
+
+    expect(runLlm1Mock).not.toHaveBeenCalled();
+    expect(debitAfterEnqueueMock).not.toHaveBeenCalled();
+    const publishCall = publishToQueueMock.mock.calls[0][1];
+    expect(publishCall.to).toBe('+911234567890');
+    expect(publishCall.metadata.intent).toBe('guard_no_credit');
+  });
+
+  it('handoff op: uses triggerHandoff\'s customerMessage as the final reply, skips LLM-2/selectFinalReply', async () => {
+    runLlm1Mock.mockResolvedValue({ ...llm1Result, ops: [{ type: 'handoff' }] });
+    applyMock.mockResolvedValue({ snapshot, mutated: false, rejectedOps: [] });
+    triggerHandoffMock.mockResolvedValue({ customerMessage: "I've passed this to our team!" });
+
+    await processMessage(rawInput);
+
+    expect(triggerHandoffMock).toHaveBeenCalledWith({ conversationId: 'conv-1', vendorId: 'vendor-1', phoneNumberId: 'waba-phone-1', traceId: 'wamid.1' });
+    expect(runLlm2Mock).not.toHaveBeenCalled();
+    expect(selectFinalReplyMock).not.toHaveBeenCalled();
+    const persistCall = persistTurnMock.mock.calls[0][0];
+    expect(persistCall.finalText).toBe("I've passed this to our team!");
+  });
+
+  it('successful confirm: fire-and-forget notifies the vendor of the new order', async () => {
+    runLlm1Mock.mockResolvedValue({ ...llm1Result, ops: [{ type: 'confirm' }] });
+    applyMock.mockResolvedValue({ snapshot: { ...snapshot, orderId: 'order-99', missing: [] }, mutated: true, rejectedOps: [] });
+
+    await processMessage(rawInput);
+    await new Promise((resolve) => setImmediate(resolve)); // fire-and-forget notify
+
+    expect(notifyVendorNewOrderMock).toHaveBeenCalledWith('vendor-1', 'order-99');
+  });
+
+  it('rejected confirm: does NOT notify the vendor', async () => {
+    const confirmOp = { type: 'confirm' as const };
+    runLlm1Mock.mockResolvedValue({ ...llm1Result, ops: [confirmOp] });
+    applyMock.mockResolvedValue({ snapshot, mutated: false, rejectedOps: [{ op: confirmOp, reason: 'missing_address' }] });
+
+    await processMessage(rawInput);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(notifyVendorNewOrderMock).not.toHaveBeenCalled();
+  });
+
+  it('always releases the lock, even when a step mid-pipeline throws, and classifies the error for ProcessorError', async () => {
+    runLlm1Mock.mockRejectedValue(new Error('OpenAI 500'));
+
+    await expect(processMessage(rawInput)).rejects.toThrow('OpenAI 500');
+
+    expect(releaseLockMock).toHaveBeenCalledWith('conv-1', 'lock-token-1');
+    expect(logCountMock).toHaveBeenCalledWith('ProcessorError', { vendorId: 'vendor-1', class: 'unknown' });
+  });
+
+  it('classifies a lock-contention ProcessorError with class:lock_contention', async () => {
+    acquireLockMock.mockRejectedValue(new MockLockContentionError('locked'));
+
+    // Lock failures throw before entering the try/finally that emits
+    // ProcessorError (they're not yet holding a lock to release either) —
+    // confirm no ProcessorError is double-counted on top of LockContention.
+    await expect(processMessage(rawInput)).rejects.toThrow(MockLockContentionError);
+    expect(logCountMock).not.toHaveBeenCalledWith('ProcessorError', expect.anything());
+  });
+});

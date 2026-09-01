@@ -15,6 +15,7 @@
     "worker:text": "cross-env WORKER_TYPE=text node --loader ts-node/esm --experimental-specifier-resolution=node src/workers/textWorker.ts",
     "worker:response": "cross-env WORKER_TYPE=response node --import tsx src/workers/responseWorker.ts",
     "worker:multi-stage": "cross-env WORKER_TYPE=multi_stage_ai node --import tsx src/workers/multiStageAIWorker.ts",
+    "worker:conversation": "cross-env WORKER_TYPE=conversation node --import tsx src/workers/conversationWorker.ts",
     "worker:media": "cross-env WORKER_TYPE=media node --import tsx src/workers/mediaWorker.ts",
     "test:multi-stage": "tsx scripts/test-multi-stage-worker.ts",
     "check:multi-stage": "tsx scripts/check-multi-stage-config.ts",

@@ -54,6 +54,9 @@ const EnvSchema = z.object({
   CLOUDWATCH_NAMESPACE: z.string().default('ChatLogix/ConversationParity'),
   CLOUDWATCH_REGION: z.string().optional(),
 
+  // Conversation processor LLM-2 verifier (spec §17, Appendix C: "tune from logs")
+  VERIFY_THRESHOLD: z.string().default('0.75'),
+
   // WhatsApp
   WHATSAPP_VERIFY_TOKEN: z.string().optional(),
   WHATSAPP_WEBHOOK_VERIFY_TOKEN: z.string().optional(),
