@@ -202,6 +202,21 @@ export async function invalidateCompactCatalog(vendorId: string): Promise<void> 
 }
 
 /**
+ * Invalidate the customer-insights and pending-order caches. Must be called
+ * whenever persist.ts writes a new customerName/address to CustomerInsights —
+ * otherwise the CUSTOMER_INSIGHTS_TTL (15 min) keeps serving the pre-capture
+ * `null` snapshot to LLM-1's prompt (hotSet.insights.name/.address, and
+ * pendingOrder.customerName which is itself derived from insights.name),
+ * making the AI re-ask for details the customer already gave.
+ */
+export async function invalidateCustomerContext(customerId: string, vendorId: string, conversationId: string): Promise<void> {
+  await Promise.all([
+    deleteCached(customerInsightsKey(customerId, vendorId)),
+    deleteCached(pendingOrderKey(conversationId))
+  ]);
+}
+
+/**
  * Prefetches the hot set in parallel (spec §7 step 2, §11). Intent is
  * unknown at this point — this always runs before LLM-1, regardless of what
  * the message turns out to be about.

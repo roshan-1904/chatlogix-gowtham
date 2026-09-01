@@ -1,6 +1,7 @@
 import { prisma } from '../db/prisma.js';
 import { logger } from '../logger.js';
 import { calculateCost } from '../utils/costCalculator.js';
+import { invalidateCustomerContext } from './prefetch.js';
 import type { CartSnapshot } from './types.js';
 
 export interface PersistInput {
@@ -104,6 +105,15 @@ export async function persistTurn(input: PersistInput): Promise<PersistResult> {
       }
     })
   ]);
+
+  // The upsert above just wrote customerName/address into CustomerInsights —
+  // without this, prefetchHotSet's 15-min insights cache (and the pendingOrder
+  // cache derived from it) would keep serving the pre-capture null snapshot
+  // to LLM-1 for the rest of that window, making the AI re-ask for details
+  // the customer already gave (see prefetch.ts's invalidateCustomerContext).
+  if (snapshot.customerName || snapshot.address) {
+    await invalidateCustomerContext(customerId, vendorId, conversationId);
+  }
 
   logger.info(
     { traceId: whatsappMessageId, vendorId, conversationId, assistantMessageId: assistantMessage.id, intent, stage },

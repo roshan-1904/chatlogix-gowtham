@@ -42,7 +42,26 @@ export function parseOrderItems(items: unknown, totalAmount?: number): OrderItem
   else if (items && typeof items === 'object') {
     parsedItems = [items as OrderItem];
   }
-  
+
+  // Normalize the conversation cart engine's raw item shape
+  // ({ name, unitPricePaise, lineTotalPaise }) to the canonical OrderItem
+  // shape ({ product, unitPrice, totalPrice } in rupees) before the
+  // price-detection logic below runs, so real prices aren't mistaken for
+  // missing ones and rebuilt from an even split of the order total.
+  parsedItems = parsedItems.map(item => {
+    const raw = item as OrderItem & {
+      name?: string;
+      unitPricePaise?: number;
+      lineTotalPaise?: number;
+    };
+    return {
+      ...raw,
+      product: raw.product ?? raw.name,
+      unitPrice: raw.unitPrice ?? (raw.unitPricePaise !== undefined ? raw.unitPricePaise / 100 : raw.unitPrice),
+      totalPrice: raw.totalPrice ?? (raw.lineTotalPaise !== undefined ? raw.lineTotalPaise / 100 : raw.totalPrice),
+    };
+  });
+
   // Validate and calculate missing prices
   if (parsedItems.length > 0 && totalAmount !== undefined && totalAmount !== null) {
     // Detect if totalAmount is in paise or rupees

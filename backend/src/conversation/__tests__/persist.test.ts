@@ -23,6 +23,11 @@ vi.mock('../../logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
 }));
 
+const invalidateCustomerContext = vi.fn();
+vi.mock('../prefetch.js', () => ({
+  invalidateCustomerContext: (...args: unknown[]) => invalidateCustomerContext(...args)
+}));
+
 import { persistTurn } from '../persist.js';
 import type { CartSnapshot } from '../types.js';
 
@@ -112,6 +117,36 @@ describe('persistTurn', () => {
     expect(update.customerName).toBe('Priya');
     expect(update.deliveryAddress).toBe('123 Main St');
     expect(update.primaryDeliveryAddress).toBe('123 Main St');
+  });
+
+  it('invalidates the customer-insights/pending-order caches when the snapshot carries a name or address', async () => {
+    await persistTurn({
+      vendorId: VENDOR_ID,
+      conversationId: CONVERSATION_ID,
+      customerId: CUSTOMER_ID,
+      snapshot: snapshot({ customerName: 'Priya', address: null }),
+      finalText: 'x',
+      language: 'en',
+      intent: 'order_item',
+      tokenMeta: { model: 'gpt-4.1-mini', promptTokens: 1, completionTokens: 1 },
+      whatsappMessageId: 'wamid.8'
+    });
+    expect(invalidateCustomerContext).toHaveBeenCalledWith(CUSTOMER_ID, VENDOR_ID, CONVERSATION_ID);
+  });
+
+  it('does not invalidate the customer-insights/pending-order caches when the snapshot has neither', async () => {
+    await persistTurn({
+      vendorId: VENDOR_ID,
+      conversationId: CONVERSATION_ID,
+      customerId: CUSTOMER_ID,
+      snapshot: snapshot({ customerName: null, address: null }),
+      finalText: 'x',
+      language: 'en',
+      intent: 'order_item',
+      tokenMeta: { model: 'gpt-4.1-mini', promptTokens: 1, completionTokens: 1 },
+      whatsappMessageId: 'wamid.9'
+    });
+    expect(invalidateCustomerContext).not.toHaveBeenCalled();
   });
 
   it('increments turnNumber on ConversationMemory update but starts at 1 on create', async () => {
