@@ -6,6 +6,10 @@ const customerUpsert = vi.fn();
 const conversationFindFirst = vi.fn();
 const conversationCreate = vi.fn();
 
+vi.mock('../../logger.js', () => ({
+  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
+}));
+
 vi.mock('../../db/prisma.js', () => ({
   prisma: {
     vendor: { findUnique: (...args: unknown[]) => vendorFindUnique(...args) },
@@ -36,10 +40,26 @@ describe('resolveIdentity', () => {
     expect(whatsAppNumberFindUnique).not.toHaveBeenCalled();
   });
 
-  it('throws if the given vendorId does not exist', async () => {
+  it('falls back to phoneNumberId when vendorId is not a Vendor.id (webhook stuffed WABA id into vendorId)', async () => {
     vendorFindUnique.mockResolvedValue(null);
+    whatsAppNumberFindUnique.mockResolvedValue({ vendorId: 'vendor-2' });
+    conversationFindFirst.mockResolvedValue({ id: 'conv-1' });
 
-    await expect(resolveIdentity({ vendorId: 'nonexistent', customerPhone: '+91111' })).rejects.toThrow(/Vendor not found/);
+    const result = await resolveIdentity({
+      vendorId: '721071411095024',
+      phoneNumberId: '721071411095024',
+      customerPhone: '+91111'
+    });
+
+    expect(result.vendorId).toBe('vendor-2');
+    expect(whatsAppNumberFindUnique).toHaveBeenCalledWith({ where: { phoneNumberId: '721071411095024' } });
+  });
+
+  it('throws if vendorId is not a Vendor.id and phoneNumberId does not map either', async () => {
+    vendorFindUnique.mockResolvedValue(null);
+    whatsAppNumberFindUnique.mockResolvedValue(null);
+
+    await expect(resolveIdentity({ vendorId: 'nonexistent', customerPhone: '+91111' })).rejects.toThrow(/No vendor found/);
   });
 
   it('falls back to resolving vendor via phoneNumberId when vendorId is absent', async () => {

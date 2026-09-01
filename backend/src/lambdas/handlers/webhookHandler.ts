@@ -242,11 +242,18 @@ async function processIncomingMessage(
   });
 
   try {
-    // Extract vendor ID from phone number ID in metadata
-    const vendorId = metadata?.phone_number_id;
-    if (!vendorId) {
-      throw new Error('Vendor ID not found in metadata');
+    // WhatsApp metadata.phone_number_id is the WABA number, not Vendor.id.
+    // Resolve it the same way the Express webhook does (WhatsAppNumber table).
+    const phoneNumberId = metadata?.phone_number_id;
+    if (!phoneNumberId) {
+      throw new Error('phone_number_id not found in metadata');
     }
+
+    const mapping = await prisma.whatsAppNumber.findUnique({ where: { phoneNumberId } });
+    if (!mapping) {
+      throw new Error(`No vendor mapping found for phoneNumberId=${phoneNumberId}`);
+    }
+    const vendorId = mapping.vendorId;
 
     const customerPhone = message.from;
     if (!customerPhone) {
@@ -271,7 +278,7 @@ async function processIncomingMessage(
             vendorId,
             customerPhone,
             content: message.text?.body || '',
-            phoneNumberId: metadata?.phone_number_id || '',
+            phoneNumberId,
             whatsappMessageId: messageId,
             timestamp: new Date().toISOString()
           };
@@ -303,7 +310,7 @@ async function processIncomingMessage(
                 vendorId,
                 customerPhone,
                 content: message.text?.body || '',
-                phoneNumberId: metadata?.phone_number_id || '',
+                phoneNumberId,
                 whatsappMessageId: messageId,
                 timestamp: new Date().toISOString()
               });

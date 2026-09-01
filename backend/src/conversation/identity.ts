@@ -1,4 +1,5 @@
 import { prisma } from '../db/prisma.js';
+import { logger } from '../logger.js';
 
 export interface ResolveIdentityInput {
   vendorId?: string | null;
@@ -50,19 +51,26 @@ export async function resolveIdentity(input: ResolveIdentityInput): Promise<Reso
 async function resolveVendorId(vendorId: string | null | undefined, phoneNumberId: string | null | undefined): Promise<string> {
   if (vendorId) {
     const vendor = await prisma.vendor.findUnique({ where: { id: vendorId }, select: { id: true } });
-    if (!vendor) {
-      throw new Error(`Vendor not found: ${vendorId}`);
+    if (vendor) {
+      return vendor.id;
     }
-    return vendor.id;
+    // chatlogix-webhook-handler used to copy WhatsApp metadata.phone_number_id
+    // into vendorId. That value is not Vendor.id (a UUID), so fall through to
+    // the WhatsAppNumber lookup rather than failing the SQS record.
+    logger.warn(
+      { vendorId, phoneNumberId },
+      'vendorId did not match Vendor.id; resolving via WhatsAppNumber.phoneNumberId'
+    );
   }
 
-  if (!phoneNumberId) {
+  const lookupPhoneNumberId = phoneNumberId || vendorId;
+  if (!lookupPhoneNumberId) {
     throw new Error('Cannot resolve vendor: neither vendorId nor phoneNumberId was provided');
   }
 
-  const waNumber = await prisma.whatsAppNumber.findUnique({ where: { phoneNumberId } });
+  const waNumber = await prisma.whatsAppNumber.findUnique({ where: { phoneNumberId: lookupPhoneNumberId } });
   if (!waNumber) {
-    throw new Error(`No vendor found for phoneNumberId=${phoneNumberId}`);
+    throw new Error(`No vendor found for phoneNumberId=${lookupPhoneNumberId}`);
   }
   return waNumber.vendorId;
 }
