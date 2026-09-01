@@ -4,6 +4,7 @@ import { env } from '../../config/env.js';
 export interface LambdaEnvironment {
   NODE_ENV: string;
   DATABASE_URL: string;
+  REDIS_URL?: string;
   AWS_REGION: string;
   AWS_SQS_ENDPOINT?: string;
   AWS_ACCESS_KEY_ID?: string;
@@ -50,6 +51,7 @@ export class LambdaConfigurationService {
     return {
       NODE_ENV: env.NODE_ENV || 'production',
       DATABASE_URL: env.DATABASE_URL,
+      REDIS_URL: env.REDIS_URL,
       AWS_REGION: env.AWS_REGION,
       AWS_SQS_ENDPOINT: env.AWS_SQS_ENDPOINT,
       AWS_ACCESS_KEY_ID: env.AWS_ACCESS_KEY_ID,

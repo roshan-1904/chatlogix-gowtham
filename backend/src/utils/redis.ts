@@ -1,13 +1,32 @@
-import Redis from 'ioredis';
+import Redis, { Cluster } from 'ioredis';
 import { env } from '../config/env.js';
 
-let redisClient: Redis | null = null;
+export type RedisClient = Redis | Cluster;
+
+let redisClient: RedisClient | null = null;
+
+function normalizeRedisUrl(raw: string): URL {
+  return new URL(raw.includes('://') ? raw : `rediss://${raw}`);
+}
+
+function isElastiCacheServerless(hostname: string): boolean {
+  return hostname.includes('.serverless.') && hostname.includes('.cache.amazonaws.com');
+}
+
+function attachClientLogging(client: RedisClient): void {
+  client.on('error', (err) => {
+    console.error('Redis connection error:', err);
+  });
+  client.on('connect', () => {
+    console.log('Redis client connected');
+  });
+}
 
 /**
  * Get Redis client instance with graceful degradation
  * Returns null if Redis URL is not configured or connection fails
  */
-export function getRedisClient(): Redis | null {
+export function getRedisClient(): RedisClient | null {
   if (redisClient) {
     return redisClient;
   }
@@ -18,26 +37,42 @@ export function getRedisClient(): Redis | null {
   }
 
   try {
-    redisClient = new Redis(env.REDIS_URL, {
-      retryStrategy: (times) => {
-        const delay = Math.min(times * 50, 2000);
-        return delay;
-      },
+    const parsed = normalizeRedisUrl(env.REDIS_URL);
+    const port = parsed.port ? Number(parsed.port) : 6379;
+    const password = parsed.password ? decodeURIComponent(parsed.password) : undefined;
+    const username = parsed.username || undefined;
+    const useTls = parsed.protocol === 'rediss:' || isElastiCacheServerless(parsed.hostname);
+
+    const redisOptions = {
+      retryStrategy: (times: number) => Math.min(times * 50, 2000),
       maxRetriesPerRequest: 3,
       enableReadyCheck: true,
       lazyConnect: true,
-    });
+      username,
+      password,
+      ...(useTls ? { tls: {} } : {})
+    };
 
-    redisClient.on('error', (err) => {
-      console.error('Redis connection error:', err);
-      // Don't throw - allow graceful degradation
-    });
+    // ElastiCache Serverless speaks the Redis Cluster protocol and requires TLS.
+    // A standalone ioredis client will fail even with a correct host:port.
+    if (isElastiCacheServerless(parsed.hostname)) {
+      redisClient = new Cluster(
+        [{ host: parsed.hostname, port }],
+        {
+          dnsLookup: (address, callback) => callback(null, address),
+          redisOptions
+        }
+      );
+    } else {
+      redisClient = new Redis({
+        host: parsed.hostname,
+        port,
+        ...redisOptions
+      });
+    }
 
-    redisClient.on('connect', () => {
-      console.log('Redis client connected');
-    });
+    attachClientLogging(redisClient);
 
-    // Attempt to connect (non-blocking)
     redisClient.connect().catch((err) => {
       console.warn('Redis connection failed, caching disabled:', err.message);
       redisClient = null;
@@ -87,7 +122,6 @@ export async function setCached(key: string, value: any, ttlSeconds: number): Pr
     await client.setex(key, ttlSeconds, serialized);
   } catch (error) {
     console.error(`Error setting cache for key ${key}:`, error);
-    // Don't throw - allow graceful degradation
   }
 }
 
@@ -105,7 +139,6 @@ export async function deleteCached(key: string): Promise<void> {
     await client.del(key);
   } catch (error) {
     console.error(`Error deleting cache for key ${key}:`, error);
-    // Don't throw - allow graceful degradation
   }
 }
 
@@ -126,10 +159,7 @@ export async function deleteCachedByPattern(pattern: string): Promise<void> {
     }
   } catch (error) {
     console.error(`Error deleting cache by pattern ${pattern}:`, error);
-    // Don't throw - allow graceful degradation
   }
 }
 
-// Initialize Redis client on module load
 getRedisClient();
-

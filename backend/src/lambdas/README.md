@@ -95,6 +95,10 @@ aws sqs get-queue-url --queue-name chatlogix-image-queue-prod
 # Database Configuration
 DATABASE_URL=postgresql://username:password@host:5432/database
 
+# Redis Configuration (required by chatlogix-incoming-response-generator's
+# conversation lock, which fails closed -- see backend/src/conversation/lock.ts)
+REDIS_URL=redis://host:6379
+
 # AWS Configuration
 AWS_REGION=us-east-1
 AWS_ACCESS_KEY_ID=your_access_key
@@ -387,6 +391,7 @@ Add these secrets to your GitHub repository:
 - `AWS_ACCESS_KEY_ID`
 - `AWS_SECRET_ACCESS_KEY`
 - `DATABASE_URL`
+- `REDIS_URL`
 - `OPENAI_API_KEY`
 - `WHATSAPP_ACCESS_TOKEN`
 - `WHATSAPP_PHONE_NUMBER_ID`
