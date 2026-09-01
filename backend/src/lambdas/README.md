@@ -7,18 +7,20 @@ This directory contains the AWS Lambda deployment infrastructure for ChatLogix, 
 ```
 src/lambdas/
 ├── handlers/           # Lambda function handlers
-│   ├── responseProcessor.ts    # SQS-triggered response processor
-│   ├── webhookHandler.ts       # API Gateway webhook handler
-│   ├── textProcessor.ts        # Text message processor (to be created)
-│   ├── audioProcessor.ts       # Audio message processor (to be created)
-│   ├── imageProcessor.ts       # Image message processor (to be created)
-│   └── orderProcessor.ts       # Order event processor (to be created)
+│   ├── webhookHandler.ts            # API Gateway webhook handler → chatlogix-webhook-handler
+│   ├── conversationProcessor.ts     # Re-exports src/conversation/handler.ts → chatlogix-incoming-response-generator
+│   ├── responseProcessor.ts         # SQS-triggered WhatsApp sender → chatlogix-whatsapp-response-dispatcher
+│   ├── orderRecovery.ts             # EventBridge-scheduled sweep → chatlogix-order-recovery
+│   ├── debitReconciliationSweep.ts  # EventBridge-scheduled sweep (not yet deployed as its own function — see docs/CONVERSATION_PROCESSOR_LAMBDA.md §19.1)
+│   └── multiStageProcessor.ts       # Old 14-stage pipeline. No longer wired to any live function's text trigger; kept only in case audio/image ever needs it again.
 ├── services/           # Lambda-specific services
 │   ├── lambdaDeploymentService.ts    # Core deployment service
 │   └── lambdaConfigurationService.ts # Configuration management
 └── utils/              # Deployment utilities
     └── lambdaDeploymentManager.ts    # High-level deployment manager
 ```
+
+**Note:** `npm run deploy:lambda` (below) is a second deployment path that exists in this repo but is **not** what actually deploys to production — the real pipelines (`.github/workflows/deploy.yml`, `bitbucket-pipelines.yml`) call `aws lambda update-function-code` directly against 5 hardcoded function names. `lambdaConfigurationService.ts` is kept in sync with those 5 names so this script doesn't create divergent/duplicate functions if someone runs it, but treat the CI pipelines as the source of truth for what's actually live.
 
 ## 🚀 Complete Deployment Guide
 
@@ -487,13 +489,17 @@ aws logs describe-log-groups --log-group-name-prefix "/aws/lambda/chatlogix"
 
 ## 📋 Available Lambda Functions
 
+These are the 5 functions that actually exist in AWS today (account `987272474004`, `ap-south-1`):
+
 | Function Name | Description | Trigger | Memory | Timeout |
 |---------------|-------------|---------|--------|---------|
-| `chatlogix-response-processor` | Processes response messages from SQS | SQS | 512MB | 60s |
-| `chatlogix-webhook-handler` | Handles WhatsApp webhook events | API Gateway | 256MB | 30s |
-| `chatlogix-multi-stage-processor` | Runs the multi-stage AI pipeline; reads text/audio/image queues | SQS | 2048MB | 300s |
+| `chatlogix-webhook-handler` | Receives the WhatsApp webhook, enqueues text messages to `chatlogix-text-queue-prod` | API Gateway (`weeju313k2` HTTP API) | 512MB | 30s |
+| `chatlogix-incoming-response-generator` | Consumes `chatlogix-text-queue-prod`, generates the AI reply, publishes to `chatlogix-response-queue-prod` | SQS (text queue only) | 1536MB | 60s |
+| `chatlogix-whatsapp-response-dispatcher` | Consumes `chatlogix-response-queue-prod`, sends the WhatsApp message | SQS | 512MB | 60s |
+| `chatlogix-order-recovery` | Scans recent pending/confirmed orders for discrepancies and retries recovery | EventBridge schedule (verify a rule actually targets this function — none was found as of 2026-09-01) | 512MB | 300s |
+| `chatlogix-media-fetcher` | **Not functional.** Its configured handler (`mediaFetcher.handler`) doesn't exist in this repo — every invocation fails. The webhook Lambda also doesn't currently route audio/image messages anywhere, so the whole audio/image path is a known gap, deliberately deferred (see docs/CONVERSATION_PROCESSOR_LAMBDA.md, which is text-only by design). | SQS (audio/image queues) | 1024MB | 120s |
 
-> Audio/image messages are transcribed/normalized by the media worker (PM2 on Lightsail) and then re-enqueued to `chatlogix-audio-queue-prod` / `chatlogix-image-queue-prod`, which the multi-stage processor also consumes. There are no dedicated `audio-processor` / `image-processor` / `text-processor` / `order-processor` Lambdas — those were earlier scaffolding that was never built.
+**History:** this used to be 3 functions (`chatlogix-response-processor`, `chatlogix-webhook-handler`, `chatlogix-multi-stage-processor`) running the old 14-stage pipeline for everything. They were renamed/repurposed to the 5 above as part of adopting the new conversation-processor pipeline (docs/CONVERSATION_PROCESSOR_LAMBDA.md); `chatlogix-incoming-response-generator` is the old `chatlogix-multi-stage-processor` with its handler swapped from `multiStageProcessor.handler` to `conversationProcessor.handler` and its trigger narrowed to text-only (Q5 in that spec). `multiStageProcessor.ts` is kept in the codebase but is not wired to any live trigger.
 
 ## 🔧 Configuration
 

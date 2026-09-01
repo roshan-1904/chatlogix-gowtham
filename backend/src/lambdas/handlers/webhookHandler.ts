@@ -16,7 +16,12 @@ export const handler: APIGatewayProxyHandler = async (event: APIGatewayProxyEven
     httpMethod: event.httpMethod,
     path: event.path,
     userAgent: event.headers['User-Agent'] || 'unknown',
-    sourceIp: event.requestContext.identity.sourceIp
+    // API Gateway HTTP APIs don't populate requestContext.identity the way REST APIs
+    // do — only requestContext.http.sourceIp exists there. Read defensively so a
+    // shape mismatch never crashes the handler before it can even respond to Meta.
+    sourceIp: event.requestContext?.identity?.sourceIp
+      || (event.requestContext as unknown as { http?: { sourceIp?: string } })?.http?.sourceIp
+      || 'unknown'
   });
 
   try {

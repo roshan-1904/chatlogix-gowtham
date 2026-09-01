@@ -72,44 +72,64 @@ export class LambdaConfigurationService {
   }
 
   /**
-   * Get predefined Lambda function configurations
+   * Get predefined Lambda function configurations.
+   *
+   * This must match the 5 function names hardcoded in the real deploy
+   * pipelines (.github/workflows/deploy.yml, bitbucket-pipelines.yml) —
+   * those call `aws lambda update-function-code` directly and do NOT go
+   * through this service, so nothing enforces the two staying in sync.
+   * `chatlogix-media-fetcher` is deliberately omitted: there is no handler
+   * file for it yet (see backend/src/lambdas/README.md), and running
+   * `npm run deploy:lambda` against a guessed handler would just replace
+   * one broken config with another.
    */
   static getFunctionDefinitions(): LambdaFunctionDefinition[] {
     const baseEnv = this.getBaseEnvironment();
 
     return [
       {
-        name: 'chatlogix-response-processor',
-        handler: 'dist/lambdas/handlers/responseProcessor.handler',
-        runtime: this.DEFAULT_RUNTIME,
-        timeout: 60,
-        memorySize: 512,
-        description: 'Processes response messages from SQS queue and sends WhatsApp messages',
-        environment: baseEnv,
-        sourcePath: 'src/lambdas/handlers/responseProcessor.ts',
-        dependencies: ['@aws-sdk/client-sqs', '@aws-sdk/client-lambda']
-      },
-      {
         name: 'chatlogix-webhook-handler',
         handler: 'dist/lambdas/handlers/webhookHandler.handler',
         runtime: this.DEFAULT_RUNTIME,
         timeout: 30,
-        memorySize: 256,
-        description: 'Handles WhatsApp webhook events and routes messages to appropriate queues',
+        memorySize: 512,
+        description: 'Handles WhatsApp webhook events (API Gateway) and enqueues to the text queue',
         environment: baseEnv,
         sourcePath: 'src/lambdas/handlers/webhookHandler.ts',
         dependencies: ['@aws-sdk/client-sqs']
       },
       {
-        name: 'chatlogix-multi-stage-processor',
-        handler: 'dist/lambdas/handlers/multiStageProcessor.handler',
+        name: 'chatlogix-incoming-response-generator',
+        handler: 'dist/lambdas/handlers/conversationProcessor.handler',
+        runtime: this.DEFAULT_RUNTIME,
+        timeout: 60,
+        memorySize: 1536,
+        description: 'Consumes chatlogix-text-queue-prod and generates the AI reply via the conversation processor (docs/CONVERSATION_PROCESSOR_LAMBDA.md)',
+        environment: baseEnv,
+        sourcePath: 'src/lambdas/handlers/conversationProcessor.ts',
+        dependencies: ['@aws-sdk/client-sqs', 'openai', '@prisma/client']
+      },
+      {
+        name: 'chatlogix-whatsapp-response-dispatcher',
+        handler: 'dist/lambdas/handlers/responseProcessor.handler',
+        runtime: this.DEFAULT_RUNTIME,
+        timeout: 60,
+        memorySize: 512,
+        description: 'Processes chatlogix-response-queue-prod and sends the WhatsApp message',
+        environment: baseEnv,
+        sourcePath: 'src/lambdas/handlers/responseProcessor.ts',
+        dependencies: ['@aws-sdk/client-sqs', '@aws-sdk/client-lambda']
+      },
+      {
+        name: 'chatlogix-order-recovery',
+        handler: 'dist/lambdas/handlers/orderRecovery.handler',
         runtime: this.DEFAULT_RUNTIME,
         timeout: 300,
-        memorySize: 2048,
-        description: 'Processes incoming messages through multi-stage AI pipeline with feature flag support',
+        memorySize: 512,
+        description: 'EventBridge-scheduled sweep that detects and recovers order discrepancies',
         environment: baseEnv,
-        sourcePath: 'src/lambdas/handlers/multiStageProcessor.ts',
-        dependencies: ['@aws-sdk/client-sqs', 'openai', '@prisma/client']
+        sourcePath: 'src/lambdas/handlers/orderRecovery.ts',
+        dependencies: ['@prisma/client']
       }
     ];
   }

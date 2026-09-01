@@ -1,5 +1,15 @@
 # ChatLogix Deployment Guide (Step-by-Step)
 
+> **⚠️ Names below are historical.** This guide was written when there were 3 Lambda functions. Production has since moved to 5 functions with different names, and the AI Lambda now runs the new conversation-processor pipeline (docs/CONVERSATION_PROCESSOR_LAMBDA.md) instead of the multi-stage pipeline described here. Use this mapping when reading phases 7, 8, 12, 13, and the reference table below:
+>
+> | This guide calls it… | Live name today | Handler today |
+> |---|---|---|
+> | `chatlogix-webhook-handler` | `chatlogix-webhook-handler` (unchanged) | `dist/lambdas/handlers/webhookHandler.handler` |
+> | `chatlogix-multi-stage-processor` | `chatlogix-incoming-response-generator` | `dist/lambdas/handlers/conversationProcessor.handler` (was `multiStageProcessor.handler`) — text queue only, audio/image triggers disabled |
+> | `chatlogix-response-processor` | `chatlogix-whatsapp-response-dispatcher` | `dist/lambdas/handlers/responseProcessor.handler` (unchanged) |
+>
+> Two more functions exist that this guide never covered: `chatlogix-order-recovery` (EventBridge sweep, `dist/lambdas/handlers/orderRecovery.handler`) and `chatlogix-media-fetcher` (not functional — no handler code exists yet; audio/image is a deliberately deferred gap, see `backend/src/lambdas/README.md`). The infrastructure steps below (IAM, S3, SQS, VPC) are still accurate as a one-time setup reference — only the Lambda **names and handlers** have drifted.
+
 This guide is written for someone who is **not** a DevOps engineer. Every step tells you exactly which page to open, what to click, and what to type. Follow the phases in order — do not skip ahead.
 
 **What you'll have at the end:**
@@ -749,10 +759,12 @@ Cost knobs to keep in mind:
 | **SQS `chatlogix-text-queue-prod`** | Incoming text messages → AI pipeline |
 | **SQS `chatlogix-audio-queue-prod`** | Audio messages after Whisper transcription → AI pipeline |
 | **SQS `chatlogix-image-queue-prod`** | Image messages with caption → AI pipeline |
-| **SQS `chatlogix-media-fetch-queue-prod`** | Media download/transcribe jobs (consumed by media worker on Lightsail) |
-| **Lambda `chatlogix-response-processor`** | Sends WhatsApp messages |
+| **SQS `chatlogix-media-fetch-queue-prod`** | Media download/transcribe jobs (consumed by media worker on Lightsail) — **not currently created**; `.env`'s `MEDIA_FETCH_QUEUE_URL` points at a queue that doesn't exist in the account, and the webhook Lambda doesn't route audio/image anywhere yet. Part of the deferred audio/image gap. |
 | **Lambda `chatlogix-webhook-handler`** | Receives webhook, drops to SQS |
-| **Lambda `chatlogix-multi-stage-processor`** | Full AI pipeline |
-| **API Gateway `chatlogix-webhook`** | Public HTTPS URL → webhook Lambda |
+| **Lambda `chatlogix-incoming-response-generator`** | Full AI reply generation — runs `conversationProcessor.handler` (docs/CONVERSATION_PROCESSOR_LAMBDA.md), triggered by `chatlogix-text-queue-prod` only |
+| **Lambda `chatlogix-whatsapp-response-dispatcher`** | Sends WhatsApp messages, triggered by `chatlogix-response-queue-prod` |
+| **Lambda `chatlogix-order-recovery`** | EventBridge-scheduled order-discrepancy sweep (`orderRecovery.handler`) |
+| **Lambda `chatlogix-media-fetcher`** | Not functional — handler code doesn't exist yet; deferred |
+| **API Gateway `weeju313k2`** | Public HTTPS URL → `chatlogix-webhook-handler`, route `/webhook` |
 
-Save this file. Refer to it next time you onboard a teammate or set up staging.
+Save this file. Refer to it next time you onboard a teammate or set up staging. See the correction note at the top of this document for how these names diverged from the original 3-function setup this guide was written for.
