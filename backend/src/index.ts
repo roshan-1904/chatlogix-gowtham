@@ -79,11 +79,17 @@ async function bootstrap() {
 
   if (env.ENABLE_SWAGGER === 'true' || env.NODE_ENV !== 'production') {
     app.get('/openapi.json', (req, res) => res.json(openApiSpec));
+    app.get('/docs/openapi.json', (req, res) => res.json(openApiSpec));
     app.use('/docs', swaggerUi.serve, swaggerUi.setup(openApiSpec, {
       customCss: '.swagger-ui .topbar { display: none }',
       customSiteTitle: 'ChatLogix API Documentation',
       swaggerOptions: {
-        url: '/openapi.json',
+        // Relative, not '/openapi.json': nginx proxies this whole router under
+        // /api/docs (not /docs), and an absolute path resolves against the
+        // public origin, missing that prefix and falling through to the
+        // frontend SPA. A relative path resolves against wherever /docs is
+        // actually mounted, proxied or not.
+        url: 'openapi.json',
         persistAuthorization: true,
         displayRequestDuration: true,
         tryItOutEnabled: true,
