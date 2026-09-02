@@ -131,5 +131,6 @@ jobs:
       - name: Run deploy script on EC2
         run: |
           ssh -i ~/.ssh/id_ed25519 \
+              -o ServerAliveInterval=30 -o ServerAliveCountMax=10 \
               "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" \
               'bash -s' < scripts/deployment/deploy-ec2.sh
