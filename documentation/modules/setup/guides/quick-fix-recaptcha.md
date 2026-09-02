@@ -45,5 +45,5 @@ After these 3 steps, try logging in again. The error should be resolved.
 
 ## Need More Help?
 
-See `frontend_v2/RECAPTCHA_SETUP.md` for detailed troubleshooting.
+`frontend_v2/RECAPTCHA_SETUP.md` (referenced by `env.template`/`ENV_SETUP.md` in `frontend_v2/apps/web-vendor` and `web-admin`) does not currently exist in the repo. For detailed troubleshooting see the other guides in this directory instead: [`recaptcha.md`](./recaptcha.md), [`troubleshooting-recaptcha.md`](./troubleshooting-recaptcha.md), and [`debug-site-mismatch.md`](./debug-site-mismatch.md).
 

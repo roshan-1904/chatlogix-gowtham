@@ -1,5 +1,7 @@
 # Multi-Stage AI Worker System Analysis
 
+> **⚠️ Superseded — not the production pipeline.** The 14-stage `multiStageOrchestrator.ts` pipeline analyzed below is no longer on the production hot path. It was replaced by a ground-up rewrite (`backend/src/conversation/*`: an LLM-1 draft/cart-ops call, a deterministic `CartEngine`, and an optional LLM-2 verifier call) that runs live via the `chatlogix-incoming-response-generator` Lambda. See **`docs/CONVERSATION_PROCESSOR_LAMBDA.md`** for the current design and an explicit "current vs new" comparison. `multiStageOrchestrator.ts` still exists in the codebase, but its only remaining live caller is `catalogImportSandboxService.ts` (catalog import tooling, not live message processing). The analysis below is kept as historical/reference material describing how the old pipeline's stage flow, model selection, and memory/order logic worked.
+
 **Date:** December 7, 2025  
 **Analysis Scope:** Intent Classification, Stage Execution, Memory Management, and Order Processing
 

@@ -83,19 +83,23 @@ npx prisma generate
 
 ### 4. Import Backup Data
 
-Make sure DATABASE_URL is set, then:
+**Note:** `backend/scripts/import-backup-data.sh` (referenced below and by `setup-database-bitnami.sh`) no longer exists in this repo. The current equivalent is the npm script `db:import`, which runs `backend/scripts/import-database-backup.ts`:
+
+```bash
+cd backend
+npm run db:import
+```
+
+That script reads the `_rows.sql` files listed below from `backend/database_backup/` — that directory doesn't ship in the repo, so copy the files from `scripts/database/backups/` (repo root) into `backend/database_backup/` first, or point the script at wherever your backup files actually live.
+
+The original (now-missing) script commands, kept for reference:
 
 ```bash
 chmod +x backend/scripts/import-backup-data.sh
 ./backend/scripts/import-backup-data.sh
 ```
 
-Or use the all-in-one script:
-
-```bash
-chmod +x backend/scripts/setup-database-bitnami.sh
-./backend/scripts/setup-database-bitnami.sh
-```
+The all-in-one script `backend/scripts/setup-database-bitnami.sh` still exists and runs permission-fix + schema push + Prisma generate, but its own final "Import Backup Data" step silently no-ops today (it looks for the same missing `import-backup-data.sh`) — run `npm run db:import` yourself afterward.
 
 ## Troubleshooting
 
@@ -126,7 +130,7 @@ sudo -u postgres psql -l | grep chatlogix
 
 ## Quick Reference: Manual Import Order
 
-If the script doesn't work, import manually in this order:
+If `npm run db:import` doesn't work, import manually in this order:
 
 ```bash
 export PGPASSWORD="your_password"

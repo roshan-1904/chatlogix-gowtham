@@ -2,6 +2,8 @@
 
 **Test Cases for New Intent Classification**
 
+> **Architecture note (2026-09-02):** These test cases target `intentClassificationService.ts` (OLD multi-stage pipeline), which is **no longer wired to live WhatsApp traffic**. Production now runs `backend/src/conversation/*`. See `INTENT_CLASSIFICATION_EXPANSION.md` for details and `docs/CONVERSATION_PROCESSOR_LAMBDA.md` for the current architecture.
+
 ---
 
 ## Priority 1: High-Impact Intents

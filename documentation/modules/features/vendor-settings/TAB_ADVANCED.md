@@ -14,6 +14,8 @@ Enable vendors to:
 - Set business timezone for accurate timestamps
 - Fine-tune AI matching parameters
 
+> **Implementation status (verified against code, Sep 2026)**: `frontend_v2/apps/web-vendor/src/components/settings/tabs/AdvancedTab.tsx` implements Timezone (a plain text input, not the searchable region-grouped dropdown Section 3 describes) and three matching-config fields: Matching Threshold, Enable Fuzzy Matching, Enable AI Matching. **Product Name/Keywords/Price Field dropdowns, Supported Languages (Section 2), and the AI Matching Model dropdown were never built into the UI.** The backend fully supports all of it via `matchingConfigSchema` (`backend/src/utils/validation/settingsSchemas.ts`) and `GET/PUT /api/vendors/:id/matching-config` — and unlike the AI Configuration tab's model field, **`aiMatchingModel` is actually consumed by the live pipeline**: `backend/src/utils/productMatcher.ts` reads `matchingConfig.aiMatchingModel` (falling back to `gpt-4o-mini`) and is imported by `backend/src/conversation/cart/candidateSearch.ts`, part of the current production CartEngine flow. So this field is live and functional in production — it's just only settable via a direct API call or DB write today, not through the Settings UI.
+
 ## Sections
 
 ### 1. Product Matching Configuration
@@ -473,9 +475,9 @@ export function AdvancedTab({ vendorId }: AdvancedTabProps) {
 
 ## Related API Endpoints
 
-- **GET** `/api/vendors/:id/matching-config` - Get matching configuration (needs to be created)
-- **PUT** `/api/vendors/:id/matching-config` - Update matching configuration (needs to be created)
-- **PUT** `/api/vendors/:id/timezone` - Update timezone (needs to be created)
+- **GET** `/api/vendors/:id/matching-config` - Get matching configuration (built; see status note above for which fields have no UI yet)
+- **PUT** `/api/vendors/:id/matching-config` - Update matching configuration (built)
+- **PUT** `/api/vendors/:id/timezone` - Update timezone (built)
 
 See [API Documentation](./API_DOCUMENTATION.md#5-product-matching-configuration-apis) for complete API specifications.
 

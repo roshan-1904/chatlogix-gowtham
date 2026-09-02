@@ -76,6 +76,27 @@ const cookies = {
   maxOrderQuantity: null
 };
 
+// A variant-bearing product (regression fixture for the "4x6 doesn't exist,
+// SS 7x7 got priced as Kadai" bug): basePrice is intentionally nonsense —
+// any op naming a real variantSku must price from that variant, never fall
+// back to this.
+const bakingTin = {
+  id: 'prod-tin',
+  name: 'Premium Baking Tin',
+  baseUnit: 'unit',
+  baseQuantity: 1,
+  basePrice: 129900,
+  fulfillmentType: 'made_to_order',
+  inStock: true,
+  stockQuantity: null,
+  minOrderQuantity: null,
+  maxOrderQuantity: null,
+  variants: [
+    { sku: 'KD-7X7', label: 'Kadai 7x7', attributes: { size: '7x7', material: 'Kadai' }, unit: 'unit', baseQuantity: 1, price: 129900, isDivisible: false, isActive: true },
+    { sku: 'SS-7X7', label: 'SS 7x7', attributes: { size: '7x7', material: 'Stainless Steel' }, unit: 'unit', baseQuantity: 1, price: 179900, isDivisible: false, isActive: true }
+  ]
+};
+
 function existingOrder(items: unknown, overrides: Record<string, unknown> = {}) {
   return {
     id: 'order-1',
@@ -270,5 +291,72 @@ describe('CartEngine.apply', () => {
     expect(result.mutated).toBe(false);
     expect(result.rejectedOps).toEqual([{ op: { type: 'cancel' }, reason: 'no_order_to_cancel' }]);
     expect(orderCreate).not.toHaveBeenCalled();
+  });
+
+  it('prices an add from the selected variant, not the product basePrice', async () => {
+    orderFindFirst.mockResolvedValue(null);
+    productFindFirst.mockResolvedValue(bakingTin);
+    orderCreate.mockImplementation(({ data }: any) => ({ id: 'new-order', ...data }));
+
+    const result = await apply({
+      vendorId: VENDOR_ID,
+      conversationId: CONVERSATION_ID,
+      customerId: CUSTOMER_ID,
+      orderId: null,
+      ops: [{ type: 'add', productId: 'prod-tin', qty: 1, variantSku: 'SS-7X7' }],
+      traceId: 'wamid.9'
+    });
+
+    expect(result.rejectedOps).toHaveLength(0);
+    const line = result.snapshot.items[0];
+    expect(line.unitPricePaise).toBe(179900); // SS price, not the 129900 basePrice
+    expect(line.variantSku).toBe('SS-7X7');
+    expect(line.variantLabel).toBe('SS 7x7');
+  });
+
+  it('rejects an add naming a variantSku that does not exist on the product (fail closed, I4) — this is the exact hallucinated-size bug', async () => {
+    orderFindFirst.mockResolvedValue(null);
+    productFindFirst.mockResolvedValue(bakingTin);
+
+    const result = await apply({
+      vendorId: VENDOR_ID,
+      conversationId: CONVERSATION_ID,
+      customerId: CUSTOMER_ID,
+      orderId: null,
+      ops: [{ type: 'add', productId: 'prod-tin', qty: 1, variantSku: 'SS-4X6' }],
+      traceId: 'wamid.10'
+    });
+
+    expect(result.rejectedOps).toEqual([
+      { op: { type: 'add', productId: 'prod-tin', qty: 1, variantSku: 'SS-4X6' }, reason: 'variant_not_found' }
+    ]);
+    expect(result.mutated).toBe(false);
+    expect(orderCreate).not.toHaveBeenCalled();
+  });
+
+  it('keeps two variants of the same product as separate lines rather than merging quantity/price', async () => {
+    orderFindFirst.mockResolvedValue(
+      existingOrder([
+        { productId: 'prod-tin', name: 'Premium Baking Tin', quantity: 1, unit: 'unit', unitPricePaise: 129900, lineTotalPaise: 129900, variantSku: 'KD-7X7', variantLabel: 'Kadai 7x7' }
+      ])
+    );
+    productFindFirst.mockResolvedValue(bakingTin);
+    orderUpdate.mockImplementation(({ data }: any) => ({ ...existingOrder(data.items), ...data }));
+
+    const result = await apply({
+      vendorId: VENDOR_ID,
+      conversationId: CONVERSATION_ID,
+      customerId: CUSTOMER_ID,
+      orderId: 'order-1',
+      ops: [{ type: 'add', productId: 'prod-tin', qty: 1, variantSku: 'SS-7X7' }],
+      traceId: 'wamid.11'
+    });
+
+    expect(result.snapshot.items).toHaveLength(2);
+    const kadaiLine = result.snapshot.items.find((l) => l.variantSku === 'KD-7X7');
+    const ssLine = result.snapshot.items.find((l) => l.variantSku === 'SS-7X7');
+    expect(kadaiLine?.quantity).toBe(1);
+    expect(ssLine?.quantity).toBe(1);
+    expect(ssLine?.unitPricePaise).toBe(179900);
   });
 });

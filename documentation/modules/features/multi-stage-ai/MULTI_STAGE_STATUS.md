@@ -1,5 +1,7 @@
 # Multi-Stage AI Implementation Status
 
+> **Note:** Dated point-in-time snapshot from development of the multi-stage AI pipeline (`multiStageOrchestrator.ts`), which is no longer on the production hot path — it was replaced by `backend/src/conversation/*` (see `docs/CONVERSATION_PROCESSOR_LAMBDA.md` for the current system). Kept for historical record; not reflective of current production behavior.
+
 ## ⚠️ Current Issue
 
 **The multi-stage worker is running BUT using fallbacks/legacy system instead of optimized services.**

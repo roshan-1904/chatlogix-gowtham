@@ -1,5 +1,7 @@
 # ✅ Multi-Stage AI Processing - COMPLETE INTEGRATION
 
+> **Note:** Historical record of the old multi-stage AI / PM2 dual-worker integration (`incomingMessageWorker.ts`, `multiStageAIWorker.ts`). Both worker files were deleted as dead code on 2026-09-02, and the deployment/rollout steps described below (PM2, `ecosystem.config.js` feature flags) no longer apply. Production today runs 5 AWS Lambda functions — see `backend/src/lambdas/README.md` — with message processing in `backend/src/conversation/*` (see `docs/CONVERSATION_PROCESSOR_LAMBDA.md`). For current deployment steps see `docs/DEPLOYMENT.md`; for current known gaps see `docs/CONVERSATION_WORKER_GAPS.md`.
+
 ## Status: **FULLY INTEGRATED** ✅
 
 The multi-stage AI processing system is now **completely integrated** into the codebase.

@@ -1,5 +1,7 @@
 # Intent Classification Documentation
 
+> **Architecture note (2026-09-02):** Everything in this directory describes the intent-classification logic that lives in the OLD multi-stage pipeline (`backend/src/services/intentClassificationService.ts` + `multiStageOrchestrator.ts`, 17 intents). That pipeline is **no longer wired to live WhatsApp traffic** — production now runs `backend/src/conversation/*` (LLM-1 + deterministic `CartEngine` + optional LLM-2 verifier), where intent is a lightweight, telemetry-only string returned by LLM-1's single structured-output call, not a dedicated classification stage with a fixed 17-intent taxonomy. The code described here still exists and still runs, but only via the catalog-import sandbox test-message path (`backend/src/services/catalogImportSandboxService.ts`). See `docs/CONVERSATION_PROCESSOR_LAMBDA.md` for the current architecture.
+
 This directory contains all documentation related to the Intent Classification system and GAP4 improvements.
 
 ## Overview

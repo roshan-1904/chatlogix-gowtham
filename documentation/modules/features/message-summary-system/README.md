@@ -1,5 +1,7 @@
 # Message Summary System
 
+> **Architecture note (2026-09-02):** This system was fully implemented (`backend/src/services/messageSummaryService.ts`, Stage 9.5 in `multiStageOrchestrator.ts`, and the `messageSummary`/`expectedNextAction`/`summaryMetadata` fields on `Message` all exist in the code today), and it does what this doc describes. But it's wired into the OLD multi-stage pipeline, which is **no longer wired to live WhatsApp traffic** — production now runs `backend/src/conversation/*`, which intentionally does not generate or use message summaries (`persist.ts` calls the old pipeline's AI-driven key-fact/summary extraction "out of scope for this rewrite's v1"). This code still runs only via the catalog-import sandbox test-message path (`catalogImportSandboxService.ts`). See `docs/CONVERSATION_PROCESSOR_LAMBDA.md` for the current architecture.
+
 ## Overview
 
 The Message Summary System generates AI-powered summaries for each customer message to improve intent classification, prevent redundant questions, and fix critical order confirmation flow issues.

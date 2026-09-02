@@ -1,5 +1,7 @@
 # Parse Error Fix Implementation
 
+> **Note:** Dated point-in-time snapshot from development of the multi-stage AI pipeline (`conversationMemoryService.ts` as used by `multiStageOrchestrator.ts`), which is no longer on the production hot path — it was replaced by `backend/src/conversation/*` (see `docs/CONVERSATION_PROCESSOR_LAMBDA.md` for the current system). Kept for historical record; not reflective of current production behavior.
+
 **Date:** December 21, 2024  
 **Status:** ✅ Implemented  
 **Issue:** 80% parse error rate causing fallback extraction

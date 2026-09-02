@@ -1,5 +1,7 @@
 # Multi-Stage AI Processing - Implementation Status
 
+> **Note:** Dated point-in-time snapshot from development of the multi-stage AI pipeline (`multiStageOrchestrator.ts`, `multiStageAIWorker.ts`). That pipeline is no longer on the production hot path — it was replaced by `backend/src/conversation/*` (see `docs/CONVERSATION_PROCESSOR_LAMBDA.md` for the current system), and `multiStageAIWorker.ts` itself was deleted as dead code on 2026-09-02. Kept for historical record; not reflective of current production behavior.
+
 ## ✅ Completed Implementation (FULL INTEGRATION)
 
 ### Integration Points

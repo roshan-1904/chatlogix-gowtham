@@ -4,6 +4,8 @@
 
 The `support` intent handles customer requests for human assistance, including requests to speak with a real person, agent requests, and customer service escalations. This document details every action taken at each stage of the multi-stage AI processing pipeline.
 
+> **Superseded (2026-09):** This describes the OLD 14-stage `multiStageOrchestrator.ts` pipeline, which is **no longer on the hot path** for live WhatsApp messages. Production text messages now run through `backend/src/conversation/*` (LLM-1 draft + cart ops → `CartEngine` → optional LLM-2 verifier), deployed as the `chatlogix-incoming-response-generator` Lambda — see `docs/CONVERSATION_PROCESSOR_LAMBDA.md`. The new pipeline does not route messages through fixed per-intent stages: `intent` is captured for telemetry only and never drives cart writes (CONVERSATION_PROCESSOR_LAMBDA.md §13). Human handoff in the new pipeline is a `handoff` op that sets `Conversation.aiPaused = true` and notifies the vendor (CONVERSATION_PROCESSOR_LAMBDA.md §20, Q7) — simpler than the two-turn confirmation flow (`handoffConfirmationPending`) this document describes. The services referenced below still exist in the codebase, but their only remaining live caller is `catalogImportSandboxService.ts` (catalog import, unrelated to message processing). The stage-by-stage detail below is kept as a historical reference for the old pipeline's behavior.
+
 ---
 
 ## Stage 0: Message Normalization

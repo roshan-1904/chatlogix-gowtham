@@ -4,6 +4,12 @@
 **Branch:** `multi_stage_ai_worker`  
 **Scope:** Full codebase analysis of the multi-stage AI processing pipeline covering workers, orchestrator, and all stage services.
 
+> **Superseded — read before acting on anything below.** This is a point-in-time analysis from 2026-04-10 of the 14-stage `multiStageOrchestrator.ts` pipeline. That pipeline is **no longer on the hot path** for live WhatsApp messages: it was replaced by a from-scratch rewrite in `backend/src/conversation/*` (LLM-1 draft + cart ops → `CartEngine` → optional LLM-2 verifier), which runs today as the `chatlogix-incoming-response-generator` Lambda. See `docs/CONVERSATION_PROCESSOR_LAMBDA.md` for the current design and `docs/CONVERSATION_WORKER_GAPS.md` for the current, verified gap list (a different, up-to-date document — do not confuse the two).
+>
+> One file reference below is now broken: `backend/src/workers/multiStageAIWorker.ts` (the entry point this analysis centers on) was **deleted as dead code on 2026-09-02** along with the other pre-Lambda PM2 worker entrypoints. `backend/src/services/multiStageOrchestrator.ts` and the stage services it names still exist in the repo, but their only remaining live caller is `catalogImportSandboxService.ts` (catalog import — unrelated to message processing), not real customer conversations.
+>
+> The gap analysis, fixes, and priority matrix below are left as-is as a historical record of that pipeline's known issues; none of it was verified or re-applied against the new pipeline.
+
 ---
 
 ## Table of Contents

@@ -18,11 +18,13 @@ Documentation for the multi-stage AI processing pipeline, including:
 - Optimization plans
 
 ### [Intent Classification](./intent-classification/)
-Documentation for intent classification system, including:
+Documentation for the intent classification system built into the OLD multi-stage pipeline (`intentClassificationService.ts` / `multiStageOrchestrator.ts`), including:
 - Intent expansion implementation guides
 - GAP4 improvement documentation
 - Test cases and verification checklists
 - Flow diagrams and explanations
+
+**Note (2026-09-02):** This pipeline is no longer wired to live WhatsApp traffic — production runs `backend/src/conversation/*` (LLM-1 + `CartEngine` + optional LLM-2), where intent is a lightweight telemetry field rather than a dedicated 17-intent classification stage. The old pipeline still runs only via the catalog-import sandbox test-message path. See `docs/CONVERSATION_PROCESSOR_LAMBDA.md`.
 
 ### [Product Matching](./product-matching/)
 Documentation for product matching and validation system, including:

@@ -90,15 +90,15 @@ Enable vendors to configure their ChatLogix account settings independently, ensu
 
 ## Related Documentation
 
-- [Order Delivery Settings](../order-delivery-settings/) - Related order configuration
+- [Order Delivery](../order-delivery/) - Related order configuration
 - [Product Matching](../product-matching/) - Product matching configuration details
-- [Multi-Stage AI](../multi-stage-ai/) - How AI settings affect AI processing
+- [Multi-Stage AI](../multi-stage-ai/) - Legacy pipeline doc; production AI processing has since moved to the LLM-1 + CartEngine (+ optional LLM-2) pipeline in `backend/src/conversation/*` — see `docs/CONVERSATION_PROCESSOR_LAMBDA.md`
 
 ## Status
 
-**Documentation Status**: ✅ Complete  
-**Decisions Status**: ✅ All Decisions Made  
-**Implementation Status**: 🚀 Ready to Start  
+**Documentation Status**: ✅ Complete (as a Dec 2024 implementation plan — not a current-state description)
+**Decisions Status**: ✅ All Decisions Made (Dec 2024)
+**Implementation Status**: 🟡 Partially built — the Settings page shipped (`frontend_v2/apps/web-vendor/src/pages/Settings.tsx`), but several sections described in this doc set (AI model selection, order preparation-time config, notification quiet hours/per-status toggles, advanced matching field-mapping/language UI) were never added to the UI even though their backend support exists. See each tab doc for specifics.
 **Last Updated**: December 2024
 
 ## Quick Start

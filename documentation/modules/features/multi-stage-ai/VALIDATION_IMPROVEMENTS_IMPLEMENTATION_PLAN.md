@@ -1,5 +1,7 @@
 # Validation Improvements Implementation Plan
 
+> **⚠️ Superseded — written for the old pipeline.** The validation logic designed here (`dataValidationService.ts`, `orderUpdateValidationService.ts`, Stage 7.5/8/9 of `multiStageOrchestrator.ts`) targets the 14-stage pipeline, which is no longer on the production hot path — it was replaced by `backend/src/conversation/*`, where cart mutation and confirmation rules (missing name/address, empty cart, etc.) are enforced by the deterministic `CartEngine` instead (see **`docs/CONVERSATION_PROCESSOR_LAMBDA.md`**, especially §14 and §16, for how confirmation validation works today). `multiStageOrchestrator.ts` still exists in the codebase, but its only remaining live caller is `catalogImportSandboxService.ts` (catalog import tooling, not live message processing). The design and code below are preserved as historical/reference material.
+
 **Date:** December 2024  
 **Status:** Planning  
 **Priority:** High  

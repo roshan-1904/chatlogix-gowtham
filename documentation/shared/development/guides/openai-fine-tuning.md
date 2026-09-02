@@ -1,5 +1,7 @@
 # 🚀 OpenAI Fine-Tuning Guide for ChatLogix
 
+> **DELETION CANDIDATE — flagged during 2026-09 documentation audit:** ChatLogix does not use a fine-tuned model today — the AI pipeline (`backend/src/conversation/*`, spec in `docs/CONVERSATION_PROCESSOR_LAMBDA.md`) uses base `gpt-4.1`/`gpt-4.1-mini` per `CLAUDE.md`. The referenced training files (`training-data.jsonl`, `extended-training-data.jsonl`) don't exist anywhere in the repo, and the CLI commands below (`openai api fine_tunes.create`, `fine_tunes.list`, `completions.create`) are OpenAI's old, now-retired Fine-tunes API — current fine-tuning uses `openai api fine_tuning.jobs.create` and the Chat Completions API, not `completions.create`. Nothing in this doc reflects a real or currently-viable path. Recommend deleting unless fine-tuning is actually being pursued, in which case it needs a full rewrite.
+
 ## 📋 Overview
 
 This guide will help you fine-tune OpenAI models using the generated JSONL training data for your WhatsApp automation system.

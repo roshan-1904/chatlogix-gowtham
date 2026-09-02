@@ -69,46 +69,38 @@ UI Update
 
 ## File Structure
 
+> **Verified against the shipped code (Sep 2026)**: the tree below reflects what actually exists in `frontend_v2/apps/web-vendor/src/` today, which is a simpler, more consolidated layout than originally planned. Notably there's no separate `SettingsHeader`/`SettingsTabs`/`SettingsFooter`/per-field component layer — `Settings.tsx` renders the tab shell inline, and each tab component builds its own form directly with a handful of shared primitives. There are also no per-tab hooks (`useAIConfig`, `useOrderSettings`, etc.) — everything goes through one `useVendorSettings` hook.
+
 ```
 frontend_v2/apps/web-vendor/src/
 ├── pages/
-│   └── Settings.tsx                    # Main settings page component
+│   └── Settings.tsx                    # Main settings page (tab shell + navigation, inline)
 ├── components/
 │   └── settings/
-│       ├── SettingsHeader.tsx          # Page header with title
-│       ├── SettingsTabs.tsx           # Tab navigation component
-│       ├── SettingsSection.tsx        # Reusable section wrapper
-│       ├── SettingsFooter.tsx         # Save/Cancel actions
-│       ├── tabs/
-│       │   ├── AccountTab.tsx          # Account & Business tab
-│       │   ├── AIConfigTab.tsx        # AI Configuration tab
-│       │   ├── OrderSettingsTab.tsx    # Order Settings tab
-│       │   ├── NotificationsTab.tsx   # Notifications tab
-│       │   └── AdvancedTab.tsx        # Advanced settings tab
-│       └── fields/
-│           ├── BusinessInfoForm.tsx   # Business information form
-│           ├── ContactInfoForm.tsx     # Contact details form
-│           ├── SubscriptionInfo.tsx   # Subscription display (read-only)
-│           ├── AIPromptEditor.tsx      # AI prompt text editor
-│           ├── AIModelSelector.tsx     # AI model dropdown
-│           ├── OrderPrefixInput.tsx    # Order prefix input with validation
-│           ├── PreparationTimeConfig.tsx # Preparation time configuration
-│           ├── NotificationSettingsForm.tsx # Notification preferences
-│           ├── QuietHoursConfig.tsx    # Quiet hours time picker
-│           └── MatchingConfigForm.tsx  # Product matching configuration
+│       ├── ConfirmationDialog.tsx      # Confirmation modal (used by every tab)
+│       ├── FormField.tsx               # Generic labeled input/textarea/number field
+│       ├── HelpText.tsx                # Help text component
+│       ├── Note.tsx                    # Info/warning note component
+│       └── tabs/
+│           ├── AccountBusinessTab.tsx  # Account & Business tab
+│           ├── AIConfigTab.tsx         # AI Configuration tab
+│           ├── OrderSettingsTab.tsx    # Order Settings tab
+│           ├── NotificationsTab.tsx    # Notifications tab
+│           └── AdvancedTab.tsx         # Advanced settings tab
 ├── hooks/
 │   └── settings/
-│       ├── useVendorSettings.ts        # Main settings hook
-│       ├── useSettingsForm.ts          # Form state management hook
-│       ├── useAIConfig.ts              # AI config specific hook
-│       ├── useOrderSettings.ts         # Order settings hook
-│       ├── useNotificationSettings.ts  # Notification settings hook
-│       └── useMatchingConfig.ts        # Matching config hook
+│       ├── useVendorSettings.ts        # Single hook: fetches + mutates all 5 tabs' data
+│       └── useAutoSave.ts              # localStorage auto-save/restore helper
+├── api/
+│   └── settings.ts                     # API client functions for settings (incl. phone/email verification)
 ├── lib/
-│   └── settings.ts                     # API functions for settings
+│   └── validation/
+│       └── settingsSchemas.ts          # Zod validation schemas (mirrors backend/src/utils/validation/settingsSchemas.ts)
 └── types/
     └── settings.ts                     # TypeScript types for settings
 ```
+
+Several components this doc describes elsewhere (`AIModelSelector.tsx`, `OrderPrefixInput.tsx`, `PreparationTimeConfig.tsx`, `QuietHoursConfig.tsx`, `MatchingConfigForm.tsx`, per-tab hooks) were never built — the corresponding UI sections (AI model picker, order preparation-time config, quiet hours, per-status notification toggles, matching field-mapping/language dropdowns) don't exist in the shipped tabs even though the backend supports the underlying data. See the relevant `TAB_*.md` file for what's actually live in each tab.
 
 ## API Integration Pattern
 

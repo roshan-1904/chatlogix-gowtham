@@ -1,7 +1,9 @@
 # Response Worker - Step-by-Step Implementation Guide
 
+> **Updated 2026-09-02 for the current architecture.** The standalone `backend/src/workers/responseWorker.ts` PM2 process this guide originally described was deleted as dead code on 2026-09-02 (it had already been removed from `ecosystem.config.js` the day before). The business logic it called — `backend/src/workers/responseProcessor.ts`, exporting `processResponseMessage()` — is unchanged and still live, but it's now invoked directly by the **`chatlogix-whatsapp-response-dispatcher`** AWS Lambda (`backend/src/lambdas/handlers/responseProcessor.ts`), triggered by the SQS response queue's event source mapping instead of a hand-rolled polling loop. The two-phase design principle below (blocking WhatsApp send → SQS deletion, async DB follow-up) still holds; the entry-point and deployment sections have been corrected accordingly. See `backend/src/lambdas/README.md` and `docs/CONVERSATION_WORKER_GAPS.md` for the full current picture.
+
 ## Overview
-The Response Worker is a critical component that processes outbound WhatsApp messages from the SQS queue. It ensures reliable message delivery by separating WhatsApp sending from database operations.
+The response processor is a critical component that turns queued outbound WhatsApp messages into sent messages. It ensures reliable delivery by separating the (blocking) WhatsApp send from (non-blocking) database follow-up work.
 
 ## Architecture
 
@@ -11,18 +13,21 @@ The Response Worker is a critical component that processes outbound WhatsApp mes
 │              (RESPONSE_QUEUE_URL)                                │
 └────────────────────┬────────────────────────────────────────────┘
                      │
-                     │ Poll messages (batch of 10)
+                     │ SQS event source mapping invokes the Lambda
+                     │ with a batch of up to 10 messages
                      ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                  Response Worker Loop                            │
-│  (backend/src/workers/responseWorker.ts)                        │
+│      chatlogix-whatsapp-response-dispatcher (AWS Lambda)         │
+│  (backend/src/lambdas/handlers/responseProcessor.ts)             │
+│  Promise.allSettled over event.Records                           │
 └────────────────────┬────────────────────────────────────────────┘
                      │
-                     │ For each message
+                     │ For each record
                      ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│              Response Processor                                  │
-│  (backend/src/workers/responseProcessor.ts)                     │
+│              processResponseMessage()                            │
+│  (backend/src/workers/responseProcessor.ts — shared business     │
+│   logic, imported directly by the Lambda handler above)          │
 └────────────────────┬────────────────────────────────────────────┘
                      │
         ┌────────────┴────────────┐
@@ -30,72 +35,95 @@ The Response Worker is a critical component that processes outbound WhatsApp mes
         ▼                         ▼
 ┌───────────────┐       ┌────────────────────────┐
 │  STEP 1       │       │  STEP 2                │
-│  WhatsApp API │       │  Database Operations   │
-│  (BLOCKING)   │       │  (ASYNC/FIRE-FORGET)   │
+│  WhatsApp API │       │  Optional Async Ops    │
+│  (BLOCKING)   │       │  (FIRE-AND-FORGET)     │
 │               │       │                        │
-│   Success =   │       │  Create Message Record │
-│  Delete from  │       │  Update Insights       │
-│  SQS          │       │  (Doesn't block SQS)   │
+│  Throw on     │       │  Update customer       │
+│  failure →    │       │  insights only (if     │
+│  Lambda retry │       │  conversationId +      │
+│  via SQS      │       │  customerId + vendorId)│
 └───────────────┘       └────────────────────────┘
 ```
+
+Note: the message `Message` DB row for an outbound reply is created earlier, in the incoming-response-generator pipeline — the response dispatcher does **not** create it. Its only DB-side responsibility (besides marking the `Message` row sent/failed) is the optional customer-insights update.
 
 ---
 
 ## Step-by-Step Implementation
 
-### **Step 1: Worker Initialization**
+### **Step 1: Lambda Invocation**
 
-**Location:** `backend/src/workers/responseWorker.ts`
+**Location:** `backend/src/lambdas/handlers/responseProcessor.ts` (the `chatlogix-whatsapp-response-dispatcher` Lambda)
+
+There is no polling loop anymore — the SQS event source mapping invokes the Lambda directly with a batch of messages:
 
 ```typescript
-async function loop() {
-  logger.info('Response worker started');
-  while (true) {
-    // Poll SQS queue for messages
-    const messages = await receiveMessages(env.RESPONSE_QUEUE_URL, 10);
-    
-    for (const m of messages) {
-      // Process each message
-    }
-  }
-}
+export const handler = async (event: SQSEvent): Promise<void> => {
+  const results = await Promise.allSettled(
+    event.Records.map(async (record, index) => {
+      const payload = JSON.parse(record.body);
+      await processResponseMessage(payload, operationId);
+    })
+  );
+  // If every record in the batch failed, throw so SQS retries the whole batch.
+  // Otherwise the batch is considered handled (see docs/CONVERSATION_WORKER_GAPS.md
+  // for the broader discussion of at-least-once delivery semantics here).
+};
 ```
 
 **Key Points:**
-- Infinite polling loop continuously checks for messages
-- Fetches up to 10 messages per poll
-- Each message processed independently
-- Uses SQS long polling (20 seconds wait time)
+- Event-driven, not a polling loop — no process to keep alive, no PM2 entry
+- Lambda receives up to 10 messages per invocation (SQS batch size config on the event source mapping)
+- Each record processed independently via `Promise.allSettled`
+- SQS message deletion on success/failure is handled by the Lambda runtime based on what the handler throws, not by an explicit `deleteMessage` call in this code
 
 ---
 
 ### **Step 2: Message Validation & Parsing**
 
 ```typescript
-if (!m.Body || !m.ReceiptHandle) {
-  stepLogger.warn('Skipping message without body or receipt handle');
-  continue;
+if (!record.body) {
+  stepLogger.warn('Record without body, skipping');
+  return { success: false, reason: 'no_body' };
 }
 
-stepLogger.step('Parsing message body');
-const body = JSON.parse(m.Body) as ResponseQueueMessage;
+stepLogger.step('Parsing message payload');
+const payload = JSON.parse(record.body);
 ```
 
-**Message Structure:**
+**Message Structure** (current `ResponseQueueMessage`, `backend/src/workers/responseProcessor.ts`) — a discriminated union, not the flat text-only shape this doc originally described:
 ```typescript
-type ResponseQueueMessage = {
-  to: string;              // Phone number
-  text: string;            // Message content
-  conversationId?: string;  // Optional conversation ID
-  vendorId?: string;        // Optional vendor ID
-  customerId?: string;      // Optional customer ID
-};
+type ResponseQueueMessage =
+  | {
+      type: 'text';
+      to: string;
+      text: string;
+      conversationId?: string;
+      vendorId?: string;
+      customerId?: string;
+      messageId?: string;       // assistant Message row id, updated with send status
+      phoneNumberId?: string;   // which vendor WhatsApp number to send from
+      metadata?: Record<string, any>;
+    }
+  | {
+      type: 'template';         // used for order-status/payment/shipping notifications
+      to: string;
+      templateName: string;
+      languageCode?: string;
+      parameters: { body?: Array<{ type: 'text'; text: string }>; header?: any[]; buttons?: any[] };
+      vendorId?: string;
+      customerId?: string;
+      orderId?: string;
+      notificationType?: 'order_status_update' | 'payment_link' | 'shipping_update' | 'custom_template';
+      phoneNumberId?: string;
+      metadata?: Record<string, any>;
+    };
 ```
 
 **Key Points:**
-- Validates message has body and receipt handle
-- Parses JSON body to typed message object
-- Receipt handle used to delete message from SQS after processing
+- No receipt handle to manage — SQS/Lambda integration handles message deletion based on whether the handler throws
+- `type` defaults to `'text'` for backward compatibility if omitted
+- `template` messages fall back to a plain text send if the named WhatsApp template doesn't exist (404 from Meta)
 
 ---
 
@@ -151,112 +179,53 @@ export async function sendWhatsAppText(to: string, text: string) {
 
 ---
 
-#### **3.2: Start Async Database Operations (NON-BLOCKING)**
+#### **3.2: Start Async Insights Update (NON-BLOCKING)**
+
+Current code (`backend/src/workers/responseProcessor.ts`) — narrower than what this doc originally described. There is no duplicate check and no message-record creation here anymore; the outbound `Message` row is already created upstream (in the incoming-response-generator pipeline), so this step's only job is the customer-insights update, and only for real conversational replies (not notification sends):
 
 ```typescript
-// STEP 2: Handle database operations asynchronously (NON-BLOCKING)
-if (body.conversationId) {
-  stepLogger.step('Initiating async database operations');
-  
+// Only for text messages with a full conversation context, and not notifications
+if (textBody.conversationId && textBody.customerId && textBody.vendorId
+    && !(body.metadata?.notificationId)) {
+  stepLogger.step('Initiating optional async operations (insights)');
+
   // Fire-and-forget: Don't await - let it run in background
-  this.handleDatabaseOperationsAsync(body, operationId).catch(error => {
-    logger.error({
-      operationId,
-      conversationId: body.conversationId,
-      error: error instanceof Error ? error.message : String(error),
-      asyncDbOperation: true
-    }, '❌ Async database operation failed - logged to failure file');
+  handleDatabaseOperationsAsync(textBody, operationId).catch(error => {
+    logger.error({ operationId, conversationId: textBody.conversationId, error }, 
+      '❌ Async insights update failed - logged to failure file');
   });
 }
 ```
 
 **Key Points:**
-- ⚡ **FIRE-AND-FORGET**: Does NOT await database operations
-- Database failures do NOT prevent SQS deletion
-- Uses `.catch()` to log errors without crashing
-- Only runs if `conversationId` is provided
+- ⚡ **FIRE-AND-FORGET**: Does NOT await the insights update
+- Failure does NOT prevent SQS message handling from completing
+- Requires `conversationId` **and** `customerId` **and** `vendorId` (all three) — not just `conversationId`
+- Skipped entirely for template/notification sends (`metadata.notificationId` set)
 
 ---
 
-### **Step 4: Async Database Operations**
+### **Step 4: Async Insights Update**
 
-**Location:** `backend/src/services/asyncDatabaseService.ts`
+**Location:** `backend/src/workers/responseProcessor.ts` (`handleDatabaseOperationsAsync`), calling `backend/src/services/customerInsightsService.ts`
 
-#### **4.1: Check for Duplicates**
-
-```typescript
-// 1. Check for duplicate message (system sender)
-const isDuplicate = await AsyncDatabaseService.checkDuplicateAsync(
-  conversationId!, 
-  text, 
-  'text', 
-  'system'
-);
-
-if (isDuplicate) {
-  logger.warn('⚠️ Duplicate message detected, skipping database creation');
-  return;
-}
-```
-
-**Duplicate Check Logic:**
-- Checks last 10 messages from last 5 minutes
-- Compares normalized content (lowercase, whitespace trimmed)
-- Prevents same message from being saved twice
-
-#### **4.2: Create Message Record**
+There is no separate duplicate-check or message-creation step anymore — `backend/src/services/asyncDatabaseService.ts` (`AsyncDatabaseService`) is still imported in this file but its `checkDuplicateAsync`/`createMessageAsync` methods are not called from the response path today. The only work done here:
 
 ```typescript
-// 2. Create message record
-await AsyncDatabaseService.createMessageAsync(
-  conversationId!,
-  'system',
-  text,
-  'text',
-  operationId
-);
-```
-
-**Database Operation with Retry:**
-```typescript
-static async createMessageAsync(conversationId, senderType, content, type, messageId) {
-  const operation: DatabaseOperation = {
-    operation: 'create',
-    table: 'message',
-    data: { conversationId, senderType, content, type },
-    conversationId,
-    messageId,
-    timestamp: new Date()
-  };
-  
-  // Process with retry logic
-  this.processAsync(operation);
-}
-```
-
-**Retry Strategy:**
-- Max 3 retries with exponential backoff
-- Retry delays: 1s, 2s, 4s
-- Failures logged to `logs/database-failures/db-failures-YYYY-MM-DD.log`
-
-#### **4.3: Update Customer Insights**
-
-```typescript
-// 3. Update customer insights if customerId and vendorId are provided
-if (customerId && vendorId) {
-  const insights = this.extractInsightsFromMessage(text);
-  
+if (customerId && vendorId && text) {
+  const insights = extractInsightsFromMessage(text);
   if (Object.keys(insights).length > 0) {
-    await this.insightsService.updateInsights(customerId, vendorId, insights);
+    await insightsService.updateInsights(customerId, vendorId, insights);
   }
 }
 ```
 
-**Insights Extraction:**
+**Insights Extraction** (`extractInsightsFromMessage`, regex-based, unchanged in substance from the original doc):
 - Extracts delivery address from text patterns
 - Extracts delivery instructions
 - Extracts special requests
 - Updates customer preferences in database
+- Failure here is logged (`logDatabaseFailure`) but does not throw back to the caller in a way that affects WhatsApp delivery
 
 ---
 
@@ -312,31 +281,35 @@ try {
 
 ### **Step 7: Lambda Deployment**
 
-**Location:** `backend/src/lambda/responseWorker.ts`
+**Location:** `backend/src/lambdas/handlers/responseProcessor.ts` (note: `lambdas/`, plural — not `lambda/`, and this **is** the live deployment, not an optional target)
 
-For AWS Lambda deployment:
+This is deployed today as the `chatlogix-whatsapp-response-dispatcher` function. The actual handler goes a step further than the simplified snippet this doc originally showed — it uses `Promise.allSettled` per record but only throws (triggering an SQS batch retry) if **every** record in the batch failed, treating a partial success as an overall success:
 
 ```typescript
-export const handler: SQSHandler = async (event) => {
+export const handler = async (event: SQSEvent): Promise<void> => {
   const results = await Promise.allSettled(
-    event.Records.map(async (record: SQSRecord) => {
+    event.Records.map(async (record, index) => {
       const payload = JSON.parse(record.body);
       await processResponseMessage(payload, operationId);
+      return { success: true, messageId: record.messageId };
     })
   );
-  
-  const failed = results.filter(r => r.status === 'rejected');
-  if (failed.length > 0) {
-    throw new Error(`Failed items: ${failed.length}/${results.length}`);
+
+  const failed = results.filter(r => r.status === 'rejected' || !r.value.success);
+  if (failed.length === event.Records.length) {
+    throw new Error(`All ${event.Records.length} records failed processing`);
   }
+  // Partial failure: batch is still considered handled — see
+  // backend/src/lambdas/handlers/responseProcessor.ts for the current caveats
+  // around per-record retry vs. whole-batch retry semantics.
 };
 ```
 
-**Lambda Configuration:**
-- Trigger: SQS queue event
-- Batch size: 10 messages
-- Concurrency: Based on queue depth
-- Dead letter queue: Configured for permanently failed messages
+**Lambda Configuration** (from `backend/src/lambdas/README.md`):
+- Function: `chatlogix-whatsapp-response-dispatcher`
+- Trigger: SQS event source mapping on `chatlogix-response-queue-prod`
+- Memory: 512MB, Timeout: 60s
+- Deployed via `.github/workflows/deploy.yml` (hardcoded function name — the source of truth for what's live)
 
 ---
 
@@ -476,33 +449,27 @@ grep "❌" logs/app-$(date +%Y-%m-%d).log
 
 ### Automated Testing
 - Mock WhatsApp API for unit tests
-- Mock SQS for integration tests
-- Test duplicate detection
+- Mock SQS/Lambda event for integration tests
 - Test error handling and retry logic
+- (Duplicate-detection testing no longer applies to this file — see Step 4 above; that logic lived in `AsyncDatabaseService` and isn't called from the response path anymore)
 
 ---
 
 ## Deployment
 
-### Local Development
-```bash
-npm run dev:worker
-```
+There is no standalone worker process to run locally or in production anymore — `backend/src/workers/responseWorker.ts` was deleted 2026-09-02. The only deployment target for this logic is the Lambda function itself:
 
-### Production Deployment
 ```bash
-# Build TypeScript
+# Build TypeScript (Lambda deployment packages come from this build)
 npm run build
 
-# Start worker
-node dist/workers/responseWorker.js
+# CI (the source of truth) deploys via .github/workflows/deploy.yml against the
+# hardcoded function name chatlogix-whatsapp-response-dispatcher.
+# The secondary path in this repo:
+npm run deploy:lambda -- --functions "response-processor"
 ```
 
-### Lambda Deployment
-```bash
-# Deploy to AWS Lambda
-npm run deploy:lambda
-```
+For local testing, import and call `processResponseMessage()` directly from `backend/src/workers/responseProcessor.ts` (see the "Local Testing" pattern in `backend/src/lambdas/README.md`), or invoke the Lambda handler with a synthetic `SQSEvent`.
 
 ---
 

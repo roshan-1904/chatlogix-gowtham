@@ -1,5 +1,7 @@
 # Multi-Stage AI Processing Optimization - Requirements Document
 
+> **⚠️ Superseded (as of 2026-09):** This requirements document describes the multi-stage pipeline (`backend/src/services/multiStageOrchestrator.ts` + `unifiedAIProcessorService.ts`), which was built largely as specified here but has since been **retired from the live WhatsApp message hot path** — it's now only invoked by `catalogImportSandboxService.ts`, unrelated to live customer messages. Current production message processing uses a different architecture (LLM-1 + deterministic CartEngine + optional LLM-2 verifier, on AWS Lambda) — see `docs/CONVERSATION_PROCESSOR_LAMBDA.md`. Kept below for historical reference.
+
 ## Executive Summary
 
 **Current State:**

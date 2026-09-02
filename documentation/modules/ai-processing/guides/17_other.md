@@ -4,6 +4,8 @@
 
 The `other` intent handles messages that don't fit into any specific intent category. This is a catch-all intent for unclear messages, general questions, and messages that don't match any defined intent patterns. This document details every action taken at each stage of the multi-stage AI processing pipeline.
 
+> **Superseded (2026-09):** This describes the OLD 14-stage `multiStageOrchestrator.ts` pipeline, which is **no longer on the hot path** for live WhatsApp messages. Production text messages now run through `backend/src/conversation/*` (LLM-1 draft + cart ops → `CartEngine` → optional LLM-2 verifier), deployed as the `chatlogix-incoming-response-generator` Lambda — see `docs/CONVERSATION_PROCESSOR_LAMBDA.md`. The new pipeline does not route messages through fixed per-intent stages: `intent` is captured for telemetry only and never drives cart writes (CONVERSATION_PROCESSOR_LAMBDA.md §13); an unmatched/unclear message maps to a `noop` op plus a clarifying `draftReply`. The services referenced below still exist in the codebase, but their only remaining live caller is `catalogImportSandboxService.ts` (catalog import, unrelated to message processing). The stage-by-stage detail below is kept as a historical reference for the old pipeline's behavior.
+
 ---
 
 ## Stage 0: Message Normalization

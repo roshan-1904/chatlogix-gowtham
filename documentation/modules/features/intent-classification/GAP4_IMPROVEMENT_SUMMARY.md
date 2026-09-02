@@ -1,5 +1,7 @@
 # Gap 4 Improvement Summary
 
+> **Architecture note (2026-09-02):** This targets `conversationMemoryService.ts`, part of the OLD multi-stage pipeline. That pipeline is **no longer wired to live WhatsApp traffic** — production now runs `backend/src/conversation/*`, which intentionally does not do AI-driven key-fact extraction (see comment in `backend/src/conversation/persist.ts`). The old code still runs only via the catalog-import sandbox test-message path. See `docs/CONVERSATION_PROCESSOR_LAMBDA.md` for the current architecture.
+
 ## Overview
 
 This document summarizes the improvement plan for **Gap 4: Conversation Memory Extraction** - replacing keyword-based extraction with AI-powered comprehensive extraction.

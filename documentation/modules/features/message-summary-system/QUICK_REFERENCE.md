@@ -1,5 +1,7 @@
 # Message Summary System - Quick Reference
 
+> **Architecture note (2026-09-02):** This is accurate for the OLD multi-stage pipeline (`messageSummaryService.ts`, `multiStageOrchestrator.ts`, `intentClassificationService.ts`), which is **no longer wired to live WhatsApp traffic**. Production now runs `backend/src/conversation/*`, which has no equivalent stage. This code still runs only via the catalog-import sandbox test-message path. See `docs/CONVERSATION_PROCESSOR_LAMBDA.md` for the current architecture.
+
 ## 🚀 Quick Start
 
 **For Implementers:**

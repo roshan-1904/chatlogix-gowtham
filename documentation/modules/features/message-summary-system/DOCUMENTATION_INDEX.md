@@ -1,5 +1,7 @@
 # Message Summary System - Documentation Index
 
+> **Architecture note (2026-09-02):** The Message Summary System was fully implemented and is wired into the OLD multi-stage pipeline (`multiStageOrchestrator.ts` + `intentClassificationService.ts`). That pipeline is **no longer wired to live WhatsApp traffic** — production now runs `backend/src/conversation/*`, which does not generate or use message summaries. This code still runs only via the catalog-import sandbox test-message path. See `docs/CONVERSATION_PROCESSOR_LAMBDA.md` for the current architecture.
+
 ## 📚 Complete Documentation Set
 
 This directory contains comprehensive documentation for the Message Summary System implementation. Use this index to navigate to the right document for your needs.

@@ -24,7 +24,9 @@ const catalog: CompactCatalogEntry[] = [
     keywords: ['brownie'],
     fulfillmentType: 'made_to_order',
     inStock: true,
-    stockQuantity: null
+    stockQuantity: null,
+    variants: [],
+    description: ''
   }
 ];
 

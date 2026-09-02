@@ -1,5 +1,7 @@
 # 🚀 ChatLogix AWS Lightsail Deployment Options
 
+> **Note:** This guide predates the current deployment setup. Production today runs on a Bitnami-on-EC2 box (not a bare Lightsail Ubuntu instance), deployed automatically via `.github/workflows/deploy.yml` + `scripts/deployment/deploy-ec2.sh` — see `docs/DEPLOYMENT.md` for the authoritative current process. The `scripts/deployment/deploy.sh` script referenced below was removed as dead code (2026-09-02). The response-worker architecture described here (§"Response Worker Explanation") is also out of date — see the correction inline. This doc is kept as generic reference for a from-scratch, non-Lambda Node.js deployment.
+
 ## 📋 Available Deployment Options
 
 ### **Option 1: Direct Node.js Deployment (Recommended)**
@@ -144,6 +146,8 @@ sudo certbot --nginx -d yourdomain.com -d api.yourdomain.com
 ```
 
 ## 🔄 Response Worker Explanation
+
+> **Correction:** the flow below describes an earlier PM2-worker-based architecture. In production today, the "API processes message"/"Response worker" steps are AWS Lambda functions (`chatlogix-webhook-handler` → SQS → `chatlogix-incoming-response-generator` → SQS → `chatlogix-whatsapp-response-dispatcher`), not a PM2 process polling SQS in a loop. See `backend/src/lambdas/README.md` and `docs/CONVERSATION_WORKER_GAPS.md`. The conceptual flow (webhook → queue → send) still holds; only "where it runs" has changed.
 
 ### **How It Works**
 

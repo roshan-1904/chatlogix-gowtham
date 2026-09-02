@@ -2,6 +2,8 @@
 
 This directory contains status documents tracking implementation progress, analysis, and completion records.
 
+> **Note:** Every document below is a dated, point-in-time snapshot (mostly Nov/Dec 2024–Dec 2025) from the era of the old 14-stage `multiStageOrchestrator.ts` pipeline and PM2-based workers. Both have since been replaced: the production WhatsApp pipeline is now 5 AWS Lambda functions (see `backend/src/lambdas/README.md`), and message processing runs through `backend/src/conversation/*` (LLM-1 + CartEngine + optional LLM-2 — see `docs/CONVERSATION_PROCESSOR_LAMBDA.md`). For current production status and known gaps, see `docs/CONVERSATION_WORKER_GAPS.md` and `docs/DEPLOYMENT.md`. Treat everything else in this folder as historical record, not live status.
+
 ## Status Documents
 
 ### Implementation Status
@@ -23,13 +25,16 @@ This directory contains status documents tracking implementation progress, analy
 
 ## Note
 
-These documents are historical records of implementation progress. For current status, refer to:
-- [Multi-Stage AI Implementation Status](../features/multi-stage-ai/implementation-status.md)
-- [Product Matching Complete Solution](../features/product-matching/PRODUCT_MATCHING_COMPLETE_SOLUTION.md)
+These documents are historical records of implementation progress, from before the Lambda migration and the `backend/src/conversation/*` rewrite. For current status, refer to:
+- [Multi-Stage AI Implementation Status](../modules/features/multi-stage-ai/implementation-status.md) - itself marked historical; superseded by the docs below
+- [Product Matching Complete Solution](../modules/features/product-matching/PRODUCT_MATCHING_COMPLETE_SOLUTION.md)
+- `docs/CONVERSATION_PROCESSOR_LAMBDA.md` - current AI pipeline spec (repo root `docs/`, outside this documentation tree)
+- `docs/CONVERSATION_WORKER_GAPS.md` - current known production gaps
+- `backend/src/lambdas/README.md` - current Lambda-based production architecture
 
 ## Related Documentation
 
-- [Feature Documentation](../features/) - Feature-specific documentation
-- [Architecture Documentation](../architecture/) - System architecture
-- [Development Guides](../development/) - Development best practices
+- [Feature Documentation](../modules/features/) - Feature-specific documentation
+- [Architecture Documentation](../shared/architecture/) - System architecture
+- [Development Guides](../shared/development/) - Development best practices
 

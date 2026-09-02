@@ -3,7 +3,7 @@ import { prisma } from '../../db/prisma.js';
 import { logger } from '../../logger.js';
 import type { CartOp, CartLine, CartSnapshot } from '../types.js';
 import { parseOrderItems, computeMissing } from './snapshot.js';
-import { resolveProduct, computeUnitPricePaise } from './productResolve.js';
+import { resolveProduct, resolveVariant, computeUnitPricePaise } from './productResolve.js';
 import { checkAvailability } from './availability.js';
 
 export interface ApplyOpsInput {
@@ -48,10 +48,13 @@ async function generateOrderNumber(tx: TxClient, vendorId: string): Promise<stri
  * from the resulting snapshot afterward (I1: Postgres cart is the only
  * source of truth).
  *
- * v1 scope limit: ops carry only `productId`, never a variant selector, even
- * though Product.variants (Json) can hold multiple priced sub-items with no
- * stable id. CartEngine prices strictly from Product.basePrice/baseQuantity
- * and ignores variants — intentional v1 scope, not a bug.
+ * Variant-aware: `add`/`set_qty`/`remove` ops may carry a `variantSku`
+ * naming one row of Product.variants (Json). A product that has variants has
+ * no meaningful single basePrice, so such ops must resolve to a specific
+ * variant to be priced or matched to a line at all — an unrecognized
+ * `variantSku` is rejected (I4: fail closed) rather than silently priced
+ * from basePrice, and two different variants of the same product are always
+ * distinct lines (see the `productId`+`variantSku` matching below).
  */
 export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
   const { vendorId, conversationId, customerId, orderId, ops, traceId } = input;
@@ -93,14 +96,22 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
                 rejectedOps.push({ op, reason: 'product_not_found' });
                 break;
               }
-              const existingLine = lines.find((l) => l.productId === op.productId);
+              let variant = null;
+              if (op.variantSku) {
+                variant = resolveVariant(product, op.variantSku);
+                if (!variant) {
+                  rejectedOps.push({ op, reason: 'variant_not_found' });
+                  break;
+                }
+              }
+              const existingLine = lines.find((l) => l.productId === op.productId && (l.variantSku ?? null) === (op.variantSku ?? null));
               const newQty = (existingLine?.quantity ?? 0) + op.qty;
               const availability = checkAvailability(product, newQty);
               if (!availability.allowed) {
                 rejectedOps.push({ op, reason: availability.reason ?? 'unavailable' });
                 break;
               }
-              const unitPricePaise = computeUnitPricePaise(product);
+              const unitPricePaise = computeUnitPricePaise(product, variant);
               if (existingLine) {
                 existingLine.quantity = newQty;
                 existingLine.unitPricePaise = unitPricePaise;
@@ -111,10 +122,12 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
                   productId: product.id,
                   name: product.name,
                   quantity: op.qty,
-                  unit: product.baseUnit,
+                  unit: variant?.unit || product.baseUnit,
                   unitPricePaise,
                   lineTotalPaise: unitPricePaise * op.qty,
-                  notes: op.notes
+                  notes: op.notes,
+                  variantSku: variant?.sku ?? null,
+                  variantLabel: variant?.label ?? null
                 });
               }
               mutated = true;
@@ -122,9 +135,10 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
             }
 
             case 'set_qty': {
+              const matchesLine = (l: CartLine) => l.productId === op.productId && (l.variantSku ?? null) === (op.variantSku ?? null);
               if (op.qty <= 0) {
                 const before = lines.length;
-                lines = lines.filter((l) => l.productId !== op.productId);
+                lines = lines.filter((l) => !matchesLine(l));
                 if (lines.length !== before) mutated = true;
                 else rejectedOps.push({ op, reason: 'line_not_found' });
                 break;
@@ -134,13 +148,21 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
                 rejectedOps.push({ op, reason: 'product_not_found' });
                 break;
               }
+              let variant = null;
+              if (op.variantSku) {
+                variant = resolveVariant(product, op.variantSku);
+                if (!variant) {
+                  rejectedOps.push({ op, reason: 'variant_not_found' });
+                  break;
+                }
+              }
               const availability = checkAvailability(product, op.qty);
               if (!availability.allowed) {
                 rejectedOps.push({ op, reason: availability.reason ?? 'unavailable' });
                 break;
               }
-              const unitPricePaise = computeUnitPricePaise(product);
-              const existingLine = lines.find((l) => l.productId === op.productId);
+              const unitPricePaise = computeUnitPricePaise(product, variant);
+              const existingLine = lines.find(matchesLine);
               if (existingLine) {
                 existingLine.quantity = op.qty;
                 existingLine.unitPricePaise = unitPricePaise;
@@ -150,9 +172,11 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
                   productId: product.id,
                   name: product.name,
                   quantity: op.qty,
-                  unit: product.baseUnit,
+                  unit: variant?.unit || product.baseUnit,
                   unitPricePaise,
-                  lineTotalPaise: unitPricePaise * op.qty
+                  lineTotalPaise: unitPricePaise * op.qty,
+                  variantSku: variant?.sku ?? null,
+                  variantLabel: variant?.label ?? null
                 });
               }
               mutated = true;
@@ -161,7 +185,7 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
 
             case 'remove': {
               const before = lines.length;
-              lines = lines.filter((l) => l.productId !== op.productId);
+              lines = lines.filter((l) => !(l.productId === op.productId && (l.variantSku ?? null) === (op.variantSku ?? null)));
               if (lines.length !== before) mutated = true;
               else rejectedOps.push({ op, reason: 'line_not_found' });
               break;

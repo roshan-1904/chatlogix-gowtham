@@ -1,5 +1,7 @@
 # Multi-Stage AI - Database Queries Quick Reference
 
+> **Note:** This is a historical manual-migration reference from when the `ConversationMemory`/`CorrectionHistory`/`QualityMetrics`/`StageExecutionLog` tables were first added for the old multi-stage AI pipeline. Those tables still exist in `backend/prisma/schema.prisma` today (the old pipeline itself is retired from the hot path — see `docs/CONVERSATION_WORKER_GAPS.md`), but the current, normal way to change schema is a Prisma migration (`npm run prisma:migrate` from `backend/`), not hand-run SQL like below. Keep this only as a reference for what these tables' raw SQL looks like.
+
 ## 🚀 Quick Start
 
 ### PostgreSQL (Copy & Paste)

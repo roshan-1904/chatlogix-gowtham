@@ -6,6 +6,8 @@
 
 This document provides a comprehensive, phased implementation plan for the Vendor Settings page based on approved decisions. The plan is organized into phases to allow incremental delivery and early value.
 
+> **Implementation status (verified against code, Sep 2026)**: this is the original Dec 2024 plan, kept as-is below for history — the checkboxes are not current status. What actually shipped: **Phase 1 backend** is essentially complete (phone/email verification services and endpoints, business-info/notification-settings/matching-config/timezone endpoints, `ai-prompts` re-authorized to `requireVendorAccess`, `settingsRateLimit` middleware — all present in `backend/src/routes/vendors.ts`). **Phase 1 frontend** shipped with a simpler component structure than planned (one `Settings.tsx` + 5 tab components + a handful of shared primitives, not the full `SettingsLayout`/`SettingsHeader`/`SettingsTabs`/per-field component tree), auto-save to localStorage is implemented (`hooks/settings/useAutoSave.ts`), but several described sub-features were never built into the UI: AI Model Selection, Order Settings' preparation-time-type config, Notifications' order-status checkboxes and quiet hours, and Advanced tab's field-mapping/language/AI-matching-model dropdowns. **Phase 2 (Templates) and Phase 3 (Mobile settings)** were not built at all — no templates system/API and no settings page in `vendor-mobile`. See each `TAB_*.md` file's status note for the per-tab specifics.
+
 ## Implementation Phases
 
 ### Phase 1: Core Settings (MVP) - 8-10 days

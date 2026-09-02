@@ -1,5 +1,7 @@
 # Cursor AI Input: WhatsApp Webhook API with Vendor Billing
 
+> **Historical note:** this is the original design brief/prompt used to scaffold the webhook API early in the project — not documentation of what was actually built. Several choices below were never adopted (RabbitMQ, LLaMA/Mistral, Tesseract OCR, FastAPI). The real implementation uses OpenAI (GPT-4.1/4.1-mini + Whisper for audio), AWS SQS, and Prisma/PostgreSQL. In production today, incoming WhatsApp messages hit API Gateway → the `chatlogix-webhook-handler` Lambda (not a long-running Express/Fastify webhook process) → SQS → `chatlogix-incoming-response-generator` Lambda → SQS → `chatlogix-whatsapp-response-dispatcher` Lambda. See `backend/src/lambdas/README.md` and `docs/CONVERSATION_WORKER_GAPS.md` for the current architecture and known gaps (the live webhook Lambda currently only handles `text` messages — audio/image/document are not processed as this brief originally intended).
+
 ## Objective
 Build a **WhatsApp automation webhook API** for small vendors/entrepreneurs in India. The API should:
 - Handle **text, audio, image, and document messages**.

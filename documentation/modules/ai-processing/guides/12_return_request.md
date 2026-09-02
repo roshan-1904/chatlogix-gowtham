@@ -4,6 +4,8 @@
 
 The `return_request` intent handles customer requests to return or exchange items, including return requests, exchange requests, and item replacement requests. This document details every action taken at each stage of the multi-stage AI processing pipeline.
 
+> **Superseded (2026-09):** This describes the OLD 14-stage `multiStageOrchestrator.ts` pipeline, which is **no longer on the hot path** for live WhatsApp messages. Production text messages now run through `backend/src/conversation/*` (LLM-1 draft + cart ops → `CartEngine` → optional LLM-2 verifier), deployed as the `chatlogix-incoming-response-generator` Lambda — see `docs/CONVERSATION_PROCESSOR_LAMBDA.md`. The new pipeline does not route messages through fixed per-intent stages: `intent` is captured for telemetry only and never drives cart writes (CONVERSATION_PROCESSOR_LAMBDA.md §13). The services referenced below still exist in the codebase, but their only remaining live caller is `catalogImportSandboxService.ts` (catalog import, unrelated to message processing). The stage-by-stage detail below is kept as a historical reference for the old pipeline's behavior — including the gap it documents (return/exchange requests were detection-only, with no return workflow actually implemented; see `MULTI_STAGE_WORKER_ANALYSIS.md` Gap 3 in this directory), which was never carried forward as a completed feature into the new pipeline either.
+
 ---
 
 ## Stage 0: Message Normalization

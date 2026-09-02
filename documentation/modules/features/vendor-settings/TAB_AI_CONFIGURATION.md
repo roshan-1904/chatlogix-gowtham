@@ -15,6 +15,8 @@ Enable vendors to:
 - Define AI responsibilities and conversation rules
 - Configure preparation time for orders
 
+> **Implementation status (verified against code, Sep 2026)**: Bot Identity, System Prompt, Product Information, Conversation Templates, AI Content Sections, and Preparation Time (Section 1, 3, 4, 5, 6 below) are live today in `frontend_v2/apps/web-vendor/src/components/settings/tabs/AIConfigTab.tsx`, backed by `GET/PUT /api/vendors/:id/ai-config` and `/ai-prompts`. **AI Model Selection (Section 2 below) was never built** — there is no model dropdown in the shipped UI, and no route reads or writes `aiModel` (confirmed by grep across `backend/src/routes/`). The `aiModel` column on `Vendor` exists in Prisma and *is* live — the current LLM-1 pipeline (`backend/src/conversation/llm/llm1.ts`, `backend/src/conversation/prefetch.ts`) reads `vendor.aiModel` (falling back to `gpt-4.1-mini`, not `gpt-4o-mini` as this doc assumes throughout) — but the only way to set it today is a direct DB write; there is no vendor-facing or admin-facing endpoint for it.
+
 ## Sections
 
 ### 1. Bot Identity
@@ -469,10 +471,12 @@ export const aiConfigSchema = z.object({
 }
 ```
 
-**Note**: This endpoint currently requires admin role. Should be updated to allow vendor access.
+**Note (stale)**: This originally required admin role; as of the current code it uses `requireVendorAccess(req => req.params.id)` (see `backend/src/routes/vendors.ts`), so vendors can call it directly. It still doesn't accept `aiModel` — see the implementation-status note above.
 
 ### PUT `/api/vendors/:id/ai-content`
-**Purpose**: Update AI content sections (new endpoint needed)
+**Status**: Never built as a separate endpoint. The fields below (`aiContentResponsibilities`, `aiContentConversationRules`, `aiContentImportantInstructions`) were instead folded into the existing `ai-prompts`/`ai-config` endpoints (see `buildAIPromptsUpdate` in `backend/src/services/vendorAIConfigService.ts`), which is what the original spec below called out as the fallback option.
+
+**Purpose (as originally planned)**: Update AI content sections (new endpoint needed)
 
 **Request Body**:
 ```json
@@ -632,7 +636,7 @@ export function AIConfigTab({ vendorId }: AIConfigTabProps) {
 ## Related API Endpoints
 
 - **GET** `/api/vendors/:id/ai-config` - Get AI configuration
-- **PUT** `/api/vendors/:id/ai-prompts` - Update AI prompts (needs authorization fix and missing fields)
+- **PUT** `/api/vendors/:id/ai-prompts` - Update AI prompts (now vendor-accessible and includes `aiProducts`/content-section fields; `aiModel` is still not handled by any route — see status note above)
 
 See [API Documentation](./API_DOCUMENTATION.md#2-ai-configuration-apis) for complete API specifications.
 

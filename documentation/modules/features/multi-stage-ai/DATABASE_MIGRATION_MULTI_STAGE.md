@@ -1,5 +1,7 @@
 # Multi-Stage AI Processing - Database Migration Guide
 
+> **⚠️ Superseded pipeline, but tables may still be live.** This guide's tables (`ConversationMemory`, `CorrectionHistory`, `QualityMetrics`, `StageExecutionLog`) were built for the 14-stage `multiStageOrchestrator.ts` pipeline, which is no longer on the production hot path — it was replaced by `backend/src/conversation/*` (see **`docs/CONVERSATION_PROCESSOR_LAMBDA.md`** for the current design). `ConversationMemory`, `QualityMetrics`, and `StageExecutionLog` remain current Prisma models per the project's schema, so these tables may still exist in the database even though the write path described here (the old orchestrator) is not live for real customer traffic — `multiStageOrchestrator.ts`'s only remaining live caller is `catalogImportSandboxService.ts` (catalog import tooling). The migration/mechanics content below is preserved as historical/reference material.
+
 ## Overview
 
 This guide provides SQL queries to create the database tables required for multi-stage AI processing.

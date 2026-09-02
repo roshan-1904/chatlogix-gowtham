@@ -8,6 +8,10 @@
 
 ---
 
+> **2026-09 update.** `backend/src/utils/productMatcher.ts` was built essentially as designed here (`findBestProductMatch`, `matchOrderItems`, `sanitizeExtractedData`, plus extra performance work — normalized-string cache, AI-match cache, rate limiting — beyond what's specced below), and it's still live code today. But *where* it's used changed: the write-path services this doc describes updating (`dataValidationService.ts`, `dataExtractionService.ts`, `orderUpdateValidationService.ts`, `primaryAIResponseService.ts`, `promptBuilderService.ts`) belong to the old `multiStageOrchestrator.ts` pipeline, which is no longer on the hot path for live WhatsApp traffic (see `docs/CONVERSATION_WORKER_GAPS.md` §1). In the current live pipeline (`backend/src/conversation/*`), `findBestProductMatch` is reused by `backend/src/conversation/cart/candidateSearch.ts` purely for LLM-1 grounding/keyword search (with an AI multi-language fallback) — never to write a cart line. Actual cart mutations resolve `productId` strictly against the DB via `backend/src/conversation/cart/productResolve.ts`, which rejects any id the LLM didn't copy exactly from the catalog (a hallucination guard, not fuzzy auto-correction). Also note: `backend/src/utils/__tests__/productMatcher.test.ts` has pre-existing failing tests as of 2026-09-02 — a fuzzy-matching threshold bug, unrelated to the pipeline migration and confirmed pre-existing on `master`.
+
+---
+
 ## 📋 Table of Contents
 
 1. [Executive Summary](#executive-summary)

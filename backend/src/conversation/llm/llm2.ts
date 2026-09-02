@@ -126,7 +126,9 @@ export function renderSnapshotReply(snapshot: CartSnapshot): string {
   if (snapshot.items.length === 0) {
     return 'Your cart is currently empty. What would you like to order?';
   }
-  const lines = snapshot.items.map((i) => `${i.name} x${i.quantity} ${i.unit} - Rs${(i.lineTotalPaise / 100).toFixed(2)}`);
+  const lines = snapshot.items.map(
+    (i) => `${i.name}${i.variantLabel ? ` (${i.variantLabel})` : ''} x${i.quantity} ${i.unit} - Rs${(i.lineTotalPaise / 100).toFixed(2)}`
+  );
   return [...lines, `Total: Rs${(snapshot.totalPaise / 100).toFixed(2)}`].join('\n');
 }
 

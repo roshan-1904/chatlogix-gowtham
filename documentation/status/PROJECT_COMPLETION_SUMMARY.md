@@ -1,5 +1,7 @@
 # ChatLogix - Project Completion Summary & Upcoming Plan
 
+> **Note:** Historical, point-in-time project status snapshot from December 2024. The architecture it describes has since changed substantially: the multi-stage AI pipeline (`multiStageOrchestrator.ts`) and the PM2 dual-worker setup it discusses are no longer in production — they were replaced by 5 AWS Lambda functions (see `backend/src/lambdas/README.md`) and `backend/src/conversation/*` (see `docs/CONVERSATION_PROCESSOR_LAMBDA.md`). For current status and known production gaps, see `docs/CONVERSATION_WORKER_GAPS.md` and `docs/DEPLOYMENT.md`. Everything below reflects the project as of Dec 2024, not today.
+
 **Last Updated:** December 28, 2024  
 **Status:** Active Development - Core Features Complete, Enhancements In Progress
 

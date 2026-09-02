@@ -36,8 +36,8 @@ ChatLogix aims to become a **Meta Solution Partner** for WhatsApp Business API, 
 - ✅ **WhatsApp Business API Integration** - Complete API implementation
 - ✅ **Webhook System** - Real-time message processing
 - ✅ **Message Templates** - Template management system
-- ✅ **Media Handling** - Image, document, video support
-- ✅ **Status Tracking** - Message delivery tracking
+- ⚠️ **Media Handling** - Text messages are fully supported; as of 2026-09, audio and image messages are silently dropped by the production webhook (no reply, nothing enqueued) and need fixing before this can be claimed as complete. See `docs/CONVERSATION_WORKER_GAPS.md`.
+- ⚠️ **Status Tracking** - Message delivery tracking is not currently implemented in production; delivery/read status webhooks and reactions are not processed. See `docs/CONVERSATION_WORKER_GAPS.md`.
 - ✅ **Multi-language Support** - Indian language support
 
 ### **2. Business Verification System**

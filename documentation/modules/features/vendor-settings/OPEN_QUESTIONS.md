@@ -6,6 +6,8 @@
 
 This document lists all open questions and decisions that need to be made before starting implementation. Each question includes context, options, recommendations, and impact analysis.
 
+> **Implementation status (verified against code, Sep 2026)**: These are Dec 2024 decisions, and most of the "Approved" choices below were followed in what actually shipped — e.g. both phone and email verification exist (`/verify-phone/*`, `/verify-email/*` in `backend/src/routes/vendors.ts`), full vendor access replaced the old admin-only `ai-prompts` auth, rate limiting (`settingsRateLimit`) is live, and localStorage auto-save exists (`useAutoSave.ts`). Two approved decisions did **not** ship: Settings Templates (Question 6 — no templates system/API exists) and a full Mobile Settings page (Question 7 — `vendor-mobile` has no settings implementation). Confirmation dialogs did ship, but scoped per-save (each tab's Save button opens one), not literally "every field change."
+
 ## 🔴 Critical Questions (Must Decide Before Implementation)
 
 ### 1. Phone Number & Email Verification

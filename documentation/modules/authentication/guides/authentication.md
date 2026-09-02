@@ -1,6 +1,6 @@
 # Authentication Setup
 
-This project now uses Firebase phone number authentication mediated entirely through the backend. The frontend never calls Firebase directly and only talks to the new `/auth/*` endpoints.
+This project now uses Firebase phone number authentication mediated entirely through the backend. The frontend never calls Firebase directly and only talks to the new `/api/auth/*` endpoints.
 
 ## Backend configuration
 
@@ -22,18 +22,18 @@ Set the following environment variables (for local development you can add them 
 
 ## Backend endpoints
 
-- `POST /auth/send-code` – expects `{ phoneNumber, recaptchaToken }`. Triggers Firebase to send an OTP.
-- `POST /auth/verify-code` – expects `{ phoneNumber, sessionInfo, code }`. Verifies the OTP, resolves roles (admin/vendor) and returns `{ token, user: { phoneNumber, roles, vendorId? } }`.
+- `POST /api/auth/send-code` – expects `{ phoneNumber }`. Triggers Firebase to send an OTP. (Note: the current route handler in `backend/src/routes/auth.ts` reads only `phoneNumber` from the body; `recaptchaToken` is not consumed there today even though the frontend flow below still executes reCAPTCHA before calling this endpoint.)
+- `POST /api/auth/verify-code` – expects `{ phoneNumber, sessionInfo, code }`. Verifies the OTP, resolves roles (admin/vendor) and returns `{ token, user: { phoneNumber, roles, vendorId? }, isNewUser }`.
 
 All `/api/*` routes now require a Bearer token. Admin-only routes include the vendors list and onboarding helpers; vendor scoped routes are filtered so vendors only see their own data.
 
 ## Frontend flow
 
-1. Users land on the new phone login page (`LoginPage`).
-2. On submit we execute invisible reCAPTCHA (if a site key is configured) and call `/auth/send-code`.
-3. After receiving the OTP, the user submits the code; the frontend calls `/auth/verify-code`.
+1. Users land on the phone login page (`frontend_v2/apps/web-vendor/src/pages/Login.tsx`; was `LoginPage` in the now-deprecated `frontend/`).
+2. On submit we execute invisible reCAPTCHA (if a site key is configured) and call `/api/auth/send-code`.
+3. After receiving the OTP, the user submits the code; the frontend calls `/api/auth/verify-code`.
 4. The returned JWT + user record are stored in both memory and `localStorage`.
-5. `AuthProvider` adds the `Authorization` header to every request via the shared API client and automatically logs out on a `401`.
+5. `AuthProvider` (`frontend_v2/packages/auth`) adds the `Authorization` header to every request via the shared API client and automatically logs out on a `401`.
 
 ### Environment variables (frontend)
 
@@ -45,7 +45,7 @@ All `/api/*` routes now require a Bearer token. Admin-only routes include the ve
 ## Role behaviour
 
 - **Admins** (phones present in `AUTH_ADMIN_PHONES`) can:
-  - See the conversation testing tools.
+  - See the conversation testing tools. **Flag for review:** this UI (`ConversationTest.tsx`) only exists in the deprecated `frontend/` app; it has no equivalent found in the active `frontend_v2` yet.
   - List and manage all vendors.
   - View any vendor’s orders/conversations.
 - **Vendors** (matched by phone number on their vendor record) can:
@@ -67,6 +67,6 @@ cd backend
 npm test
 ```
 
-The frontend build (`npm run build` in `frontend`) validates the new auth flow compiles.
+The frontend build validates the new auth flow compiles. **Flag for review:** this line originally said `npm run build` in `frontend` — that package is now DEPRECATED (see root `CLAUDE.md`). The active implementation of this flow (`LoginPage`/`AuthProvider`) lives in `frontend_v2/apps/web-vendor` (`src/pages/Login.tsx`, `frontend_v2/packages/auth`); run `cd frontend_v2 && npm run build` instead.
 
 

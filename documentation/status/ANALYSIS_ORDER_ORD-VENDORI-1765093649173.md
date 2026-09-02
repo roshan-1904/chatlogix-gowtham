@@ -1,5 +1,7 @@
 # Analysis: Order ORD-VENDORI-1765093649173 - Missing Information
 
+> **Note:** Historical incident analysis from 2025-12-07, against the old `multiStageOrchestrator.ts` pipeline (`intentClassificationService.ts`, `dataExtractionService.ts`, `messageCompositionService.ts`, `conversationMemoryService.ts`). That pipeline is no longer on the production hot path — it was replaced by `backend/src/conversation/*` (see `docs/CONVERSATION_PROCESSOR_LAMBDA.md`). This does not describe current production behavior; for current known gaps see `docs/CONVERSATION_WORKER_GAPS.md`.
+
 **Date:** 2025-12-07  
 **Order Number:** ORD-VENDORI-1765093649173  
 **Conversation ID:** 4e3ba9ac-00a6-42e3-bc7f-0ac582163b98  

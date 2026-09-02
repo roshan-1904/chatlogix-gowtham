@@ -1,5 +1,7 @@
 # WhatsApp Conversation Parity — Rollout Runbook
 
+> **⚠️ Before running any stage below:** the `whatsapp_conversation_parity` flag this runbook enables is read in `backend/src/routes/webhook.ts`, the Express webhook route. Production WhatsApp traffic does **not** currently hit that route — it goes API Gateway → the `chatlogix-webhook-handler` Lambda, a separate text-only implementation that never checks this flag. Flipping the flag with the SQL below will **not** change behavior for real vendors/customers today. Confirm the Lambda has been updated to route through the parity pipeline (or that you're testing against a non-production environment still pointed at the Express route) before treating any stage here as "live." See `docs/CONVERSATION_WORKER_GAPS.md` §2.5.
+
 This runbook executes the four-stage enablement of the per-vendor `whatsapp_conversation_parity` flag.
 Source plan: [conversation-parity-implementation-plan.md](./conversation-parity-implementation-plan.md).
 UAT acceptance: [uat-scenarios.md](./uat-scenarios.md).

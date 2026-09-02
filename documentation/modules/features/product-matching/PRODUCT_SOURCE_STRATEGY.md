@@ -5,6 +5,10 @@
 
 ---
 
+> **2026-09 note:** this describes the old multi-stage pipeline's `contextFetcherService.ts`, no longer on the hot path for live WhatsApp traffic (see `docs/CONVERSATION_WORKER_GAPS.md` §1). The current live pipeline (`backend/src/conversation/*`) reads products directly from the `Product` table only (`backend/src/conversation/prefetch.ts`'s `loadCompactCatalog`) — there is no `vendor.aiProducts` JSON fallback in that code path. Kept here as historical record; if any vendor still relies on the `aiProducts` fallback instead of a migrated `Product` catalog, they'd need to be on the old pipeline for it to apply, which isn't the case for live traffic today.
+
+---
+
 ## 📋 Current Implementation
 
 ### **Primary Source: Product Catalog Table**

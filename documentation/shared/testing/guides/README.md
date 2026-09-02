@@ -1,5 +1,7 @@
 # 🧪 Testing Strategy - ChatLogix
 
+> **DELETION CANDIDATE — flagged during 2026-09 documentation audit:** This document is aspirational boilerplate, not a description of how ChatLogix is actually tested. It specifies Jest/ts-jest as the test runner (actual: vitest — see `backend/package.json`'s `"test": "vitest run"`), a `src/core/services/__tests__/`, `src/api/v1/` layout (actual: colocated `__tests__/` folders under `backend/src/conversation/`, `backend/src/middleware/`, `backend/src/routes/`, etc.), and Playwright/Artillery/k6/OWASP ZAP/a `tests/e2e/` and `tests/performance/` tree and a `.github/workflows/test.yml` — none of which exist in this repo (actual CI is `.github/workflows/ci.yml` and `deploy.yml`). As of 2026-09-02 there are also 17 pre-existing failing vitest tests (in `productMatcher.test.ts`, `dateRange.test.ts`, `conversationMemoryService.test.ts`, `memoryExtraction.integration.test.ts`, `messageSummaryService.test.ts`), so even the "100% pass" quality-gate claim below doesn't hold today. Treat this as a wishlist template rather than documentation. Recommend deleting or replacing with a doc that describes the actual vitest-based test suite.
+>
 > Comprehensive testing approach for ensuring quality, reliability, and security
 
 ## 🎯 Testing Overview

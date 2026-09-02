@@ -1,5 +1,7 @@
 # Order Details UI Enhancements
 
+> **Note:** This describes work done against `frontend/src/modules/orders/OrderDetails.tsx`, which is the deprecated frontend tree (`frontend/` is no longer used — see repo root `CLAUDE.md`). The active vendor web app is `frontend_v2/apps/web-vendor`, where the equivalent file is `frontend_v2/apps/web-vendor/src/pages/OrderDetails.tsx`. The feature substance below (vendor panel, insights, conversation history, timeline) is still a reasonable description of intent, but file paths and the SCSS-based styling approach don't match the current (Tailwind-based) `frontend_v2` implementation.
+
 ## Overview
 This document outlines the comprehensive enhancements made to the Order Details screen to display all available customer and order information in a clean, organized UI.
 

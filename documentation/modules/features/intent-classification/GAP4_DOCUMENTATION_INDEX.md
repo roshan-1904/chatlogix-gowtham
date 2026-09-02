@@ -1,5 +1,7 @@
 # Gap 4 Improvement Documentation Index
 
+> **Architecture note (2026-09-02):** GAP4 (AI-powered `extractKeyFacts()` in `conversationMemoryService.ts`) was implemented and is wired into the OLD multi-stage pipeline (`multiStageOrchestrator.ts` / `intentClassificationService.ts`). That pipeline is **no longer wired to live WhatsApp traffic** — production now runs `backend/src/conversation/*`, whose `persist.ts` explicitly treats AI-driven key-fact/summary extraction as "out of scope for this rewrite's v1" and keeps conversation-stage tracking deliberately simple instead. This old code still runs only via the catalog-import sandbox test-message path. See `docs/CONVERSATION_PROCESSOR_LAMBDA.md` for the current architecture.
+
 ## 📚 Documentation Overview
 
 This index helps you navigate all documentation related to **Gap 4: AI-Powered Conversation Memory Extraction**.

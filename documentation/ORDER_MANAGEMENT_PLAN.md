@@ -8,6 +8,12 @@
 
 ---
 
+> **2026-09 update — core approach superseded, read before implementing.** This plan's root-fix strategy was to patch the old pipeline's cart writer in place: fix `orderUpdateType` detection in `intentClassificationService.ts`, then harden `addItemsToOrder()` / `removeItemsFromOrder()` / `updateOrderQuantities()` / `replaceOrder()` / `extractAndSave()` in `backend/src/services/dataExtractionService.ts` (transactions, dedup, validation). That is not what shipped. The team instead concluded patching `extractAndSave` wasn't viable — see `docs/CONVERSATION_PROCESSOR_LAMBDA.md` §2.2 ("Cart bugs: reply ≠ database", describing this exact class of bug) and §2.3 ("Why not patch extractAndSave") — and built a new, separate `backend/src/conversation/` runtime instead. Live WhatsApp orders now go through `backend/src/conversation/cart/engine.ts` (`CartEngine`), which applies model-proposed `add`/`set_qty`/`remove`/`set_field`/`confirm`/`cancel` **ops** in one Prisma transaction — no free-form `orderItems[]` replace-or-merge guessing, no `orderUpdateType` field at all. Product ids are resolved/guarded by `backend/src/conversation/cart/productResolve.ts` (DB-level) and `candidateSearch.ts` (LLM-1 grounding), not by the fuzzy auto-correct-in-place matching this plan's Phase 1-3 describe. `dataExtractionService.ts` and `intentClassificationService.ts` are old-pipeline files, still present but not on the hot path for real customer traffic (only remaining live caller: `catalogImportSandboxService.ts` via `multiStageOrchestrator.ts` — see `docs/CONVERSATION_WORKER_GAPS.md` §1).
+>
+> What actually got built from this plan, independent of which pipeline calls it: `backend/src/services/intentDetectionService.ts`, `orderTrackingService.ts`, `orderAlertService.ts`, `orderSummaryService.ts` exist, and the `OrderAuditLog` / `OrderAlert` Prisma models exist (CartEngine's mutations write `OrderAuditLog` per `docs/CONVERSATION_PROCESSOR_LAMBDA.md` §14). `orderUpdateRouter.ts` and every Phase 7-12 service below (`orderModificationService.ts`, `repeatOrderService.ts`, `orderSchedulingService.ts`, `orderBundlingService.ts`, `orderAnalyticsService.ts`, `orderDisputeService.ts`) do not exist — not started. The Phase 7-12 *feature ideas* (post-confirmation edits, repeat orders, scheduling, bundling, analytics, disputes) are still plausible future work; they'd just be built against CartEngine now, not against the handlers this plan names.
+
+---
+
 ## Table of Contents
 
 1. [Executive Summary](#executive-summary)

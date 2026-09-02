@@ -1,5 +1,7 @@
 # Multi-Stage AI USD Cost Tracking Implementation Plan
 
+> **⚠️ Superseded (as of 2026-09):** This plan targets `backend/src/services/multiStageOrchestrator.ts`, which has since been **retired from the live WhatsApp message hot path** (it's now only invoked by `catalogImportSandboxService.ts`, unrelated to live customer messages). Cost tracking for current production message processing (LLM-1 + CartEngine + optional LLM-2, on AWS Lambda) is a separate concern — see `docs/CONVERSATION_PROCESSOR_LAMBDA.md`. Kept below for historical reference.
+
 ## Objective
 
 Capture and persist accurate AI spend in **USD** for every assistant response message, even when different stages use different models with different pricing.

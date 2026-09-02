@@ -6,6 +6,8 @@
 
 This document provides detailed UI/UX specifications for the Vendor Settings page, with emphasis on clarity, tooltips, help text, and clear instructions. Since multiple vendors with different configurations will use this page, every field must be self-explanatory with contextual help.
 
+> **Implementation status (verified against code, Sep 2026)**: this design spec was only partially realized. The shipped component set (`frontend_v2/apps/web-vendor/src/components/settings/`) is `ConfirmationDialog.tsx`, `FormField.tsx`, `HelpText.tsx`, and `Note.tsx` — there is no dedicated `Tooltip` component, and none of the tabs render the ℹ️ hover/tap tooltips described throughout this document; `FormField` renders a plain label + input + optional `helpText` line, and `Note` is used sparingly (e.g., one info note in the AI Configuration tab about products). Treat the tooltip/help-text copy and visual specs below as design intent, not a description of what's on screen today. Tooltip content for fields that were never built at all (AI Model, Enabled Order Statuses, Quiet Hours, Preparation Time Type, Product Name/Keywords/Price Field, Supported Languages, AI Matching Model) is doubly aspirational — see each `TAB_*.md` status note for what's live.
+
 ## Design Principles
 
 1. **Self-Explanatory**: Every field should have clear labels, help text, and tooltips

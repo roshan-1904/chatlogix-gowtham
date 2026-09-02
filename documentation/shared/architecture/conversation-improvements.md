@@ -1,5 +1,7 @@
 # 📋 Customer Conversation Improvement Implementation Plan
 
+> **Historical plan — architecture has since changed.** This plan targets the older synchronous pipeline (`aiService.ts`, `orderService.ts`, `messageProcessor.ts`, `testConversation.ts`). Production message generation no longer runs through that pipeline: it's been replaced by `backend/src/conversation/*` (LLM-1 + CartEngine + optional LLM-2), invoked from the `chatlogix-incoming-response-generator` Lambda. See `docs/CONVERSATION_PROCESSOR_LAMBDA.md` for the current design and `docs/CONVERSATION_WORKER_GAPS.md` for known gaps. The problem analysis and phase history below are left as-is for reference; don't use the file/line references as a guide to current code.
+
 ## **🎯 Executive Summary**
 This plan addresses the core issue where the AI keeps asking for details despite customers providing sufficient information. The problem stems from **context management failures**, **order status checking gaps**, and **database schema issues**.
 

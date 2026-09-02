@@ -66,32 +66,6 @@ services:
       timeout: 10s
       retries: 3
 
-  # Response Worker
-  response-worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    command: ["node", "dist/workers/responseWorker.js"]
-    environment:
-      NODE_ENV: production
-      WORKER_TYPE: response
-      DATABASE_URL: postgresql://chatlogix:${POSTGRES_PASSWORD:-chatlogix123}@postgres:5432/chatlogix
-      REDIS_URL: redis://redis:6379
-      AWS_REGION: ${AWS_REGION:-ap-south-1}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-      RESPONSE_QUEUE_URL: ${RESPONSE_QUEUE_URL}
-      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN}
-      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    volumes:
-      - ./backend/logs:/app/logs
-    restart: unless-stopped
-
   # Frontend
   frontend:
     build:

@@ -4,6 +4,8 @@
 
 This guide explains how to configure order delivery and preparation settings for vendors.
 
+> **2026-09 note:** the settings below (`category`, `askForPreferredDeliveryDate`, `orderPreparationConfig`) still exist in the schema and are still readable/writable via the API in this guide. But the AI-behavior claims throughout this guide ("AI asks...", the delivery-date question flow) describe the old, pre-Lambda pipeline (`promptBuilderService.ts`), which is no longer on the hot path for live WhatsApp traffic. In the current live pipeline (`backend/src/conversation/*`), the AI never asks for or promises a delivery date — `delivery_date` is advisory prep-timing copy only, and `Order.estimatedDelivery` is vendor-set only. See `docs/CONVERSATION_PROCESSOR_LAMBDA.md` §13/§16 and [Order Flow Documentation](./ORDER_FLOW.md).
+
 ## Configuration Options
 
 ### 1. Vendor Category

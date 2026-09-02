@@ -67,6 +67,6 @@ cd backend
 npm test
 ```
 
-The frontend build (`npm run build` in `frontend`) validates the new auth flow compiles.
+The frontend build (`npm run build` in `frontend_v2`) validates the new auth flow compiles. (Note: `frontend/` is deprecated — the active vendor web app is `frontend_v2/apps/web-vendor`.)
 
 

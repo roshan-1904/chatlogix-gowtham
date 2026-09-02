@@ -1,5 +1,7 @@
 # Multi-Stage AI Worker - Troubleshooting Guide
 
+> **⚠️ Superseded — this worker no longer exists.** The 14-stage `multiStageOrchestrator.ts` pipeline this guide troubleshoots is no longer on the production hot path; it was replaced by `backend/src/conversation/*` (see **`docs/CONVERSATION_PROCESSOR_LAMBDA.md`** for the current design). `backend/src/workers/multiStageAIWorker.ts` — the worker this guide troubleshoots (`npm run worker:multi-stage`, PM2 process `chatlogix-multi-stage-ai-worker`) — was deleted as dead code on 2026-09-02 (zero remaining references), so these steps no longer apply to live traffic. For local development against the current pipeline, use `npm run worker:conversation` (runs `backend/src/workers/conversationWorker.ts`). The content below is kept as historical/reference material.
+
 ## 🔍 Why Multi-Stage Worker Not Triggering?
 
 ### Checklist

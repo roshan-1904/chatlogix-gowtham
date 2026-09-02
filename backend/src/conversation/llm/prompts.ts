@@ -31,9 +31,36 @@ export function buildCatalogTable(catalog: CompactCatalogEntry[]): string {
     keywords: p.keywords.join(' '),
     fulfillment: p.fulfillmentType,
     inStock: p.inStock ? 'yes' : 'no',
-    stockQty: p.stockQuantity !== null ? String(p.stockQuantity) : ''
+    stockQty: p.stockQuantity !== null ? String(p.stockQuantity) : '',
+    // Flattened to one line (a literal newline would break a TOON row); commas
+    // are escaped by toonTable() below like every other column.
+    desc: p.description ? p.description.replace(/\s+/g, ' ').trim() : ''
   }));
   return toonTable(rows);
+}
+
+/**
+ * One row per variant (size/material/etc sub-item), for products that have
+ * them. A product's `price` in the table above is a range/reference only
+ * when it has rows here — the real per-variant price is this table's `price`
+ * column, and `sku` is the exact value `add`/`set_qty` ops must echo back as
+ * `variantSku` (never invented — CartEngine rejects an unknown one rather
+ * than falling back to the product's base price).
+ */
+export function buildVariantsTable(catalog: CompactCatalogEntry[]): string {
+  const rows: Record<string, string>[] = [];
+  for (const p of catalog) {
+    for (const v of p.variants) {
+      rows.push({
+        productId: p.id,
+        sku: v.sku,
+        label: v.label,
+        attrs: Object.entries(v.attributes).map(([k, val]) => `${k}=${val}`).join(';'),
+        price: (v.price / 100).toFixed(2)
+      });
+    }
+  }
+  return rows.length > 0 ? toonTable(rows) : '';
 }
 
 /**
@@ -55,8 +82,24 @@ function buildStaticBlock(hotSet: HotSet): string {
   if (v.aiContentImportantInstructions) parts.push(`Important: ${v.aiContentImportantInstructions}`);
 
   parts.push('');
-  parts.push('PRODUCT CATALOG (id,name,price,unit,minQty,maxQty,keywords,fulfillment,inStock,stockQty):');
+  parts.push('PRODUCT CATALOG (id,name,price,unit,minQty,maxQty,keywords,fulfillment,inStock,stockQty,desc):');
   parts.push(buildCatalogTable(hotSet.compactCatalog));
+  parts.push(
+    "- A product's \"desc\" may contain compatibility/eligibility notes or vendor instructions (e.g. an accessory that only fits one size, or a step to confirm before an order is valid). Read it and apply it, not just recite it — e.g. warn the customer or ask the confirming question yourself before adding the item, don't wait for them to ask."
+  );
+
+  const variantsTable = buildVariantsTable(hotSet.compactCatalog);
+  if (variantsTable) {
+    parts.push('');
+    parts.push('PRODUCT VARIANTS (productId,sku,label,attrs,price):');
+    parts.push(variantsTable);
+    parts.push(
+      "- A productId listed above is a range/reference price only — the real price is this table's. Ask the customer to pick a size/material/etc from this table before adding it."
+    );
+    parts.push(
+      '- "variantSku" on an "add"/"set_qty" op for such a product must be exactly one of the "sku" values shown here. Never invent one, and never guess a size/attribute the customer didn\'t confirm exists — if what they ask for isn\'t a row here, say so and offer the closest real options instead.'
+    );
+  }
 
   parts.push('');
   parts.push('YOUR TASK: read the customer message and respond with cart OPERATIONS, never a full cart list.');
@@ -92,7 +135,11 @@ function buildDynamicBlock(hotSet: HotSet): string {
 
   parts.push('CURRENT CART:');
   if (hotSet.pendingOrder && hotSet.pendingOrder.items.length > 0) {
-    parts.push(hotSet.pendingOrder.items.map((i) => `- ${i.name} (${i.productId}) x${i.quantity} ${i.unit}`).join('\n'));
+    parts.push(
+      hotSet.pendingOrder.items
+        .map((i) => `- ${i.name}${i.variantLabel ? ` (${i.variantLabel})` : ''} (${i.productId}) x${i.quantity} ${i.unit}`)
+        .join('\n')
+    );
     parts.push(`Total: Rs${(hotSet.pendingOrder.totalPaise / 100).toFixed(2)}`);
   } else {
     parts.push('(empty)');
@@ -127,9 +174,10 @@ const cartOpSchema = {
         type: { type: 'string', enum: ['add'] },
         productId: { type: 'string' },
         qty: { type: 'number' },
-        notes: { type: ['string', 'null'] }
+        notes: { type: ['string', 'null'] },
+        variantSku: { type: ['string', 'null'] }
       },
-      required: ['type', 'productId', 'qty', 'notes'],
+      required: ['type', 'productId', 'qty', 'notes', 'variantSku'],
       additionalProperties: false
     },
     {
@@ -137,18 +185,20 @@ const cartOpSchema = {
       properties: {
         type: { type: 'string', enum: ['set_qty'] },
         productId: { type: 'string' },
-        qty: { type: 'number' }
+        qty: { type: 'number' },
+        variantSku: { type: ['string', 'null'] }
       },
-      required: ['type', 'productId', 'qty'],
+      required: ['type', 'productId', 'qty', 'variantSku'],
       additionalProperties: false
     },
     {
       type: 'object',
       properties: {
         type: { type: 'string', enum: ['remove'] },
-        productId: { type: 'string' }
+        productId: { type: 'string' },
+        variantSku: { type: ['string', 'null'] }
       },
-      required: ['type', 'productId'],
+      required: ['type', 'productId', 'variantSku'],
       additionalProperties: false
     },
     {

@@ -1,5 +1,7 @@
 # Product Management UI - Implementation Complete ✅
 
+> **Note:** Undated historical implementation-milestone snapshot for the Product Management UI (frontend). The components/pages it lists do exist in `frontend_v2/apps/web-vendor/src/`, but this file has not been kept in sync with later changes — treat it as a record of when the feature first landed, not as the current state of that code.
+
 ## Summary
 
 All product management UI components and pages have been successfully implemented according to the architecture plans. The implementation includes:

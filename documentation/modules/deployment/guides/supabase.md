@@ -1,6 +1,8 @@
 # 🚀 ChatLogix PostgreSQL Deployment Guide
 
 > **Note:** This document has been updated to reflect the migration from Supabase to in-house PostgreSQL. For historical reference, the original Supabase deployment guide has been archived.
+>
+> **Also note:** `scripts/deployment/lightsail-deploy.sh`, referenced several times below, was deleted as dead code (2026-09-02) — production deploys are now automated via `.github/workflows/deploy.yml` + `scripts/deployment/deploy-ec2.sh` (see `docs/DEPLOYMENT.md`). The PostgreSQL/Prisma guidance below (connection strings, migrations, monitoring queries) is still accurate regardless.
 
 ## 🎯 **PostgreSQL Integration Benefits**
 

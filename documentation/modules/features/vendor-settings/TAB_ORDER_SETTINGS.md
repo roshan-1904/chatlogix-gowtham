@@ -15,6 +15,8 @@ Enable vendors to:
 - Set up flexible preparation time configurations
 - Control order processing behavior
 
+> **Implementation status (verified against code, Sep 2026)**: `frontend_v2/apps/web-vendor/src/components/settings/tabs/OrderSettingsTab.tsx` implements Order Prefix, Minimum Order Value, Category (free text), and the "Ask for Preferred Delivery Date" checkbox (Sections 1-2 below). **Section 3, "Preparation Time Configuration" (the type radio group and its per-type fields), was never built in the UI** — there's no `orderPreparationConfig.type` control in the shipped tab, even though the backend (`PUT /api/vendors/:id/order-settings` in `backend/src/routes/vendors.ts`) does validate and store `orderPreparationConfig` if sent directly. Also note the Order Prefix validation actually implemented (`backend/src/utils/validation/settingsSchemas.ts`) is `z.string().max(5).regex(/^[A-Z0-9]*$/)` — **up to 5 uppercase letters or digits, not exactly 5 letters-only** as this doc's Section 1 and validation schema describe.
+
 ## Sections
 
 ### 1. Order Configuration
@@ -365,10 +367,12 @@ export const orderSettingsSchema = z.object({
 - `403`: Unauthorized
 - `404`: Vendor not found
 
-### Additional Endpoint Needed
+### Additional Endpoint Needed (not built — turned out unnecessary)
 
 #### PUT `/api/vendors/:id/order-prefix`
-**Purpose**: Update order prefix separately (if needed)
+**Status**: Never built, and not needed — `orderPrefix` is handled directly by the main `PUT /api/vendors/:id/order-settings` endpoint above (confirmed in `backend/src/routes/vendors.ts`), so a separate endpoint wasn't required.
+
+**Purpose (as originally planned)**: Update order prefix separately (if needed)
 
 **Request Body**:
 ```json
@@ -591,8 +595,8 @@ readyTime = orderConfirmedAt // Immediate
 
 ## Related API Endpoints
 
-- **GET** `/api/vendors/:id/order-settings` - Get order settings (needs orderPrefix and minimumOrderValue)
-- **PUT** `/api/vendors/:id/order-settings` - Update order settings (needs orderPrefix and minimumOrderValue)
+- **GET** `/api/vendors/:id/order-settings` - Get order settings (already includes `orderPrefix` and `minimumOrderValue`)
+- **PUT** `/api/vendors/:id/order-settings` - Update order settings (already handles `orderPrefix` and `minimumOrderValue`; note the prefix validation is "up to 5 alphanumeric uppercase chars," not "exactly 5 letters" — see status note above)
 
 See [API Documentation](./API_DOCUMENTATION.md#3-order-settings-apis) for complete API specifications.
 

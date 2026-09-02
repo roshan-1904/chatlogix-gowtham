@@ -14,6 +14,8 @@ Enable vendors to:
 - Configure quiet hours to respect customer rest times
 - Balance customer communication with notification preferences
 
+> **Implementation status (verified against code, Sep 2026)**: `frontend_v2/apps/web-vendor/src/components/settings/tabs/NotificationsTab.tsx` implements only Section 1, "Notification Preferences" — the three toggles (Order Updates, Payment Links, Shipping Updates). **Section 2, "Order Status Notifications" (the per-status checkboxes), and Section 3, "Quiet Hours," were never built into the UI** — there's no `enabledStatuses` or `quietHours` control in the shipped tab. The backend fully supports both: `notificationSettingsSchema` in `backend/src/utils/validation/settingsSchemas.ts` validates `enabledStatuses` and `quietHours`, and `GET/PUT /api/vendors/:id/notification-settings` will read/write them if a client sends them — there's just no vendor-facing way to set them today.
+
 ## Sections
 
 ### 1. Notification Preferences
@@ -514,8 +516,8 @@ function shouldDelayNotification(quietHours: QuietHoursConfig): boolean {
 
 ## Related API Endpoints
 
-- **GET** `/api/vendors/:id/notification-settings` - Get notification settings (needs to be created)
-- **PUT** `/api/vendors/:id/notification-settings` - Update notification settings (needs to be created)
+- **GET** `/api/vendors/:id/notification-settings` - Get notification settings (built; supports `enabledStatuses` and `quietHours` even though no UI exposes them — see status note above)
+- **PUT** `/api/vendors/:id/notification-settings` - Update notification settings (built; same caveat)
 
 See [API Documentation](./API_DOCUMENTATION.md#4-notification-settings-apis) for complete API specifications.
 

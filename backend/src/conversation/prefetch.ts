@@ -1,6 +1,7 @@
 import { prisma } from '../db/prisma.js';
 import { getCached, setCached, deleteCached } from '../utils/redis.js';
 import { toCartSnapshot } from './cart/snapshot.js';
+import { normalizeVariants } from './cart/variants.js';
 import type { HotSet, VendorConfig, CompactCatalogEntry, ConvMemory, CartSnapshot } from './types.js';
 
 /**
@@ -114,7 +115,9 @@ async function loadCompactCatalog(vendorId: string): Promise<CompactCatalogEntry
       keywords: true,
       fulfillmentType: true,
       inStock: true,
-      stockQuantity: true
+      stockQuantity: true,
+      variants: true,
+      description: true
     }
   });
 
@@ -128,7 +131,9 @@ async function loadCompactCatalog(vendorId: string): Promise<CompactCatalogEntry
     keywords: p.keywords,
     fulfillmentType: p.fulfillmentType,
     inStock: p.inStock,
-    stockQuantity: p.stockQuantity !== null ? Number(p.stockQuantity) : null
+    stockQuantity: p.stockQuantity !== null ? Number(p.stockQuantity) : null,
+    variants: normalizeVariants(p.variants).filter((v) => v.isActive),
+    description: p.description ?? ''
   }));
 }
 

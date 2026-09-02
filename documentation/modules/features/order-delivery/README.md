@@ -28,6 +28,8 @@ Enable vendors to customize their order flow based on their business model:
   - Delivery date is not already provided
 - AI uses preparation time config to provide appropriate messaging
 
+> **2026-09 note:** the "AI asks for delivery date" behavior above is implemented in the old, pre-Lambda pipeline (`promptBuilderService.ts`), which is no longer on the hot path for live WhatsApp traffic — see `docs/CONVERSATION_WORKER_GAPS.md`. The current live pipeline (`backend/src/conversation/*`) treats delivery date as advisory prep-timing copy only and never has the AI ask for or promise a date; see [Order Flow](./ORDER_FLOW.md) for details.
+
 ### 3. Order Validation
 - Validates that preferred delivery date is provided when required
 - Ensures order can only be confirmed with all required information

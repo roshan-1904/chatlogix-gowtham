@@ -1,12 +1,39 @@
 # ChatLogix Message Processing Operations Guide
 
+## ⚠️ Architecture note (2026-09-02): this document describes the legacy Express/PM2 pipeline
+
+**Production WhatsApp traffic no longer runs through most of what's described below.** As of the Lambda migration, the live pipeline is:
+
+```
+WhatsApp → API Gateway → chatlogix-webhook-handler (Lambda)
+  → SQS TEXT_QUEUE_URL
+  → chatlogix-incoming-response-generator (Lambda) — backend/src/conversation/*
+    (LLM-1 + CartEngine + optional LLM-2, NOT the aiService.ts / messageProcessor.ts
+    structured-vs-legacy flow described in Phase 5 below)
+  → SQS RESPONSE_QUEUE_URL
+  → chatlogix-whatsapp-response-dispatcher (Lambda) — backend/src/workers/responseProcessor.ts
+  → WhatsApp send
+```
+
+The Express route this document walks through (`src/routes/webhook.ts`, `src/services/messageProcessor.ts`, `src/services/aiService.ts`, and the standalone `src/workers/responseWorker.ts`) still exists in the codebase and is more feature-complete in places (it handles reactions, delivery/read status, and media — the Lambda path currently doesn't), but **WhatsApp is configured to call API Gateway, not this Express route, in production.** So this document is effectively describing a dev-only / legacy code path today, not what customer traffic hits.
+
+Known, real production gaps in the live Lambda path (not covered by the Phase walkthrough below, since it assumes the Express route): audio/image messages are silently dropped, message reactions and delivery/read status webhooks aren't processed at all, and the order-recovery EventBridge trigger is unverified. Full detail: `docs/CONVERSATION_WORKER_GAPS.md`.
+
+Authoritative current-state docs: `backend/src/lambdas/README.md` (the 5 deployed Lambda functions), `docs/CONVERSATION_PROCESSOR_LAMBDA.md` (the new AI pipeline spec), `docs/CONVERSATION_WORKER_GAPS.md`, and the repo root `CLAUDE.md`.
+
+**Also note:** `src/workers/responseWorker.ts`, referenced throughout Phase 7 below, was deleted as dead code on 2026-09-02. Its business logic (`src/workers/responseProcessor.ts`) is unchanged and still live, but it's now invoked by the `chatlogix-whatsapp-response-dispatcher` Lambda directly — see `response-worker.md` in this directory for the corrected version of that section.
+
+The rest of this document is left as written — as a description of the Express-side implementation that still exists in the codebase — with the specific dead references called out inline.
+
 ## 📋 Overview
 
-This document provides a comprehensive step-by-step breakdown of the ChatLogix message processing flow, from receiving WhatsApp webhook events to sending AI-generated responses back to customers.
+This document provides a comprehensive step-by-step breakdown of the ChatLogix message processing flow, from receiving WhatsApp webhook events to sending AI-generated responses back to customers. **See the architecture note above before relying on this for what production traffic actually does.**
 
 ## 🔄 Complete Message Processing Flow
 
 ### Phase 1: Webhook Reception & Validation
+
+> Describes the Express route (`src/routes/webhook.ts`) — not what production WhatsApp traffic hits today. The live entry point is the `chatlogix-webhook-handler` Lambda (`backend/src/lambdas/handlers/webhookHandler.ts`), fronted by API Gateway. It does GET verification and POST message handling similarly to what's described below, but only processes `messages` changes with `type: 'text'` — no signature-via-`x-hub-signature-256` step (that's Express-route-specific), and reactions/status changes aren't read at all.
 
 #### Step 1.1: Webhook Verification (GET Request)
 ```
@@ -188,13 +215,15 @@ WhatsApp Webhook Payload
 **Code Location**: `src/services/duplicateMessageService.ts`
 
 #### Step 3.2: Message Type Routing
-**Process:**
+**Process (Express route only):**
 - **Text Messages**: Process synchronously via `processTextMessage()`
 - **Audio Messages**: Enqueue to `INCOMING_AUDIO_QUEUE_URL`
 - **Image/Document**: Enqueue to `INCOMING_IMAGE_QUEUE_URL`
 - **Other Types**: Enqueue to `INCOMING_QUEUE_URL`
 
 **Code Location**: `src/routes/webhook.ts` (lines 108-124)
+
+> **In the live Lambda path this is different and narrower**: `webhookHandler.ts` only handles `message.type === 'text'` (published to `TEXT_QUEUE_URL` for the `chatlogix-incoming-response-generator` Lambda to consume). Audio and image fall into a `default` branch and are dropped — nothing is enqueued, stored, or acknowledged to the customer. This is a known, currently-unresolved gap; see `docs/CONVERSATION_WORKER_GAPS.md` §2.1.
 
 ### Phase 4: Text Message Processing (Synchronous Path)
 
@@ -251,6 +280,8 @@ RELEVANT if:
 **Code Location**: `src/services/messageProcessor.ts` (lines 140-149)
 
 ### Phase 5: AI Response Generation
+
+> Describes `aiService.ts`'s structured-vs-legacy split, invoked from the Express route's `messageProcessor.ts`. **Not what runs in production.** The live pipeline (`chatlogix-incoming-response-generator` Lambda) calls `backend/src/conversation/*` — LLM-1 (intent/extraction) + a deterministic CartEngine + an optional LLM-2 verifier pass — which is a different design, not a "structured vs. legacy" toggle. See `docs/CONVERSATION_PROCESSOR_LAMBDA.md` for the current spec. `aiService.ts`'s only remaining live caller is unrelated to this message path (`catalogImportSandboxService.ts`, via the old `multiStageOrchestrator.ts`).
 
 #### Step 5.1: Feature Flag Check
 **Process:**
@@ -326,14 +357,16 @@ Task: Generate structured response with:
 
 ### Phase 7: Response Worker Processing
 
-#### Step 7.1: SQS Message Polling
-**Process:**
+> **`src/workers/responseWorker.ts` was deleted as dead code on 2026-09-02.** It was a standalone PM2 process that polled `RESPONSE_QUEUE_URL` in a loop; it's been superseded by the `chatlogix-whatsapp-response-dispatcher` Lambda, which the SQS response queue invokes directly (event-driven, no polling). The processing logic it called — `src/workers/responseProcessor.ts` (`processResponseMessage()`) — is unchanged and still live, now imported by `backend/src/lambdas/handlers/responseProcessor.ts`. See `response-worker.md` and `response-worker-flow.md` in this directory for the corrected, current version of this section — they cover the same ground accurately, including that the async DB step now only updates customer insights (no duplicate check, no message-record creation).
+
+#### Step 7.1: SQS Message Polling — superseded, see note above
+**Process (as originally written, now historical):**
 1. **Queue Polling**: Continuously poll `RESPONSE_QUEUE_URL`
 2. **Message Retrieval**: Get up to 10 messages per poll
 3. **Message Parsing**: Parse JSON message body
 4. **Operation Tracking**: Create operation ID and step logger
 
-**Code Location**: `src/workers/responseWorker.ts` (lines 6-25)
+**Code Location** (file deleted): `src/workers/responseWorker.ts` (lines 6-25)
 
 #### Step 7.2: WhatsApp Message Sending
 **Process:**
@@ -368,13 +401,15 @@ Body: {
 
 **Code Location**: `src/services/asyncDatabaseService.ts`
 
-#### Step 7.4: SQS Message Deletion
-**Process:**
+#### Step 7.4: SQS Message Deletion / Lambda Success Reporting
+**Process (as originally written, describing the deleted explicit-poll-and-delete worker):**
 1. **Success Confirmation**: Only delete if WhatsApp message sent successfully
 2. **Message Deletion**: Remove message from SQS queue
 3. **Prevent Loops**: Ensure message is not reprocessed
 
-**Code Location**: `src/workers/responseWorker.ts` (lines 39-48)
+**Code Location** (file deleted): `src/workers/responseWorker.ts` (lines 39-48)
+
+**Current equivalent**: there's no explicit `deleteMessage` call anymore. The Lambda handler (`backend/src/lambdas/handlers/responseProcessor.ts`) reports per-record success/failure via `Promise.allSettled` and only throws (triggering an SQS-level batch retry) if every record in the invocation's batch failed — the SQS/Lambda event source mapping handles deletion based on that.
 
 ## 🔧 Error Handling & Recovery
 

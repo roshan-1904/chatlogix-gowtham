@@ -45,16 +45,15 @@ npx prisma generate
 
 ## Step 3: Import Backup Data (NOW Tables Exist!)
 
-After tables are created, import your data:
+After tables are created, import your data. **Note:** `scripts/import-backup-data.sh` no longer exists in this repo — use the current npm script instead:
 
 ```bash
 cd ~/ChatLogix/backend
 
-# Make the script executable
-chmod +x scripts/import-backup-data.sh
-
-# Run the import (make sure DATABASE_URL is in your .env)
-./scripts/import-backup-data.sh
+# Run the import (make sure DATABASE_URL is in your .env, and that
+# backend/database_backup/ has the *_rows.sql files — copy them from
+# scripts/database/backups/ at the repo root if it's empty)
+npm run db:import
 ```
 
 **This will import files in the correct order:**
@@ -85,8 +84,7 @@ npx prisma db push --accept-data-loss
 npx prisma generate
 
 # 3. Import data
-chmod +x scripts/import-backup-data.sh
-./scripts/import-backup-data.sh
+npm run db:import
 ```
 
 ---

@@ -1,5 +1,7 @@
 # Product Matching Implementation Status
 
+> **Note:** Historical snapshot from December 2024, describing fuzzy product matching as integrated into the old `multiStageOrchestrator.ts` pipeline (Stages 4.5/7.5/8), which is no longer on the production hot path — see `docs/CONVERSATION_PROCESSOR_LAMBDA.md` for the current system. Also, as of 2026-09-02, `backend/src/utils/__tests__/productMatcher.test.ts` has 5 pre-existing failing tests out of 32 (a fuzzy-matching similarity-threshold issue) — the "all critical implementations complete" / "ready for deployment" framing below should not be read as a current correctness guarantee; verify against an actual test run.
+
 **Date:** December 2024  
 **Status:** ✅ Implementation Complete  
 **Version:** 1.0

@@ -76,7 +76,7 @@ npm run type-check
 ### Vendor Web App
 Create `apps/web-vendor/.env.local`:
 ```
-VITE_API_URL=http://localhost:3001/api
+VITE_API_URL=http://localhost:8000/api
 VITE_ENVIRONMENT=development
 VITE_RECAPTCHA_SITE_KEY=your-key
 ```
@@ -84,17 +84,19 @@ VITE_RECAPTCHA_SITE_KEY=your-key
 ### Admin Web App
 Create `apps/web-admin/.env.local`:
 ```
-VITE_API_URL=http://localhost:3001/api
-VITE_ADMIN_API_URL=http://localhost:3001/api/admin
+VITE_API_URL=http://localhost:8000/api
+VITE_ADMIN_API_URL=http://localhost:8000/api
 VITE_ENVIRONMENT=development
 ```
 
 ### Mobile App
 Create `apps/vendor-mobile/.env`:
 ```
-EXPO_PUBLIC_API_URL=http://localhost:3001/api
+EXPO_PUBLIC_API_URL=http://localhost:8000/api
 EXPO_PUBLIC_ENVIRONMENT=development
 ```
+
+(`http://localhost:8000` is the backend API port used by each app's `env.template`/`ENV_SETUP.md`. Don't confuse it with the frontend dev-server ports below — 3000 for web-vendor, 3001 for web-admin.)
 
 ## Troubleshooting
 

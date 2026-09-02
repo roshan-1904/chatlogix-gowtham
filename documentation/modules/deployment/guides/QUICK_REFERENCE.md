@@ -1,5 +1,7 @@
 # Production Deployment Quick Reference
 
+> **Note:** Production deploys are automated — push to `master` and `.github/workflows/deploy.yml` builds, updates the 5 Lambda functions, and runs `scripts/deployment/deploy-ec2.sh` on the Bitnami box. See `docs/DEPLOYMENT.md` for the current flow. The manual steps below are for a one-off/alternate-host deploy; the `create-deployment-package.ps1`/`.sh` scripts they used to reference were removed as dead code (2026-09-02) — use the manual packaging steps in `PRODUCTION_DEPLOYMENT_FILES.md` instead.
+
 ## 🚀 Quick Start
 
 ### 1. Build Everything
@@ -16,18 +18,7 @@ npm run build
 
 ### 2. Create Deployment Package
 
-**Windows (PowerShell):**
-```powershell
-.\scripts\deployment\create-deployment-package.ps1
-```
-
-**Linux/Mac:**
-```bash
-bash scripts/deployment/create-deployment-package.sh
-```
-
-**Manual (if scripts don't work):**
-See `PRODUCTION_DEPLOYMENT_FILES.md` for detailed instructions.
+There's no packaging script anymore (`create-deployment-package.ps1`/`.sh` were removed as dead code). Package manually — see `PRODUCTION_DEPLOYMENT_FILES.md` for detailed instructions.
 
 ### 3. Transfer to Server
 

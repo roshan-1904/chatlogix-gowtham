@@ -4,6 +4,8 @@
 **Version:** 2.0  
 **Last Updated:** December 2025
 
+> **Architecture note (2026-09-02):** This guide (and the code it walks through: `intentClassificationService.ts`, `contextFetcherService.ts`, `promptBuilderService.ts`, `multiStageOrchestrator.ts`) belongs to the OLD multi-stage pipeline, confirmed implemented per `INTENT_EXPANSION_VERIFICATION_CHECKLIST.md`. That pipeline is **no longer wired to live WhatsApp traffic** — production now runs `backend/src/conversation/*`, which does not use any of these services. The old code still runs only via the catalog-import sandbox test-message path (`catalogImportSandboxService.ts`). See `docs/CONVERSATION_PROCESSOR_LAMBDA.md` for the current architecture.
+
 ---
 
 ## Table of Contents

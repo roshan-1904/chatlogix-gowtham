@@ -2,6 +2,8 @@
 
 Step-by-step guide to manually deploy your local builds to the server.
 
+> **Note:** Production deploys are now automated — pushing to `master` triggers `.github/workflows/deploy.yml`, which builds the code, updates the 5 Lambda functions, and runs `scripts/deployment/deploy-ec2.sh` on the Bitnami box at `/home/bitnami/chatlogix`. See `docs/DEPLOYMENT.md` for the current, authoritative flow. Keep this guide for manual/one-off deploys (a fresh host, or debugging outside CI) — the PM2 process list below has been updated to match what actually runs today (2 processes, not the 4-5 of earlier setups). It does not cover the Lambda side of the pipeline; see `backend/src/lambdas/README.md` for that.
+
 ## Prerequisites
 
 - ✅ Backend build ready: `backend/dist/` folder exists
@@ -227,7 +229,7 @@ cd /home/ubuntu/chatlogix
 nano ecosystem.config.js
 ```
 
-**Add this configuration:**
+**Add this configuration** (mirrors the current root `ecosystem.config.js` — only 2 processes run on PM2 today; the WhatsApp AI pipeline and response dispatch run as AWS Lambda functions in production, not PM2 workers — see `backend/src/lambdas/README.md`):
 
 ```javascript
 module.exports = {
@@ -253,18 +255,18 @@ module.exports = {
       watch: false
     },
     {
-      name: 'chatlogix-response-worker',
-      script: './backend/dist/workers/responseWorker.js',
+      name: 'chatlogix-media-worker',
+      script: './backend/dist/workers/mediaWorker.js',
       cwd: '/home/ubuntu/chatlogix',
       instances: 1,
       exec_mode: 'fork',
       env: {
         NODE_ENV: 'production',
-        WORKER_TYPE: 'response'
+        WORKER_TYPE: 'media'
       },
-      error_file: './backend/logs/response-worker-error.log',
-      out_file: './backend/logs/response-worker-out.log',
-      log_file: './backend/logs/response-worker-combined.log',
+      error_file: './backend/logs/media-worker-error.log',
+      out_file: './backend/logs/media-worker-out.log',
+      log_file: './backend/logs/media-worker-combined.log',
       time: true,
       max_memory_restart: '512M',
       restart_delay: 4000,

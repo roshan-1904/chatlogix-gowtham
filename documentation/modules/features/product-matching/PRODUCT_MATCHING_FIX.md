@@ -5,6 +5,10 @@
 
 ---
 
+> **2026-09 note:** this fix targeted `contextFetcherService.ts`, `promptBuilderService.ts`, `primaryAIResponseService.ts`, and `messageCompositionService.ts` — all part of the old, pre-Lambda multi-stage pipeline, which is no longer on the hot path for live WhatsApp traffic (see `docs/CONVERSATION_WORKER_GAPS.md` §1). The current live pipeline (`backend/src/conversation/*`) always shows the AI the full compact catalog (no filtering step to have this bug in the first place — see `buildCatalogTable` in `backend/src/conversation/llm/prompts.ts`) and resolves cart writes by exact `productId`, not fuzzy name matching in the prompt. Kept here as historical record of a real bug in the retired pipeline.
+
+---
+
 ## 🔍 Problem Identified
 
 Customers were asking about products (e.g., "Karuppu Kavuni", "Karuppu Kavuni Mini Bites") but the AI was consistently responding with "I don't have that product available" even when the products existed in the catalog.

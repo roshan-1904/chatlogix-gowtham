@@ -1,5 +1,7 @@
 # Validation Improvements - Implementation Guide
 
+> **Note:** Dated point-in-time implementation guide for the multi-stage AI pipeline (`multiStageOrchestrator.ts`), which is no longer on the production hot path — it was replaced by `backend/src/conversation/*` (see `docs/CONVERSATION_PROCESSOR_LAMBDA.md` for the current system, where the `CartEngine` enforces equivalent confirmation rules). Kept for historical record; not reflective of current production behavior.
+
 **Date:** December 2024  
 **Status:** Ready for Implementation  
 **Reference Document:** [VALIDATION_IMPROVEMENTS_IMPLEMENTATION_PLAN.md](./VALIDATION_IMPROVEMENTS_IMPLEMENTATION_PLAN.md)

@@ -1,5 +1,7 @@
 # Fix: Incoming Queue Not Listing Messages
 
+> **Superseded — describes deleted infrastructure.** This is a historical fix log for the PM2 `textWorker`/`incomingMessageWorker` setup. Both `backend/src/workers/textWorker.ts` and `backend/src/workers/incomingMessageWorker.ts` were deleted as dead code on 2026-09-02 — `ecosystem.config.js` now runs only `chatlogix-backend` and `chatlogix-media-worker`. Incoming WhatsApp text is handled by the `chatlogix-webhook-handler` → SQS text queue → `chatlogix-incoming-response-generator` Lambda pipeline instead (see `backend/src/lambdas/README.md`). Nothing below reflects the current pipeline; kept for historical record only. **Deletion candidate** — flagging rather than removing per the audit's ground rules.
+
 ## Problem Identified
 
 1. ❌ `incomingMessageWorker` was NOT running

@@ -1,5 +1,7 @@
 # Multi-Stage AI Processing Documentation
 
+> **⚠️ Superseded — not the production pipeline.** The 14-stage `multiStageOrchestrator.ts` pipeline this folder documents is no longer on the production hot path. It was replaced by a ground-up rewrite (`backend/src/conversation/*`: an LLM-1 draft/cart-ops call, a deterministic `CartEngine`, and an optional LLM-2 verifier call) that runs live via the `chatlogix-incoming-response-generator` Lambda. See **`docs/CONVERSATION_PROCESSOR_LAMBDA.md`** for the current design and an explicit "current vs new" comparison. `multiStageOrchestrator.ts` still exists in the codebase, but its only remaining live caller is `catalogImportSandboxService.ts` (catalog import tooling, not live message processing). The documents linked below are kept as historical/reference material describing how the old pipeline worked and was iterated on.
+
 This directory contains all documentation related to the Multi-Stage AI Processing system.
 
 ## Overview

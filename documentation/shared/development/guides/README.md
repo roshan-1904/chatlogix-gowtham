@@ -49,6 +49,6 @@ This directory contains development guides, best practices, and technical docume
 
 ## Related Documentation
 
-- [Setup Guides](../setup/) - Initial setup and configuration
-- [Architecture Documentation](../architecture/) - System architecture and design
+- [Setup Guides](../../../modules/setup/) - Initial setup and configuration
+- [Architecture Documentation](../../architecture/) - System architecture and design
 

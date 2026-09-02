@@ -1,6 +1,8 @@
 # Architecture Overview - Queue-Based System
 
-## 🏗️ Current Architecture
+> **⚠️ Superseded (as of 2026-09):** This document describes the PM2 + SQS worker architecture (`incomingMessageWorker.ts`, `responseWorker.ts`) as it stood on 2025-10-27. Those worker files have since been deleted; production WhatsApp message processing now runs on AWS Lambda functions (`chatlogix-webhook-handler`, `chatlogix-incoming-response-generator`, `chatlogix-whatsapp-response-dispatcher`, etc.), not PM2-managed SQS workers. See `backend/src/lambdas/README.md` and `docs/CONVERSATION_PROCESSOR_LAMBDA.md` for the current architecture. The content below is kept for historical reference.
+
+## 🏗️ Current Architecture (as of Oct 2025 — see notice above)
 
 ### Queue-Based Processing
 

@@ -67,15 +67,15 @@ backend/
 frontend_v2/
 └── apps/
     ├── web-vendor/
-    │   └── dist/                  # ✅ REQUIRED - Built vendor web app
+    │   └── dist/                  # ✅ REQUIRED - Built vendor web app (the active, primary app)
     │       ├── index.html
     │       ├── assets/            # JS, CSS, images, fonts
     │       └── [all static files]
     └── web-admin/
-        └── dist/                  # ✅ REQUIRED - Built admin web app
-            ├── index.html
-            ├── assets/            # JS, CSS, images, fonts
-            └── [all static files]
+        └── dist/                  # ⚠️ OPTIONAL - web-admin is still scaffolding (per CLAUDE.md), not
+            ├── index.html         #    deployed by the current CI pipeline (.github/workflows/deploy.yml
+            ├── assets/            #    only packages web-vendor/dist). Include it only if you're
+            └── [all static files] #    intentionally serving it.
 ```
 
 #### Files NOT to Deploy:
@@ -227,9 +227,8 @@ Approximate sizes (may vary):
 - Missing migrations can cause database schema issues
 
 ### 3. PM2 Configuration
-- Update `ecosystem.config.js` paths before deployment:
-  - Change `cwd` from `/home/bitnami/chatlogix` to your server path (e.g., `/home/ubuntu/chatlogix`)
-  - Verify all script paths are correct
+- The root `ecosystem.config.js` already targets the live production box (`cwd: '/home/bitnami/chatlogix'`, Bitnami on EC2) and defines exactly 2 apps today: `chatlogix-backend` and `chatlogix-media-worker`. There is no separate response/incoming/multi-stage worker anymore — the WhatsApp AI pipeline and response dispatch run as AWS Lambda functions in production (see `backend/src/lambdas/README.md`).
+- If you're deploying to a **different** host than the Bitnami box, update `cwd` (and any other paths) in `ecosystem.config.js` to match your server layout before deployment.
 
 ### 4. Node Modules
 - **DO NOT** copy `node_modules/` folders

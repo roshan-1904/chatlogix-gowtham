@@ -277,3 +277,5 @@ When `askForPreferredDeliveryDate` is enabled and vendor category is "food":
 
 See [Order Flow Documentation](./ORDER_FLOW.md) for detailed flow.
 
+**2026-09 note:** the 4-step integration above describes the old pipeline (`promptBuilderService.ts` / `dataValidationService.ts`), which is not on the hot path for live WhatsApp traffic anymore. The GET/PUT endpoints documented above are unaffected — they're plain Express routes in `backend/src/routes/vendors.ts` and still work as described — but in the current live conversation pipeline (`backend/src/conversation/*`) the AI never asks for a delivery date and never writes `Order.estimatedDelivery`; that field is vendor-set only. See `docs/CONVERSATION_PROCESSOR_LAMBDA.md` §13/§16 and the note atop [Order Flow Documentation](./ORDER_FLOW.md).
+

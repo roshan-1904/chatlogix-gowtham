@@ -12,7 +12,9 @@ const brownie: CompactCatalogEntry = {
   keywords: ['choco', 'dessert'],
   fulfillmentType: 'made_to_order',
   inStock: true,
-  stockQuantity: null
+  stockQuantity: null,
+  variants: [],
+  description: ''
 };
 
 function makeHotSet(overrides: Partial<HotSet> = {}): HotSet {
@@ -62,6 +64,19 @@ describe('buildCatalogTable', () => {
     const table = buildCatalogTable([brownie]);
     expect(table).toContain('100.00');
   });
+
+  it('includes the description, flattened to one line', () => {
+    const table = buildCatalogTable([{ ...brownie, description: 'Fits only\nan 8x8 tin.\n\nConfirm size before ordering.' }]);
+    expect(table).toContain('Fits only an 8x8 tin. Confirm size before ordering.');
+    expect(table.split('\n')).toHaveLength(2); // header + one data row — no stray line from the description
+  });
+
+  it('renders an empty desc column when the vendor left description blank', () => {
+    const table = buildCatalogTable([brownie]);
+    const dataRow = table.split('\n')[1];
+    const columns = dataRow.trim().split(',');
+    expect(columns[columns.length - 1]).toBe(''); // desc is the last column
+  });
 });
 
 describe('buildLlm1SystemPrompt', () => {
@@ -104,6 +119,14 @@ describe('buildLlm1SystemPrompt', () => {
       makeHotSet({ recentMessages: [{ role: 'customer', content: 'do you have brownies?' }] })
     );
     expect(prompt).toContain('do you have brownies?');
+  });
+
+  it('surfaces a product description and instructs the model to apply it, not just recite it', () => {
+    const prompt = buildLlm1SystemPrompt(
+      makeHotSet({ compactCatalog: [{ ...brownie, description: 'Dividers only fit the 8x8 tin.' }] })
+    );
+    expect(prompt).toContain('Dividers only fit the 8x8 tin.');
+    expect(prompt).toMatch(/apply it, not just recite it/);
   });
 });
 

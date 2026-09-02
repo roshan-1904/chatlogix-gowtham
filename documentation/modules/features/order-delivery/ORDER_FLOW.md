@@ -1,5 +1,7 @@
 # Order Flow with Delivery Date Settings
 
+> **2026-09 update — describes the retired pipeline, not live behavior.** Everything below (intent classification, context fetching, prompt building, AI setting `Order.estimatedDelivery` from a customer-provided date) is how the old `multiStageOrchestrator.ts` / `promptBuilderService.ts` / `dataExtractionService.ts` pipeline worked. That pipeline is no longer on the hot path for real WhatsApp traffic (see `docs/CONVERSATION_WORKER_GAPS.md` §1) — production text messages now run through `backend/src/conversation/*`. In that pipeline a `delivery_date` op is explicitly **advisory prep-timing copy only**: the AI never invents a date, never promises an ETA, and never writes `Order.estimatedDelivery` — only the vendor (via the dashboard, after confirming) sets that field. See `docs/CONVERSATION_PROCESSOR_LAMBDA.md` §13 (Q13) and §16 for the current customer-confirm-vs-vendor-confirm design, and `backend/src/conversation/cart/engine.ts`'s `set_field`/`delivery_date` case for the code. The `askForPreferredDeliveryDate` / `orderPreparationConfig` vendor settings described here still exist in the schema and are still readable in the new pipeline's prompt (see `backend/src/conversation/prefetch.ts`), but nothing in the live prompt actually instructs the AI to ask for a delivery date the way this document describes — that instruction only exists in the old, non-hot-path prompt builder.
+
 ## Overview
 
 This document describes the order flow when delivery date settings are enabled for a vendor.

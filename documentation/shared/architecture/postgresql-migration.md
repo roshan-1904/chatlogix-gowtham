@@ -4,6 +4,8 @@
 **Date:** Generated automatically  
 **Purpose:** Comprehensive analysis of all Supabase references remaining in the codebase after migration to in-house PostgreSQL
 
+> **Point-in-time audit — some named targets no longer exist.** This is a snapshot of Supabase references found at generation time, not a live index. In particular, `scripts/deployment/bitnami-deploy.sh` and `scripts/deployment/lightsail-deploy.sh` (Priority 2 below) were deleted on 2026-09-02 as stale/superseded, along with several other one-off deployment scripts — the active deploy script is now `scripts/deployment/deploy-ec2.sh`. Don't use this doc as a checklist of files to go edit without first confirming they still exist.
+
 ---
 
 ## ✅ **Migration Status: MOSTLY COMPLETE**

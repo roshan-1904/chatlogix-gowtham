@@ -1,5 +1,7 @@
 # Order Analysis Summary: ORD-VENDORI-1765093649173
 
+> **Note:** Historical incident summary from 2025-12-07, against the old `multiStageOrchestrator.ts` pipeline. That pipeline is no longer on the production hot path — it was replaced by `backend/src/conversation/*` (see `docs/CONVERSATION_PROCESSOR_LAMBDA.md`). This does not describe current production behavior; for current known gaps see `docs/CONVERSATION_WORKER_GAPS.md`.
+
 **Date Analyzed:** 2025-12-07  
 **Log Files:** `backend/logs/multi-stage/2025-12-07/`
 

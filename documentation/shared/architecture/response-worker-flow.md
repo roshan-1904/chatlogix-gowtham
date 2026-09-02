@@ -1,5 +1,7 @@
 # Response Worker - Visual Flow Diagram
 
+> **Updated 2026-09-02.** This diagram originally described `backend/src/workers/responseWorker.ts`, a PM2 process that long-polled SQS in an infinite loop. That file was deleted 2026-09-02 (superseded by the `chatlogix-whatsapp-response-dispatcher` Lambda, which the SQS response queue invokes directly — no polling loop exists anymore). The processing logic in "PROCESS MESSAGE (Response Processor)" below is still largely accurate since `backend/src/workers/responseProcessor.ts` (the shared business logic) is unchanged and still runs — **except** the "Async Database Operations" sub-flow, which has narrowed: there's no duplicate check and no message-record creation anymore, only an optional customer-insights update. See `response-worker.md` in this directory for the corrected step-by-step, and `backend/src/lambdas/README.md` for the current deployment.
+
 ## Main Processing Flow
 
 ```
@@ -9,20 +11,17 @@
                              │
                              ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                 Poll SQS Queue                                       │
-│  - Queue: RESPONSE_QUEUE_URL                                        │
-│  - Batch Size: 10 messages                                          │
-│  - Wait Time: 20 seconds (long polling)                            │
-│  - Visibility Timeout: 30 seconds                                   │
+│      SQS Event Source Mapping Invokes the Lambda                     │
+│  - Queue: RESPONSE_QUEUE_URL (chatlogix-response-queue-prod)         │
+│  - Function: chatlogix-whatsapp-response-dispatcher                  │
+│  - Batch Size: up to 10 messages per invocation                     │
+│  - Event-driven — no polling, no long-lived process                 │
 └────────────────────────────┬────────────────────────────────────────┘
                              │
-            ┌────────────────┴────────────────┐
-            │                                  │
-            ▼                                  ▼
-    ┌───────────────┐              ┌──────────────────────┐
-    │ Messages Found│              │   No Messages        │
-    │ (Loop through)│              │   Wait & Retry       │
-    └───────┬───────┘              └──────────────────────┘
+                             ▼
+    ┌───────────────────────────────────────────┐
+    │ event.Records (loop via Promise.allSettled)│
+    └───────┬─────────────────────────────────────┘
             │
             ▼
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -158,65 +157,20 @@
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │         handleDatabaseOperationsAsync()                              │
+│  Only reached if conversationId && customerId && vendorId are all    │
+│  present, and the message isn't a template/notification send.       │
+│  NOTE: as of current code, there is no duplicate check and no        │
+│  message-record creation here — the outbound Message row was        │
+│  already created upstream, in the incoming-response-generator        │
+│  pipeline. This step's only responsibility is the insights update.  │
 └────────────────────────────┬────────────────────────────────────────┘
                              │
                              ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│            Step 1: Check for Duplicates                               │
-│  - Query last 10 messages from last 5 minutes                         │
-│  - Filter by conversationId, type, senderType                         │
-│  - Normalize and compare content                                      │
-└────────────────────────────┬────────────────────────────────────────┘
-                             │
-            ┌────────────────┴────────────────┐
-            │                                  │
-            ▼                                  ▼
-    ┌───────────────┐              ┌──────────────────┐
-    │  Duplicate?    │              │  No Duplicate?    │
-    │  YES           │              │  Continue         │
-    │  Skip & Return │              │                   │
-    └────────────────┘              └─────────┬─────────┘
-                                              │
-                                              ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│            Step 2: Create Message Record                             │
-│  - Table: message                                                     │
-│  - conversationId                                                     │
-│  - senderType: 'system'                                               │
-│  - content: text                                                      │
-│  - type: 'text'                                                       │
-│  - timestamp: now()                                                   │
-└────────────────────────────┬────────────────────────────────────────┘
-                             │
-            ┌────────────────┴────────────────┐
-            │                                  │
-            ▼                                  ▼
-    ┌───────────────┐              ┌──────────────────┐
-    │ Create Success│              │  Create Fail     │
-    │ (Continue)    │              │  (Retry with      │
-    │               │              │   exp backoff)   │
-    └───────┬───────┘              └─────────┬─────────┘
-            │                                 │
-            │                     ┌──────────┴──────────┐
-            │                     │                     │
-            │                     ▼                     ▼
-            │              ┌──────────────┐   ┌─────────────┐
-            │              │  Retry Count │   │ Max Retries │
-            │              │  1/2/3?      │   │  Exceeded?  │
-            │              └───┬──────┬───┘   └─────┬───────┘
-            │                  │      │             │
-            │                  ▼      ▼             ▼
-            │           ┌──────────┐ ┌──────────┐ ┌────────────┐
-            │           │ Wait 1s  │ │ Wait 2s  │ │ Wait 4s    │
-            │           │ Retry    │ │ Retry    │ │ Log Failure│
-            │           └──────────┘ └──────────┘ └────────────┘
-            │
-            ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│            Step 3: Update Customer Insights                           │
-│  (Only if customerId && vendorId exist)                               │
+│            Update Customer Insights                                  │
+│  (Only if customerId && vendorId && text exist)                      │
 │                                                                       │
-│  1. Extract insights from text:                                      │
+│  1. Extract insights from text (extractInsightsFromMessage):         │
 │     - Delivery address                                                │
 │     - Delivery instructions                                          │
 │     - Special requests                                                │
@@ -224,14 +178,15 @@
 │  2. Update customer_insights table                                    │
 │     - Use insightsService.updateInsights()                           │
 │                                                                       │
-│  3. Handle failures gracefully (non-critical)                        │
+│  3. Failure is logged (logDatabaseFailure) and re-thrown to the      │
+│     caller, but the caller only .catch()-logs it — this never        │
+│     affects WhatsApp delivery, which already completed in Step 1.    │
 └────────────────────────────┬────────────────────────────────────────┘
                              │
                              ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                    Complete                                          │
-│  ✅ Message created in database                                      │
-│  ✅ Insights updated                                                 │
+│  ✅ Insights updated (or failure logged, non-fatal)                  │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -246,35 +201,37 @@
             │                                  │
             ▼                                  ▼
 ┌───────────────────────┐        ┌──────────────────────────┐
-│  WhatsApp Error       │        │  Database Error          │
+│  WhatsApp Error       │        │  Insights Update Error   │
 │  (PHASE 1)            │        │  (PHASE 2 - Async)       │
 └───────────┬───────────┘        └──────────────┬───────────┘
             │                                    │
             ▼                                    ▼
 ┌───────────────────────────────────┐  ┌────────────────────────────┐
-│ 1. Log error                      │  │ 1. Log error to           │
-│ 2. LogWhatsAppFailure()           │  │    database-failures/      │
-│ 3. Log conversation failed        │  │ 2. Async retry with       │
-│ 4. Throw error                    │  │    exponential backoff     │
-└───────────┬───────────────────────┘  │ 3. Max 3 retries           │
-            │                          │ 4. After max retries:     │
-            ▼                          │    log final failure      │
-┌───────────────────────────────────┐  └──────────────┬────────────┘
-│ Don't Delete from SQS             │                 │
-│ Let SQS Retry                      │                 ▼
-│ (Automatic retry)                  │  ┌────────────────────────────┐
-└───────────┬───────────────────────┘  │  Database Error HANDLED     │
-            │                          │  WhatsApp Message SENT ✅   │
-            ▼                          └────────────────────────────┘
+│ 1. Log error                      │  │ 1. logDatabaseFailure()   │
+│ 2. logWhatsAppFailure()           │  │ 2. No retry — the promise │
+│ 3. Log conversation failed        │  │    rejection is only      │
+│ 4. Throw error                    │  │    .catch()-logged by the │
+└───────────┬───────────────────────┘  │    fire-and-forget caller │
+            │                          └──────────────┬────────────┘
+            ▼                                          │
+┌───────────────────────────────────┐                  ▼
+│ SQS/Lambda treats this record as  │  ┌────────────────────────────┐
+│ failed — event source mapping     │  │  Insights failure ignored  │
+│ retries per its redrive policy    │  │  WhatsApp Message SENT ✅  │
+└───────────┬───────────────────────┘  └────────────────────────────┘
+            │
+            ▼
 ┌───────────────────────────────────┐
-│ Message becomes visible           │
-│ after visibility timeout          │
+│ Message becomes visible again      │
+│ after the queue's visibility       │
+│ timeout, if still undeleted        │
 └───────────┬───────────────────────┘
             │
             ▼
 ┌───────────────────────────────────┐
-│ Worker picks up message again     │
-│ (Retry attempt)                   │
+│ Lambda is invoked again with the  │
+│ message (new invocation, not a    │
+│ "worker picking it up")           │
 └───────────┬───────────────────────┘
             │
             ▼
@@ -291,13 +248,8 @@ Attempt 3  →  After 30 seconds
 Final      →  Move to Dead Letter Queue
 ```
 
-### Database Retry (Async Operations)
-```
-Attempt 1  →  Immediate
-Attempt 2  →  After 1 second  (2^0 * 1000)
-Attempt 3  →  After 2 seconds (2^1 * 1000)
-Final      →  Log to db-failures file
-```
+### Insights Update (Async Operation)
+There is no retry loop for this step in current code — it is a single attempt. On failure it's logged via `logDatabaseFailure()` and the rejection is swallowed by the caller's `.catch()`; nothing re-queues or re-attempts it. (The exponential-backoff retry machinery this doc originally described lives in `AsyncDatabaseService`, but that service isn't called from this path today — see `response-worker.md`.)
 
 ## State Transitions
 
@@ -328,30 +280,21 @@ Message States:
                             │  → DLQ        │
                             └───────────────┘
 
-Database States (Parallel):
-┌──────────┐    Start      ┌──────────┐
-│  QUEUED  │ ─────────>  │ PROCESSING│
-└──────────┘              └──────┬─────┘
-                                 │
-                    ┌────────────┼────────────┐
-                    │            │            │
-              Success│            │            │Failure
-                    │            │            │
-                    ▼            ▼            ▼
-            ┌──────────────┐ ┌───────────┐ ┌──────────┐
-            │CREATED       │ │RETRY      │ │RETRY     │
-            │IN DATABASE   │ │(1 sec)    │ │(2 sec)   │
-            └──────────────┘ └─────┬─────┘ └────┬─────┘
-                                   │            │
-                                   └────────────┘
-                                        │
-                                        ▼
-                                ┌──────────────┐
-                                │RETRY LIMIT   │
-                                │EXCEEDED      │
-                                │              │
-                                │→ Log to file │
-                                └──────────────┘
+Insights Update (Parallel, single attempt, no retry):
+┌──────────┐    Start      ┌────────────┐
+│ TRIGGERED│ ─────────>   │ IN PROGRESS │
+└──────────┘               └──────┬──────┘
+                                  │
+                     ┌────────────┴────────────┐
+                     │                          │
+               Success│                          │Failure
+                     │                          │
+                     ▼                          ▼
+             ┌──────────────┐           ┌──────────────────┐
+             │INSIGHTS      │           │LOGGED via         │
+             │UPDATED       │           │logDatabaseFailure  │
+             └──────────────┘           │(no retry, no DLQ) │
+                                         └──────────────────┘
 ```
 
 ## Key Metrics Dashboard

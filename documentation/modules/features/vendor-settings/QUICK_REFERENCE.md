@@ -6,6 +6,8 @@
 
 This quick reference guide provides a condensed view of all tooltips, help text, and UI components for the Vendor Settings page. Use this during implementation for quick access to field specifications.
 
+> **Implementation status (Sep 2026)**: this is a Dec 2024 design-spec reference — most tooltip/field content below describes fields that were never built into the shipped tabs (AI Model, Enabled Order Statuses, Quiet Hours, Preparation Time Type and its sub-fields, Product Name/Keywords/Price Field, Supported Languages, AI Matching Model). See each `TAB_*.md` file's status note for exactly what's live vs. spec-only. Two entries below are also factually wrong regardless of build status: the AI Model default is `gpt-4.1-mini` in code, not `gpt-4o-mini`, and there is no vendor-facing AI Model control at all; and the Order Prefix isn't required to be "exactly 5" letters — it's validated as up to 5 uppercase letters/digits.
+
 ## Tooltip Quick Reference
 
 ### Account & Business Tab
@@ -145,10 +147,10 @@ This quick reference guide provides a condensed view of all tooltips, help text,
 ## Validation Rules
 
 ### Order Prefix
-- Exactly 5 characters
-- Uppercase letters only (A-Z)
-- No spaces or special characters
-- Auto-convert to uppercase
+- Up to 5 characters (not required to be exactly 5 — actual schema: `z.string().max(5).regex(/^[A-Z0-9]*$/)`)
+- Uppercase letters and digits (not letters-only)
+- No spaces or other special characters
+- Auto-convert to uppercase (frontend behavior; not enforced server-side)
 
 ### Minimum Order Value
 - Positive integer
@@ -174,7 +176,7 @@ This quick reference guide provides a condensed view of all tooltips, help text,
 
 | Field | Default |
 |-------|---------|
-| AI Model | "gpt-4o-mini" |
+| AI Model | `"gpt-4.1-mini"` in code (Prisma default on `Vendor.aiModel`), not `"gpt-4o-mini"` — and there's no UI control to change it (see `TAB_AI_CONFIGURATION.md`) |
 | Matching Threshold | 0.7 |
 | Enable Fuzzy Matching | true |
 | Enable AI Matching | true |

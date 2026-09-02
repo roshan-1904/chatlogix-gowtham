@@ -3,6 +3,8 @@
 **Date:** December 2025  
 **Status:** ✅ Implementation Complete
 
+> **Architecture note (2026-09-02):** Confirmed still true of `intentClassificationService.ts` today (all 17 intents and their `extractedInfo` fields are present in `backend/src/types/multiStage.ts`). However, that whole pipeline (`intentClassificationService.ts` + `multiStageOrchestrator.ts`) is **no longer wired to live WhatsApp traffic** — production now runs `backend/src/conversation/*`, which uses a single free-form telemetry `intent` string instead of this taxonomy. The old code still runs only via the catalog-import sandbox test-message path. See `docs/CONVERSATION_PROCESSOR_LAMBDA.md` for the current architecture.
+
 ---
 
 ## ✅ Step-by-Step Verification

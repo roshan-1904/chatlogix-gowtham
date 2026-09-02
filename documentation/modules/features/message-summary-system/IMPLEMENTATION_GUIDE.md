@@ -1,5 +1,7 @@
 # Message Summary System - Implementation Guide
 
+> **Architecture note (2026-09-02):** These steps were carried out (`messageSummaryService.ts`, Stage 9.5 in `multiStageOrchestrator.ts`, and the `classifyIntent()` changes in `intentClassificationService.ts` all match this guide as written). However, that whole pipeline is **no longer wired to live WhatsApp traffic** — production now runs `backend/src/conversation/*`, which does not have an equivalent summary stage. This code still runs only via the catalog-import sandbox test-message path. See `docs/CONVERSATION_PROCESSOR_LAMBDA.md` for the current architecture.
+
 ## Overview
 
 This guide provides step-by-step instructions for implementing the Message Summary System to fix order confirmation flow issues and improve intent classification.

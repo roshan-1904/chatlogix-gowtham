@@ -1,5 +1,7 @@
 # MySQL Migration Checklist
 
+> **⚠️ ARCHIVED / HISTORICAL.** This documents a one-time migration to MySQL that has since been reverted. The project runs PostgreSQL today: `backend/prisma/schema.prisma` has `provider = "postgresql"`, and `backend/.env.example`'s `DATABASE_URL` points at Supabase Postgres (confusingly, this doc's own closing line below says the same thing). Do not follow the steps here for a current setup — see `documentation/modules/setup/guides/database.md` instead. Also note: the worker commands below (`npm run worker:incoming`, `npm run worker:response`) reference npm scripts that no longer exist — current worker scripts are `npm run worker:conversation` and `npm run worker:media` (see root `CLAUDE.md`).
+
 ## ✅ Completed
 
 ### Database Schema

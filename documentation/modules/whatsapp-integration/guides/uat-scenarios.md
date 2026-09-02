@@ -1,5 +1,7 @@
 # WhatsApp Conversation Parity — UAT Scenario Matrix
 
+> **Note:** as of 2026-09-02, the pipeline these scenarios exercise (`webhook.ts`'s `runParityPipeline`, gated by the `whatsapp_conversation_parity` flag) is not on the production WhatsApp path — real traffic hits a separate, simpler Lambda handler that doesn't route through it. See the warning in [conversation-parity-rollout-runbook.md](./conversation-parity-rollout-runbook.md) and `docs/CONVERSATION_WORKER_GAPS.md` §2.5 before using this matrix to sign off a production cohort.
+
 This document is the acceptance-test surface for the Conversation Parity rollout (Phase 5).
 Sign-off requires **all rows green** for each rollout cohort (internal → friendlies → 25% → 100%).
 

@@ -159,12 +159,12 @@ INDEX.md (You are here)
 
 ## File Organization
 
-All documentation files are in: `docs/features/vendor-settings/`
+All documentation files are in: `documentation/modules/features/vendor-settings/`
 
 See **[STRUCTURE.md](./STRUCTURE.md)** for detailed file organization and cross-reference map.
 
 ```
-docs/features/vendor-settings/
+documentation/modules/features/vendor-settings/
 ├── INDEX.md (this file) ⭐ START HERE
 ├── README.md
 ├── STRUCTURE.md (file organization guide)
@@ -199,15 +199,17 @@ docs/features/vendor-settings/
 
 ## Related Documentation
 
-- [Order Delivery Settings](../order-delivery-settings/) - Related order configuration
+- [Order Delivery](../order-delivery/) - Related order configuration
 - [Product Matching](../product-matching/) - Product matching details
-- [Multi-Stage AI](../multi-stage-ai/) - How AI settings affect processing
+- [Multi-Stage AI](../multi-stage-ai/) - Legacy pipeline doc; production AI processing has since moved to the LLM-1 + CartEngine (+ optional LLM-2) pipeline in `backend/src/conversation/*` — see `docs/CONVERSATION_PROCESSOR_LAMBDA.md`
 
 ## Status
 
-**Documentation Status**: ✅ Complete  
-**Implementation Status**: 📋 Ready to Start  
+**Documentation Status**: ✅ Complete (as a Dec 2024 implementation plan — not a current-state description)
+**Implementation Status**: 🟡 Partially built — see note below
 **Last Updated**: December 2024
+
+> **Implementation reality check (Sep 2026)**: The Settings page this plan describes was largely built (`frontend_v2/apps/web-vendor/src/pages/Settings.tsx` and `components/settings/`), and most backend endpoints listed as "missing" throughout this doc set now exist (`business-info`, `notification-settings`, `matching-config`, `timezone`, phone/email verification). However, several described UI sections were never implemented client-side even though their backend/schema support exists: AI Model selection, Order Settings' preparation-time-type configuration, Notifications' per-status toggles and quiet hours, and Advanced tab's product-field mapping / language-support / AI-matching-model dropdowns. Each affected file below has been annotated accordingly — verify against the actual components under `frontend_v2/apps/web-vendor/src/components/settings/` before treating any single-field claim here as current.
 
 ---
 

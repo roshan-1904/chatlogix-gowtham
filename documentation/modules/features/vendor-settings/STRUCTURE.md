@@ -2,6 +2,8 @@
 
 ## 📁 Documentation Folder Structure
 
+> **Note**: the path below is the folder this file's tree describes; the actual location in this repo is `documentation/modules/features/vendor-settings/`.
+
 ```
 docs/features/vendor-settings/
 │

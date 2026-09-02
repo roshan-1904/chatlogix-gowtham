@@ -1,5 +1,7 @@
 # 🔒 Compliance & Security Requirements - ChatLogix
 
+> **DELETION CANDIDATE — flagged during 2026-09 documentation audit:** This document is aspirational boilerplate, not a description of ChatLogix's actual implementation. It's written around a different stack than this codebase uses — TypeORM (actual: Prisma), a `src/security/`, `src/core/`, `src/api/v1/` layout (actual: `backend/src/services/`, `backend/src/routes/`, no `src/security/` directory exists at all), Terraform security groups, an MFA/RBAC system, and a full security-tooling roster (SonarQube, OWASP ZAP, Trivy, AWS GuardDuty, etc.) with no trace of any of it in this repo. Nothing here was verified against real code; treat it as a wishlist template rather than documentation. Recommend deleting or replacing with an accurate compliance doc once real security controls exist.
+>
 > Comprehensive security measures and compliance requirements for enterprise-grade SaaS
 
 ## 🎯 Security & Compliance Overview

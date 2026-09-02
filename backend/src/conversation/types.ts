@@ -4,12 +4,16 @@
  */
 
 export type CartOp =
-  // `notes` accepts `null` (not just `undefined`) because OpenAI's strict
-  // structured-output mode requires every property to be present and
-  // nullable rather than truly optional (spec §13, LLM-1's response schema).
-  | { type: 'add'; productId: string; qty: number; notes?: string | null }
-  | { type: 'set_qty'; productId: string; qty: number } // absolute; 0 = remove
-  | { type: 'remove'; productId: string }
+  // `notes`/`variantSku` accept `null` (not just `undefined`) because
+  // OpenAI's strict structured-output mode requires every property to be
+  // present and nullable rather than truly optional (spec §13, LLM-1's
+  // response schema). `variantSku` must be one of Product.variants[].sku
+  // when the product has variants (see prompts.ts's VARIANTS table) — never
+  // invented, and never omitted for a variant-bearing product (CartEngine
+  // fails the op closed rather than silently pricing from basePrice).
+  | { type: 'add'; productId: string; qty: number; notes?: string | null; variantSku?: string | null }
+  | { type: 'set_qty'; productId: string; qty: number; variantSku?: string | null } // absolute; 0 = remove
+  | { type: 'remove'; productId: string; variantSku?: string | null }
   | { type: 'set_field'; field: 'address' | 'name' | 'notes' | 'delivery_date'; value: string }
   | { type: 'confirm' }
   | { type: 'cancel' }
@@ -33,6 +37,8 @@ export interface CartLine {
   unitPricePaise: number;
   lineTotalPaise: number;
   notes?: string | null;
+  variantSku?: string | null;
+  variantLabel?: string | null;
 }
 
 export interface CartSnapshot {
@@ -57,6 +63,19 @@ export interface ProductForPricing {
   stockQuantity: unknown; // Prisma Decimal | null
   minOrderQuantity: unknown; // Prisma Decimal | null
   maxOrderQuantity: unknown; // Prisma Decimal | null
+  variants: unknown; // raw Product.variants Json — normalize via cart/variants.ts before use
+}
+
+/** One entry of `Product.variants` (Json), shape enforced by routes/products.ts's VariantSchema on write. */
+export interface ProductVariant {
+  sku: string;
+  label: string;
+  attributes: Record<string, string>;
+  unit: string;
+  baseQuantity: number;
+  price: number; // paise
+  isDivisible: boolean;
+  isActive: boolean;
 }
 
 /**
@@ -87,10 +106,18 @@ export interface VendorConfig {
 }
 
 /**
- * Compact catalog row (spec §11, `vendor:{id}:catalog_compact`) — exactly the
- * fields listed in the spec, no long descriptions. `price` is raw paise, not
- * a display-formatted string: this data layer never formats for display, and
- * CartEngine never prices from it (always resolves Product directly, §14).
+ * Compact catalog row (spec §11, `vendor:{id}:catalog_compact`). `price` is
+ * raw paise, not a display-formatted string: this data layer never formats
+ * for display, and CartEngine never prices from it (always resolves Product
+ * directly, §14).
+ *
+ * `description` was originally left out of this row entirely ("no long
+ * descriptions"). Reinstated: a vendor's Product.description is where
+ * compatibility/eligibility notes and vendor-authored response instructions
+ * actually live (e.g. "dividers only fit the 8x8 size", "confirm size
+ * compatibility before ordering") — without it LLM-1 has no way to honor
+ * them. Bounded by the same 2000-char cap routes/products.ts already
+ * enforces on write, so this doesn't reopen unbounded prompt growth.
  */
 export interface CompactCatalogEntry {
   id: string;
@@ -103,6 +130,8 @@ export interface CompactCatalogEntry {
   fulfillmentType: 'stock' | 'made_to_order';
   inStock: boolean;
   stockQuantity: number | null;
+  variants: ProductVariant[]; // active only; empty for a plain single-price product
+  description: string; // '' when the vendor left it blank
 }
 
 /** Conversation memory (spec §11, `conv:{id}:memory`: "stage, facts, language"). */

@@ -1,5 +1,7 @@
 # Intent Identification Flow Diagram
 
+> **Architecture note (2026-09-02):** This flow describes the OLD multi-stage pipeline (`intentClassificationService.ts` + `multiStageOrchestrator.ts`, Stages 0-1.7). That pipeline is **no longer wired to live WhatsApp traffic** — production now runs `backend/src/conversation/*` (LLM-1 + `CartEngine` + optional LLM-2), which folds intent into the same single LLM-1 call as the draft reply and cart ops rather than running it as a separate staged pipeline. This flow still executes, but only via the catalog-import sandbox test-message path (`catalogImportSandboxService.ts`). See `docs/CONVERSATION_PROCESSOR_LAMBDA.md` for the current architecture.
+
 ## Visual Flow
 
 ```

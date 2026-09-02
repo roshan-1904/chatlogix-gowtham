@@ -4,6 +4,8 @@
 **Status:** CRITICAL - Core Implementation Guide  
 **Last Updated:** December 2024
 
+> **⚠️ Superseded (as of 2026-09):** This plan describes `backend/src/services/multiStageOrchestrator.ts` and the 14/15-stage pipeline (with `unifiedAIProcessorService.ts`), which was built largely as specified here but has since been **retired from the live WhatsApp message hot path**. It is now only invoked by `catalogImportSandboxService.ts`, unrelated to live customer messages. Production message processing today uses a different architecture (LLM-1 + deterministic CartEngine + optional LLM-2 verifier, running on AWS Lambda) — see `docs/CONVERSATION_PROCESSOR_LAMBDA.md`. The content below is kept for historical reference.
+
 ---
 
 ## **EXECUTIVE SUMMARY**

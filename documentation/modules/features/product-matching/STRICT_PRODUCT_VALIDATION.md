@@ -5,6 +5,10 @@
 
 ---
 
+> **2026-09 note:** `promptBuilderService.ts`, `primaryAIResponseService.ts`, `messageCompositionService.ts`, and `messageFormatter.ts`'s `validateProductsInMessage()` are part of the old, pre-Lambda multi-stage pipeline, not on the hot path for live WhatsApp traffic (see `docs/CONVERSATION_WORKER_GAPS.md` §1). The current live pipeline (`backend/src/conversation/*`) enforces the same "only mention catalog products" intent structurally rather than by prompt instruction: `productId` in every cart op must exactly match an id in the compact catalog table (`backend/src/conversation/llm/prompts.ts`), and `validateProductIds`/`resolveProduct` (`backend/src/conversation/cart/productResolve.ts`) reject any id the LLM didn't copy from the catalog before it ever reaches `CartEngine`. Kept here as historical record of the retired pipeline's prompt-based approach.
+
+---
+
 ## 🔴 Problem Identified
 
 The AI was giving **generic or assumed responses** about products instead of being strict about actual product details from the catalog.

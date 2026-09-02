@@ -31,6 +31,7 @@ VITE_RECAPTCHA_SITE_KEY=your-actual-site-key-from-firebase
 ```env
 VITE_RECAPTCHA_SITE_KEY=your-actual-site-key-from-firebase
 ```
+(Note: `web-admin` is still scaffolding — its `Login.tsx` is currently a placeholder with no real Firebase/reCAPTCHA wiring yet, even though `env.template` already reserves this variable. The steps below are only exercised by `web-vendor` today.)
 
 ### Step 3: Restart the Frontend Server
 

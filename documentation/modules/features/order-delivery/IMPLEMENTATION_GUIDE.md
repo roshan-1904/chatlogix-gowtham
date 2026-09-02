@@ -4,6 +4,8 @@
 
 This guide provides step-by-step instructions for implementing the order delivery and preparation settings feature. The implementation reuses existing patterns and follows the established architecture.
 
+> **2026-09 note:** Phases 1-3 and 6-7 (schema, types, API, order creation) are still accurate and live. Phases 4-5 (`contextFetcherService.ts`, `promptBuilderService.ts`) wire this setting into the *old* pre-Lambda AI pipeline, which is no longer on the hot path for live WhatsApp traffic — see `docs/CONVERSATION_WORKER_GAPS.md`. The current live pipeline (`backend/src/conversation/*`) reads `askForPreferredDeliveryDate`/`orderPreparationConfig` (`backend/src/conversation/prefetch.ts`) but does not use them to prompt the AI to ask for a delivery date, and never has the AI write `Order.estimatedDelivery` — see `docs/CONVERSATION_PROCESSOR_LAMBDA.md` §13/§16.
+
 ## Implementation Phases
 
 ### Phase 1: Database Schema ✅

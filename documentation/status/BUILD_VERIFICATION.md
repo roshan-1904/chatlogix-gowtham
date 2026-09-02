@@ -1,5 +1,7 @@
 # Build Verification Report
 
+> **Note:** Historical, point-in-time build check from December 2024 for the old multi-stage AI / product-matching code (predates the Lambda migration). Not a live build status — run `npx tsc --noEmit` / `npm run build` yourself for the current result.
+
 **Date:** December 2024  
 **Status:** ✅ Build Successful
 

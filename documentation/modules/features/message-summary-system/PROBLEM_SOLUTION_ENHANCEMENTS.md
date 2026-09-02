@@ -1,5 +1,7 @@
 # Message Summary System: Problem, Solution, Results & Enhancements
 
+> **Architecture note (2026-09-02):** The solution below was implemented against the OLD multi-stage pipeline (`messageSummaryService.ts`, Stage 9.5 in `multiStageOrchestrator.ts`, `intentClassificationService.ts`). That pipeline is **no longer wired to live WhatsApp traffic** — production now runs `backend/src/conversation/*`, which has no equivalent stage and does not use these summaries. This code still runs only via the catalog-import sandbox test-message path. The order-confirmation bug this document analyzes was specific to the old pipeline's intent classifier; the new pipeline's LLM-1 handles confirmation differently (single structured-output call per turn). See `docs/CONVERSATION_PROCESSOR_LAMBDA.md` for the current architecture.
+
 ## Document Overview
 
 This document outlines the critical problem identified in the order confirmation flow, the proposed solution using per-message AI summaries, expected results, and future enhancements.

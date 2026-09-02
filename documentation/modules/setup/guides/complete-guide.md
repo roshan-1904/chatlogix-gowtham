@@ -76,7 +76,16 @@ npx prisma generate
 
 Now that tables exist, import your backup data.
 
-### On Linux/Bitnami:
+**Note:** `scripts/import-backup-data.sh` and `scripts/import-backup-data.ps1` (referenced below) no longer exist in this repo. The current equivalent on any platform is the npm script `db:import`, which runs `backend/scripts/import-database-backup.ts`:
+
+```bash
+cd backend
+npm run db:import
+```
+
+That script reads the `_rows.sql` files (listed below) from `backend/database_backup/` — that directory isn't shipped in the repo, so copy the files from `scripts/database/backups/` (repo root) into `backend/database_backup/` first, or point the script at wherever your backup files actually live.
+
+### On Linux/Bitnami (original, now-missing script — kept for reference):
 
 ```bash
 cd ~/ChatLogix/backend
@@ -88,7 +97,7 @@ chmod +x scripts/import-backup-data.sh
 ./scripts/import-backup-data.sh
 ```
 
-### On Windows:
+### On Windows (original, now-missing script — kept for reference):
 
 ```powershell
 cd backend
@@ -123,6 +132,8 @@ unset PGPASSWORD
 
 ## Quick All-in-One Commands
 
+**Note:** `import-backup-data.sh`/`.ps1` no longer exist (see Step 4 above) — both command blocks below use the current `npm run db:import` instead.
+
 ### Linux/Bitnami:
 
 ```bash
@@ -138,8 +149,7 @@ npx prisma db push --accept-data-loss
 npx prisma generate
 
 # 4. Import data
-chmod +x scripts/import-backup-data.sh
-./scripts/import-backup-data.sh
+npm run db:import
 ```
 
 ### Windows:
@@ -154,7 +164,7 @@ npx prisma db push --accept-data-loss
 npx prisma generate
 
 # 3. Import data
-.\scripts\import-backup-data.ps1
+npm run db:import
 ```
 
 ---

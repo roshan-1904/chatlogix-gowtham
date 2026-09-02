@@ -1,5 +1,7 @@
 # Fix Special Characters Encoding Issue
 
+> **Note (historical):** This guide describes a fix for a MySQL-backed deployment. The project has since moved to PostgreSQL (Supabase) via Prisma — see `backend/prisma/schema.prisma` (`provider = "postgresql"`) and `CLAUDE.md` — so the `utf8mb4`/MySQL-specific steps below no longer apply to the current database. It's also stale on the restart step: `npm run worker:incoming` and `npm run worker:response` were removed from `backend/package.json` (those workers no longer exist); the current local worker scripts are `npm run worker:conversation` and `npm run worker:media`. Kept here for historical context only.
+
 ## Problem
 Special characters, emojis, and Unicode characters are displaying as garbled text (e.g., "fyè", "Õé", "fi¹½ÖØñ´©Å") after migrating to MySQL.
 

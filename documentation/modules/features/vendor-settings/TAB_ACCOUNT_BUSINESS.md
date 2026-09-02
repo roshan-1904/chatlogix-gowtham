@@ -14,6 +14,8 @@ Enable vendors to:
 - Set their business category
 - Understand their account status and wallet balance
 
+> **Implementation status (verified against code, Sep 2026)**: `frontend_v2/apps/web-vendor/src/components/settings/tabs/AccountBusinessTab.tsx` implements Business Name, Phone Number (with a live OTP verification flow via `/verify-phone/send|confirm`), Email (with a live verification flow via `/verify-email/send|confirm`), and Category. Two things differ from the spec below: (1) **Category is a free-text field**, not the 4-option dropdown described in Section 1 — the backend schema (`businessInfoSchema` in both `backend/src/utils/validation/settingsSchemas.ts` and the frontend mirror) validates it as `z.string().max(100)`, not an enum; and (2) **Section 3 "Subscription Information" (plan badge, status badge, wallet balance, recharge link) was never built into this tab** — there's no such section in the shipped component. `GET /api/vendors/:id/config` does still return `plan`/`status`/`walletBalance` if another part of the UI wants to surface it.
+
 ## Sections
 
 ### 1. Business Information
@@ -368,7 +370,7 @@ export function AccountTab({ vendorId }: AccountTabProps) {
 ## Related API Endpoints
 
 - **GET** `/api/vendors/:id/config` - Get basic vendor configuration
-- **PUT** `/api/vendors/:id/business-info` - Update business information (needs to be created)
+- **GET/PUT** `/api/vendors/:id/business-info` - Get/update business information (built; category is validated as free text, not the enum shown above)
 
 See [API Documentation](./API_DOCUMENTATION.md#1-business-information-apis) for complete API specifications.
 

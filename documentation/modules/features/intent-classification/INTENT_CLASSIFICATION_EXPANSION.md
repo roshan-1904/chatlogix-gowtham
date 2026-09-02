@@ -4,6 +4,8 @@
 **Date:** December 13, 2025  
 **Status:** Planning Phase
 
+> **Architecture note (2026-09-02):** This plan targets `intentClassificationService.ts` / `multiStageOrchestrator.ts` — the OLD multi-stage pipeline. Per `INTENT_EXPANSION_VERIFICATION_CHECKLIST.md` the expansion described here was implemented, but that whole pipeline is **no longer wired to live WhatsApp traffic**; production now runs `backend/src/conversation/*`, whose LLM-1 returns intent as a free-form telemetry string rather than classifying into this fixed 17-intent taxonomy. The old code still runs only via the catalog-import sandbox test-message path. See `docs/CONVERSATION_PROCESSOR_LAMBDA.md` for the current architecture.
+
 ---
 
 ## Table of Contents

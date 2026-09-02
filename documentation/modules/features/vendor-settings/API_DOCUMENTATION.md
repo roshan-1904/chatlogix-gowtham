@@ -6,29 +6,32 @@
 
 This document provides comprehensive API documentation for all endpoints required by the Vendor Settings page. It includes existing endpoints, missing endpoints that need to be created, and endpoints that need updates.
 
-## API Status Summary
+> **⚠️ Status update (verified against code, Sep 2026)**: This document was written in December 2024 as a pre-implementation gap analysis. Nearly everything it lists as "missing" or "needs update" has since been built — see the corrected summary below. The one still-accurate gap is that no route reads or writes the `aiModel` field. The detailed JSON examples and Zod schemas throughout this file below are the *original proposal* and, in several places (business category as an enum, order prefix as exactly-5-letters), no longer match what actually shipped — cross-check against `backend/src/routes/vendors.ts` and `backend/src/utils/validation/settingsSchemas.ts` rather than trusting the inline schemas verbatim.
+
+## API Status Summary (corrected, Sep 2026)
 
 ### ✅ Existing and Working APIs
 
 | Endpoint | Method | Status | Notes |
 |----------|--------|--------|-------|
 | `/api/vendors/:id/config` | GET | ✅ Working | Returns basic config |
-| `/api/vendors/:id/ai-config` | GET | ✅ Working | Returns AI configuration |
-| `/api/vendors/:id/ai-prompts` | PUT | ⚠️ Needs Update | Requires admin role, missing fields |
-| `/api/vendors/:id/order-settings` | GET | ⚠️ Needs Update | Missing orderPrefix, minimumOrderValue |
-| `/api/vendors/:id/order-settings` | PUT | ⚠️ Needs Update | Missing orderPrefix, minimumOrderValue |
+| `/api/vendors/:id/ai-config` | GET | ✅ Working | Now also returns `aiContentResponsibilities`/`aiContentConversationRules`/`aiContentImportantInstructions`/`aiDeliveryInstructions`/`aiPickupDeliveryAddress`/`aiToneExample`. Still does not return `aiModel`. |
+| `/api/vendors/:id/ai-prompts` | PUT | ✅ Working | Uses `requireVendorAccess` (not admin-only); accepts `aiProducts` and the content-section fields via `buildAIPromptsUpdate`. Does **not** accept `aiModel` — no route handles that field at all. |
+| `/api/vendors/:id/order-settings` | GET | ✅ Working | Includes `orderPrefix` and `minimumOrderValue` |
+| `/api/vendors/:id/order-settings` | PUT | ✅ Working | Includes `orderPrefix` and `minimumOrderValue`; prefix validation is "≤5 uppercase letters/digits," not "exactly 5 letters" |
+| `/api/vendors/:id/business-info` | GET/PUT | ✅ Working | Category validated as free text (`z.string().max(100)`), not an enum |
+| `/api/vendors/:id/notification-settings` | GET/PUT | ✅ Working | Backend supports `enabledStatuses` and `quietHours`; no vendor-facing UI exposes them yet (`NotificationsTab.tsx` only has the 3 toggles) |
+| `/api/vendors/:id/matching-config` | GET/PUT | ✅ Working | Backend supports all fields incl. `aiMatchingModel` (which is live in the product-matching pipeline); UI only exposes `threshold`/`enableFuzzy`/`enableAIMatching` |
+| `/api/vendors/:id/timezone` | PUT | ✅ Working | |
+| `/api/vendors/:id/verify-phone/send`, `/verify-phone/confirm` | POST | ✅ Working | Built (not in original plan's endpoint list) |
+| `/api/vendors/:id/verify-email/send`, `/verify-email/confirm` | POST | ✅ Working | Built (not in original plan's endpoint list) |
 
-### ❌ Missing APIs (Need to be Created)
+### ❌ Still Missing
 
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/api/vendors/:id/business-info` | PUT | Update business information |
-| `/api/vendors/:id/notification-settings` | GET | Get notification settings |
-| `/api/vendors/:id/notification-settings` | PUT | Update notification settings |
-| `/api/vendors/:id/matching-config` | GET | Get product matching configuration |
-| `/api/vendors/:id/matching-config` | PUT | Update product matching configuration |
-| `/api/vendors/:id/timezone` | PUT | Update timezone |
-| `/api/vendors/:id/ai-content` | PUT | Update AI content sections (optional) |
+| Endpoint | Method | Purpose | Notes |
+|----------|--------|---------|-------|
+| — | — | `aiModel` read/write | No route anywhere handles this field. The DB column and its `gpt-4.1-mini` default are live (read by the LLM-1 pipeline), but there's no API to set it per-vendor other than a direct DB write. |
+| `/api/vendors/:id/ai-content` | PUT | Update AI content sections separately | Not built, and not needed — folded into `ai-prompts`/`ai-config` instead (see Section 2 below) |
 
 ## Detailed API Specifications
 
@@ -59,7 +62,7 @@ This document provides comprehensive API documentation for all endpoints require
 
 **Notes**: Currently returns basic config. May need to include `category`, `phone`, `email` for complete business info.
 
-#### PUT `/api/vendors/:id/business-info` ⚠️ **NEW - NEEDS TO BE CREATED**
+#### PUT `/api/vendors/:id/business-info` ✅ **Built** (category is free text, not the enum shown below)
 
 **Purpose**: Update business information (name, phone, email, category)
 
@@ -150,9 +153,8 @@ const businessInfoSchema = z.object({
 **Notes**: Currently missing `aiModel`, `aiContentResponsibilities`, `aiContentConversationRules`, `aiContentImportantInstructions`.
 
 #### PUT `/api/vendors/:id/ai-prompts`
-**Status**: ⚠️ **NEEDS UPDATE**  
-**Current Authorization**: `requireRole('admin')`  
-**Required Authorization**: `requireVendorAccess(req => req.params.id)`
+**Status**: ✅ **Built and updated** — now uses `requireVendorAccess(req => req.params.id)` and handles `aiProducts`/content-section fields (see `buildAIPromptsUpdate` in `backend/src/services/vendorAIConfigService.ts`). The one gap below that's still real: `aiModel` is not accepted by this or any other route.
+**Current Authorization**: `requireVendorAccess(req => req.params.id)` ✅ (matches what was originally requested below)
 
 **Current Request Body**:
 ```json
@@ -166,22 +168,22 @@ const businessInfoSchema = z.object({
 }
 ```
 
-**Required Request Body** (add missing fields):
+**Actual current request body** (all of these except `aiModel` are handled — confirmed in `buildAIPromptsUpdate`, `backend/src/services/vendorAIConfigService.ts`):
 ```json
 {
   "botName": "BrownieBakerBot",
   "personality": "Friendly and helpful",
   "systemPrompt": "You are a helpful assistant...",
-  "aiProducts": "## Cakes\n- Chocolate Cake: ₹500...",
-  "aiModel": "gpt-4o-mini",
+  "products": "## Cakes\n- Chocolate Cake: ₹500...",
   "greeting": "Hello! Welcome to Brownie Bakery!",
   "closing": "Thank you for your order!",
-  "aiContentResponsibilities": "The AI bot is responsible for...",
-  "aiContentConversationRules": "Conversation Rules:\n1. Always greet...",
-  "aiContentImportantInstructions": "IMPORTANT:\n- Always confirm...",
+  "contentResponsibilities": "The AI bot is responsible for...",
+  "contentConversationRules": "Conversation Rules:\n1. Always greet...",
+  "contentImportantInstructions": "IMPORTANT:\n- Always confirm...",
   "preparationTimeMinutes": 60
 }
 ```
+**Note**: field names in the real payload are un-prefixed (`botName`, `products`, `contentResponsibilities`, ...) — `buildAIPromptsUpdate` maps them onto the `ai*`-prefixed Prisma columns server-side. `aiModel` is still not accepted anywhere.
 
 **Validation Schema**:
 ```typescript
@@ -208,12 +210,12 @@ const aiPromptsSchema = z.object({
 }
 ```
 
-**Changes Required**:
-1. Change authorization from `requireRole('admin')` to `requireVendorAccess(req => req.params.id)`
-2. Add missing fields to request body handling
-3. Add validation for new fields
+**Changes Required (original plan — all done except item 3)**:
+1. ✅ Authorization changed to `requireVendorAccess(req => req.params.id)`
+2. ✅ Missing fields (`products`/`aiProducts`, content sections) added to request body handling
+3. ❌ `aiModel` still has no validation or route handling anywhere
 
-#### PUT `/api/vendors/:id/ai-content` ⚠️ **NEW - OPTIONAL**
+#### PUT `/api/vendors/:id/ai-content` — **not built (and not needed)**
 
 **Purpose**: Update AI content sections separately (optional endpoint, can be merged into ai-prompts)
 
@@ -243,10 +245,10 @@ const aiPromptsSchema = z.object({
 ### 3. Order Settings APIs
 
 #### GET `/api/vendors/:id/order-settings`
-**Status**: ⚠️ **NEEDS UPDATE**  
+**Status**: ✅ **Built** — already includes `orderPrefix` and `minimumOrderValue` (the gap below is resolved)
 **Authorization**: `requireVendorAccess(req => req.params.id)`
 
-**Current Response**:
+**Response as of Dec 2024 (superseded — kept for history only, do not use)**:
 ```json
 {
   "category": "food",
@@ -261,7 +263,7 @@ const aiPromptsSchema = z.object({
 }
 ```
 
-**Required Response** (add missing fields):
+**Response actually returned today** (this is what shipped — `orderPrefix`/`minimumOrderValue` were added):
 ```json
 {
   "orderPrefix": "VENDI",
@@ -278,16 +280,16 @@ const aiPromptsSchema = z.object({
 }
 ```
 
-**Changes Required**:
-1. Add `orderPrefix` to select statement
-2. Add `minimumOrderValue` to select statement
-3. Include both fields in response
+**Changes Required (Dec 2024 plan — done)**:
+1. ✅ Added `orderPrefix` to select statement
+2. ✅ Added `minimumOrderValue` to select statement
+3. ✅ Both fields included in response
 
 #### PUT `/api/vendors/:id/order-settings`
-**Status**: ⚠️ **NEEDS UPDATE**  
+**Status**: ✅ **Built** — already accepts `orderPrefix` and `minimumOrderValue`
 **Authorization**: `requireVendorAccess(req => req.params.id)`
 
-**Current Request Body**:
+**Request body as of Dec 2024 (superseded — kept for history only, do not use)**:
 ```json
 {
   "category": "food",
@@ -301,7 +303,7 @@ const aiPromptsSchema = z.object({
 }
 ```
 
-**Required Request Body** (add missing fields):
+**Request body accepted today**:
 ```json
 {
   "orderPrefix": "VENDI",
@@ -317,7 +319,7 @@ const aiPromptsSchema = z.object({
 }
 ```
 
-**Validation Schema**:
+**Validation Schema (as originally planned — see below for what actually shipped)**:
 ```typescript
 const orderSettingsSchema = z.object({
   orderPrefix: z
@@ -356,6 +358,20 @@ const orderSettingsSchema = z.object({
 });
 ```
 
+**Actual validation schema shipped** (`backend/src/utils/validation/settingsSchemas.ts` — differs from the plan above in two ways: `orderPrefix` allows digits too and isn't required to be exactly 5 chars, and `category` is a free string, not an enum):
+```typescript
+export const orderSettingsSchema = z.object({
+  category: z.string().max(100).optional().nullable(),
+  orderPrefix: z.string()
+    .max(5, 'Order prefix must be 5 characters or less')
+    .regex(/^[A-Z0-9]*$/, 'Order prefix must contain only uppercase letters and numbers')
+    .optional(),
+  minimumOrderValue: z.number().int().min(0).optional().nullable(),
+  orderPreparationConfig: z.record(z.any()).optional().nullable(),
+  askForPreferredDeliveryDate: z.boolean().optional(),
+});
+```
+
 **Response**:
 ```json
 {
@@ -373,13 +389,13 @@ const orderSettingsSchema = z.object({
 }
 ```
 
-**Changes Required**:
-1. Add `orderPrefix` validation and update logic
-2. Add `minimumOrderValue` validation and update logic
-3. Include both fields in response
+**Changes Required (Dec 2024 plan — done)**:
+1. ✅ `orderPrefix` validation and update logic added
+2. ✅ `minimumOrderValue` validation and update logic added
+3. ✅ Both fields included in response
 
 **Business Logic**:
-- `orderPrefix`: Must be exactly 5 uppercase letters (A-Z)
+- `orderPrefix`: Up to 5 characters, uppercase letters and digits (not "exactly 5 uppercase letters" as originally planned)
 - `minimumOrderValue`: Stored in paise, displayed in rupees
 - Changing `orderPrefix` affects future orders only
 
@@ -387,7 +403,7 @@ const orderSettingsSchema = z.object({
 
 ### 4. Notification Settings APIs
 
-#### GET `/api/vendors/:id/notification-settings` ⚠️ **NEW - NEEDS TO BE CREATED**
+#### GET `/api/vendors/:id/notification-settings` ✅ **Built** (UI only exposes the 3 boolean toggles — see `TAB_NOTIFICATIONS.md` status note)
 
 **Purpose**: Fetch notification settings
 
@@ -431,7 +447,7 @@ const orderSettingsSchema = z.object({
 }
 ```
 
-#### PUT `/api/vendors/:id/notification-settings` ⚠️ **NEW - NEEDS TO BE CREATED**
+#### PUT `/api/vendors/:id/notification-settings` ✅ **Built** (same UI caveat as GET above)
 
 **Purpose**: Update notification settings
 
@@ -538,7 +554,7 @@ const notificationSettingsSchema = z.object({
 
 ### 5. Product Matching Configuration APIs
 
-#### GET `/api/vendors/:id/matching-config` ⚠️ **NEW - NEEDS TO BE CREATED**
+#### GET `/api/vendors/:id/matching-config` ✅ **Built** (UI only exposes `threshold`/`enableFuzzy`/`enableAIMatching` — see `TAB_ADVANCED.md` status note; `aiMatchingModel` is live in the product-matching pipeline regardless)
 
 **Purpose**: Fetch product matching configuration
 
@@ -574,7 +590,7 @@ const notificationSettingsSchema = z.object({
 }
 ```
 
-#### PUT `/api/vendors/:id/matching-config` ⚠️ **NEW - NEEDS TO BE CREATED**
+#### PUT `/api/vendors/:id/matching-config` ✅ **Built** (schema below is close to what shipped, but fields are all optional/`.passthrough()` in practice, not `.default(...)`-backed — see `backend/src/utils/validation/settingsSchemas.ts`)
 
 **Purpose**: Update product matching configuration
 
@@ -658,7 +674,7 @@ const matchingConfigSchema = z.object({
 
 ### 6. Timezone API
 
-#### PUT `/api/vendors/:id/timezone` ⚠️ **NEW - NEEDS TO BE CREATED**
+#### PUT `/api/vendors/:id/timezone` ✅ **Built**
 
 **Purpose**: Update business timezone
 
@@ -708,71 +724,73 @@ const timezoneSchema = z.object({
 
 ## Implementation Checklist
 
-### New Endpoints to Create
+> **Status (Sep 2026)**: every checklist item below was completed except the one now marked ❌. Left unchecked (`[ ]`) for historical fidelity to the original Dec 2024 plan — verify against `backend/src/routes/vendors.ts` and `backend/src/services/vendorAIConfigService.ts` rather than treating the boxes as current status.
 
-- [ ] `PUT /api/vendors/:id/business-info`
-  - [ ] Add route handler
-  - [ ] Add validation schema
-  - [ ] Add authorization check
-  - [ ] Handle phone/email uniqueness validation
-  - [ ] Return updated vendor data
+### New Endpoints to Create (all built)
 
-- [ ] `GET /api/vendors/:id/notification-settings`
-  - [ ] Add route handler
-  - [ ] Fetch notificationSettings JSON field
-  - [ ] Return default values if null
-  - [ ] Parse JSON if stored as string
+- [x] `PUT /api/vendors/:id/business-info` — built, with `category` as free text rather than the planned enum
+  - [x] Add route handler
+  - [x] Add validation schema
+  - [x] Add authorization check
+  - [x] Handle phone/email uniqueness validation (via the separate verify-phone/verify-email flow, not inline uniqueness checks)
+  - [x] Return updated vendor data
 
-- [ ] `PUT /api/vendors/:id/notification-settings`
-  - [ ] Add route handler
-  - [ ] Add validation schema
-  - [ ] Validate quiet hours logic
-  - [ ] Update notificationSettings JSON field
-  - [ ] Return updated settings
+- [x] `GET /api/vendors/:id/notification-settings` — built
+  - [x] Add route handler
+  - [x] Fetch notificationSettings JSON field
+  - [x] Return default values if null
+  - [x] Parse JSON if stored as string
 
-- [ ] `GET /api/vendors/:id/matching-config`
-  - [ ] Add route handler
-  - [ ] Fetch matchingConfig JSON field
-  - [ ] Return default values if null
-  - [ ] Parse JSON if stored as string
+- [x] `PUT /api/vendors/:id/notification-settings` — built
+  - [x] Add route handler
+  - [x] Add validation schema
+  - [x] Validate quiet hours logic
+  - [x] Update notificationSettings JSON field
+  - [x] Return updated settings
 
-- [ ] `PUT /api/vendors/:id/matching-config`
-  - [ ] Add route handler
-  - [ ] Add validation schema
-  - [ ] Validate threshold range
-  - [ ] Validate language array
-  - [ ] Update matchingConfig JSON field
-  - [ ] Return updated config
+- [x] `GET /api/vendors/:id/matching-config` — built
+  - [x] Add route handler
+  - [x] Fetch matchingConfig JSON field
+  - [x] Return default values if null
+  - [x] Parse JSON if stored as string
 
-- [ ] `PUT /api/vendors/:id/timezone`
-  - [ ] Add route handler
-  - [ ] Add validation schema
-  - [ ] Validate timezone string
-  - [ ] Update timezone field
-  - [ ] Return updated vendor data
+- [x] `PUT /api/vendors/:id/matching-config` — built
+  - [x] Add route handler
+  - [x] Add validation schema
+  - [x] Validate threshold range
+  - [x] Validate language array
+  - [x] Update matchingConfig JSON field
+  - [x] Return updated config
 
-### Endpoints to Update
+- [x] `PUT /api/vendors/:id/timezone` — built
+  - [x] Add route handler
+  - [x] Add validation schema
+  - [x] Validate timezone string
+  - [x] Update timezone field
+  - [x] Return updated vendor data
 
-- [ ] `PUT /api/vendors/:id/ai-prompts`
-  - [ ] Change authorization from `requireRole('admin')` to `requireVendorAccess(req => req.params.id)`
-  - [ ] Add `aiProducts` field handling
-  - [ ] Add `aiModel` field handling
-  - [ ] Add `aiContentResponsibilities` field handling
-  - [ ] Add `aiContentConversationRules` field handling
-  - [ ] Add `aiContentImportantInstructions` field handling
-  - [ ] Update validation schema
+### Endpoints to Update (all done except `aiModel`)
 
-- [ ] `GET /api/vendors/:id/order-settings`
-  - [ ] Add `orderPrefix` to select statement
-  - [ ] Add `minimumOrderValue` to select statement
-  - [ ] Include both fields in response
+- [x] `PUT /api/vendors/:id/ai-prompts`
+  - [x] Change authorization from `requireRole('admin')` to `requireVendorAccess(req => req.params.id)`
+  - [x] Add `aiProducts` field handling
+  - [ ] Add `aiModel` field handling — **still not done; no route anywhere handles `aiModel`**
+  - [x] Add `aiContentResponsibilities` field handling
+  - [x] Add `aiContentConversationRules` field handling
+  - [x] Add `aiContentImportantInstructions` field handling
+  - [x] Update validation schema
 
-- [ ] `PUT /api/vendors/:id/order-settings`
-  - [ ] Add `orderPrefix` validation (5 uppercase letters)
-  - [ ] Add `minimumOrderValue` validation (positive integer)
-  - [ ] Add both fields to update logic
-  - [ ] Include both fields in response
-  - [ ] Update validation schema
+- [x] `GET /api/vendors/:id/order-settings`
+  - [x] Add `orderPrefix` to select statement
+  - [x] Add `minimumOrderValue` to select statement
+  - [x] Include both fields in response
+
+- [x] `PUT /api/vendors/:id/order-settings`
+  - [x] Add `orderPrefix` validation (shipped as "up to 5 uppercase letters/digits," not "5 uppercase letters")
+  - [x] Add `minimumOrderValue` validation (positive integer)
+  - [x] Add both fields to update logic
+  - [x] Include both fields in response
+  - [x] Update validation schema
 
 ## Authorization Summary
 
@@ -813,8 +831,8 @@ Each endpoint should be tested for:
 - `businessName` - String
 - `phone` - String
 - `email` - String
-- `category` - String (enum: 'food', 'retail', 'service', 'other')
-- `orderPrefix` - String (5 uppercase letters)
+- `category` - String (free text in the shipped schema, not an enum — the `'food'/'retail'/'service'/'other'` enum shown elsewhere in this doc was never enforced)
+- `orderPrefix` - String (up to 5 chars, uppercase letters and digits — not "5 uppercase letters")
 - `minimumOrderValue` - Int (in paise)
 - `askForPreferredDeliveryDate` - Boolean
 - `orderPreparationConfig` - Json
@@ -822,7 +840,7 @@ Each endpoint should be tested for:
 - `aiPersonality` - String
 - `aiSystemPrompt` - Text
 - `aiProducts` - Text
-- `aiModel` - String
+- `aiModel` - String (default `"gpt-4.1-mini"`; live in the LLM-1 pipeline but not read/written by any API route — see `TAB_AI_CONFIGURATION.md`)
 - `aiGreeting` - Text
 - `aiClosing` - Text
 - `aiContentResponsibilities` - Text

@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
-import type { ProductForPricing, CartOp, CompactCatalogEntry } from '../types.js';
+import type { ProductForPricing, ProductVariant, CartOp, CompactCatalogEntry } from '../types.js';
+import { normalizeVariants, findActiveVariant } from './variants.js';
 
 type TxClient = Prisma.TransactionClient;
 
@@ -33,18 +34,38 @@ export async function resolveProduct(
       inStock: true,
       stockQuantity: true,
       minOrderQuantity: true,
-      maxOrderQuantity: true
+      maxOrderQuantity: true,
+      variants: true
     }
   });
 }
 
 /**
- * Paise price for one unit of a product's baseUnit (spec §14: "Prices and
- * units come from Product ..., not from the model"). Mirrors the
- * `Math.round(price / baseQuantity)` convention already used by
- * dataExtractionService.ts's mutators.
+ * Resolves a CartOp's `variantSku` against the product's own `variants`
+ * (DB-level guard, mirrors resolveProduct's fail-closed pattern, I4). Returns
+ * null both when the product has no variants and when it has variants but
+ * none match — callers must distinguish those (the latter is a hallucinated
+ * sku and the op must be rejected, never silently priced from basePrice).
  */
-export function computeUnitPricePaise(product: Pick<ProductForPricing, 'basePrice' | 'baseQuantity'>): number {
+export function resolveVariant(product: Pick<ProductForPricing, 'variants'>, variantSku: string): ProductVariant | null {
+  return findActiveVariant(normalizeVariants(product.variants), variantSku);
+}
+
+/**
+ * Paise price for one unit (spec §14: "Prices and units come from Product
+ * ..., not from the model"). Mirrors the `Math.round(price / baseQuantity)`
+ * convention already used by dataExtractionService.ts's mutators. Prices
+ * from the resolved variant when given (a product with variants has no
+ * meaningful single basePrice per unit), else from the product's own
+ * basePrice/baseQuantity as before.
+ */
+export function computeUnitPricePaise(
+  product: Pick<ProductForPricing, 'basePrice' | 'baseQuantity'>,
+  variant?: ProductVariant | null
+): number {
+  if (variant) {
+    return Math.round(variant.price / (variant.baseQuantity || 1));
+  }
   const baseQty = Number(product.baseQuantity ?? 1) || 1;
   return Math.round(product.basePrice / baseQty);
 }
@@ -63,16 +84,34 @@ export function validateProductIds(
   compactCatalog: CompactCatalogEntry[]
 ): { valid: CartOp[]; invalid: CartOp[] } {
   const validIds = new Set(compactCatalog.map((p) => p.id));
+  // Only products that actually have variants require a matching sku — a
+  // plain single-price product's ops correctly carry variantSku: null.
+  const variantSkusByProduct = new Map(compactCatalog.map((p) => [p.id, new Set(p.variants.map((v) => v.sku))]));
+
   const valid: CartOp[] = [];
   const invalid: CartOp[] = [];
 
   for (const op of ops) {
     const referencesProduct = op.type === 'add' || op.type === 'set_qty' || op.type === 'remove';
-    if (referencesProduct && !validIds.has(op.productId)) {
-      invalid.push(op);
-    } else {
+    if (!referencesProduct) {
       valid.push(op);
+      continue;
     }
+    if (!validIds.has(op.productId)) {
+      invalid.push(op);
+      continue;
+    }
+    const requiredSkus = variantSkusByProduct.get(op.productId);
+    // Hallucination guard (spec §13, same rationale as productId above):
+    // a product that has variants has no meaningful single price, so an op
+    // naming an unrecognized (or missing) variantSku for it must be dropped
+    // here rather than reaching CartEngine, which would otherwise be the
+    // only backstop against a fabricated size/material.
+    if (requiredSkus && requiredSkus.size > 0 && (!op.variantSku || !requiredSkus.has(op.variantSku))) {
+      invalid.push(op);
+      continue;
+    }
+    valid.push(op);
   }
 
   return { valid, invalid };

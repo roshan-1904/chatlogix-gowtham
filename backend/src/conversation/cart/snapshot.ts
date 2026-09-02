@@ -22,7 +22,9 @@ export function parseOrderItems(items: unknown): CartLine[] {
       unit: raw?.unit ?? '',
       unitPricePaise,
       lineTotalPaise,
-      notes: raw?.notes ?? undefined
+      notes: raw?.notes ?? undefined,
+      variantSku: raw?.variantSku ?? null,
+      variantLabel: raw?.variantLabel ?? null
     };
   });
 }

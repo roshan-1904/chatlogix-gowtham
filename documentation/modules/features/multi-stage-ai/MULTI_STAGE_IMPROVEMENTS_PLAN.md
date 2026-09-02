@@ -1,5 +1,7 @@
 # Multi-Stage AI Worker Improvements Plan
 
+> **Note:** Dated point-in-time snapshot from development of the multi-stage AI pipeline (`multiStageOrchestrator.ts`), which is no longer on the production hot path — it was replaced by `backend/src/conversation/*` (see `docs/CONVERSATION_PROCESSOR_LAMBDA.md` for the current system). Kept for historical record; not reflective of current production behavior.
+
 **Date:** December 7, 2025  
 **Based on Log Analysis:** `b5ff5477-6332-4827-bb22-bf3657758da0.json`  
 **Issue:** Customer asked "mam.. Iluppaipo Cookies availiable ah mam?" but system responded with wrong product

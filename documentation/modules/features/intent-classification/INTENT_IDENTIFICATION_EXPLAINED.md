@@ -1,5 +1,7 @@
 # Intent Identification Logic - Detailed Explanation
 
+> **Architecture note (2026-09-02):** This describes `classifyIntent()` in `backend/src/services/intentClassificationService.ts`, part of the OLD multi-stage pipeline (`multiStageOrchestrator.ts`). That pipeline is **no longer wired to live WhatsApp traffic** — production now runs `backend/src/conversation/*` (LLM-1 + `CartEngine` + optional LLM-2), where `intent` is a lightweight, telemetry-only string from LLM-1's single structured-output call (`CartEngine` does not trust it for writes), not a dedicated classification stage with the 9-step process below. The code described here still runs, but only via the catalog-import sandbox test-message path (`catalogImportSandboxService.ts`). See `docs/CONVERSATION_PROCESSOR_LAMBDA.md` for the current architecture.
+
 ## Overview
 
 The Intent Identification system is a sophisticated multi-layered approach that classifies customer messages into actionable intents. It's part of **Stage 1** of the Multi-Stage AI Processing pipeline and uses a combination of AI-powered classification, pattern detection, and keyword-based fallbacks.

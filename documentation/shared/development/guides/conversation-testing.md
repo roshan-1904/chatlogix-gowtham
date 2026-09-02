@@ -1,5 +1,7 @@
 # Conversation Testing Interface
 
+> **DELETION CANDIDATE — flagged during 2026-09 documentation audit:** The feature this describes no longer exists in the codebase. None of the documented API endpoints (`POST /api/conversations/test`, `POST /api/conversations/test/message`, `GET /api/conversations/history/:vendorId`) are present in `backend/src/routes/conversations.ts` (it only has 8 endpoints, none under `/test`), and there is no matching vendor-selector/test-conversation UI in `frontend_v2`. It also instructs running `cd frontend && npm run dev` — `frontend/` is the deprecated app; only `frontend_v2/` is active. Recommend deleting unless this interface is intentionally being rebuilt.
+
 This interface allows you to test the ChatLogix conversation system seamlessly with different vendors and customer scenarios.
 
 ## Features

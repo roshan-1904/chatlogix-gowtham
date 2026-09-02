@@ -4,6 +4,8 @@
 
 This document summarizes the implementation of the Order Delivery & Preparation Settings feature.
 
+> **2026-09 note:** the schema/API/order-creation items below (#1, #4 partially, #7) are still live. The AI-integration items (#5 `contextFetcherService.ts`, #6 `promptBuilderService.ts`) wired this feature into the *old* pre-Lambda pipeline, which is no longer on the hot path for live WhatsApp traffic (`docs/CONVERSATION_WORKER_GAPS.md`). The current live pipeline (`backend/src/conversation/*`) does not ask for a delivery date or write `Order.estimatedDelivery` from the AI — see `docs/CONVERSATION_PROCESSOR_LAMBDA.md` §13/§16 and [Order Flow Documentation](./ORDER_FLOW.md).
+
 ## What Was Implemented
 
 ### 1. Database Schema ✅

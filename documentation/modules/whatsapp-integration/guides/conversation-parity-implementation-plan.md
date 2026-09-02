@@ -1,5 +1,7 @@
 # WhatsApp Conversation Parity Implementation Plan
 
+> **⚠️ Production caveat (2026-09-02):** the `whatsapp_conversation_parity` flag and the `runParityPipeline`/`runLegacyPipeline` branching this plan describes live in `backend/src/routes/webhook.ts` — the Express webhook route. Production WhatsApp traffic no longer reaches that route: it goes API Gateway → the `chatlogix-webhook-handler` Lambda (`backend/src/lambdas/handlers/webhookHandler.ts`), a separate, much simpler implementation that only handles `text` messages and doesn't check this flag at all. **So today, flipping this flag for a vendor has no effect on real customer traffic** — the Express route (and everything below) only runs for local dev or a non-production environment still pointed at it. This is a real, unresolved gap, not a documentation error to paper over — see `docs/CONVERSATION_WORKER_GAPS.md` §2.5 for the full explanation. Treat this plan as the design for the fuller pipeline; treat the Lambda gap as the reason it isn't reaching production yet.
+
 ## Purpose
 
 Define the business logic and delivery plan required to make the ChatLogix Conversation page reflect WhatsApp conversations with high fidelity, so vendors do not miss customer context (reactions, media, quoted replies, and status changes).

@@ -1,5 +1,7 @@
 # Product Management UI Implementation Status
 
+> **Note:** Undated, mid-implementation snapshot of the Product Management UI (frontend) — superseded within this same folder by `IMPLEMENTATION_COMPLETE.md`, which records the feature as finished. The "In Progress / Remaining" items below are not a current to-do list; check `frontend_v2/apps/web-vendor/src/` for the actual current state.
+
 ## ✅ Completed
 
 ### Core Infrastructure

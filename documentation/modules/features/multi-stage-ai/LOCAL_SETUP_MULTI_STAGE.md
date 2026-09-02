@@ -1,5 +1,7 @@
 # Running Multi-Stage AI Worker Locally
 
+> **⚠️ Superseded — this worker no longer exists.** The 14-stage `multiStageOrchestrator.ts` pipeline this guide sets up locally is no longer on the production hot path; it was replaced by `backend/src/conversation/*` (see **`docs/CONVERSATION_PROCESSOR_LAMBDA.md`** for the current design). Worse, `backend/src/workers/multiStageAIWorker.ts` — the worker these instructions build and run (`npm run worker:multi-stage`, PM2 process `chatlogix-multi-stage-ai-worker`) — was deleted as dead code on 2026-09-02 (zero remaining references), so the commands below will not work as written. For local development against the current pipeline, use `npm run worker:conversation` (runs `backend/src/workers/conversationWorker.ts`) instead. The steps below are kept as historical/reference material describing how the old pipeline was run locally.
+
 ## Prerequisites
 
 1. **Node.js 18+** installed

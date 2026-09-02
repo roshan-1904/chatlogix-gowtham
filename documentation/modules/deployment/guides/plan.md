@@ -1,5 +1,7 @@
 # ChatLogix AWS Production Deployment Plan
 
+> **⚠️ Superseded.** This plan describes an earlier point in the system's evolution — a single Express process, one response worker, and 2 SQS queues (incoming/response). None of that matches production today: the live pipeline is 5 AWS Lambda functions (`chatlogix-webhook-handler`, `chatlogix-incoming-response-generator`, `chatlogix-whatsapp-response-dispatcher`, `chatlogix-order-recovery`, `chatlogix-media-fetcher`) behind API Gateway, feeding 4+ SQS queues (text/audio/image/response + media-fetch), with only `chatlogix-backend` and `chatlogix-media-worker` still running on PM2. `scripts/deployment/lightsail-deploy.sh`, referenced below, was deleted as dead code (2026-09-02). For the current, authoritative deployment process see `docs/DEPLOYMENT.md` and `backend/src/lambdas/README.md`. The "Current Architecture" section and diagram below are kept as historical record of the original plan, not as a description of today's system.
+
 ## Overview
 
 Deploy ChatLogix to production using:

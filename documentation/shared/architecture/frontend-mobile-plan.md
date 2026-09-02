@@ -5,6 +5,8 @@
 > Generated for: Murali V S
 > Date: 2025-11-15 (Asia/Kolkata)
 
+> **Early planning doc — actual build diverged in several places.** The monorepo (`frontend_v2/`, Turborepo + npm workspaces) and general shape did land close to this plan, but key tech choices here are not what was built: auth is Firebase phone-number auth mediated through the backend (see `authentication.md`), not Clerk/Auth0; the queue is AWS SQS (LocalStack for dev), not BullMQ; message pipeline is AWS Lambda, not ECS/Fargate/Render/Fly.io. Treat this as historical context for the original intent, not a description of what's running today — see the repo root `CLAUDE.md` for the current architecture summary.
+
 ---
 
 ## 1. Project Summary (High level)

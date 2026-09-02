@@ -104,9 +104,26 @@ async function bootstrap() {
   app.use(enhancedGlobalErrorHandler);
 
   const port = Number(env.PORT);
-  app.listen(port, () => {
+  const server = app.listen(port, () => {
     logger.info({ port }, 'HTTP server started');
+    // Tell PM2 (wait_ready: true in ecosystem.config.js) this process is
+    // actually listening, so `pm2 reload` waits for us before killing the
+    // old instance instead of timing out and racing it for the port.
+    process.send?.('ready');
   });
+
+  const shutdown = (signal: string) => {
+    logger.info({ signal }, 'Shutting down HTTP server');
+    server.close((err) => {
+      if (err) {
+        logger.error({ err }, 'Error during HTTP server shutdown');
+        process.exit(1);
+      }
+      process.exit(0);
+    });
+  };
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 bootstrap().catch((error) => {

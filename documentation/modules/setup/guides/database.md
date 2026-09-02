@@ -55,11 +55,14 @@ npx prisma generate
 
 ## Step 4: Import Backup Data
 
-Run the import script:
+**Note:** `scripts\import-backup-data.ps1` no longer exists in this repo. Run the current npm script instead:
 
 ```powershell
-.\scripts\import-backup-data.ps1
+cd backend
+npm run db:import
 ```
+
+This runs `backend/scripts/import-database-backup.ts`, which reads the `_rows.sql` files from `backend/database_backup/` — that directory isn't shipped in the repo, so copy the files from `scripts/database/backups/` (repo root) into `backend/database_backup/` first.
 
 Or manually import in this order:
 
@@ -111,6 +114,6 @@ If you have all permissions set up, you can run:
 cd backend
 npx prisma db push --accept-data-loss
 npx prisma generate
-.\scripts\import-backup-data.ps1
+npm run db:import
 ```
 

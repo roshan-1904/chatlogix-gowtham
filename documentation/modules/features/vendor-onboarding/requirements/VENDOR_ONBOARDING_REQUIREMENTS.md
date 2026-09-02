@@ -7,6 +7,8 @@
 
 ---
 
+> **2026-09 note:** nothing in this document has been implemented yet (no onboarding routes/services or onboarding UI exist in `backend/src/` or `frontend_v2/apps/web-vendor/src/` as of this note) — it remains a planning document. One detail worth flagging for whoever picks it up: the demo-chat sections (Phase 2 Step 5, Phase 5) say to "process through multi-stage AI" / "use existing multi-stage AI processing." That refers to the old `multiStageOrchestrator.ts` pipeline, which is no longer on the hot path for live WhatsApp traffic (see `docs/CONVERSATION_WORKER_GAPS.md`) — its only remaining live caller is `catalogImportSandboxService.ts`. A real implementation of the demo chat today should most likely go through the current `backend/src/conversation/*` pipeline instead (see `docs/CONVERSATION_PROCESSOR_LAMBDA.md`), not the retired one this document assumes.
+
 ## 📋 Executive Summary
 
 This document outlines the comprehensive requirements for implementing an automated vendor onboarding system for ChatLogix. The system aims to minimize manual work and enable vendors to self-onboard with minimal friction, while ensuring all necessary data is collected and configured automatically.
