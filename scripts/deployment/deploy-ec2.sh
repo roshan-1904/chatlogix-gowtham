@@ -15,8 +15,8 @@ tar -xzf /tmp/chatlogix-dist.tar.gz -C .
 rm -f /tmp/chatlogix-dist.tar.gz
 
 cd backend
-echo "=== npm ci ==="
-npm ci
+echo "=== npm ci (production only -- this box runs prebuilt dist/, never needs the dev toolchain) ==="
+npm ci --omit=dev
 echo "=== prisma generate ==="
 npx prisma generate
 echo "=== prisma migrate deploy ==="

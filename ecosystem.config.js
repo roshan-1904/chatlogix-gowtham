@@ -18,7 +18,10 @@ module.exports = {
       out_file: './logs/backend-out.log',
       log_file: './logs/backend-combined.log',
       time: true,
-      max_memory_restart: '1G',
+      // Box has 447Mi total RAM shared with Postgres, Redis, and nginx -- '1G'
+      // is bigger than the whole instance, so it never actually protects
+      // anything before the OS OOM-killer acts on some other process instead.
+      max_memory_restart: '250M',
       restart_delay: 4000,
       max_restarts: 10,
       min_uptime: '10s',
@@ -46,7 +49,7 @@ module.exports = {
       out_file: './logs/media-worker-out.log',
       log_file: './logs/media-worker-combined.log',
       time: true,
-      max_memory_restart: '1G',
+      max_memory_restart: '150M',
       restart_delay: 4000,
       max_restarts: 10,
       min_uptime: '10s',
