@@ -99,9 +99,12 @@ function buildOrderHistoryBlock(orderHistory: OrderHistoryEntry[]): string {
       const itemsSummary = parseOrderItems(o.items)
         .map((i) => `${i.name}${i.variantLabel ? ` (${i.variantLabel})` : ''} x${i.quantity} [${i.productId}${i.variantSku ? `,${i.variantSku}` : ''}]`)
         .join(', ') || '(no items)';
-      const placed = o.createdAt.toISOString().slice(0, 10);
+      // new Date(x) is a safe no-op when x is already a Date -- guards against
+      // orderHistory coming from prefetch.ts's Redis cache-aside, where
+      // JSON.parse (utils/redis.ts's getCached) leaves Date fields as strings.
+      const placed = new Date(o.createdAt).toISOString().slice(0, 10);
       const parts = [`${o.orderNumber}: ${label} — ${itemsSummary} — Rs${(o.totalAmount / 100).toFixed(2)} — placed ${placed}`];
-      if (o.estimatedDelivery) parts.push(`estimated delivery ${o.estimatedDelivery.toISOString().slice(0, 10)}`);
+      if (o.estimatedDelivery) parts.push(`estimated delivery ${new Date(o.estimatedDelivery).toISOString().slice(0, 10)}`);
       if (o.status === 'cancelled' && o.cancellationReason) parts.push(`reason: ${o.cancellationReason}`);
       return `- ${parts.join(', ')}`;
     })
