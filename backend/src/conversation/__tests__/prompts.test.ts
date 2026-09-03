@@ -41,6 +41,8 @@ function makeHotSet(overrides: Partial<HotSet> = {}): HotSet {
     compactCatalog: [brownie],
     memory: null,
     pendingOrder: null,
+    orderHistory: [],
+    faqs: [],
     insights: null,
     recentMessages: [],
     ...overrides
@@ -128,11 +130,170 @@ describe('buildLlm1SystemPrompt', () => {
     expect(prompt).toContain('Dividers only fit the 8x8 tin.');
     expect(prompt).toMatch(/apply it, not just recite it/);
   });
+
+  it('always includes the never-say-"checking" order-status rule, even with no order history', () => {
+    const prompt = buildLlm1SystemPrompt(makeHotSet());
+    expect(prompt).toMatch(/NEVER say "I'm checking"/);
+    expect(prompt).toContain('(none)');
+  });
+
+  it('renders a real order-history entry with its status label, number, items, total and date', () => {
+    const prompt = buildLlm1SystemPrompt(
+      makeHotSet({
+        orderHistory: [
+          {
+            id: 'order-1',
+            orderNumber: 'ORD-TEST-0001',
+            items: [{ productId: 'prod-1', name: 'Brownie', quantity: 2, unit: 'box', unitPricePaise: 10000, lineTotalPaise: 20000 }],
+            totalAmount: 20000,
+            status: 'preparing',
+            createdAt: new Date('2026-09-02T07:48:07.000Z'),
+            estimatedDelivery: null,
+            confirmedAt: new Date('2026-09-02T07:50:00.000Z'),
+            preparedAt: null,
+            deliveredAt: null,
+            cancelledAt: null,
+            cancellationReason: null
+          }
+        ]
+      })
+    );
+    expect(prompt).toContain('ORD-TEST-0001');
+    expect(prompt).toContain('👨‍🍳 Order Being Prepared');
+    expect(prompt).toContain('Brownie x2');
+    expect(prompt).toContain('200.00');
+    expect(prompt).toContain('2026-09-02');
+    expect(prompt).toContain('[prod-1]'); // productId exposed so a repeat-order request can emit a real "add" op
+  });
+
+  it('includes the variantSku alongside productId when a past order line has one', () => {
+    const prompt = buildLlm1SystemPrompt(
+      makeHotSet({
+        orderHistory: [
+          {
+            id: 'order-1',
+            orderNumber: 'ORD-TEST-0004',
+            items: [
+              { productId: 'prod-tin', variantSku: 'SS-7X7', variantLabel: 'SS 7x7', name: 'Baking Tin', quantity: 1, unit: 'unit', unitPricePaise: 179900, lineTotalPaise: 179900 }
+            ],
+            totalAmount: 179900,
+            status: 'confirmed',
+            createdAt: new Date('2026-09-02T07:48:07.000Z'),
+            estimatedDelivery: null,
+            confirmedAt: null,
+            preparedAt: null,
+            deliveredAt: null,
+            cancelledAt: null,
+            cancellationReason: null
+          }
+        ]
+      })
+    );
+    expect(prompt).toContain('[prod-tin,SS-7X7]');
+  });
+
+  it('includes the repeat-order, cancel, refund, and complaint/return handoff rules', () => {
+    const prompt = buildLlm1SystemPrompt(makeHotSet());
+    expect(prompt).toMatch(/repeat\/reorder a past order/);
+    expect(prompt).toMatch(/emit "cancel" with that order's "orderNumber"/);
+    expect(prompt).toMatch(/emit "refund_request" with the order's "orderNumber"/);
+    expect(prompt).toMatch(/emit "handoff" with category "complaint" or "return"/);
+  });
+
+  it('includes the cancellation reason for a cancelled order', () => {
+    const prompt = buildLlm1SystemPrompt(
+      makeHotSet({
+        orderHistory: [
+          {
+            id: 'order-1',
+            orderNumber: 'ORD-TEST-0002',
+            items: [],
+            totalAmount: 129900,
+            status: 'cancelled',
+            createdAt: new Date('2026-09-02T07:48:07.000Z'),
+            estimatedDelivery: null,
+            confirmedAt: null,
+            preparedAt: null,
+            deliveredAt: null,
+            cancelledAt: new Date('2026-09-02T12:36:50.000Z'),
+            cancellationReason: 'Invalid size (4x6 does not exist on this product)'
+          }
+        ]
+      })
+    );
+    expect(prompt).toContain('❌ Order Cancelled');
+    expect(prompt).toContain('Invalid size (4x6 does not exist on this product)');
+  });
+
+  it('surfaces the vendor prep-time policy only when an unfulfilled order exists', () => {
+    const unfulfilled = buildLlm1SystemPrompt(
+      makeHotSet({
+        vendorConfig: {
+          ...makeHotSet().vendorConfig,
+          orderPreparationConfig: { type: 'fixed_minutes', fixedMinutes: 30 }
+        },
+        orderHistory: [
+          {
+            id: 'order-1',
+            orderNumber: 'ORD-TEST-0003',
+            items: [],
+            totalAmount: 0,
+            status: 'confirmed',
+            createdAt: new Date('2026-09-02T07:48:07.000Z'),
+            estimatedDelivery: null,
+            confirmedAt: null,
+            preparedAt: null,
+            deliveredAt: null,
+            cancelledAt: null,
+            cancellationReason: null
+          }
+        ]
+      })
+    );
+    expect(unfulfilled).toContain('ready in approximately 30 minutes');
+
+    const noOrders = buildLlm1SystemPrompt(
+      makeHotSet({
+        vendorConfig: { ...makeHotSet().vendorConfig, orderPreparationConfig: { type: 'fixed_minutes', fixedMinutes: 30 } }
+      })
+    );
+    expect(noOrders).not.toContain('ready in approximately 30 minutes');
+  });
+
+  it('renders "(none)" for RELEVANT FAQs when no FAQ matched this turn', () => {
+    const prompt = buildLlm1SystemPrompt(makeHotSet());
+    expect(prompt).toContain('RELEVANT FAQs');
+  });
+
+  it('renders a matched FAQ\'s question and answer under RELEVANT FAQs', () => {
+    const prompt = buildLlm1SystemPrompt(
+      makeHotSet({
+        faqs: [{ id: 'faq-1', question: 'Do you deliver on Sundays?', answer: 'Yes, 10am-6pm.', similarity: 0.91 }]
+      })
+    );
+    expect(prompt).toContain('Do you deliver on Sundays?');
+    expect(prompt).toContain('Yes, 10am-6pm.');
+  });
 });
 
 describe('llm1JsonSchema', () => {
   it('requires every top-level field and forbids additional properties (OpenAI strict mode)', () => {
     expect(llm1JsonSchema.additionalProperties).toBe(false);
     expect(llm1JsonSchema.required).toEqual(['language', 'intent', 'ops', 'draftReply', 'confidence', 'needsVerify']);
+  });
+
+  it('cancel/refund_request/handoff op schemas carry their new fields as required-but-nullable (strict mode)', () => {
+    const opsSchema = (llm1JsonSchema.properties as any).ops.items.anyOf as any[];
+    const cancel = opsSchema.find((s) => s.properties.type.enum[0] === 'cancel');
+    const refund = opsSchema.find((s) => s.properties.type.enum[0] === 'refund_request');
+    const handoff = opsSchema.find((s) => s.properties.type.enum[0] === 'handoff');
+
+    expect(cancel.required).toEqual(['type', 'orderNumber']);
+    expect(refund.required).toEqual(['type', 'orderNumber', 'reason']);
+    expect(handoff.required).toEqual(['type', 'category', 'details', 'orderNumber']);
+    expect(handoff.properties.category.enum).toEqual(['complaint', 'return', 'cancel_in_progress', 'other', null]);
+    for (const schema of [cancel, refund, handoff]) {
+      expect(schema.additionalProperties).toBe(false);
+    }
   });
 });

@@ -3,6 +3,7 @@ import { logger } from '../logger.js';
 import { env } from '../config/env.js';
 import { publishToQueue } from '../queue/sqsClient.js';
 import { canProcessMessage } from '../services/billingService.js';
+import { sendTypingIndicator } from '../services/whatsappClient.js';
 import { WhatsAppTemplateService } from '../services/whatsappTemplateService.js';
 import { persistTurn } from './persist.js';
 import { debitAfterEnqueue } from './billing.js';
@@ -15,9 +16,24 @@ import { runLlm1 } from './llm/llm1.js';
 import { apply } from './cart/engine.js';
 import { runLlm2, selectFinalReply } from './llm/llm2.js';
 import { triggerHandoff } from './handoff.js';
+import { notifyVendorOfPostSalesEvent } from './postSalesAlert.js';
 import { WALLET_EMPTY_TEMPLATE } from './templates.js';
 import { logStage, logLatency, logCount } from './metrics.js';
-import type { CartSnapshot } from './types.js';
+import type { CartOp, CartSnapshot, PostSalesOutcome } from './types.js';
+
+/** Deterministic customer-facing copy for a refund/cancel outcome — never LLM-authored (same reasoning as the handoff short-circuit: money/eligibility facts must not go through a free-text model). */
+function renderPostSalesReply(outcome: PostSalesOutcome): string {
+  switch (outcome.type) {
+    case 'refund_approved':
+      return `Your refund for order ${outcome.orderNumber} has been approved. ${outcome.detail}`;
+    case 'refund_denied':
+      return `I'm sorry, order ${outcome.orderNumber} isn't eligible for an automatic refund — ${outcome.detail} I've let the team know to take a look.`;
+    case 'order_cancelled':
+      return `Order ${outcome.orderNumber} has been cancelled as requested.`;
+    case 'not_cancellable_at_this_stage':
+      return `I can't cancel order ${outcome.orderNumber} automatically — ${outcome.detail} I've flagged this for the team to review right away.`;
+  }
+}
 
 export interface FinalizeTurnInput {
   vendorId: string;
@@ -212,8 +228,12 @@ export async function processMessage(input: ProcessMessageInput): Promise<void> 
     // invocation's stashed content; proceeds immediately either way.
     const mergedContent = await mergeDebounced(conversationId, input.content);
 
+    void sendTypingIndicator(input.whatsappMessageId, input.phoneNumberId).catch((error) => {
+      logger.warn({ err: error, traceId, vendorId, conversationId }, 'Typing indicator failed');
+    });
+
     // Step 2: prefetch hot set in parallel.
-    const hotSet = await prefetchHotSet(vendorId, conversationId, customerId);
+    const hotSet = await prefetchHotSet(vendorId, conversationId, customerId, mergedContent);
     logStage('prefetch_done', { traceId, vendorId, conversationId });
 
     // Step 4: LLM-1 -- ops + draft reply.
@@ -243,15 +263,48 @@ export async function processMessage(input: ProcessMessageInput): Promise<void> 
     }
     logStage('cart_apply_done', { traceId, vendorId, conversationId }, { mutated: applyResult.mutated });
 
-    const handoffOp = llm1Result.ops.find((op) => op.type === 'handoff');
+    const handoffOp = llm1Result.ops.find((op): op is Extract<CartOp, { type: 'handoff' }> => op.type === 'handoff');
     let finalText: string;
 
     if (handoffOp) {
       // §20: handoff wins over the normal LLM-2/render path -- the customer
       // gets the "connecting you to the team" copy, not a possibly-unrelated
       // polished reply about cart contents. LLM-2 never runs on this branch.
-      const handoffResult = await triggerHandoff({ conversationId, vendorId, phoneNumberId: input.phoneNumberId, traceId });
+      const handoffResult = await triggerHandoff({
+        conversationId,
+        vendorId,
+        customerId,
+        phoneNumberId: input.phoneNumberId,
+        traceId,
+        category: handoffOp.category ?? null,
+        details: handoffOp.details ?? null,
+        orderNumber: handoffOp.orderNumber ?? null
+      });
       finalText = handoffResult.customerMessage;
+    } else if (applyResult.postSalesOutcome) {
+      // A refund/cancel decision CartEngine already made deterministically —
+      // render it as-is (never through LLM-2) and, for the two outcomes that
+      // need a human's call, alert the vendor with the real order + reason
+      // (same helper handoff.ts uses, so both paths produce one consistent
+      // vendor-facing message format).
+      const outcome = applyResult.postSalesOutcome;
+      finalText = renderPostSalesReply(outcome);
+
+      if (outcome.type === 'refund_denied' || outcome.type === 'not_cancellable_at_this_stage') {
+        notifyVendorOfPostSalesEvent({
+          vendorId,
+          phoneNumberId: input.phoneNumberId,
+          conversationId,
+          traceId,
+          orderId: outcome.orderId,
+          orderNumber: outcome.orderNumber,
+          category: outcome.type === 'refund_denied' ? 'refund_denied' : 'cancel_in_progress',
+          detail: outcome.detail,
+          aiPaused: false
+        }).catch((error) => {
+          logger.error({ err: error, vendorId, conversationId, traceId }, 'Post-sales vendor notify failed');
+        });
+      }
     } else {
       // Step 6: LLM-2, conditionally (runLlm2 checks shouldRunLlm2 internally).
       const llm2StartedAt = Date.now();

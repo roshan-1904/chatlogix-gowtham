@@ -26,6 +26,9 @@ const conversationMemoryFindUnique = vi.fn();
 const customerInsightsFindUnique = vi.fn();
 const messageFindMany = vi.fn();
 const orderFindFirst = vi.fn();
+const orderFindMany = vi.fn();
+const faqCount = vi.fn();
+const queryRaw = vi.fn();
 
 vi.mock('../../db/prisma.js', () => ({
   prisma: {
@@ -34,19 +37,37 @@ vi.mock('../../db/prisma.js', () => ({
     conversationMemory: { findUnique: (...args: unknown[]) => conversationMemoryFindUnique(...args) },
     customerInsights: { findUnique: (...args: unknown[]) => customerInsightsFindUnique(...args) },
     message: { findMany: (...args: unknown[]) => messageFindMany(...args) },
-    order: { findFirst: (...args: unknown[]) => orderFindFirst(...args) }
+    order: {
+      findFirst: (...args: unknown[]) => orderFindFirst(...args),
+      findMany: (...args: unknown[]) => orderFindMany(...args)
+    },
+    faq: { count: (...args: unknown[]) => faqCount(...args) },
+    // Tagged-template mock: prefetch.ts calls prisma.$queryRaw`...` — a plain
+    // vi.fn() can't be invoked as a tag function, so wrap it.
+    $queryRaw: (...args: unknown[]) => queryRaw(...args)
   }
 }));
 
-import { prefetchHotSet, invalidateCompactCatalog } from '../prefetch.js';
+const embedTextMock = vi.fn();
+
+vi.mock('../faq/embedding.js', () => ({
+  embedText: (...args: unknown[]) => embedTextMock(...args),
+  toVectorLiteral: (embedding: number[]) => `[${embedding.join(',')}]`
+}));
+
+import { prefetchHotSet, invalidateCompactCatalog, invalidateFaqs } from '../prefetch.js';
 
 const VENDOR_ID = 'vendor-1';
 const CONVERSATION_ID = 'conv-1';
 const CUSTOMER_ID = 'customer-1';
+const MESSAGE_TEXT = 'do you deliver on Sundays?';
 
 beforeEach(() => {
   vi.clearAllMocks();
   cacheStore.clear();
+  faqCount.mockResolvedValue(0);
+  embedTextMock.mockResolvedValue(null);
+  queryRaw.mockResolvedValue([]);
 
   vendorFindUnique.mockResolvedValue({
     id: VENDOR_ID,
@@ -72,11 +93,12 @@ beforeEach(() => {
   customerInsightsFindUnique.mockResolvedValue(null);
   messageFindMany.mockResolvedValue([]);
   orderFindFirst.mockResolvedValue(null);
+  orderFindMany.mockResolvedValue([]);
 });
 
 describe('prefetchHotSet', () => {
   it('falls back to Postgres on a cache miss and applies the aiModel fallback (Q10)', async () => {
-    const hotSet = await prefetchHotSet(VENDOR_ID, CONVERSATION_ID, CUSTOMER_ID);
+    const hotSet = await prefetchHotSet(VENDOR_ID, CONVERSATION_ID, CUSTOMER_ID, MESSAGE_TEXT);
 
     expect(vendorFindUnique).toHaveBeenCalledTimes(1);
     expect(hotSet.vendorConfig.aiModel).toBe('gpt-4.1-mini'); // aiModel was null on the fetched vendor
@@ -84,11 +106,11 @@ describe('prefetchHotSet', () => {
   });
 
   it('serves a subsequent call from cache without hitting Postgres again', async () => {
-    await prefetchHotSet(VENDOR_ID, CONVERSATION_ID, CUSTOMER_ID);
+    await prefetchHotSet(VENDOR_ID, CONVERSATION_ID, CUSTOMER_ID, MESSAGE_TEXT);
     vendorFindUnique.mockClear();
     productFindMany.mockClear();
 
-    await prefetchHotSet(VENDOR_ID, CONVERSATION_ID, CUSTOMER_ID);
+    await prefetchHotSet(VENDOR_ID, CONVERSATION_ID, CUSTOMER_ID, MESSAGE_TEXT);
 
     expect(vendorFindUnique).not.toHaveBeenCalled();
     expect(productFindMany).not.toHaveBeenCalled();
@@ -110,7 +132,7 @@ describe('prefetchHotSet', () => {
       }
     ]);
 
-    const hotSet = await prefetchHotSet(VENDOR_ID, CONVERSATION_ID, CUSTOMER_ID);
+    const hotSet = await prefetchHotSet(VENDOR_ID, CONVERSATION_ID, CUSTOMER_ID, MESSAGE_TEXT);
 
     expect(hotSet.compactCatalog).toEqual([
       {
@@ -138,7 +160,7 @@ describe('prefetchHotSet', () => {
       preferredLanguage: 'ta'
     });
 
-    const hotSet = await prefetchHotSet(VENDOR_ID, CONVERSATION_ID, CUSTOMER_ID);
+    const hotSet = await prefetchHotSet(VENDOR_ID, CONVERSATION_ID, CUSTOMER_ID, MESSAGE_TEXT);
 
     expect(hotSet.insights).toEqual({ name: 'Priya', address: '123 Main St', language: 'ta' });
   });
@@ -149,7 +171,7 @@ describe('prefetchHotSet', () => {
       { senderType: 'customer', content: 'oldest' }
     ]); // findMany returns newest-first (orderBy timestamp desc)
 
-    const hotSet = await prefetchHotSet(VENDOR_ID, CONVERSATION_ID, CUSTOMER_ID);
+    const hotSet = await prefetchHotSet(VENDOR_ID, CONVERSATION_ID, CUSTOMER_ID, MESSAGE_TEXT);
 
     expect(hotSet.recentMessages).toEqual([
       { role: 'customer', content: 'oldest' },
@@ -160,5 +182,79 @@ describe('prefetchHotSet', () => {
   it('invalidateCompactCatalog deletes exactly the compact-catalog key', async () => {
     await invalidateCompactCatalog(VENDOR_ID);
     expect(deleteCachedMock).toHaveBeenCalledWith('vendor:vendor-1:catalog_compact');
+  });
+
+  it('loads order history scoped by customerId+vendorId (not conversationId), newest first, capped at 10', async () => {
+    await prefetchHotSet(VENDOR_ID, CONVERSATION_ID, CUSTOMER_ID, MESSAGE_TEXT);
+
+    expect(orderFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { customerId: CUSTOMER_ID, vendorId: VENDOR_ID },
+        orderBy: { createdAt: 'desc' },
+        take: 10
+      })
+    );
+  });
+
+  it('returns an empty order history array when the customer has no orders', async () => {
+    orderFindMany.mockResolvedValue([]);
+    const hotSet = await prefetchHotSet(VENDOR_ID, CONVERSATION_ID, CUSTOMER_ID, MESSAGE_TEXT);
+    expect(hotSet.orderHistory).toEqual([]);
+  });
+
+  it('caches order history under a customer+vendor key with a 60s TTL, separate from the pending-order key', async () => {
+    await prefetchHotSet(VENDOR_ID, CONVERSATION_ID, CUSTOMER_ID, MESSAGE_TEXT);
+    expect(setCachedMock).toHaveBeenCalledWith('customer:customer-1:vendor-1:order_history', expect.any(Array), 60);
+  });
+
+  it('serves order history from cache on a subsequent call without hitting Postgres again', async () => {
+    await prefetchHotSet(VENDOR_ID, CONVERSATION_ID, CUSTOMER_ID, MESSAGE_TEXT);
+    orderFindMany.mockClear();
+
+    await prefetchHotSet(VENDOR_ID, CONVERSATION_ID, CUSTOMER_ID, MESSAGE_TEXT);
+
+    expect(orderFindMany).not.toHaveBeenCalled();
+  });
+
+  describe('FAQ retrieval', () => {
+    it('skips the embedding call entirely when the vendor has zero active FAQs', async () => {
+      faqCount.mockResolvedValue(0);
+
+      const hotSet = await prefetchHotSet(VENDOR_ID, CONVERSATION_ID, CUSTOMER_ID, MESSAGE_TEXT);
+
+      expect(embedTextMock).not.toHaveBeenCalled();
+      expect(queryRaw).not.toHaveBeenCalled();
+      expect(hotSet.faqs).toEqual([]);
+    });
+
+    it('returns FAQs at or above the similarity threshold, dropping ones below it', async () => {
+      faqCount.mockResolvedValue(2);
+      embedTextMock.mockResolvedValue([0.1, 0.2, 0.3]);
+      queryRaw.mockResolvedValue([
+        { id: 'faq-1', question: 'Do you deliver on Sundays?', answer: 'Yes, 10am-6pm.', similarity: 0.91 },
+        { id: 'faq-2', question: 'Do you ship internationally?', answer: 'No.', similarity: 0.4 }
+      ]);
+
+      const hotSet = await prefetchHotSet(VENDOR_ID, CONVERSATION_ID, CUSTOMER_ID, MESSAGE_TEXT);
+
+      expect(hotSet.faqs).toEqual([
+        { id: 'faq-1', question: 'Do you deliver on Sundays?', answer: 'Yes, 10am-6pm.', similarity: 0.91 }
+      ]);
+    });
+
+    it('fails open to an empty array when the embedding call fails (OpenAI down/misconfigured)', async () => {
+      faqCount.mockResolvedValue(3);
+      embedTextMock.mockResolvedValue(null);
+
+      const hotSet = await prefetchHotSet(VENDOR_ID, CONVERSATION_ID, CUSTOMER_ID, MESSAGE_TEXT);
+
+      expect(queryRaw).not.toHaveBeenCalled();
+      expect(hotSet.faqs).toEqual([]);
+    });
+
+    it('invalidateFaqs deletes exactly the faq-count key', async () => {
+      await invalidateFaqs(VENDOR_ID);
+      expect(deleteCachedMock).toHaveBeenCalledWith('vendor:vendor-1:faq_count');
+    });
   });
 });

@@ -6,8 +6,14 @@ vi.mock('../../services/humanHandoffService.js', () => ({
 }));
 
 const vendorFindUnique = vi.fn();
+const orderFindFirst = vi.fn();
+const orderAlertCreate = vi.fn();
 vi.mock('../../db/prisma.js', () => ({
-  prisma: { vendor: { findUnique: (...args: unknown[]) => vendorFindUnique(...args) } }
+  prisma: {
+    vendor: { findUnique: (...args: unknown[]) => vendorFindUnique(...args) },
+    order: { findFirst: (...args: unknown[]) => orderFindFirst(...args) },
+    orderAlert: { create: (...args: unknown[]) => orderAlertCreate(...args) }
+  }
 }));
 
 vi.mock('../../config/env.js', () => ({
@@ -28,6 +34,7 @@ import { triggerHandoff } from '../handoff.js';
 const baseInput = {
   conversationId: 'conv-1',
   vendorId: 'vendor-1',
+  customerId: 'customer-1',
   phoneNumberId: 'waba-phone-1',
   traceId: 'wamid.1'
 };
@@ -40,6 +47,8 @@ function flush(): Promise<void> {
 beforeEach(() => {
   vi.clearAllMocks();
   publishToQueueMock.mockResolvedValue(undefined);
+  orderFindFirst.mockResolvedValue(null);
+  orderAlertCreate.mockResolvedValue({});
 });
 
 describe('triggerHandoff', () => {
@@ -66,8 +75,49 @@ describe('triggerHandoff', () => {
       text: expect.any(String),
       vendorId: 'vendor-1',
       phoneNumberId: 'waba-phone-1',
-      metadata: { notificationType: 'handoff_alert', conversationId: 'conv-1', traceId: 'wamid.1' }
+      metadata: { notificationType: 'other', conversationId: 'conv-1', traceId: 'wamid.1' }
     });
+  });
+
+  it('sends the category-specific message and writes an OrderAlert when the handoff op carries a complaint + a resolvable orderNumber', async () => {
+    executeHandoffMock.mockResolvedValue({ message: 'Passed to our team!', success: true });
+    vendorFindUnique.mockResolvedValue({ phone: '+91999999999' });
+    orderFindFirst.mockResolvedValue({ id: 'order-1' });
+
+    await triggerHandoff({
+      ...baseInput,
+      category: 'complaint',
+      details: 'Item arrived damaged',
+      orderNumber: 'ORD-TEST-0001'
+    });
+    await flush();
+
+    expect(orderFindFirst).toHaveBeenCalledWith({
+      where: { orderNumber: 'ORD-TEST-0001', customerId: 'customer-1', vendorId: 'vendor-1' },
+      select: { id: true }
+    });
+    expect(orderAlertCreate).toHaveBeenCalledWith({
+      data: { orderId: 'order-1', type: 'complaint', severity: 'high', message: 'Item arrived damaged' }
+    });
+    const [, payload] = publishToQueueMock.mock.calls[0];
+    expect(payload.text).toContain('Customer Complaint');
+    expect(payload.text).toContain('ORD-TEST-0001');
+    expect(payload.text).toContain('Item arrived damaged');
+    expect(payload.text).toContain('AI has been paused');
+    expect(payload.metadata).toEqual({ notificationType: 'complaint', conversationId: 'conv-1', traceId: 'wamid.1' });
+  });
+
+  it('skips the OrderAlert (but still notifies) when the orderNumber does not resolve to a real order', async () => {
+    executeHandoffMock.mockResolvedValue({ message: 'Passed to our team!', success: true });
+    vendorFindUnique.mockResolvedValue({ phone: '+91999999999' });
+    orderFindFirst.mockResolvedValue(null);
+
+    await triggerHandoff({ ...baseInput, category: 'return', details: 'Wants to return', orderNumber: 'ORD-NOPE' });
+    await flush();
+
+    expect(orderAlertCreate).not.toHaveBeenCalled();
+    expect(publishToQueueMock).toHaveBeenCalledTimes(1);
+    expect(publishToQueueMock.mock.calls[0][1].text).toContain('ORD-NOPE'); // still reports what the customer said, just no alert row to attach
   });
 
   it('does not notify the vendor when the pause itself failed (aiPaused was not actually set)', async () => {

@@ -1,0 +1,32 @@
+---
+description: Keep the incoming-response-generator flow doc in sync with pipeline code
+globs: backend/src/conversation/**/*.ts,backend/src/lambdas/handlers/conversationProcessor.ts,backend/src/lambdas/handlers/webhookHandler.ts
+alwaysApply: false
+---
+
+# Incoming response generator flow doc
+
+When you change how the text conversation pipeline prepares a WhatsApp reply, update `docs/INCOMING_RESPONSE_GENERATOR_FLOW.md` in the **same change**.
+
+That file is the living as-implemented walkthrough (mermaid + step tables). The locked design spec is `docs/CONVERSATION_PROCESSOR_LAMBDA.md` — do not rewrite the spec for implementation drift. If code diverges from the spec, the flow doc follows the **code** and notes the divergence.
+
+## What counts as a flow change
+
+Any behavioral edit in `backend/src/conversation/` or the webhook `TextMessage` enqueue contract, including:
+
+- Step order in `pipeline.ts` (`processMessage` / `finalizeTurn`)
+- Guards (lock, idempotency, `aiPaused`, wallet, burst merge)
+- Hot-set contents (`prefetch.ts`) or LLM-1 prompt/schema (`llm/prompts.ts`, `llm/llm1.ts`)
+- Cart ops / snapshot / post-sales outcomes (`cart/engine.ts`, `types.ts`)
+- Reply selection (handoff, post-sales templates, LLM-2 skip/verify, engine renderer)
+- Persist → response queue → debit ordering (`persist.ts`, `billing.ts`)
+
+## What to update in the doc
+
+- Mermaid diagrams whose nodes or edges no longer match the code
+- Step order in §2 if `processMessage` is reordered
+- Tables for guards, ops, and “what the customer receives”
+- Source-file table if a module is added/renamed
+- Header **Last verified** date
+
+Do not leave the doc describing a path the code no longer takes.

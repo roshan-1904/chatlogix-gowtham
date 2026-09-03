@@ -1,4 +1,23 @@
-import type { HotSet, CompactCatalogEntry } from '../types.js';
+import type { HotSet, CompactCatalogEntry, OrderHistoryEntry, FaqEntry } from '../types.js';
+import { parseOrderItems } from '../cart/snapshot.js';
+import { getPreparationTimeMessage, type OrderPreparationConfig } from '../../types/orderSettings.js';
+
+/**
+ * Same wording/emoji as whatsappTemplateService.ts's statusMessages map
+ * (backend/src/services/whatsappTemplateService.ts:55-64) — kept as a local
+ * copy rather than imported because that map lives on a private class
+ * method there, but a customer should see the same status language whether
+ * it comes from a vendor-triggered notification or an AI answer here.
+ */
+const ORDER_STATUS_LABELS: Record<string, string> = {
+  pending: '⏳ Order Received',
+  confirmed: '✅ Order Confirmed',
+  preparing: '👨‍🍳 Order Being Prepared',
+  ready: '✅ Order Ready for Pickup',
+  out_for_delivery: '🚚 Order Out for Delivery',
+  delivered: '🎉 Order Delivered',
+  cancelled: '❌ Order Cancelled'
+};
 
 /**
  * CSV-with-indented-continuation-lines table format (~40% fewer tokens than
@@ -64,6 +83,44 @@ export function buildVariantsTable(catalog: CompactCatalogEntry[]): string {
 }
 
 /**
+ * Customer's past orders with this vendor, most recent first — grounding
+ * data for "where's my order" style questions. Without this LLM-1 has
+ * nothing to answer from and improvises ("I'm checking...") instead of
+ * either reporting a real status or honestly saying there's no order.
+ */
+function buildOrderHistoryBlock(orderHistory: OrderHistoryEntry[]): string {
+  if (orderHistory.length === 0) return '(none)';
+  return orderHistory
+    .map((o) => {
+      const label = ORDER_STATUS_LABELS[o.status] || `📦 ${o.status}`;
+      // productId(+variantSku) included per item so a repeat-order request can
+      // emit real "add" ops directly — never invent one, same rule as the
+      // product catalog above.
+      const itemsSummary = parseOrderItems(o.items)
+        .map((i) => `${i.name}${i.variantLabel ? ` (${i.variantLabel})` : ''} x${i.quantity} [${i.productId}${i.variantSku ? `,${i.variantSku}` : ''}]`)
+        .join(', ') || '(no items)';
+      const placed = o.createdAt.toISOString().slice(0, 10);
+      const parts = [`${o.orderNumber}: ${label} — ${itemsSummary} — Rs${(o.totalAmount / 100).toFixed(2)} — placed ${placed}`];
+      if (o.estimatedDelivery) parts.push(`estimated delivery ${o.estimatedDelivery.toISOString().slice(0, 10)}`);
+      if (o.status === 'cancelled' && o.cancellationReason) parts.push(`reason: ${o.cancellationReason}`);
+      return `- ${parts.join(', ')}`;
+    })
+    .join('\n');
+}
+
+/**
+ * FAQs whose embedding matched the customer's *current* message closely
+ * enough (prefetch.ts's loadFaqs, cosine similarity >= FAQ_SIMILARITY_THRESHOLD).
+ * Query-dependent, unlike every other dynamic-block input — must never move
+ * into buildStaticBlock, since that block must stay identical across turns
+ * for the same vendor to remain inside OpenAI's prompt-caching prefix.
+ */
+function buildFaqBlock(faqs: FaqEntry[]): string {
+  if (faqs.length === 0) return '(none)';
+  return faqs.map((f) => `- Q: ${f.question}\n  A: ${f.answer}`).join('\n');
+}
+
+/**
  * Vendor identity/rules/catalog — identical across turns for the same
  * vendor, so it belongs first in the system prompt to stay inside OpenAI's
  * automatic prompt-caching prefix (matches unifiedAIProcessorService.ts's
@@ -119,6 +176,21 @@ function buildStaticBlock(hotSet: HotSet): string {
   parts.push(
     "- Reply in the same language/script as the customer's latest message (English, Tamil, Hindi, Tanglish/Hinglish, or a natural mix)."
   );
+  parts.push(
+    '- If the customer asks about an order (status, "where is it", "did I already order"), answer directly from RECENT ORDERS below — state the exact order number and status. NEVER say "I\'m checking" or "I\'ll get back to you" — you already have the data, right now, in this prompt. If RECENT ORDERS is empty, say plainly that you don\'t see any order on file and ask if they\'d like to place one — don\'t ask for their name/address "to check the status" first.'
+  );
+  parts.push(
+    '- If the customer wants to repeat/reorder a past order ("same as last time"), emit "add" ops using that order\'s exact productId/variantSku from RECENT ORDERS at the same quantity, unless they say otherwise. Don\'t ask them to re-describe what they ordered.'
+  );
+  parts.push(
+    '- If the customer wants to cancel an order, emit "cancel" with that order\'s "orderNumber" from RECENT ORDERS (omit orderNumber only to cancel the cart in CURRENT CART above). You don\'t need to check its status yourself — the system will tell you if it can\'t be auto-cancelled.'
+  );
+  parts.push(
+    '- If the customer asks for a refund, emit "refund_request" with the order\'s "orderNumber" (and their stated reason if given) — the system decides eligibility, you never do. Don\'t promise or deny a refund yourself in draftReply; just acknowledge you\'re processing the request.'
+  );
+  parts.push(
+    '- For a complaint (wrong/damaged/late item) or a return request, emit "handoff" with category "complaint" or "return", "orderNumber" from RECENT ORDERS if one applies, and a one-line factual "details" summary of what the customer said. Don\'t try to resolve it yourself (no discount, replacement, or apology promises) — that\'s the vendor\'s call.'
+  );
 
   if (v.aiDeliveryInstructions) parts.push(`Delivery info (advisory only, never a promised date): ${v.aiDeliveryInstructions}`);
   if (v.aiPickupDeliveryAddress) parts.push(`Pickup/delivery address: ${v.aiPickupDeliveryAddress}`);
@@ -152,6 +224,19 @@ function buildDynamicBlock(hotSet: HotSet): string {
   parts.push(`Address: ${hotSet.insights?.address || hotSet.pendingOrder?.address || '(unknown)'}`);
   const language = hotSet.memory?.language || hotSet.insights?.language;
   if (language) parts.push(`Preferred language (fallback only — the latest message's language wins): ${language}`);
+
+  parts.push('');
+  parts.push('RECENT ORDERS (most recent first — this is the customer\'s real order history, not the cart above):');
+  parts.push(buildOrderHistoryBlock(hotSet.orderHistory));
+  const hasUnfulfilledOrder = hotSet.orderHistory.some((o) => ['pending', 'confirmed', 'preparing'].includes(o.status));
+  if (hasUnfulfilledOrder) {
+    const prepMessage = getPreparationTimeMessage(hotSet.vendorConfig.orderPreparationConfig as OrderPreparationConfig | null);
+    parts.push(`Vendor's stated prep-time policy (use this for "how long" questions, don't invent your own): ${prepMessage}`);
+  }
+
+  parts.push('');
+  parts.push("RELEVANT FAQs (only shown when similar to the customer's current message — use these facts verbatim, don't contradict them):");
+  parts.push(buildFaqBlock(hotSet.faqs));
 
   if (hotSet.recentMessages.length > 0) {
     parts.push('');
@@ -219,14 +304,32 @@ const cartOpSchema = {
     },
     {
       type: 'object',
-      properties: { type: { type: 'string', enum: ['cancel'] } },
-      required: ['type'],
+      properties: {
+        type: { type: 'string', enum: ['cancel'] },
+        orderNumber: { type: ['string', 'null'] }
+      },
+      required: ['type', 'orderNumber'],
       additionalProperties: false
     },
     {
       type: 'object',
-      properties: { type: { type: 'string', enum: ['handoff'] } },
-      required: ['type'],
+      properties: {
+        type: { type: 'string', enum: ['refund_request'] },
+        orderNumber: { type: ['string', 'null'] },
+        reason: { type: ['string', 'null'] }
+      },
+      required: ['type', 'orderNumber', 'reason'],
+      additionalProperties: false
+    },
+    {
+      type: 'object',
+      properties: {
+        type: { type: 'string', enum: ['handoff'] },
+        category: { type: ['string', 'null'], enum: ['complaint', 'return', 'cancel_in_progress', 'other', null] },
+        details: { type: ['string', 'null'] },
+        orderNumber: { type: ['string', 'null'] }
+      },
+      required: ['type', 'category', 'details', 'orderNumber'],
       additionalProperties: false
     },
     {

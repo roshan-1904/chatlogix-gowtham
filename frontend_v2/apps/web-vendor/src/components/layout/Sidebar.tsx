@@ -4,6 +4,7 @@ const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: '📊' },
   { name: 'Conversations', href: '/conversations', icon: '💬' },
   { name: 'Catalog', href: '/catalog', icon: '📦' },
+  { name: 'FAQs', href: '/faqs', icon: '❓' },
   { name: 'Orders', href: '/orders', icon: '🛒' },
   { name: 'Templates', href: '/templates', icon: '📝' },
   { name: 'Settings', href: '/settings', icon: '⚙️' },

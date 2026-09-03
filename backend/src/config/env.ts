@@ -57,6 +57,11 @@ const EnvSchema = z.object({
   // Conversation processor LLM-2 verifier (spec §17, Appendix C: "tune from logs")
   VERIFY_THRESHOLD: z.string().default('0.75'),
 
+  // FAQ retrieval (pgvector cosine similarity against the customer's current
+  // message) — tunable "from logs" the same way VERIFY_THRESHOLD is.
+  FAQ_SIMILARITY_THRESHOLD: z.string().default('0.75'),
+  FAQ_TOP_K: z.string().default('3'),
+
   // WhatsApp
   WHATSAPP_VERIFY_TOKEN: z.string().optional(),
   WHATSAPP_WEBHOOK_VERIFY_TOKEN: z.string().optional(),

@@ -16,9 +16,37 @@ export type CartOp =
   | { type: 'remove'; productId: string; variantSku?: string | null }
   | { type: 'set_field'; field: 'address' | 'name' | 'notes' | 'delivery_date'; value: string }
   | { type: 'confirm' }
-  | { type: 'cancel' }
-  | { type: 'handoff' }
+  // `orderNumber` targets a specific past order (from RECENT ORDERS) instead of
+  // the conversation's own live draft — omitted = today's behavior unchanged.
+  // Needed because a confirmed order stops being `hotSet.pendingOrder` (that
+  // loader only ever returns `status: 'pending'`), so without this, "cancel my
+  // order" silently did nothing once the order moved past pending.
+  | { type: 'cancel'; orderNumber?: string | null }
+  // Deterministic eligibility (CartEngine decides, never the model — same
+  // reason prices come from Product, not the model): pending/confirmed +
+  // within 7 days = auto-approved-and-cancelled; anything else is reported
+  // back as `postSalesOutcome: 'refund_denied'` for a human to review.
+  | { type: 'refund_request'; orderNumber?: string | null; reason?: string | null }
+  // `category`/`details`/`orderNumber` let a handoff carry real context to the
+  // vendor (a specific complaint/return/in-progress-order-cancel, not just
+  // "check your dashboard") — see handoff.ts/postSalesAlert.ts.
+  | { type: 'handoff'; category?: 'complaint' | 'return' | 'cancel_in_progress' | 'other' | null; details?: string | null; orderNumber?: string | null }
   | { type: 'noop' };
+
+/**
+ * Non-cart outcome of a turn's ops (refund/cancel-from-history), reported
+ * back from CartEngine.apply so pipeline.ts can render a deterministic reply
+ * (skip LLM-2, same reasoning as the existing handoffOp short-circuit — an
+ * eligibility/money fact must never be phrased by a free-text model) and
+ * decide whether to alert the vendor. CartEngine itself never sends
+ * messages; it only ever reports state.
+ */
+export interface PostSalesOutcome {
+  type: 'refund_approved' | 'refund_denied' | 'order_cancelled' | 'not_cancellable_at_this_stage';
+  orderId: string;
+  orderNumber: string;
+  detail: string;
+}
 
 export interface Llm1Result {
   language: 'en' | 'ta' | 'hi' | 'mixed';
@@ -142,12 +170,53 @@ export interface ConvMemory {
   turnNumber: number;
 }
 
+/**
+ * One of a customer's past orders with this vendor — NOT the current draft
+ * cart (`pendingOrder` below is that). Scoped to customerId+vendorId, not
+ * conversationId: a customer can have more than one Conversation row with
+ * the same vendor, so a conversation-scoped query would silently miss an
+ * order placed in a different one. This is what lets LLM-1 answer
+ * "where's my order" from real data instead of improvising.
+ */
+export interface OrderHistoryEntry {
+  id: string;
+  orderNumber: string;
+  items: unknown; // Json — parse with cart/snapshot.ts's parseOrderItems()
+  totalAmount: number; // paise
+  status: string;
+  createdAt: Date;
+  estimatedDelivery: Date | null;
+  confirmedAt: Date | null;
+  preparedAt: Date | null;
+  deliveredAt: Date | null;
+  cancelledAt: Date | null;
+  cancellationReason: string | null;
+}
+
+/**
+ * A vendor FAQ whose question-embedding matched the customer's *current*
+ * message closely enough (prefetch.ts's loadFaqs, cosine similarity >=
+ * FAQ_SIMILARITY_THRESHOLD). `similarity` is carried for logging/debugging
+ * only — never rendered in the prompt.
+ */
+export interface FaqEntry {
+  id: string;
+  question: string;
+  answer: string;
+  similarity: number;
+}
+
 /** Result of the parallel prefetch (spec §11, §7 step 2). */
 export interface HotSet {
   vendorConfig: VendorConfig;
   compactCatalog: CompactCatalogEntry[];
   memory: ConvMemory | null;
   pendingOrder: CartSnapshot | null;
+  orderHistory: OrderHistoryEntry[]; // most recent first, up to 10
+  // Unlike every other HotSet field, this is a function of the current
+  // turn's message text, not stable across turns for the same
+  // vendor/conversation — see prefetchHotSet's `messageText` parameter.
+  faqs: FaqEntry[];
   insights: { name: string | null; address: string | null; language: string | null } | null;
   recentMessages: Array<{ role: 'customer' | 'assistant'; content: string }>;
 }

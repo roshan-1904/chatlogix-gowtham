@@ -8,6 +8,9 @@ import { OrderDetails } from './pages/OrderDetails';
 import { Products } from './pages/Products';
 import { ProductCreate } from './pages/ProductCreate';
 import { ProductEdit } from './pages/ProductEdit';
+import { Faqs } from './pages/Faqs';
+import { FaqCreate } from './pages/FaqCreate';
+import { FaqEdit } from './pages/FaqEdit';
 import { CatalogImport } from './pages/CatalogImport';
 import { CatalogImportPhoto } from './pages/CatalogImportPhoto';
 import { CatalogImportTemplate } from './pages/CatalogImportTemplate';
@@ -65,6 +68,9 @@ function App() {
                 <Route path="/catalog/import/template" element={<CatalogImportTemplate />} />
                 <Route path="/catalog/import/:jobId/go-live" element={<CatalogImportGoLive />} />
                 <Route path="/catalog/:id/edit" element={<ProductEdit />} />
+                <Route path="/faqs" element={<Faqs />} />
+                <Route path="/faqs/new" element={<FaqCreate />} />
+                <Route path="/faqs/:id/edit" element={<FaqEdit />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="*" element={<div>404 - Page Not Found</div>} />
               </Routes>

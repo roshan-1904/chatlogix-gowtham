@@ -276,6 +276,40 @@ describe('CartEngine.apply', () => {
     expect(result.snapshot.items[0].quantity).toBe(2);
   });
 
+  it('does not create a phantom order for a set_field-only op with no items (the empty-order bug)', async () => {
+    orderFindFirst.mockResolvedValue(null);
+
+    const result = await apply({
+      vendorId: VENDOR_ID,
+      conversationId: CONVERSATION_ID,
+      customerId: CUSTOMER_ID,
+      orderId: null,
+      ops: [{ type: 'set_field', field: 'address', value: '123 Main St' }],
+      traceId: 'wamid.12'
+    });
+
+    expect(orderCreate).not.toHaveBeenCalled();
+    expect(result.snapshot.orderId).toBeNull();
+    // address still flows into the snapshot so persist.ts can save it to CustomerInsights
+    expect(result.snapshot.address).toBe('123 Main St');
+  });
+
+  it('does not create a phantom order for a set_field notes-only op with no items', async () => {
+    orderFindFirst.mockResolvedValue(null);
+
+    const result = await apply({
+      vendorId: VENDOR_ID,
+      conversationId: CONVERSATION_ID,
+      customerId: CUSTOMER_ID,
+      orderId: null,
+      ops: [{ type: 'set_field', field: 'notes', value: 'call before delivery' }],
+      traceId: 'wamid.13'
+    });
+
+    expect(orderCreate).not.toHaveBeenCalled();
+    expect(result.snapshot.orderId).toBeNull();
+  });
+
   it('rejects cancel when there is no order to cancel', async () => {
     orderFindFirst.mockResolvedValue(null);
 
@@ -358,5 +392,187 @@ describe('CartEngine.apply', () => {
     expect(kadaiLine?.quantity).toBe(1);
     expect(ssLine?.quantity).toBe(1);
     expect(ssLine?.unitPricePaise).toBe(179900);
+  });
+});
+
+describe('CartEngine.apply — refund_request and historical cancel (#3)', () => {
+  /** No live draft for this conversation — every scenario here targets a past order by orderNumber. */
+  function mockNoLiveDraftThenHistoricalOrder(historicalOrder: any) {
+    orderFindFirst.mockImplementation(({ where }: any) => {
+      if (where.orderNumber) return Promise.resolve(historicalOrder);
+      return Promise.resolve(null); // top-of-function live-draft lookup, and the no-orderNumber fallback
+    });
+  }
+
+  it('refund_request: eligible (pending, within 7 days) cancels the order and reports refund_approved', async () => {
+    const historicalOrder = {
+      id: 'order-hist-1',
+      orderNumber: 'ORD-HIST-0001',
+      status: 'pending',
+      totalAmount: 129900,
+      createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) // 2 days ago
+    };
+    mockNoLiveDraftThenHistoricalOrder(historicalOrder);
+    orderUpdate.mockResolvedValue({});
+
+    const result = await apply({
+      vendorId: VENDOR_ID,
+      conversationId: CONVERSATION_ID,
+      customerId: CUSTOMER_ID,
+      orderId: null,
+      ops: [{ type: 'refund_request', orderNumber: 'ORD-HIST-0001', reason: 'changed my mind' }],
+      traceId: 'wamid.20'
+    });
+
+    expect(orderUpdate).toHaveBeenCalledWith({
+      where: { id: 'order-hist-1' },
+      data: { status: 'cancelled', cancelledAt: expect.any(Date), cancellationReason: 'changed my mind' }
+    });
+    expect(result.mutated).toBe(true);
+    expect(result.postSalesOutcome).toEqual({
+      type: 'refund_approved',
+      orderId: 'order-hist-1',
+      orderNumber: 'ORD-HIST-0001',
+      detail: expect.stringContaining('₹1299.00')
+    });
+  });
+
+  it('refund_request: ineligible status (already delivered) leaves the order untouched and reports refund_denied', async () => {
+    const historicalOrder = {
+      id: 'order-hist-2',
+      orderNumber: 'ORD-HIST-0002',
+      status: 'delivered',
+      totalAmount: 50000,
+      createdAt: new Date()
+    };
+    mockNoLiveDraftThenHistoricalOrder(historicalOrder);
+
+    const result = await apply({
+      vendorId: VENDOR_ID,
+      conversationId: CONVERSATION_ID,
+      customerId: CUSTOMER_ID,
+      orderId: null,
+      ops: [{ type: 'refund_request', orderNumber: 'ORD-HIST-0002', reason: null }],
+      traceId: 'wamid.21'
+    });
+
+    expect(orderUpdate).not.toHaveBeenCalled();
+    expect(result.mutated).toBe(false);
+    expect(result.postSalesOutcome).toEqual({
+      type: 'refund_denied',
+      orderId: 'order-hist-2',
+      orderNumber: 'ORD-HIST-0002',
+      detail: expect.stringContaining('delivered')
+    });
+  });
+
+  it('refund_request: ineligible — outside the 7-day window — leaves the order untouched and reports refund_denied', async () => {
+    const historicalOrder = {
+      id: 'order-hist-3',
+      orderNumber: 'ORD-HIST-0003',
+      status: 'confirmed',
+      totalAmount: 50000,
+      createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000) // 10 days ago
+    };
+    mockNoLiveDraftThenHistoricalOrder(historicalOrder);
+
+    const result = await apply({
+      vendorId: VENDOR_ID,
+      conversationId: CONVERSATION_ID,
+      customerId: CUSTOMER_ID,
+      orderId: null,
+      ops: [{ type: 'refund_request', orderNumber: 'ORD-HIST-0003', reason: null }],
+      traceId: 'wamid.22'
+    });
+
+    expect(orderUpdate).not.toHaveBeenCalled();
+    expect(result.postSalesOutcome?.type).toBe('refund_denied');
+    expect(result.postSalesOutcome?.detail).toContain('7-day');
+  });
+
+  it('cancel: targeting a past orderNumber (not the live conversation draft) cancels it and reports order_cancelled', async () => {
+    const historicalOrder = {
+      id: 'order-hist-4',
+      orderNumber: 'ORD-HIST-0004',
+      status: 'confirmed',
+      totalAmount: 50000,
+      createdAt: new Date()
+    };
+    mockNoLiveDraftThenHistoricalOrder(historicalOrder);
+    orderUpdate.mockResolvedValue({});
+
+    const result = await apply({
+      vendorId: VENDOR_ID,
+      conversationId: CONVERSATION_ID,
+      customerId: CUSTOMER_ID,
+      orderId: null,
+      ops: [{ type: 'cancel', orderNumber: 'ORD-HIST-0004' }],
+      traceId: 'wamid.23'
+    });
+
+    expect(orderUpdate).toHaveBeenCalledWith({
+      where: { id: 'order-hist-4' },
+      data: { status: 'cancelled', cancelledAt: expect.any(Date), cancellationReason: 'Cancelled via AI assistant' }
+    });
+    expect(result.mutated).toBe(true);
+    expect(result.postSalesOutcome).toEqual({
+      type: 'order_cancelled',
+      orderId: 'order-hist-4',
+      orderNumber: 'ORD-HIST-0004',
+      detail: 'Cancelled as requested.'
+    });
+  });
+
+  it('cancel: rejects with not_cancellable_at_this_stage when the target order is already preparing, and does not mutate it', async () => {
+    const historicalOrder = {
+      id: 'order-hist-5',
+      orderNumber: 'ORD-HIST-0005',
+      status: 'preparing',
+      totalAmount: 50000,
+      createdAt: new Date()
+    };
+    mockNoLiveDraftThenHistoricalOrder(historicalOrder);
+
+    const result = await apply({
+      vendorId: VENDOR_ID,
+      conversationId: CONVERSATION_ID,
+      customerId: CUSTOMER_ID,
+      orderId: null,
+      ops: [{ type: 'cancel', orderNumber: 'ORD-HIST-0005' }],
+      traceId: 'wamid.24'
+    });
+
+    expect(orderUpdate).not.toHaveBeenCalled();
+    expect(result.mutated).toBe(false);
+    expect(result.rejectedOps).toEqual([
+      { op: { type: 'cancel', orderNumber: 'ORD-HIST-0005' }, reason: 'not_cancellable_at_this_stage' }
+    ]);
+    expect(result.postSalesOutcome).toEqual({
+      type: 'not_cancellable_at_this_stage',
+      orderId: 'order-hist-5',
+      orderNumber: 'ORD-HIST-0005',
+      detail: expect.stringContaining('preparing')
+    });
+  });
+
+  it('cancel: a bare cancel (no orderNumber) on the live draft that is already preparing is rejected with the same new reason', async () => {
+    orderFindFirst.mockResolvedValue(
+      existingOrder([{ productId: 'prod-brownie', name: 'Brownie', quantity: 1, unit: 'box', unitPricePaise: 10000, lineTotalPaise: 10000 }], {
+        status: 'preparing'
+      })
+    );
+
+    const result = await apply({
+      vendorId: VENDOR_ID,
+      conversationId: CONVERSATION_ID,
+      customerId: CUSTOMER_ID,
+      orderId: 'order-1',
+      ops: [{ type: 'cancel' }],
+      traceId: 'wamid.25'
+    });
+
+    expect(orderUpdate).not.toHaveBeenCalled();
+    expect(result.rejectedOps[0].reason).toBe('not_cancellable_at_this_stage');
+    expect(result.postSalesOutcome?.type).toBe('not_cancellable_at_this_stage');
   });
 });

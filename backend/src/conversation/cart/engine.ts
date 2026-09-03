@@ -1,10 +1,11 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../db/prisma.js';
 import { logger } from '../../logger.js';
-import type { CartOp, CartLine, CartSnapshot } from '../types.js';
+import type { CartOp, CartLine, CartSnapshot, PostSalesOutcome } from '../types.js';
 import { parseOrderItems, computeMissing } from './snapshot.js';
 import { resolveProduct, resolveVariant, computeUnitPricePaise } from './productResolve.js';
 import { checkAvailability } from './availability.js';
+import { checkRefundEligibility } from './refund.js';
 
 export interface ApplyOpsInput {
   vendorId: string;
@@ -19,7 +20,14 @@ export interface ApplyOpsResult {
   snapshot: CartSnapshot;
   mutated: boolean;
   rejectedOps: Array<{ op: CartOp; reason: string }>;
+  // Set by a `cancel`/`refund_request` op that targeted a *historical* order
+  // (or failed to, past the pending/confirmed stage) — CartEngine only
+  // reports state, pipeline.ts turns this into the actual customer reply
+  // and vendor alert (see postSalesAlert.ts).
+  postSalesOutcome?: PostSalesOutcome;
 }
+
+const CANCELLABLE_STATUSES = ['pending', 'confirmed'];
 
 type TxClient = Prisma.TransactionClient;
 
@@ -87,6 +95,41 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
 
         const rejectedOps: Array<{ op: CartOp; reason: string }> = [];
         let mutated = false;
+        let postSalesOutcome: PostSalesOutcome | undefined;
+        // Set when a cancel/refund directly updated an order OTHER than the
+        // conversation's own `order` — that write already happened inline
+        // (not through the shared lines/order persistence below), but the
+        // caller-facing `mutated` flag should still reflect that something changed.
+        let historicalOrderChanged = false;
+
+        function notCancellableOutcome(orderId: string, orderNumber: string, status: string): PostSalesOutcome {
+          return {
+            type: 'not_cancellable_at_this_stage',
+            orderId,
+            orderNumber,
+            detail: `Order is already ${status} and can no longer be cancelled automatically.`
+          };
+        }
+
+        /**
+         * Resolves the order a `cancel`/`refund_request` op targets:
+         * `op.orderNumber` (a past order from RECENT ORDERS) when given,
+         * else the conversation's own live order, else — matching the
+         * legacy pipeline's default (dataExtractionService.ts's
+         * handlePostSalesIntent) — the customer's most recent non-cancelled
+         * order. Always scoped to customerId+vendorId: never trust a bare
+         * orderNumber from the model without that check (I4).
+         */
+        async function resolveTargetOrder(orderNumber: string | null | undefined) {
+          if (orderNumber) {
+            return tx.order.findFirst({ where: { orderNumber, customerId, vendorId } });
+          }
+          if (order) return order;
+          return tx.order.findFirst({
+            where: { customerId, vendorId, status: { not: 'cancelled' } },
+            orderBy: { createdAt: 'desc' }
+          });
+        }
 
         for (const op of ops) {
           switch (op.type) {
@@ -226,16 +269,79 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
             }
 
             case 'cancel': {
-              if (!order) {
+              if (!op.orderNumber) {
+                // No target specified — the conversation's own live order only.
+                // Unchanged from before historical-order cancel existed.
+                if (!order) {
+                  rejectedOps.push({ op, reason: 'no_order_to_cancel' });
+                  break;
+                }
+                if (status === 'pending' || status === 'confirmed') {
+                  status = 'cancelled';
+                  mutated = true;
+                } else {
+                  rejectedOps.push({ op, reason: 'not_cancellable_at_this_stage' });
+                  postSalesOutcome = notCancellableOutcome(order.id, order.orderNumber, status);
+                }
+                break;
+              }
+
+              // Targeting a specific order by number — may be the live draft
+              // or a past (e.g. already-confirmed) one from RECENT ORDERS.
+              const targetOrder = await resolveTargetOrder(op.orderNumber);
+              if (!targetOrder) {
                 rejectedOps.push({ op, reason: 'no_order_to_cancel' });
                 break;
               }
-              if (status === 'pending' || status === 'confirmed') {
+              if (!CANCELLABLE_STATUSES.includes(targetOrder.status)) {
+                rejectedOps.push({ op, reason: 'not_cancellable_at_this_stage' });
+                postSalesOutcome = notCancellableOutcome(targetOrder.id, targetOrder.orderNumber, targetOrder.status);
+                break;
+              }
+              if (order && targetOrder.id === order.id) {
                 status = 'cancelled';
                 mutated = true;
               } else {
-                rejectedOps.push({ op, reason: 'not_cancellable' });
+                // A different order than the one this conversation has loaded —
+                // apply directly; the shared lines/order persistence below is
+                // scoped to `order` only and must not touch this one.
+                await tx.order.update({
+                  where: { id: targetOrder.id },
+                  data: { status: 'cancelled', cancelledAt: new Date(), cancellationReason: 'Cancelled via AI assistant' }
+                });
+                historicalOrderChanged = true;
               }
+              postSalesOutcome = { type: 'order_cancelled', orderId: targetOrder.id, orderNumber: targetOrder.orderNumber, detail: 'Cancelled as requested.' };
+              break;
+            }
+
+            case 'refund_request': {
+              const targetOrder = await resolveTargetOrder(op.orderNumber);
+              if (!targetOrder) {
+                rejectedOps.push({ op, reason: 'no_order_to_refund' });
+                break;
+              }
+              const eligibility = checkRefundEligibility(targetOrder);
+              if (!eligibility.eligible) {
+                postSalesOutcome = { type: 'refund_denied', orderId: targetOrder.id, orderNumber: targetOrder.orderNumber, detail: eligibility.reason };
+                break;
+              }
+              if (order && targetOrder.id === order.id) {
+                status = 'cancelled';
+                mutated = true;
+              } else {
+                await tx.order.update({
+                  where: { id: targetOrder.id },
+                  data: { status: 'cancelled', cancelledAt: new Date(), cancellationReason: op.reason || 'Refund approved' }
+                });
+                historicalOrderChanged = true;
+              }
+              postSalesOutcome = {
+                type: 'refund_approved',
+                orderId: targetOrder.id,
+                orderNumber: targetOrder.orderNumber,
+                detail: `₹${(targetOrder.totalAmount / 100).toFixed(2)} will be refunded within 3-5 business days.`
+              };
               break;
             }
 
@@ -264,7 +370,12 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
                 status
               }
             });
-          } else if (lines.length > 0 || deliveryAddress || specialRequests || deliveryInstructions) {
+          } else if (lines.length > 0) {
+            // Never create an Order with no items — a set_field-only turn (e.g. the
+            // customer volunteers their address while asking about an order that
+            // doesn't exist) must not spawn a ₹0 phantom order. customerName/address
+            // still reach CustomerInsights via persist.ts regardless (it reads
+            // snapshot.customerName/.address unconditionally, not through Order).
             order = await tx.order.create({
               data: {
                 vendorId,
@@ -307,12 +418,14 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
           missing
         };
 
+        const reportedMutated = mutated || historicalOrderChanged;
+
         logger.info(
-          { traceId, vendorId, conversationId, orderId: snapshot.orderId, mutated, rejectedCount: rejectedOps.length },
+          { traceId, vendorId, conversationId, orderId: snapshot.orderId, mutated: reportedMutated, rejectedCount: rejectedOps.length, postSalesOutcome: postSalesOutcome?.type },
           'CartEngine.apply complete'
         );
 
-        return { snapshot, mutated, rejectedOps };
+        return { snapshot, mutated: reportedMutated, rejectedOps, postSalesOutcome };
       },
       { isolationLevel: 'ReadCommitted', maxWait: 5000, timeout: 10000 }
     )

@@ -12,6 +12,7 @@ This document is the source of truth for rewriting WhatsApp **text** conversatio
 
 Related docs (do not contradict this spec for the **text** path):
 
+- `docs/INCOMING_RESPONSE_GENERATOR_FLOW.md` — **living as-implemented** walkthrough of how the reply is prepared (follows the code; update it when `backend/src/conversation/` changes)
 - `docs/DEPLOYMENT.md` — current webhook → SQS → Lambda topology  
 - `docs/LAMBDA_MIGRATION_PLAN.md` — VM vs Lambda; Postgres stays on Lightsail for now  
 - `backend/src/services/unifiedAIProcessorService.ts` — current single-call AI (replaced for text)  

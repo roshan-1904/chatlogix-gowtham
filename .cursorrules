@@ -162,6 +162,7 @@ ChatLogix/
 
 ### Documentation
 - `docs/` - All project documentation
+- `docs/INCOMING_RESPONSE_GENERATOR_FLOW.md` - Living walkthrough of how `chatlogix-incoming-response-generator` prepares a WhatsApp reply (update in the same change as any `backend/src/conversation/` flow edit)
 - `requirements/` - Requirements and planning
 - `backend/README.md` - Backend setup guide
 
@@ -219,6 +220,7 @@ ChatLogix/
 - Document complex algorithms
 - Include examples in documentation
 - Update docs when code changes
+- If you change the text conversation pipeline (`backend/src/conversation/`), update `docs/INCOMING_RESPONSE_GENERATOR_FLOW.md` in the same change
 
 ## Environment Variables
 - Never commit `.env` files

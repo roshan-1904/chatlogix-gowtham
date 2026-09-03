@@ -60,6 +60,7 @@ model Vendor {
   correctionHistory              CorrectionHistory[]
   creditUsages                   CreditUsage[]
   customerInsights               CustomerInsights[]
+  faqs                           Faq[]
   messageProcessing              MessageProcessing[]
   notificationHistory            NotificationHistory[]
   orders                         Order[]
@@ -259,6 +260,7 @@ model Order {
   @@index([vendorId, createdAt(sort: Desc)], map: "idx_order_vendor_created")
   @@index([vendorId, status], map: "idx_order_vendor_status")
   @@index([vendorId, status, createdAt(sort: Desc)], map: "idx_order_vendor_status_created")
+  @@index([customerId, vendorId, createdAt(sort: Desc)], map: "idx_order_customer_vendor_created")
   @@map("Order")
 }
 
@@ -394,6 +396,30 @@ model Product {
   @@index([vendorId, isActive], map: "idx_product_vendor_active")
   @@index([vendorId, inStock], map: "idx_product_vendor_stock")
   @@map("Product")
+}
+
+// Vendor-authored FAQ, retrieved by embedding similarity against the
+// customer's current message and injected into the LLM-1 prompt when
+// relevant (conversation/faq/embedding.ts, conversation/prefetch.ts's
+// loadFaqs). `embedding` is `Unsupported` because Prisma 5.17 has no native
+// pgvector scalar type — it is invisible to prisma.faq.* calls in both
+// directions; all embedding I/O goes through $queryRaw/$executeRaw (see
+// prisma/migrations/add_faq_table.sql).
+model Faq {
+  id             String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  vendorId       String
+  question       String    @db.VarChar(300)
+  answer         String    @db.VarChar(1500)
+  embedding      Unsupported("vector(1536)")?
+  embeddingModel String?   @db.VarChar(64)
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @default(now()) @updatedAt
+  vendor         Vendor    @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@index([vendorId])
+  @@index([vendorId, isActive])
+  @@map("Faq")
 }
 
 model CatalogImportJob {

@@ -3,6 +3,8 @@ import { env } from '../config/env.js';
 import { logger } from '../logger.js';
 
 const BASE_URL = 'https://graph.facebook.com/v18.0';
+const TYPING_GRAPH_BASE = 'https://graph.facebook.com/v21.0';
+const TYPING_TIMEOUT_MS = 800;
 
 export interface WhatsAppSendResult {
   messageId: string;
@@ -45,6 +47,81 @@ function resolveTargetPhoneNumberId(phoneNumberId?: string): string | null {
     return null;
   }
   return target;
+}
+
+/**
+ * Mark an inbound message as read (customer blue ticks) and show a typing
+ * indicator. Meta fuses both in one payload — there is no typing-only API.
+ * Never throws; failures are logged and returned as `{ ok: false }`.
+ */
+export async function sendTypingIndicator(
+  whatsappMessageId: string,
+  phoneNumberId?: string
+): Promise<{ ok: boolean }> {
+  const target = resolveTargetPhoneNumberId(phoneNumberId);
+  if (!target) {
+    return { ok: false };
+  }
+
+  const url = `${TYPING_GRAPH_BASE}/${target}/messages`;
+  const body = {
+    messaging_product: 'whatsapp',
+    status: 'read',
+    message_id: whatsappMessageId,
+    typing_indicator: { type: 'text' }
+  };
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${env.WHATSAPP_ACCESS_TOKEN}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(TYPING_TIMEOUT_MS)
+    });
+
+    if (!res.ok) {
+      const errBody = await res.text();
+      logger.warn(
+        {
+          status: res.status,
+          body: errBody.slice(0, 500),
+          whatsappMessageId,
+          phoneNumberId: target
+        },
+        'WhatsApp typing indicator request failed'
+      );
+      return { ok: false };
+    }
+
+    try {
+      const json = (await res.json()) as { success?: boolean } | null;
+      if (json && json.success === false) {
+        logger.warn(
+          {
+            status: res.status,
+            body: JSON.stringify(json).slice(0, 500),
+            whatsappMessageId,
+            phoneNumberId: target
+          },
+          'WhatsApp typing indicator request failed'
+        );
+        return { ok: false };
+      }
+    } catch {
+      // 2xx with empty or non-JSON body is acceptable — do not require messages[0].id
+    }
+
+    return { ok: true };
+  } catch (error) {
+    logger.warn(
+      { err: error, whatsappMessageId, phoneNumberId: target },
+      'WhatsApp typing indicator request error'
+    );
+    return { ok: false };
+  }
 }
 
 export async function sendWhatsAppText(

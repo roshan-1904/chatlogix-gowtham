@@ -28,7 +28,9 @@ const {
   runLlm2Mock,
   selectFinalReplyMock,
   triggerHandoffMock,
-  notifyVendorNewOrderMock
+  notifyVendorNewOrderMock,
+  notifyVendorOfPostSalesEventMock,
+  sendTypingIndicatorMock
 } = vi.hoisted(() => {
   class MockLockContentionError extends Error {}
   class MockLockUnavailableError extends Error {}
@@ -56,7 +58,9 @@ const {
     runLlm2Mock: vi.fn(),
     selectFinalReplyMock: vi.fn(),
     triggerHandoffMock: vi.fn(),
-    notifyVendorNewOrderMock: vi.fn()
+    notifyVendorNewOrderMock: vi.fn(),
+    notifyVendorOfPostSalesEventMock: vi.fn(),
+    sendTypingIndicatorMock: vi.fn()
   };
 });
 
@@ -97,10 +101,14 @@ vi.mock('../llm/llm2.js', () => ({
   selectFinalReply: (...args: unknown[]) => selectFinalReplyMock(...args)
 }));
 vi.mock('../handoff.js', () => ({ triggerHandoff: (...args: unknown[]) => triggerHandoffMock(...args) }));
+vi.mock('../postSalesAlert.js', () => ({ notifyVendorOfPostSalesEvent: (...args: unknown[]) => notifyVendorOfPostSalesEventMock(...args) }));
 vi.mock('../../services/whatsappTemplateService.js', () => ({
   WhatsAppTemplateService: vi.fn().mockImplementation(() => ({
     notifyVendorNewOrder: (...args: unknown[]) => notifyVendorNewOrderMock(...args)
   }))
+}));
+vi.mock('../../services/whatsappClient.js', () => ({
+  sendTypingIndicator: (...args: unknown[]) => sendTypingIndicatorMock(...args)
 }));
 
 import { finalizeTurn, processMessage } from '../pipeline.js';
@@ -251,6 +259,40 @@ describe('processMessage', () => {
     publishToQueueMock.mockResolvedValue(undefined);
     debitAfterEnqueueMock.mockResolvedValue('debited');
     notifyVendorNewOrderMock.mockResolvedValue({ success: true, queued: true });
+    sendTypingIndicatorMock.mockResolvedValue({ ok: true });
+    notifyVendorOfPostSalesEventMock.mockResolvedValue(undefined);
+  });
+
+  it('fires read+typing after guards pass, before prefetch/LLM-1', async () => {
+    const callOrder: string[] = [];
+    sendTypingIndicatorMock.mockImplementation(async () => {
+      callOrder.push('typing');
+      return { ok: true };
+    });
+    prefetchHotSetMock.mockImplementation(async () => {
+      callOrder.push('prefetch');
+      return hotSet;
+    });
+    runLlm1Mock.mockImplementation(async () => {
+      callOrder.push('llm1');
+      return llm1Result;
+    });
+
+    await processMessage(rawInput);
+
+    expect(sendTypingIndicatorMock).toHaveBeenCalledOnce();
+    expect(sendTypingIndicatorMock).toHaveBeenCalledWith('wamid.1', 'waba-phone-1');
+    expect(callOrder.indexOf('typing')).toBeLessThan(callOrder.indexOf('prefetch'));
+    expect(callOrder.indexOf('prefetch')).toBeLessThan(callOrder.indexOf('llm1'));
+  });
+
+  it('typing indicator failure does not block LLM or ProcessorSuccess', async () => {
+    sendTypingIndicatorMock.mockRejectedValue(new Error('graph down'));
+
+    await processMessage(rawInput);
+
+    expect(runLlm1Mock).toHaveBeenCalled();
+    expect(logCountMock).toHaveBeenCalledWith('ProcessorSuccess', { vendorId: 'vendor-1' });
   });
 
   it('happy path: runs the full pipeline, releases the lock, and reports ProcessorSuccess', async () => {
@@ -317,6 +359,7 @@ describe('processMessage', () => {
     expect(logCountMock).toHaveBeenCalledWith('LockContention', { vendorId: 'vendor-1' });
     expect(stashForBurstMergeMock).toHaveBeenCalledWith('conv-1', '2 brownies please');
     expect(runLlm1Mock).not.toHaveBeenCalled();
+    expect(sendTypingIndicatorMock).not.toHaveBeenCalled();
   });
 
   it('lock unavailable (Redis down): logs LockUnavailable, does NOT stash, still rethrows', async () => {
@@ -326,6 +369,7 @@ describe('processMessage', () => {
 
     expect(logCountMock).toHaveBeenCalledWith('LockUnavailable', { vendorId: 'vendor-1' });
     expect(stashForBurstMergeMock).not.toHaveBeenCalled();
+    expect(sendTypingIndicatorMock).not.toHaveBeenCalled();
   });
 
   it('CartEngine.apply failure: logs CartApplyFail before rethrowing', async () => {
@@ -344,6 +388,7 @@ describe('processMessage', () => {
     expect(runLlm1Mock).not.toHaveBeenCalled();
     expect(persistTurnMock).not.toHaveBeenCalled();
     expect(releaseLockMock).toHaveBeenCalled();
+    expect(sendTypingIndicatorMock).not.toHaveBeenCalled();
   });
 
   it('aiPaused guard: stores inbound only, no LLM, no reply published, no debit', async () => {
@@ -355,6 +400,7 @@ describe('processMessage', () => {
     expect(publishToQueueMock).not.toHaveBeenCalled();
     expect(debitAfterEnqueueMock).not.toHaveBeenCalled();
     expect(releaseLockMock).toHaveBeenCalled();
+    expect(sendTypingIndicatorMock).not.toHaveBeenCalled();
   });
 
   it('wallet guard: publishes the templated reply, no LLM, no debit', async () => {
@@ -367,6 +413,7 @@ describe('processMessage', () => {
     const publishCall = publishToQueueMock.mock.calls[0][1];
     expect(publishCall.to).toBe('+911234567890');
     expect(publishCall.metadata.intent).toBe('guard_no_credit');
+    expect(sendTypingIndicatorMock).not.toHaveBeenCalled();
   });
 
   it('handoff op: uses triggerHandoff\'s customerMessage as the final reply, skips LLM-2/selectFinalReply', async () => {
@@ -376,11 +423,101 @@ describe('processMessage', () => {
 
     await processMessage(rawInput);
 
-    expect(triggerHandoffMock).toHaveBeenCalledWith({ conversationId: 'conv-1', vendorId: 'vendor-1', phoneNumberId: 'waba-phone-1', traceId: 'wamid.1' });
+    expect(triggerHandoffMock).toHaveBeenCalledWith({
+      conversationId: 'conv-1',
+      vendorId: 'vendor-1',
+      customerId: 'customer-1',
+      phoneNumberId: 'waba-phone-1',
+      traceId: 'wamid.1',
+      category: null,
+      details: null,
+      orderNumber: null
+    });
     expect(runLlm2Mock).not.toHaveBeenCalled();
     expect(selectFinalReplyMock).not.toHaveBeenCalled();
     const persistCall = persistTurnMock.mock.calls[0][0];
     expect(persistCall.finalText).toBe("I've passed this to our team!");
+  });
+
+  it('postSalesOutcome (refund_approved): renders the deterministic reply, skips LLM-2, does not alert the vendor', async () => {
+    runLlm1Mock.mockResolvedValue({ ...llm1Result, ops: [{ type: 'refund_request', orderNumber: 'ORD-1', reason: null }] });
+    applyMock.mockResolvedValue({
+      snapshot,
+      mutated: true,
+      rejectedOps: [],
+      postSalesOutcome: { type: 'refund_approved', orderId: 'order-hist-1', orderNumber: 'ORD-1', detail: '₹500.00 will be refunded within 3-5 business days.' }
+    });
+
+    await processMessage(rawInput);
+
+    expect(runLlm2Mock).not.toHaveBeenCalled();
+    expect(selectFinalReplyMock).not.toHaveBeenCalled();
+    expect(notifyVendorOfPostSalesEventMock).not.toHaveBeenCalled();
+    const persistCall = persistTurnMock.mock.calls[0][0];
+    expect(persistCall.finalText).toBe('Your refund for order ORD-1 has been approved. ₹500.00 will be refunded within 3-5 business days.');
+  });
+
+  it('postSalesOutcome (refund_denied): renders the deterministic reply and alerts the vendor (Tier 2)', async () => {
+    runLlm1Mock.mockResolvedValue({ ...llm1Result, ops: [{ type: 'refund_request', orderNumber: 'ORD-2', reason: null }] });
+    applyMock.mockResolvedValue({
+      snapshot,
+      mutated: false,
+      rejectedOps: [],
+      postSalesOutcome: { type: 'refund_denied', orderId: 'order-hist-2', orderNumber: 'ORD-2', detail: 'Refund request is outside the 7-day window.' }
+    });
+
+    await processMessage(rawInput);
+    await new Promise((resolve) => setImmediate(resolve)); // fire-and-forget notify
+
+    expect(runLlm2Mock).not.toHaveBeenCalled();
+    const persistCall = persistTurnMock.mock.calls[0][0];
+    expect(persistCall.finalText).toContain("isn't eligible for an automatic refund");
+    expect(notifyVendorOfPostSalesEventMock).toHaveBeenCalledWith({
+      vendorId: 'vendor-1',
+      phoneNumberId: 'waba-phone-1',
+      conversationId: 'conv-1',
+      traceId: 'wamid.1',
+      orderId: 'order-hist-2',
+      orderNumber: 'ORD-2',
+      category: 'refund_denied',
+      detail: 'Refund request is outside the 7-day window.',
+      aiPaused: false
+    });
+  });
+
+  it('postSalesOutcome (not_cancellable_at_this_stage): renders the deterministic reply and alerts the vendor as cancel_in_progress', async () => {
+    runLlm1Mock.mockResolvedValue({ ...llm1Result, ops: [{ type: 'cancel', orderNumber: 'ORD-3' }] });
+    applyMock.mockResolvedValue({
+      snapshot,
+      mutated: false,
+      rejectedOps: [{ op: { type: 'cancel', orderNumber: 'ORD-3' }, reason: 'not_cancellable_at_this_stage' }],
+      postSalesOutcome: { type: 'not_cancellable_at_this_stage', orderId: 'order-hist-3', orderNumber: 'ORD-3', detail: 'Order is already preparing and can no longer be cancelled automatically.' }
+    });
+
+    await processMessage(rawInput);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const persistCall = persistTurnMock.mock.calls[0][0];
+    expect(persistCall.finalText).toContain("can't cancel order ORD-3 automatically");
+    expect(notifyVendorOfPostSalesEventMock).toHaveBeenCalledWith(
+      expect.objectContaining({ category: 'cancel_in_progress', orderNumber: 'ORD-3' })
+    );
+  });
+
+  it('postSalesOutcome (order_cancelled): renders the deterministic reply, no vendor alert needed', async () => {
+    runLlm1Mock.mockResolvedValue({ ...llm1Result, ops: [{ type: 'cancel', orderNumber: 'ORD-4' }] });
+    applyMock.mockResolvedValue({
+      snapshot,
+      mutated: true,
+      rejectedOps: [],
+      postSalesOutcome: { type: 'order_cancelled', orderId: 'order-hist-4', orderNumber: 'ORD-4', detail: 'Cancelled as requested.' }
+    });
+
+    await processMessage(rawInput);
+
+    expect(notifyVendorOfPostSalesEventMock).not.toHaveBeenCalled();
+    const persistCall = persistTurnMock.mock.calls[0][0];
+    expect(persistCall.finalText).toBe('Order ORD-4 has been cancelled as requested.');
   });
 
   it('successful confirm: fire-and-forget notifies the vendor of the new order', async () => {

@@ -1,14 +1,19 @@
 import { prisma } from '../db/prisma.js';
 import { logger } from '../logger.js';
-import { env } from '../config/env.js';
-import { publishToQueue } from '../queue/sqsClient.js';
 import { humanHandoffService } from '../services/humanHandoffService.js';
+import { notifyVendorOfPostSalesEvent, type PostSalesAlertCategory } from './postSalesAlert.js';
 
 export interface TriggerHandoffInput {
   conversationId: string;
   vendorId: string;
+  customerId: string;
   phoneNumberId: string;
   traceId: string;
+  // Sourced from the `handoff` CartOp when the model has real context (a
+  // complaint/return/in-progress-order-cancel) rather than a bare escalation.
+  category?: PostSalesAlertCategory | null;
+  details?: string | null;
+  orderNumber?: string | null;
 }
 
 export interface TriggerHandoffResult {
@@ -22,7 +27,7 @@ export interface TriggerHandoffResult {
  * *after* that — I5 says customer send must never be blocked on a notify.
  */
 export async function triggerHandoff(input: TriggerHandoffInput): Promise<TriggerHandoffResult> {
-  const { conversationId, vendorId, phoneNumberId, traceId } = input;
+  const { conversationId, vendorId, customerId, phoneNumberId, traceId, category, details, orderNumber } = input;
 
   // Reused as-is: sets Conversation.aiPaused = true and returns the canned
   // customer copy. Confirmed it does NOT notify the vendor — that half is
@@ -35,9 +40,23 @@ export async function triggerHandoff(input: TriggerHandoffInput): Promise<Trigge
     // that a conversation is "paused, check your dashboard" when it isn't
     // actually paused (executeHandoff failed internally) would be
     // misleading, since the AI would still be replying to the customer.
-    notifyVendor({ conversationId, vendorId, phoneNumberId, traceId }).catch((error) => {
-      logger.error({ err: error, conversationId, vendorId, traceId }, 'Handoff vendor notify failed');
-    });
+    resolveOrderId(customerId, vendorId, orderNumber ?? null)
+      .then((orderId) =>
+        notifyVendorOfPostSalesEvent({
+          vendorId,
+          phoneNumberId,
+          conversationId,
+          traceId,
+          orderId,
+          orderNumber: orderNumber ?? null,
+          category: category || 'other',
+          detail: details || 'A customer conversation needs your attention.',
+          aiPaused: true
+        })
+      )
+      .catch((error) => {
+        logger.error({ err: error, conversationId, vendorId, traceId }, 'Handoff vendor notify failed');
+      });
   } else {
     logger.warn({ conversationId, vendorId, traceId }, 'Handoff did not take effect (aiPaused not set) — skipping vendor notify');
   }
@@ -45,33 +64,9 @@ export async function triggerHandoff(input: TriggerHandoffInput): Promise<Trigge
   return { customerMessage: result.message };
 }
 
-/**
- * Standalone vendor notify — NOT a call to
- * whatsappTemplateService.notifyVendorNewOrder, which is hardwired to an
- * orderId (prisma.order.findUnique) that doesn't exist for a handoff event.
- * Follows that function's *pattern* instead: resolve the vendor's own phone
- * as the destination, publish a plain text message to RESPONSE_QUEUE_URL.
- * `phoneNumberId` (the sending WABA number) is already available from the
- * inbound SQS payload, threaded through as an argument — no fresh lookup
- * needed for it, only the destination (vendor.phone) is looked up here.
- */
-async function notifyVendor(input: { conversationId: string; vendorId: string; phoneNumberId: string; traceId: string }): Promise<void> {
-  const { conversationId, vendorId, phoneNumberId, traceId } = input;
-
-  const vendor = await prisma.vendor.findUnique({ where: { id: vendorId }, select: { phone: true } });
-  if (!vendor?.phone) {
-    logger.warn({ vendorId, conversationId, traceId }, 'Cannot notify vendor of handoff: vendor has no phone on file');
-    return;
-  }
-
-  await publishToQueue(env.RESPONSE_QUEUE_URL, {
-    type: 'text',
-    to: vendor.phone,
-    text: 'A customer conversation needs your attention and AI has been paused. Please check your dashboard to respond.',
-    vendorId,
-    phoneNumberId,
-    metadata: { notificationType: 'handoff_alert', conversationId, traceId }
-  });
-
-  logger.info({ vendorId, conversationId, traceId }, 'Vendor notified of handoff');
+/** Resolves a CartOp-supplied orderNumber to its id, scoped to this customer+vendor — never trust a bare id from the model. */
+async function resolveOrderId(customerId: string, vendorId: string, orderNumber: string | null): Promise<string | null> {
+  if (!orderNumber) return null;
+  const order = await prisma.order.findFirst({ where: { orderNumber, customerId, vendorId }, select: { id: true } });
+  return order?.id ?? null;
 }
