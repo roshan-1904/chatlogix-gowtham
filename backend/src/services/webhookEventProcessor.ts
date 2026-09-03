@@ -4,6 +4,8 @@ import { env, getTextQueueUrl } from '../config/env.js';
 import { logger, StepLogger, createOperationId, logWhatsAppOperation } from '../logger.js';
 import { publishToQueue } from '../queue/sqsClient.js';
 import { getRedisClient } from '../utils/redis.js';
+import { emitMetric } from '../observability/metrics.js';
+import { DuplicateMessageService } from './duplicateMessageService.js';
 import { ensureConversation, ensureCustomer } from './messageProcessor.js';
 import {
   MessageCreatedEvent,
@@ -487,5 +489,60 @@ export async function processWebhookEvent(
   } catch (err) {
     stepLogger.error(err as Error, { kind: event.kind });
     logger.error({ err, kind: event.kind }, 'Webhook event processing failed');
+  }
+}
+
+function rankEvent(event: ParsedWAEvent): number {
+  if (event.kind === 'message_created') return 0;
+  if (event.kind === 'message_reaction_added' || event.kind === 'message_reaction_removed') {
+    return 1;
+  }
+  return 2;
+}
+
+function dedupeKeyFor(event: ParsedWAEvent): string | null {
+  if (event.kind === 'message_status_updated') {
+    return `${event.whatsappMessageId}:${event.status}`;
+  }
+  return event.whatsappMessageId ?? null;
+}
+
+function eventActor(event: ParsedWAEvent): string {
+  if (event.kind === 'message_status_updated') return event.recipientId;
+  return event.from;
+}
+
+/**
+ * Orders a batch of events for one vendor (message_created before reactions/status
+ * so same-payload children resolve without the orphan-buffer path), skips duplicate
+ * deliveries, and dispatches each event via processWebhookEvent. Shared by the Express
+ * webhook route and the API Gateway Lambda so both entry points see identical behavior.
+ */
+export async function processWebhookEventBatch(
+  vendor: VendorContext,
+  events: ParsedWAEvent[],
+  parentOperationId: string,
+  stepLogger: StepLogger
+): Promise<void> {
+  const ordered = [...events].sort((a, b) => rankEvent(a) - rankEvent(b));
+
+  for (const event of ordered) {
+    const dedupeKey = dedupeKeyFor(event);
+    if (dedupeKey && DuplicateMessageService.isDuplicate(dedupeKey)) {
+      emitMetric('webhook.duplicate_skipped', 1, {
+        dimensions: { vendorId: vendor.vendorId, kind: event.kind }
+      });
+      stepLogger.warn('Skipping duplicate event', { dedupeKey, kind: event.kind });
+      logWhatsAppOperation('duplicate_skipped', vendor.phoneNumberId, eventActor(event), {
+        vendorId: vendor.vendorId,
+        kind: event.kind,
+        dedupeKey
+      });
+      continue;
+    }
+    emitMetric('webhook.event_processed', 1, {
+      dimensions: { vendorId: vendor.vendorId, kind: event.kind }
+    });
+    await processWebhookEvent(vendor, event, parentOperationId);
   }
 }

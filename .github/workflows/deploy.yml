@@ -8,6 +8,8 @@ on:
 jobs:
   build:
     uses: ./.github/workflows/ci.yml
+    with:
+      pack_node_modules: true
     secrets: inherit
 
   deploy-lambdas:
@@ -17,24 +19,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 18
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
-
       - name: Download backend artifact
         uses: actions/download-artifact@v4
         with:
           name: backend-dist
           path: .
 
-      - name: Install production deps
+      - name: Extract production node_modules
         working-directory: backend
         run: |
-          npm ci
-          npx prisma generate
-          npm prune --production
+          if [ ! -f node_modules.tar.gz ]; then
+            echo "ERROR: node_modules.tar.gz missing from backend-dist (CI must pack it on workflow_call)" >&2
+            exit 1
+          fi
+          tar -xzf node_modules.tar.gz
+          rm -f node_modules.tar.gz
+          if [ ! -d node_modules/.prisma ]; then
+            echo "ERROR: Prisma client missing from packed node_modules" >&2
+            exit 1
+          fi
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -81,7 +84,7 @@ jobs:
           done
 
   deploy-ec2:
-    needs: deploy-lambdas
+    needs: build
     runs-on: ubuntu-latest
     environment: production
     steps:
@@ -99,15 +102,21 @@ jobs:
           name: frontend-dist
           path: artifacts/frontend-dist
 
-      - name: Pack pre-built dist directories into a tarball
+      - name: Pack pre-built dist + node_modules into a tarball
         run: |
           mkdir -p stage/backend
           mkdir -p stage/frontend
 
-          cp -r artifacts/backend-dist/backend/dist stage/backend/dist
+          cp -a artifacts/backend-dist/backend/dist stage/backend/dist
+
+          if [ ! -f artifacts/backend-dist/backend/node_modules.tar.gz ]; then
+            echo "ERROR: node_modules.tar.gz missing from backend-dist artifact" >&2
+            exit 1
+          fi
+          cp artifacts/backend-dist/backend/node_modules.tar.gz stage/backend/node_modules.tar.gz
 
           if [ -d artifacts/frontend-dist/frontend_v2/apps/web-vendor/dist ]; then
-            cp -r artifacts/frontend-dist/frontend_v2/apps/web-vendor/dist stage/frontend/dist
+            cp -a artifacts/frontend-dist/frontend_v2/apps/web-vendor/dist stage/frontend/dist
           else
             echo "ERROR: web-vendor dist not found in artifact" >&2
             exit 1
@@ -133,4 +142,4 @@ jobs:
           ssh -i ~/.ssh/id_ed25519 \
               -o ServerAliveInterval=30 -o ServerAliveCountMax=10 \
               "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" \
-              'bash -s' < scripts/deployment/deploy-ec2.sh
+              "export DEPLOY_SHA='${{ github.sha }}'; bash -s" < scripts/deployment/deploy-ec2.sh

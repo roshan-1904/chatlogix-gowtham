@@ -9,7 +9,7 @@ import { ensureConversation } from '../services/messageProcessor.js';
 import { DuplicateMessageService } from '../services/duplicateMessageService.js';
 import { logMessageToFile } from '../services/webhookFallbackService.js';
 import { isVendorFlagOn } from '../config/featureFlags.js';
-import { processWebhookEvent } from '../services/webhookEventProcessor.js';
+import { processWebhookEventBatch } from '../services/webhookEventProcessor.js';
 import { emitMetric } from '../observability/metrics.js';
 
 export const webhookRouter = express.Router();
@@ -135,49 +135,7 @@ async function runParityPipeline(
   parentOperationId: string,
   stepLogger: StepLogger
 ): Promise<void> {
-  // Process message_created events first so reactions/status arriving in the same payload
-  // can resolve their parent without taking the orphan-buffer path.
-  const ordered = [...events].sort((a, b) => rankEvent(a) - rankEvent(b));
-
-  for (const event of ordered) {
-    const dedupeKey = dedupeKeyFor(event);
-    if (dedupeKey && DuplicateMessageService.isDuplicate(dedupeKey)) {
-      emitMetric('webhook.duplicate_skipped', 1, {
-        dimensions: { vendorId: vendor.vendorId, kind: event.kind }
-      });
-      stepLogger.warn('Skipping duplicate event', { dedupeKey, kind: event.kind });
-      logWhatsAppOperation('duplicate_skipped', vendor.phoneNumberId, eventActor(event), {
-        vendorId: vendor.vendorId,
-        kind: event.kind,
-        dedupeKey
-      });
-      continue;
-    }
-    emitMetric('webhook.event_processed', 1, {
-      dimensions: { vendorId: vendor.vendorId, kind: event.kind }
-    });
-    await processWebhookEvent(vendor, event, parentOperationId);
-  }
-}
-
-function rankEvent(event: ParsedWAEvent): number {
-  if (event.kind === 'message_created') return 0;
-  if (event.kind === 'message_reaction_added' || event.kind === 'message_reaction_removed') {
-    return 1;
-  }
-  return 2;
-}
-
-function dedupeKeyFor(event: ParsedWAEvent): string | null {
-  if (event.kind === 'message_status_updated') {
-    return `${event.whatsappMessageId}:${event.status}`;
-  }
-  return event.whatsappMessageId ?? null;
-}
-
-function eventActor(event: ParsedWAEvent): string {
-  if (event.kind === 'message_status_updated') return event.recipientId;
-  return event.from;
+  await processWebhookEventBatch(vendor, events, parentOperationId, stepLogger);
 }
 
 // ---------------------------------------------------------------------------

@@ -6,6 +6,11 @@ on:
   push:
     branches: [master]
   workflow_call:
+    inputs:
+      pack_node_modules:
+        description: Pack production node_modules.tar.gz for Lambda/EC2 deploy jobs
+        type: boolean
+        default: false
 
 jobs:
   build-backend:
@@ -34,10 +39,20 @@ jobs:
       - name: Stage backend artifact
         run: |
           mkdir -p _artifact/backend
-          cp -r backend/dist _artifact/backend/dist
-          cp -r backend/prisma _artifact/backend/prisma
+          cp -a backend/dist _artifact/backend/dist
+          cp -a backend/prisma _artifact/backend/prisma
           cp backend/package.json _artifact/backend/package.json
           cp backend/package-lock.json _artifact/backend/package-lock.json
+
+      # Only when Deploy passes pack_node_modules. PR / standalone CI must not
+      # upload a 100MB+ tarball. Hidden .prisma / .bin are inside the tar.
+      - name: Pack production node_modules
+        if: ${{ inputs.pack_node_modules }}
+        working-directory: backend
+        run: |
+          npm prune --omit=dev
+          tar -czf "$GITHUB_WORKSPACE/_artifact/backend/node_modules.tar.gz" node_modules
+          ls -lh "$GITHUB_WORKSPACE/_artifact/backend/node_modules.tar.gz"
 
       - name: Upload backend artifact
         uses: actions/upload-artifact@v4

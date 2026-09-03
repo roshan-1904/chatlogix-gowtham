@@ -1,10 +1,10 @@
 import type { APIGatewayProxyHandler, APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { ensureConversation } from '../../services/messageProcessor.js';
 import { logger, StepLogger, createOperationId } from '../../logger.js';
-import { publishToQueue } from '../../queue/sqsClient.js';
-import { env, getTextQueueUrl } from '../../config/env.js';
+import { env } from '../../config/env.js';
 import { prisma } from '../../db/prisma.js';
-import { logMessageToFile } from '../../services/webhookFallbackService.js';
+import { isValidWhatsAppSignature } from '../../utils/whatsappSignature.js';
+import { parseWhatsAppEvents, ParsedWAEvent } from '../../services/waParser.js';
+import { processWebhookEventBatch } from '../../services/webhookEventProcessor.js';
 
 /**
  * AWS Lambda handler for processing WhatsApp webhook events
@@ -22,6 +22,15 @@ function getSourceIp(event: APIGatewayProxyEvent): string {
   return event.requestContext?.identity?.sourceIp
     || (event.requestContext as unknown as { http?: { sourceIp?: string } })?.http?.sourceIp
     || 'unknown';
+}
+
+function getHeader(event: APIGatewayProxyEvent, name: string): string | undefined {
+  const headers = event.headers || {};
+  const lower = name.toLowerCase();
+  for (const key of Object.keys(headers)) {
+    if (key.toLowerCase() === lower) return headers[key];
+  }
+  return undefined;
 }
 
 export const handler: APIGatewayProxyHandler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
@@ -44,7 +53,7 @@ export const handler: APIGatewayProxyHandler = async (event: APIGatewayProxyEven
 
     // Handle POST request for incoming messages
     if (httpMethod === 'POST') {
-      return await handleIncomingMessage(event, stepLogger);
+      return await handleIncomingMessage(event, operationId, stepLogger);
     }
 
     stepLogger.warn('Unsupported HTTP method', { method: httpMethod });
@@ -75,7 +84,7 @@ export const handler: APIGatewayProxyHandler = async (event: APIGatewayProxyEven
       httpMethod,
       path: event.path
     }, 'Lambda webhook handler failed');
-    
+
     return {
       statusCode: 500,
       headers: {
@@ -91,11 +100,11 @@ export const handler: APIGatewayProxyHandler = async (event: APIGatewayProxyEven
  * Handle webhook verification (GET request)
  */
 async function handleWebhookVerification(
-  event: APIGatewayProxyEvent, 
+  event: APIGatewayProxyEvent,
   stepLogger: StepLogger
 ): Promise<APIGatewayProxyResult> {
   stepLogger.step('Processing webhook verification request');
-  
+
   const queryParams = event.queryStringParameters || {};
   const mode = queryParams['hub.mode'];
   const token = queryParams['hub.verify_token'];
@@ -138,11 +147,12 @@ async function handleWebhookVerification(
  * Handle incoming message (POST request)
  */
 async function handleIncomingMessage(
-  event: APIGatewayProxyEvent, 
+  event: APIGatewayProxyEvent,
+  operationId: string,
   stepLogger: StepLogger
 ): Promise<APIGatewayProxyResult> {
   stepLogger.step('Processing incoming message');
-  
+
   if (!event.body) {
     stepLogger.warn('Request body is empty');
     return {
@@ -154,60 +164,78 @@ async function handleIncomingMessage(
     };
   }
 
+  const rawBody = Buffer.from(event.body, 'utf8');
+  const signature = getHeader(event, 'x-hub-signature-256');
+
+  stepLogger.step('Validating webhook signature', { signaturePresent: !!signature });
+
+  if (env.WHATSAPP_APP_SECRET) {
+    if (!isValidWhatsAppSignature(env.WHATSAPP_APP_SECRET, signature, rawBody)) {
+      stepLogger.warn('Invalid WhatsApp signature');
+      return {
+        statusCode: 401,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Invalid signature' })
+      };
+    }
+  } else {
+    stepLogger.warn('WHATSAPP_APP_SECRET not configured; skipping signature verification');
+  }
+
   stepLogger.step('Parsing webhook payload');
   const webhookData = JSON.parse(event.body);
-  
-  stepLogger.step('Validating webhook structure', {
-    hasEntry: !!webhookData.entry,
-    entryCount: webhookData.entry?.length || 0,
-    hasChanges: webhookData.entry?.[0]?.changes?.length || 0
-  });
 
-  // Process each entry in the webhook
-  const processingResults = [];
-  
-  for (const entry of webhookData.entry || []) {
-    stepLogger.step('Processing webhook entry', {
-      entryId: entry.id,
-      changesCount: entry.changes?.length || 0
-    });
+  let events: ParsedWAEvent[];
+  try {
+    events = parseWhatsAppEvents(webhookData);
+  } catch (parseErr) {
+    stepLogger.error(parseErr as Error, { step: 'parse_webhook_events' });
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: 'Failed to parse webhook payload' })
+    };
+  }
+  stepLogger.step(`Parsed ${events.length} events`);
 
-    for (const change of entry.changes || []) {
-      stepLogger.step('Processing change', {
-        changeField: change.field,
-        hasValue: !!change.value,
-        messagesCount: change.value?.messages?.length || 0
-      });
+  // Group events by phoneNumberId so we look up the vendor mapping once per number.
+  const eventsByPhoneNumberId = new Map<string, ParsedWAEvent[]>();
+  for (const ev of events) {
+    if (!ev.phoneNumberId) {
+      stepLogger.warn('Skipping event without phoneNumberId', { kind: ev.kind });
+      continue;
+    }
+    const list = eventsByPhoneNumberId.get(ev.phoneNumberId) ?? [];
+    list.push(ev);
+    eventsByPhoneNumberId.set(ev.phoneNumberId, list);
+  }
 
-      if (change.field === 'messages' && change.value?.messages) {
-        for (const message of change.value.messages) {
-          try {
-            const result = await processIncomingMessage(message, change.value.metadata, stepLogger);
-            processingResults.push(result);
-          } catch (error) {
-            stepLogger.error(error as Error, { 
-              messageId: message.id,
-              messageType: message.type
-            });
-            processingResults.push({ 
-              success: false, 
-              messageId: message.id, 
-              error: error instanceof Error ? error.message : String(error)
-            });
-          }
-        }
-      }
+  let vendorsProcessed = 0;
+  for (const [phoneNumberId, vendorEvents] of eventsByPhoneNumberId.entries()) {
+    stepLogger.step('Looking up vendor mapping', { phoneNumberId });
+    const mapping = await prisma.whatsAppNumber.findUnique({ where: { phoneNumberId } });
+    if (!mapping) {
+      stepLogger.warn('No vendor mapping found', { phoneNumberId });
+      continue;
+    }
+
+    try {
+      await processWebhookEventBatch(
+        { vendorId: mapping.vendorId, phoneNumberId },
+        vendorEvents,
+        operationId,
+        stepLogger
+      );
+      vendorsProcessed++;
+    } catch (error) {
+      stepLogger.error(error as Error, { phoneNumberId, vendorId: mapping.vendorId });
     }
   }
 
-  const successful = processingResults.filter(r => r.success).length;
-  const failed = processingResults.filter(r => !r.success).length;
-
   stepLogger.success({
-    totalMessages: processingResults.length,
-    successful,
-    failed,
-    successRate: processingResults.length > 0 ? `${((successful / processingResults.length) * 100).toFixed(2)}%` : '0%'
+    totalEvents: events.length,
+    vendorGroups: eventsByPhoneNumberId.size,
+    vendorsProcessed
   });
 
   return {
@@ -217,131 +245,8 @@ async function handleIncomingMessage(
     },
     body: JSON.stringify({
       message: 'Webhook processed successfully',
-      processed: successful,
-      failed,
-      total: processingResults.length
+      totalEvents: events.length,
+      vendorGroups: eventsByPhoneNumberId.size
     })
   };
-}
-
-/**
- * Process individual incoming message
- */
-async function processIncomingMessage(
-  message: any, 
-  metadata: any, 
-  stepLogger: StepLogger
-): Promise<{ success: boolean; messageId: string; error?: string }> {
-  const messageId = message.id;
-  
-  stepLogger.step('Processing individual message', {
-    messageId,
-    messageType: message.type,
-    from: message.from,
-    timestamp: message.timestamp
-  });
-
-  try {
-    // WhatsApp metadata.phone_number_id is the WABA number, not Vendor.id.
-    // Resolve it the same way the Express webhook does (WhatsAppNumber table).
-    const phoneNumberId = metadata?.phone_number_id;
-    if (!phoneNumberId) {
-      throw new Error('phone_number_id not found in metadata');
-    }
-
-    const mapping = await prisma.whatsAppNumber.findUnique({ where: { phoneNumberId } });
-    if (!mapping) {
-      throw new Error(`No vendor mapping found for phoneNumberId=${phoneNumberId}`);
-    }
-    const vendorId = mapping.vendorId;
-
-    const customerPhone = message.from;
-    if (!customerPhone) {
-      throw new Error('Customer phone number not found');
-    }
-
-    stepLogger.step('Routing message to processing queue', {
-      vendorId,
-      customerPhone,
-      messageType: message.type
-    });
-
-    // Route different message types to appropriate queues
-    switch (message.type) {
-      case 'text':
-        stepLogger.step('Queuing text message immediately');
-        
-        // Try to queue immediately
-        try {
-          const messageData = {
-            type: 'TextMessage',
-            vendorId,
-            customerPhone,
-            content: message.text?.body || '',
-            phoneNumberId,
-            whatsappMessageId: messageId,
-            timestamp: new Date().toISOString()
-          };
-          
-          await publishToQueue(getTextQueueUrl(), messageData);
-          stepLogger.step('Message queued successfully');
-        } catch (queueError) {
-          stepLogger.warn('Queue failed, attempting DB fallback', { error: queueError });
-          
-          // Fallback: Try to write to DB
-          try {
-            const { conversation } = await ensureConversation(vendorId, customerPhone);
-            await prisma.message.create({
-              data: { 
-                conversationId: conversation.id, 
-                senderType: 'customer', 
-                content: message.text?.body || '', 
-                type: 'text' 
-              }
-            });
-            stepLogger.step('Message stored in DB (fallback)');
-          } catch (dbError) {
-            stepLogger.error(dbError as Error, { step: 'db_fallback_failed' });
-            
-            // Last resort: Write to log file
-            try {
-              await logMessageToFile({
-                type: 'TextMessage',
-                vendorId,
-                customerPhone,
-                content: message.text?.body || '',
-                phoneNumberId,
-                whatsappMessageId: messageId,
-                timestamp: new Date().toISOString()
-              });
-              stepLogger.step('Message logged to file (fallback)');
-            } catch (logError) {
-              stepLogger.error(logError as Error, { step: 'log_file_fallback_failed' });
-              throw new Error('All fallback mechanisms failed');
-            }
-          }
-        }
-        break;
-
-      case 'audio':
-      case 'image':
-      default:
-        stepLogger.warn('Unsupported message type', { 
-          messageType: message.type,
-          messageId 
-        });
-        return { success: false, messageId, error: `Unsupported message type: ${message.type}` };
-    }
-
-    stepLogger.step('Message routed successfully', { messageId, messageType: message.type });
-    return { success: true, messageId };
-
-  } catch (error) {
-    stepLogger.error(error as Error, { messageId });
-    return { 
-      success: false, 
-      messageId, 
-      error: error instanceof Error ? error.message : String(error)
-    };
-  }
 }

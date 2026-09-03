@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Build a Lambda zip that stays under AWS's 250 MB unzipped limit.
 #
-# Run from backend/ after: npm ci && npx prisma generate && npm prune --production
+# Run from backend/ after production node_modules are present (CI packs them;
+# local: npm ci && npx prisma generate && npm prune --omit=dev).
 #
 # Usage: bash scripts/package-lambda.sh /tmp/lambda.zip
 #
