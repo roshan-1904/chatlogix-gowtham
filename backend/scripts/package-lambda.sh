@@ -59,6 +59,8 @@ find node_modules/.prisma node_modules/@prisma -type f \( \
 find node_modules/.prisma node_modules/@prisma -type f -name 'schema-engine*' -delete 2>/dev/null || true
 
 # Not imported by any Lambda handler graph (API / auth / catalog import / deploy CLI).
+# image-size is NOT in this list -- chatlogix-media-fetcher's mediaFetchProcessor.ts
+# imports it directly to probe image dimensions after download.
 rm -rf \
   node_modules/firebase-admin \
   node_modules/@firebase \
@@ -73,7 +75,6 @@ rm -rf \
   node_modules/swagger-ui-dist \
   node_modules/@aws-sdk/client-iam \
   node_modules/@aws-sdk/client-lambda \
-  node_modules/image-size \
   node_modules/pino-rotating-file-stream \
   node_modules/jsonwebtoken \
   node_modules/express \

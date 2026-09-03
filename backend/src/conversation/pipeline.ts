@@ -195,11 +195,23 @@ export async function processMessage(input: ProcessMessageInput): Promise<void> 
   try {
     // Idempotency (I2): a redelivery of an already-processed whatsappMessageId
     // is a success exit -- the reply was already sent, do not reprocess.
-    const inbound = await upsertInboundMessage({ vendorId, conversationId, customerId, content: input.content, whatsappMessageId: input.whatsappMessageId });
-    if (inbound.alreadyProcessed) {
+    // Gated on MessageProcessing (written only once persist.ts has actually
+    // generated a reply for this whatsappMessageId), not on the customer
+    // Message row existing -- that row is now also created upfront by the
+    // webhook handler before this pipeline ever sees the job, so its mere
+    // existence no longer means "already handled by this pipeline".
+    const priorProcessing = await prisma.messageProcessing.findUnique({
+      where: { whatsappMessageId: input.whatsappMessageId },
+      select: { id: true }
+    });
+    if (priorProcessing) {
       logger.info({ traceId, vendorId, conversationId }, 'Duplicate whatsappMessageId — already processed, ACK without reprocessing');
       return;
     }
+    // Still ensures the customer Message row exists -- a no-op when the
+    // webhook already created it, the only path (today) that creates it
+    // when it hasn't (the legacy Express route without the parity flag).
+    await upsertInboundMessage({ vendorId, conversationId, customerId, content: input.content, whatsappMessageId: input.whatsappMessageId });
 
     // Guards (§7 step 3), before any paid LLM call.
     const conversation = await prisma.conversation.findUnique({ where: { id: conversationId }, select: { aiPaused: true } });

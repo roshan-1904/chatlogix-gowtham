@@ -9,6 +9,7 @@ const {
   debitAfterEnqueueMock,
   publishToQueueMock,
   messageProcessingUpdateMany,
+  messageProcessingFindUnique,
   conversationFindUnique,
   logStageMock,
   logLatencyMock,
@@ -39,6 +40,7 @@ const {
     debitAfterEnqueueMock: vi.fn(),
     publishToQueueMock: vi.fn(),
     messageProcessingUpdateMany: vi.fn(),
+    messageProcessingFindUnique: vi.fn(),
     conversationFindUnique: vi.fn(),
     logStageMock: vi.fn(),
     logLatencyMock: vi.fn(),
@@ -70,7 +72,10 @@ vi.mock('../../queue/sqsClient.js', () => ({ publishToQueue: (...args: unknown[]
 vi.mock('../../config/env.js', () => ({ env: { RESPONSE_QUEUE_URL: 'https://sqs.example/response-queue' } }));
 vi.mock('../../db/prisma.js', () => ({
   prisma: {
-    messageProcessing: { updateMany: (...args: unknown[]) => messageProcessingUpdateMany(...args) },
+    messageProcessing: {
+      updateMany: (...args: unknown[]) => messageProcessingUpdateMany(...args),
+      findUnique: (...args: unknown[]) => messageProcessingFindUnique(...args)
+    },
     conversation: { findUnique: (...args: unknown[]) => conversationFindUnique(...args) }
   }
 }));
@@ -142,6 +147,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   persistTurnMock.mockResolvedValue({ assistantMessageId: 'assistant-msg-1' });
   messageProcessingUpdateMany.mockResolvedValue({ count: 1 });
+  messageProcessingFindUnique.mockResolvedValue(null);
   debitAfterEnqueueMock.mockResolvedValue('debited');
 });
 
@@ -381,12 +387,17 @@ describe('processMessage', () => {
   });
 
   it('duplicate whatsappMessageId: returns early (success exit), never runs LLM-1, still releases the lock', async () => {
-    upsertInboundMessageMock.mockResolvedValue({ messageId: 'inbound-msg-1', alreadyProcessed: true });
+    // Gate is MessageProcessing (written once persist.ts has actually produced
+    // a reply), not the customer Message row -- that row can now legitimately
+    // already exist (created upfront by the webhook handler) on a message's
+    // very first delivery to this pipeline, so it can't be used as the signal.
+    messageProcessingFindUnique.mockResolvedValue({ id: 'mp-1' });
 
     await processMessage(rawInput);
 
     expect(runLlm1Mock).not.toHaveBeenCalled();
     expect(persistTurnMock).not.toHaveBeenCalled();
+    expect(upsertInboundMessageMock).not.toHaveBeenCalled();
     expect(releaseLockMock).toHaveBeenCalled();
     expect(sendTypingIndicatorMock).not.toHaveBeenCalled();
   });
