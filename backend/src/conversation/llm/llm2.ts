@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { env } from '../../config/env.js';
 import { logger } from '../../logger.js';
-import type { CartOp, CartSnapshot } from '../types.js';
+import type { CartOp, CartSnapshot, CompactCatalogEntry } from '../types.js';
 import type { ApplyOpsResult } from '../cart/engine.js';
 
 // Module-level singleton, same pattern as llm1.ts / every other OpenAI call
@@ -52,6 +52,7 @@ function buildLlm2Prompt(input: Llm2Input): string {
   parts.push('You are copy-editing a WhatsApp reply for a customer order. You may ONLY rewrite wording — never change what is being ordered.');
   parts.push('Rules:');
   parts.push('- Keep every product name, quantity, unit, and price exactly as given in CART SNAPSHOT below. Do not add or drop any line.');
+  parts.push('- If the draft reply claims an item was added, updated, removed, or confirmed and that item is NOT listed in CART SNAPSHOT, remove that claim entirely — never tell the customer an item was added/changed when it is not actually in the snapshot.');
   parts.push('- Do not invent a delivery date, ETA, or "arrives on X".');
   parts.push(`- Reply in this language/script: ${language}.`);
   parts.push('- No more than about 120 words.');
@@ -181,6 +182,58 @@ export function copyMatchesSnapshot(text: string, snapshot: CartSnapshot): boole
   return snapshot.items.every((item) => lower.includes(item.name.toLowerCase()));
 }
 
+const MUTATING_INTENTS = new Set(['add', 'remove', 'set_qty']);
+
+/**
+ * Last-resort, non-LLM safety net for exactly the case shouldRunLlm2
+ * legitimately skips (empty ops, needsVerify false, high confidence) but
+ * draftReply still names a catalog item that never made it into the cart --
+ * i.e. LLM-1 classified the turn as a cart change, said it happened, but
+ * emitted no op for it (the "phantom mutation" bug: LLM-1 confirms an add
+ * in prose while ops stays empty). Deliberately conservative: gated on
+ * `intent` being one of the mutating types first, so it never fires on a
+ * "query"-classified reply that simply mentions a product informationally
+ * (e.g. answering "what brownies do you have?"). A false positive here only
+ * costs a blander (but still correct) reply via renderPossibleMissedItemReply
+ * -- it never lets a false confirmation through.
+ */
+export function possiblyOverclaimsAgainstCatalog(
+  text: string,
+  snapshot: CartSnapshot,
+  compactCatalog: CompactCatalogEntry[]
+): boolean {
+  const lower = text.toLowerCase();
+  const snapshotProductIds = new Set(snapshot.items.map((i) => i.productId));
+  return compactCatalog.some((p) => {
+    if (snapshotProductIds.has(p.id)) return false; // already genuinely in the cart
+    const name = p.name.toLowerCase();
+    return name.length > 0 && lower.includes(name);
+  });
+}
+
+export function isPhantomMutation(
+  intent: string,
+  ops: CartOp[],
+  draftReply: string,
+  snapshot: CartSnapshot,
+  compactCatalog: CompactCatalogEntry[]
+): boolean {
+  if (ops.length > 0) return false;
+  if (!MUTATING_INTENTS.has(intent.toLowerCase())) return false;
+  return possiblyOverclaimsAgainstCatalog(draftReply, snapshot, compactCatalog);
+}
+
+/**
+ * Deterministic reply for a suspected phantom mutation (draftReply claims a
+ * change that isn't reflected anywhere in ops/snapshot) -- same reasoning as
+ * renderRejectedOpsReply, just for a *missing* op instead of a *rejected*
+ * one: never trust the free-text claim, always show the true cart, and ask
+ * the customer to repeat the item so it can actually be added.
+ */
+export function renderPossibleMissedItemReply(snapshot: CartSnapshot): string {
+  return `Sorry, I didn't quite catch that item — could you tell me the product name again?\n\n${renderSnapshotReply(snapshot)}`;
+}
+
 export interface RenderDecision {
   finalReply: string;
   usedEngineRenderer: boolean;
@@ -189,13 +242,26 @@ export interface RenderDecision {
 /**
  * Selects the text actually sent to the customer (spec §7 step 7, §17's
  * correctness backstop for I1): LLM-2's copy when it ran and matches the
- * snapshot; the draft reply as-is when LLM-2 was skipped; the deterministic
+ * snapshot; the draft reply as-is when LLM-2 was skipped (unless it looks
+ * like a phantom mutation -- see isPhantomMutation); the deterministic
  * snapshot renderer when LLM-2 ran but its copy disagrees with the cart.
  */
-export function selectFinalReply(input: { draftReply: string; llm2Result: Llm2Output; snapshot: CartSnapshot; traceId: string }): RenderDecision {
-  const { draftReply, llm2Result, snapshot, traceId } = input;
+export function selectFinalReply(input: {
+  draftReply: string;
+  llm2Result: Llm2Output;
+  snapshot: CartSnapshot;
+  traceId: string;
+  intent: string;
+  ops: CartOp[];
+  compactCatalog: CompactCatalogEntry[];
+}): RenderDecision {
+  const { draftReply, llm2Result, snapshot, traceId, intent, ops, compactCatalog } = input;
 
   if (llm2Result.skipped) {
+    if (isPhantomMutation(intent, ops, draftReply, snapshot, compactCatalog)) {
+      logger.warn({ traceId, intent, draftReply }, 'Suspected phantom cart mutation (LLM-2 skipped) — falling back to engine renderer');
+      return { finalReply: renderPossibleMissedItemReply(snapshot), usedEngineRenderer: true };
+    }
     return { finalReply: draftReply, usedEngineRenderer: false };
   }
 

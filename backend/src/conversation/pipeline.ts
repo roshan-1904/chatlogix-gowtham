@@ -352,7 +352,15 @@ export async function processMessage(input: ProcessMessageInput): Promise<void> 
       // snapshot, the draft reply if LLM-2 was skipped, the deterministic
       // engine renderer if LLM-2's copy disagreed with the cart (§17's
       // correctness backstop for I1).
-      const decision = selectFinalReply({ draftReply: llm1Result.draftReply, llm2Result, snapshot: applyResult.snapshot, traceId });
+      const decision = selectFinalReply({
+        draftReply: llm1Result.draftReply,
+        llm2Result,
+        snapshot: applyResult.snapshot,
+        traceId,
+        intent: llm1Result.intent,
+        ops: llm1Result.ops,
+        compactCatalog: hotSet.compactCatalog
+      });
       finalText = decision.finalReply;
     }
 

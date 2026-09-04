@@ -11,6 +11,7 @@ import {
 } from '../middleware/errorHandler.js';
 import { env } from '../config/env.js';
 import { logger } from '../logger.js';
+import { enrichedInclude, shapeMessage } from './conversations.js';
 
 export const messagesRouter = express.Router();
 
@@ -130,5 +131,55 @@ messagesRouter.get(
 
     res.setHeader('Cache-Control', 'no-store');
     res.redirect(302, signedUrl);
+  }, ErrorType.AUTHORIZATION, ErrorSeverity.MEDIUM)
+);
+
+// GET /api/messages/:id - Single message, including current media state.
+// Lets the vendor dashboard refresh a message it already has in memory
+// (e.g. media that was still fetching when the conversation was first
+// loaded) without re-fetching the whole conversation.
+messagesRouter.get(
+  '/:id',
+  asyncHandlerWithContext(async (req: any, res: any) => {
+    const messageId = req.params.id;
+    const user = req.user;
+
+    if (!user) {
+      throw new CustomError(
+        'Authentication required',
+        401,
+        ErrorType.AUTHENTICATION,
+        ErrorSeverity.MEDIUM
+      );
+    }
+
+    const message = await prisma.message.findUnique({
+      where: { id: messageId },
+      include: {
+        ...enrichedInclude(false),
+        conversation: { select: { vendorId: true } }
+      }
+    });
+
+    if (!message) {
+      throw createValidationError('Message not found', 'id', messageId);
+    }
+
+    if (
+      !user.roles.includes('admin') &&
+      user.vendorId !== (message as any).conversation.vendorId
+    ) {
+      throw new CustomError(
+        'You are not authorized to access this message',
+        403,
+        ErrorType.AUTHORIZATION,
+        ErrorSeverity.MEDIUM,
+        true,
+        { messageId, vendorId: (message as any).conversation.vendorId }
+      );
+    }
+
+    const { conversation: _c, ...shaped } = shapeMessage(message);
+    res.json(shaped);
   }, ErrorType.AUTHORIZATION, ErrorSeverity.MEDIUM)
 );

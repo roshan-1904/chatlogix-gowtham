@@ -44,8 +44,9 @@ export async function queueResponse(
     // Store assistant message in DB BEFORE queuing for WhatsApp delivery.
     // This ensures the response is persisted even if WhatsApp send fails
     // (e.g., vendor messaging themselves, API outage, invalid number).
+    let createdMessageId: string | undefined;
     try {
-      await prisma.message.create({
+      const created = await prisma.message.create({
         data: {
           conversationId,
           senderType: 'assistant',
@@ -60,11 +61,22 @@ export async function queueResponse(
           aiCostEstimated: metadata.costEstimated || false
         }
       });
+      createdMessageId = created.id;
       logger.info({ conversationId }, 'Assistant message stored in DB');
     } catch (dbError) {
       // Log but don't block — message delivery is more important
       logger.error({ err: dbError, conversationId }, 'Failed to store assistant message in DB');
     }
+
+    // Same DB fallback messageProcessor.ts already uses when phoneNumberId
+    // isn't otherwise available: without it, the dispatcher can't resolve
+    // the sending WhatsApp number and falls back to a global env var that
+    // isn't set in production, which previously failed silently (see
+    // whatsappClient.ts) instead of retrying or marking the message failed.
+    const waNumber = await prisma.whatsAppNumber.findFirst({
+      where: { vendorId },
+      orderBy: { createdAt: 'desc' }
+    });
 
     await publishToQueue(env.RESPONSE_QUEUE_URL, {
       to: conversation.customer.phone,
@@ -72,6 +84,8 @@ export async function queueResponse(
       conversationId,
       vendorId,
       customerId,
+      phoneNumberId: waNumber?.phoneNumberId,
+      messageId: createdMessageId,
       metadata: {
         intent: metadata.intent,
         tokensUsed: metadata.tokensUsed,

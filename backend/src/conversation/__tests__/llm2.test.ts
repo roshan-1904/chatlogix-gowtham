@@ -16,8 +16,18 @@ vi.mock('../../logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
 }));
 
-import { shouldRunLlm2, runLlm2, renderSnapshotReply, renderRejectedOpsReply, copyMatchesSnapshot, selectFinalReply } from '../llm/llm2.js';
-import type { CartOp, CartSnapshot } from '../types.js';
+import {
+  shouldRunLlm2,
+  runLlm2,
+  renderSnapshotReply,
+  renderRejectedOpsReply,
+  copyMatchesSnapshot,
+  selectFinalReply,
+  possiblyOverclaimsAgainstCatalog,
+  isPhantomMutation,
+  renderPossibleMissedItemReply
+} from '../llm/llm2.js';
+import type { CartOp, CartSnapshot, CompactCatalogEntry } from '../types.js';
 
 const snapshotWithItems: CartSnapshot = {
   orderId: 'order-1',
@@ -41,6 +51,13 @@ const emptySnapshot: CartSnapshot = {
   address: null,
   missing: ['name', 'address', 'items']
 };
+
+const compactCatalog: CompactCatalogEntry[] = [
+  { id: 'prod-1', name: 'Brownie', price: 10000, unit: 'box', minQty: null, maxQty: null, keywords: [], fulfillmentType: 'made_to_order', inStock: true, stockQuantity: null, variants: [], description: '' },
+  { id: 'prod-2', name: 'Cookies', price: 5000, unit: 'box', minQty: null, maxQty: null, keywords: [], fulfillmentType: 'made_to_order', inStock: true, stockQuantity: null, variants: [], description: '' },
+  // Mirrors the real 2026-09-04 incident's catalog entry.
+  { id: 'prod-3', name: 'Karuppu Kavuni Rice Brownie with Cashew', price: 120000, unit: 'kg', minQty: 0.5, maxQty: 100, keywords: [], fulfillmentType: 'made_to_order', inStock: true, stockQuantity: 1000, variants: [], description: '' }
+];
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -186,7 +203,10 @@ describe('selectFinalReply', () => {
       draftReply: 'draft text',
       llm2Result: { skipped: true },
       snapshot: snapshotWithItems,
-      traceId: 'wamid.1'
+      traceId: 'wamid.1',
+      intent: 'query',
+      ops: [],
+      compactCatalog
     });
     expect(decision).toEqual({ finalReply: 'draft text', usedEngineRenderer: false });
   });
@@ -196,7 +216,10 @@ describe('selectFinalReply', () => {
       draftReply: 'draft text',
       llm2Result: { skipped: false, finalReply: 'You ordered 2 Brownie and 1 Cookies, total Rs250.', promptTokens: 1, completionTokens: 1 },
       snapshot: snapshotWithItems,
-      traceId: 'wamid.2'
+      traceId: 'wamid.2',
+      intent: 'add',
+      ops: [{ type: 'add', productId: 'prod-1', qty: 2 }],
+      compactCatalog
     });
     expect(decision.finalReply).toBe('You ordered 2 Brownie and 1 Cookies, total Rs250.');
     expect(decision.usedEngineRenderer).toBe(false);
@@ -207,10 +230,77 @@ describe('selectFinalReply', () => {
       draftReply: 'draft text',
       llm2Result: { skipped: false, finalReply: 'You ordered 2 Brownie, total Rs250.', promptTokens: 1, completionTokens: 1 }, // omits Cookies
       snapshot: snapshotWithItems,
-      traceId: 'wamid.3'
+      traceId: 'wamid.3',
+      intent: 'add',
+      ops: [{ type: 'add', productId: 'prod-1', qty: 2 }],
+      compactCatalog
     });
     expect(decision.usedEngineRenderer).toBe(true);
     expect(decision.finalReply).toBe(renderSnapshotReply(snapshotWithItems));
     expect(decision.finalReply).toContain('Cookies');
+  });
+
+  it('2026-09-04 incident repro: LLM-2 skipped, ops empty, intent "add", draftReply confirms an item not in the cart — falls back to renderPossibleMissedItemReply instead of the false confirmation', () => {
+    const draftReply = 'Got it! Adding 2.5 kg of Karuppu Kavuni Rice Brownie with Cashew to your order. Could you please share your name and delivery address to proceed?';
+    const decision = selectFinalReply({
+      draftReply,
+      llm2Result: { skipped: true },
+      snapshot: snapshotWithItems, // Brownie/Cookies only — no Karuppu Kavuni line
+      traceId: 'wamid.4',
+      intent: 'add',
+      ops: [],
+      compactCatalog
+    });
+    expect(decision.usedEngineRenderer).toBe(true);
+    expect(decision.finalReply).not.toContain('Adding 2.5 kg of Karuppu Kavuni');
+    expect(decision.finalReply).toBe(renderPossibleMissedItemReply(snapshotWithItems));
+  });
+
+  it('does not treat an informational mention as a phantom mutation when intent is "query"', () => {
+    const draftReply = 'We also have Karuppu Kavuni Rice Brownie with Cashew if you\'d like to try it!';
+    const decision = selectFinalReply({
+      draftReply,
+      llm2Result: { skipped: true },
+      snapshot: snapshotWithItems,
+      traceId: 'wamid.5',
+      intent: 'query',
+      ops: [],
+      compactCatalog
+    });
+    expect(decision).toEqual({ finalReply: draftReply, usedEngineRenderer: false });
+  });
+});
+
+describe('possiblyOverclaimsAgainstCatalog', () => {
+  it('is true when the text names a catalog product absent from the snapshot', () => {
+    expect(possiblyOverclaimsAgainstCatalog('Adding Karuppu Kavuni Rice Brownie with Cashew now!', snapshotWithItems, compactCatalog)).toBe(true);
+  });
+
+  it('is false when the named product is already in the snapshot', () => {
+    expect(possiblyOverclaimsAgainstCatalog('Adding another Brownie!', snapshotWithItems, compactCatalog)).toBe(false);
+  });
+
+  it('is false when no catalog product name appears in the text', () => {
+    expect(possiblyOverclaimsAgainstCatalog('Sure, what would you like to order?', snapshotWithItems, compactCatalog)).toBe(false);
+  });
+});
+
+describe('isPhantomMutation', () => {
+  it('fires for a mutating intent with empty ops and an overclaiming draft reply', () => {
+    expect(
+      isPhantomMutation('add', [], 'Adding Karuppu Kavuni Rice Brownie with Cashew now!', snapshotWithItems, compactCatalog)
+    ).toBe(true);
+  });
+
+  it('never fires when ops is non-empty, regardless of intent', () => {
+    expect(
+      isPhantomMutation('add', [{ type: 'noop' }], 'Adding Karuppu Kavuni Rice Brownie with Cashew now!', snapshotWithItems, compactCatalog)
+    ).toBe(false);
+  });
+
+  it('never fires for a non-mutating intent (e.g. "query")', () => {
+    expect(
+      isPhantomMutation('query', [], 'We also have Karuppu Kavuni Rice Brownie with Cashew!', snapshotWithItems, compactCatalog)
+    ).toBe(false);
   });
 });

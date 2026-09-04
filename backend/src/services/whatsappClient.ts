@@ -50,6 +50,26 @@ function resolveTargetPhoneNumberId(phoneNumberId?: string): string | null {
 }
 
 /**
+ * Same resolution as resolveTargetPhoneNumberId, but throws instead of
+ * returning null. Every actual message-send function below uses this one so
+ * a missing phoneNumberId fails loudly -- callers (e.g. responseProcessor.ts)
+ * already catch send errors, mark the message failed, and let SQS retry.
+ * Silently returning undefined here previously let a failed send get logged
+ * and deleted from the queue as if it had succeeded. sendTypingIndicator is
+ * the one deliberate exception (see its docstring) and keeps calling
+ * resolveTargetPhoneNumberId directly.
+ */
+function requireTargetPhoneNumberId(phoneNumberId?: string): string {
+  const target = resolveTargetPhoneNumberId(phoneNumberId);
+  if (!target) {
+    throw new Error(
+      'WhatsApp send failed: credentials not configured (missing access token, or no phoneNumberId from the message and no WHATSAPP_PHONE_NUMBER_ID env fallback)'
+    );
+  }
+  return target;
+}
+
+/**
  * Mark an inbound message as read (customer blue ticks) and show a typing
  * indicator. Meta fuses both in one payload — there is no typing-only API.
  * Never throws; failures are logged and returned as `{ ok: false }`.
@@ -129,8 +149,7 @@ export async function sendWhatsAppText(
   text: string,
   phoneNumberId?: string
 ): Promise<WhatsAppSendResult | undefined> {
-  const target = resolveTargetPhoneNumberId(phoneNumberId);
-  if (!target) return undefined;
+  const target = requireTargetPhoneNumberId(phoneNumberId);
   return postToGraph(target, {
     messaging_product: 'whatsapp',
     to,
@@ -165,32 +184,27 @@ function buildMediaPayload(kind: 'image' | 'audio' | 'video' | 'document' | 'sti
 }
 
 export async function sendWhatsAppImage(input: MediaSendInput): Promise<WhatsAppSendResult | undefined> {
-  const target = resolveTargetPhoneNumberId(input.phoneNumberId);
-  if (!target) return undefined;
+  const target = requireTargetPhoneNumberId(input.phoneNumberId);
   return postToGraph(target, buildMediaPayload('image', input));
 }
 
 export async function sendWhatsAppAudio(input: MediaSendInput): Promise<WhatsAppSendResult | undefined> {
-  const target = resolveTargetPhoneNumberId(input.phoneNumberId);
-  if (!target) return undefined;
+  const target = requireTargetPhoneNumberId(input.phoneNumberId);
   return postToGraph(target, buildMediaPayload('audio', input));
 }
 
 export async function sendWhatsAppVideo(input: MediaSendInput): Promise<WhatsAppSendResult | undefined> {
-  const target = resolveTargetPhoneNumberId(input.phoneNumberId);
-  if (!target) return undefined;
+  const target = requireTargetPhoneNumberId(input.phoneNumberId);
   return postToGraph(target, buildMediaPayload('video', input));
 }
 
 export async function sendWhatsAppDocument(input: MediaSendInput): Promise<WhatsAppSendResult | undefined> {
-  const target = resolveTargetPhoneNumberId(input.phoneNumberId);
-  if (!target) return undefined;
+  const target = requireTargetPhoneNumberId(input.phoneNumberId);
   return postToGraph(target, buildMediaPayload('document', input));
 }
 
 export async function sendWhatsAppSticker(input: MediaSendInput): Promise<WhatsAppSendResult | undefined> {
-  const target = resolveTargetPhoneNumberId(input.phoneNumberId);
-  if (!target) return undefined;
+  const target = requireTargetPhoneNumberId(input.phoneNumberId);
   return postToGraph(target, buildMediaPayload('sticker', input));
 }
 
@@ -204,8 +218,7 @@ export interface LocationSendInput {
 }
 
 export async function sendWhatsAppLocation(input: LocationSendInput): Promise<WhatsAppSendResult | undefined> {
-  const target = resolveTargetPhoneNumberId(input.phoneNumberId);
-  if (!target) return undefined;
+  const target = requireTargetPhoneNumberId(input.phoneNumberId);
   return postToGraph(target, {
     messaging_product: 'whatsapp',
     to: input.to,
@@ -226,8 +239,7 @@ export interface ContactSendInput {
 }
 
 export async function sendWhatsAppContacts(input: ContactSendInput): Promise<WhatsAppSendResult | undefined> {
-  const target = resolveTargetPhoneNumberId(input.phoneNumberId);
-  if (!target) return undefined;
+  const target = requireTargetPhoneNumberId(input.phoneNumberId);
   return postToGraph(target, {
     messaging_product: 'whatsapp',
     to: input.to,
@@ -243,8 +255,7 @@ export interface InteractiveSendInput {
 }
 
 export async function sendWhatsAppInteractive(input: InteractiveSendInput): Promise<WhatsAppSendResult | undefined> {
-  const target = resolveTargetPhoneNumberId(input.phoneNumberId);
-  if (!target) return undefined;
+  const target = requireTargetPhoneNumberId(input.phoneNumberId);
   return postToGraph(target, {
     messaging_product: 'whatsapp',
     to: input.to,

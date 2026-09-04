@@ -160,7 +160,7 @@ conversationsRouter.post(
 const NO_LIMIT_CAP = 500;
 const REPLY_PREVIEW_CHARS = 80;
 
-const enrichedInclude = (includeStatusHistory: boolean) => ({
+export const enrichedInclude = (includeStatusHistory: boolean) => ({
   media: true,
   reactions: { where: { active: true } },
   replyToMessage: {
@@ -171,7 +171,7 @@ const enrichedInclude = (includeStatusHistory: boolean) => ({
     : (false as const)
 });
 
-function shapeMessage(row: any): any {
+export function shapeMessage(row: any): any {
   type ReactionGroup = { emoji: string; count: number; reactorIds: string[] };
   const reactionGroups = new Map<string, ReactionGroup>();
   for (const r of row.reactions ?? []) {

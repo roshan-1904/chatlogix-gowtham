@@ -227,8 +227,29 @@ async function sendTemplatedReply(
     stepLogger.warn('Cannot send templated reply: message row missing');
     return;
   }
+
+  // Debounce: a burst of images/voice notes sent within a couple of seconds
+  // arrives as separate SQS messages (and isn't guaranteed to land in the
+  // same Lambda batch), so each one independently reaches this function.
+  // Without this, a 4-image burst produces 4 near-identical "I see you sent
+  // a photo" replies instead of one.
+  const recentSame = await prisma.message.findFirst({
+    where: {
+      conversationId: customerMessage.conversationId,
+      senderType: 'assistant',
+      content: text,
+      timestamp: { gte: new Date(Date.now() - numericEnv.templatedReplyDebounceMs) }
+    },
+    orderBy: { timestamp: 'desc' }
+  });
+  if (recentSame) {
+    stepLogger.step('Skipping duplicate templated reply (debounce)', { recentMessageId: recentSame.id });
+    return;
+  }
+
+  let createdMessageId: string | undefined;
   try {
-    await prisma.message.create({
+    const created = await prisma.message.create({
       data: {
         conversationId: customerMessage.conversationId,
         senderType: 'assistant',
@@ -236,6 +257,7 @@ async function sendTemplatedReply(
         type: 'text'
       }
     });
+    createdMessageId = created.id;
   } catch (err) {
     stepLogger.warn('Failed to persist templated assistant message; sending anyway', {
       err: err instanceof Error ? err.message : String(err)
@@ -247,6 +269,12 @@ async function sendTemplatedReply(
     conversationId: customerMessage.conversationId,
     vendorId: customerMessage.conversation.vendorId,
     customerId: customerMessage.conversation.customerId,
+    // Without these two, the dispatcher can't resolve the sending WhatsApp
+    // number (falls back to a global env var that isn't set on the Lambda,
+    // which fails closed but was previously swallowed as a false success --
+    // see whatsappClient.ts) and can never mark this row sent/failed.
+    phoneNumberId: job.phoneNumberId,
+    messageId: createdMessageId,
     metadata: {
       intent: 'templated_no_caption_image',
       tokensUsed: 0,

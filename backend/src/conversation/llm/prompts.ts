@@ -172,6 +172,15 @@ function buildStaticBlock(hotSet: HotSet): string {
   parts.push('- "set_qty" with qty=0 removes the line.');
   parts.push('- Only emit "confirm" when the customer clearly confirms the order.');
   parts.push(
+    '- "intent" should be one of: add, remove, set_qty, set_field, confirm, cancel, refund_request, handoff, query, other — pick whichever best matches this turn\'s ops (or the customer\'s question, for "query").'
+  );
+  parts.push(
+    '- CRITICAL: draftReply must never describe a cart change (adding/removing/updating an item, confirming an order, etc.) that isn\'t backed by a matching op in "ops" for this same turn. If you say it happened, the op must be there — never announce an action you did not encode.'
+  );
+  parts.push(
+    '- Set "needsVerify": true whenever draftReply describes any cart change, or whenever you are not fully certain your "ops" completely and correctly reflect what draftReply says happened. Default to true if in doubt — false is only for replies that don\'t claim any change (answers, greetings, clarifying questions).'
+  );
+  parts.push(
     '- NEVER invent a delivery date, ETA, or "arrives on X" — only the vendor sets that after confirming. Use neutral prep-timing language instead.'
   );
   parts.push('- Keep catalog product names exactly as written above — do not translate brand/product names.');

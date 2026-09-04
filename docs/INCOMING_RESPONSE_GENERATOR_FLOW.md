@@ -10,7 +10,7 @@
 | **Consumes** | `TEXT_QUEUE_URL` (`type: TextMessage` only) |
 | **Publishes** | `RESPONSE_QUEUE_URL` (finished customer text) |
 | **Design spec** | `docs/CONVERSATION_PROCESSOR_LAMBDA.md` (locked design; this file follows the **code**) |
-| **Last verified** | 2026-09-04 against `backend/src/conversation/` |
+| **Last verified** | 2026-09-04 against `backend/src/conversation/` (updated same day for the phantom-mutation backstop in §9) |
 
 **SLA clock:** Lambda start → successful `publishToQueue(RESPONSE_QUEUE_URL)`. Targets: p90 ≤ 5s, p95 ≤ 10s, p99 ≤ 15s. Meta delivery time is out of scope.
 
@@ -341,21 +341,26 @@ flowchart TD
 
   P -->|none| L[LLM-2 path]
   L --> Q{mutating op OR needsVerify<br/>OR confidence < VERIFY_THRESHOLD default 0.75?}
-  Q -->|no| D[use LLM-1 draftReply as-is]
+  Q -->|no| PM{ops empty AND intent is<br/>add/remove/set_qty AND draftReply<br/>names a catalog item not in snapshot?}
+  PM -->|no| D[use LLM-1 draftReply as-is]
+  PM -->|yes| MISS[renderPossibleMissedItemReply<br/>true cart + ask customer to repeat item]
   Q -->|yes| L2[LLM-2: rewrite wording only]
   L2 --> M{copy mentions every cart item name?}
   M -->|yes| L2OK[use LLM-2 finalReply]
   M -->|no| ENG[engine renderer from snapshot lines]
   D --> F
+  MISS --> F
   L2OK --> F
   ENG --> F
 ```
 
 Mutating op types that force LLM-2: `add`, `set_qty`, `remove`, `set_field`, `confirm`, `cancel`.
 
-LLM-2 (when it runs): same vendor model, temperature 0.2, ~300 tokens. May rewrite wording only. Cart is frozen after `apply`.
+LLM-2 (when it runs): same vendor model, temperature 0.2, ~300 tokens. May rewrite wording only, and now also drops any claim about an item absent from CART SNAPSHOT. Cart is frozen after `apply`.
 
 If LLM-2’s copy omits a product name, `selectFinalReply` falls back to `renderSnapshotReply` (deterministic line list + total).
+
+**Phantom-mutation backstop** (added after a 2026-09-04 incident where LLM-1 confirmed adding an item in `draftReply` while emitting zero ops for it, and the empty-ops turn skipped LLM-2 entirely — see `docs/CONVERSATION_WORKER_GAPS.md` if a writeup exists, or the git history of `llm1.ts`/`llm2.ts`/`prompts.ts` around this date): `buildLlm1SystemPrompt` now explicitly requires every claim in `draftReply` to be backed by a matching op, and to set `needsVerify: true` whenever it isn't certain — this is the primary fix, and routes the turn through LLM-2 above via the existing `needsVerify` branch. As defense-in-depth for the case LLM-1 still doesn't set `needsVerify`, `selectFinalReply` (`llm2.ts`) also runs `isPhantomMutation` even on the `Q -->|no|` path: gated on `llm1Result.intent` being `add`/`remove`/`set_qty` (never fires on `query`-classified informational replies) and `ops.length === 0`, it checks whether `draftReply` names a vendor catalog product absent from the cart snapshot. On a hit, the reply is never trusted — the customer gets the true cart plus a prompt to repeat the item name, never a false confirmation.
 
 ---
 

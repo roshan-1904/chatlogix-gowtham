@@ -48,6 +48,7 @@ const EnvSchema = z.object({
   WA_MEDIA_S3_REGION: z.string().optional(),
   WA_MEDIA_RETENTION_MONTHS: z.string().default('12'),
   MEDIA_FETCH_MAX_ATTEMPTS: z.string().default('5'),
+  TEMPLATED_REPLY_DEBOUNCE_MS: z.string().default('30000'),
 
   // CloudWatch metrics (Conversation Parity)
   CLOUDWATCH_METRICS_ENABLED: z.string().default('false'),
@@ -174,7 +175,8 @@ export const numericEnv = {
   interactiveCreditsPerMessage: Number(env.BILLING_INTERACTIVE_CREDIT || '1'),
   reactionCreditsPerMessage: Number(env.BILLING_REACTION_CREDIT || '0'),
   mediaFetchMaxAttempts: Number(env.MEDIA_FETCH_MAX_ATTEMPTS || '5'),
-  waMediaRetentionMonths: Number(env.WA_MEDIA_RETENTION_MONTHS || '12')
+  waMediaRetentionMonths: Number(env.WA_MEDIA_RETENTION_MONTHS || '12'),
+  templatedReplyDebounceMs: Number(env.TEMPLATED_REPLY_DEBOUNCE_MS || '30000')
 };
 
 /**

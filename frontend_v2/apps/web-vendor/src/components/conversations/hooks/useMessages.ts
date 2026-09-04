@@ -55,6 +55,57 @@ export function useMessages({
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isPollingRef = useRef(false);
 
+  // Mirrors `messages` for the polling interval below, which intentionally
+  // doesn't depend on `messages` directly (that would tear down and rebuild
+  // the interval on every message update).
+  const messagesRef = useRef<Message[]>([]);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+  const isRefreshingMediaRef = useRef(false);
+
+  // Media is fetched async on the backend (can take anywhere from seconds to
+  // ~20+ minutes) — a message already loaded into state with media still
+  // `pending` never otherwise gets refreshed, so it's stuck on a placeholder
+  // until the vendor reloads the whole conversation. This patches just the
+  // `media`/`status` fields of already-loaded messages once their media
+  // fetch completes, piggybacking on the existing polling tick.
+  const refreshPendingMedia = useCallback(async () => {
+    if (!conversationId || isRefreshingMediaRef.current) return;
+
+    const pendingIds = messagesRef.current
+      .filter((m) => m.media && !['ready', 'failed', 'expired'].includes(m.media.state))
+      .map((m) => m.id);
+    if (pendingIds.length === 0) return;
+
+    isRefreshingMediaRef.current = true;
+    try {
+      const results = await Promise.all(
+        pendingIds.map((id) =>
+          apiClient.get<Message>(`/messages/${id}`).catch(() => null),
+        ),
+      );
+
+      const updatesById = new Map<string, Message>();
+      for (const fresh of results) {
+        if (fresh) updatesById.set(fresh.id, fresh);
+      }
+      if (updatesById.size === 0) return;
+
+      setMessages((prev) =>
+        prev.map((m) => {
+          const fresh = updatesById.get(m.id);
+          if (!fresh) return m;
+          return { ...m, media: fresh.media, status: fresh.status };
+        }),
+      );
+    } catch (err) {
+      console.debug('Error refreshing pending media:', err);
+    } finally {
+      isRefreshingMediaRef.current = false;
+    }
+  }, [conversationId]);
+
   const fetchPage = useCallback(
     async (beforeMessageId?: string | null, append = false) => {
       if (!conversationId) return;
@@ -307,6 +358,7 @@ export function useMessages({
     // Set up polling
     pollingIntervalRef.current = setInterval(() => {
       checkForNewMessages();
+      refreshPendingMedia();
     }, pollingInterval);
 
     // Cleanup on unmount or when dependencies change
@@ -316,7 +368,7 @@ export function useMessages({
         pollingIntervalRef.current = null;
       }
     };
-  }, [conversationId, enablePolling, pollingInterval, checkForNewMessages]);
+  }, [conversationId, enablePolling, pollingInterval, checkForNewMessages, refreshPendingMedia]);
 
   // Pause polling when tab is not visible (using Page Visibility API)
   useEffect(() => {
@@ -332,6 +384,7 @@ export function useMessages({
         if (conversationId && enablePolling && latestMessageIdRef.current && !pollingIntervalRef.current) {
           pollingIntervalRef.current = setInterval(() => {
             checkForNewMessages();
+            refreshPendingMedia();
           }, pollingInterval);
         }
       }
@@ -341,7 +394,7 @@ export function useMessages({
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [conversationId, enablePolling, pollingInterval, checkForNewMessages]);
+  }, [conversationId, enablePolling, pollingInterval, checkForNewMessages, refreshPendingMedia]);
 
   // Reset when conversation changes
   useEffect(() => {

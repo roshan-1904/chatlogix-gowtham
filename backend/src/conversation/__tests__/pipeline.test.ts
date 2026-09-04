@@ -332,6 +332,18 @@ describe('processMessage', () => {
     expect(logLatencyMock).toHaveBeenCalledWith('Llm1Ms', expect.any(Number), { vendorId: 'vendor-1' });
   });
 
+  it('threads intent, ops, and compactCatalog through to selectFinalReply so the phantom-mutation backstop has what it needs', async () => {
+    await processMessage(rawInput);
+
+    expect(selectFinalReplyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        intent: llm1Result.intent,
+        ops: llm1Result.ops,
+        compactCatalog: hotSet.compactCatalog
+      })
+    );
+  });
+
   it('logs Llm2Skipped when LLM-2 does not run, or Llm2Ms when it does', async () => {
     await processMessage(rawInput);
     expect(logCountMock).toHaveBeenCalledWith('Llm2Skipped', { vendorId: 'vendor-1' });

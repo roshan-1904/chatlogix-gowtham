@@ -164,7 +164,10 @@ describe('Golden transcripts (spec §2.2 motivating bugs, replayed end-to-end)',
       draftReply: 'Added your items!',
       llm2Result: { skipped: false, finalReply: 'You now have 2 Brownie, total Rs200.', promptTokens: 1, completionTokens: 1 }, // omits Cookies
       snapshot: turn1.snapshot,
-      traceId: 'wamid.turn1'
+      traceId: 'wamid.turn1',
+      intent: 'add',
+      ops: [{ type: 'add', productId: 'prod-cookies', qty: 1 }],
+      compactCatalog: []
     });
 
     expect(decision.usedEngineRenderer).toBe(true);
