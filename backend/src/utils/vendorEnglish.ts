@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import type { CartOp } from '../conversation/types.js';
 import { env } from '../config/env.js';
 import { prisma } from '../db/prisma.js';
 import { logger } from '../logger.js';
@@ -110,6 +111,30 @@ export async function ensureMessageContentEn(
     logger.warn({ err, messageId }, 'Failed to persist Message.contentEn');
     return null;
   }
+}
+
+const SET_FIELD_ENGLISH_FIELDS = new Set<Extract<CartOp, { type: 'set_field' }>['field']>([
+  'name',
+  'address',
+  'notes',
+  'delivery_date'
+]);
+
+/** Transliterate / translate set_field values so CustomerInsights and Order stay English-only. */
+export async function normalizeSetFieldOps(ops: CartOp[]): Promise<CartOp[]> {
+  return Promise.all(
+    ops.map(async (op) => {
+      if (op.type !== 'set_field' || !SET_FIELD_ENGLISH_FIELDS.has(op.field)) {
+        return op;
+      }
+      const english = await toVendorEnglish(op.value);
+      const trimmed = op.value.trim();
+      if (!english || english === trimmed) {
+        return op;
+      }
+      return { ...op, value: english };
+    })
+  );
 }
 
 function isPlaceholderBody(text: string): boolean {

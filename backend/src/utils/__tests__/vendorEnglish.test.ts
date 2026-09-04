@@ -33,6 +33,7 @@ import {
   needsEnglish,
   toVendorEnglish,
   ensureMessageContentEn,
+  normalizeSetFieldOps,
   VENDOR_ENGLISH_MODEL
 } from '../vendorEnglish.js';
 
@@ -164,5 +165,41 @@ describe('ensureMessageContentEn', () => {
 
     await expect(ensureMessageContentEn('msg-1', TAMIL)).resolves.toBeNull();
     expect(updateManyMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('normalizeSetFieldOps', () => {
+  beforeEach(() => {
+    createMock.mockReset();
+    createMock.mockResolvedValue({
+      choices: [{ message: { content: 'Raji' } }]
+    });
+  });
+
+  it('transliterates non-English set_field name/address/notes values', async () => {
+    const ops = [
+      { type: 'set_field' as const, field: 'name' as const, value: 'ராஜி' },
+      { type: 'set_field' as const, field: 'address' as const, value: 'சவணம்பட்டி' }
+    ];
+
+    const result = await normalizeSetFieldOps(ops);
+
+    expect(result).toEqual([
+      { type: 'set_field', field: 'name', value: 'Raji' },
+      { type: 'set_field', field: 'address', value: 'Raji' }
+    ]);
+    expect(createMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('leaves non-set_field ops and already-English values unchanged', async () => {
+    const ops = [
+      { type: 'add' as const, productId: 'p1', qty: 1, notes: null, variantSku: null },
+      { type: 'set_field' as const, field: 'name' as const, value: 'Raji' }
+    ];
+
+    const result = await normalizeSetFieldOps(ops);
+
+    expect(result).toEqual(ops);
+    expect(createMock).not.toHaveBeenCalled();
   });
 });
