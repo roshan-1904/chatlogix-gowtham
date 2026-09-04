@@ -116,6 +116,13 @@ export async function finalizeTurn(input: FinalizeTurnInput): Promise<FinalizeTu
   const publishedAt = Date.now(); // §19 step 9: SLA clock stops here
   logStage('response_queue_published', { traceId: whatsappMessageId, vendorId, conversationId });
 
+  void ensureMessageContentEn(assistantMessageId, finalText).catch((error) => {
+    logger.warn(
+      { err: error, traceId: whatsappMessageId, vendorId, conversationId, assistantMessageId },
+      'ensureMessageContentEn failed for assistant message'
+    );
+  });
+
   // Marked 'queued' regardless of what happens to the debit below — the
   // §19.1 sweep's query relies on this being set the moment the customer's
   // reply is actually on its way, not on whether the debit succeeds.
@@ -219,7 +226,7 @@ export async function processMessage(input: ProcessMessageInput): Promise<void> 
       content: input.content,
       whatsappMessageId: input.whatsappMessageId
     });
-    void ensureMessageContentEn(inboundMessageId, input.content).catch((error) => {
+    await ensureMessageContentEn(inboundMessageId, input.content).catch((error) => {
       logger.warn({ err: error, traceId, vendorId, conversationId, messageId: inboundMessageId }, 'ensureMessageContentEn failed for inbound message');
     });
 

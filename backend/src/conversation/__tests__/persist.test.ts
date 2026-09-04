@@ -223,7 +223,7 @@ describe('persistTurn', () => {
     expect(call.create.status).toBe('applied');
   });
 
-  it('keeps assistant content as finalText (customer language) and triggers contentEn when needed', async () => {
+  it('keeps assistant content as finalText (customer language)', async () => {
     const tamilReply = 'உங்கள் ஆர்டர் சேர்க்கப்பட்டது';
     await persistTurn({
       vendorId: VENDOR_ID,
@@ -238,6 +238,6 @@ describe('persistTurn', () => {
     });
 
     expect(messageCreate.mock.calls[0][0].data.content).toBe(tamilReply);
-    expect(ensureMessageContentEn).toHaveBeenCalledWith('assistant-msg-1', tamilReply);
+    expect(ensureMessageContentEn).not.toHaveBeenCalled();
   });
 });

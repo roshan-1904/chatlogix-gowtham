@@ -161,6 +161,7 @@ beforeEach(() => {
   messageProcessingFindUnique.mockResolvedValue(null);
   debitAfterEnqueueMock.mockResolvedValue('debited');
   renderRejectedOpsReplyMock.mockReturnValue('rejected-ops reply');
+  ensureMessageContentEnMock.mockResolvedValue(undefined);
 });
 
 describe('finalizeTurn', () => {
@@ -208,11 +209,17 @@ describe('finalizeTurn', () => {
     expect(call.data.queuedAt).toBeInstanceOf(Date);
   });
 
-  it('returns publishedAt (a Step 11 addition) so callers can compute LatencyMs against the actual publish moment', async () => {
+  it('returns publishedAt so callers can compute LatencyMs against the publish moment', async () => {
     const before = Date.now();
     const result = await finalizeTurn(baseInput);
     expect(result.publishedAt).toBeGreaterThanOrEqual(before);
     expect(result.publishedAt).toBeLessThanOrEqual(Date.now());
+  });
+
+  it('starts contentEn translation after publish without blocking the customer reply', async () => {
+    await finalizeTurn(baseInput);
+
+    expect(ensureMessageContentEnMock).toHaveBeenCalledWith('assistant-msg-1', baseInput.finalText);
   });
 
   it('does not rethrow when the inline debit fails, and logs DebitFail', async () => {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, useRef } from 'react';
 import { apiClient } from '../../../lib/api';
 import type { Message, MessagesResponse } from '../types';
+import { needsContentEnRefresh } from '../utils/messageText';
 
 interface UseMessagesOptions {
   conversationId?: string | null;
@@ -72,6 +73,7 @@ export function useMessages({
     messagesRef.current = messages;
   }, [messages]);
   const isRefreshingMediaRef = useRef(false);
+  const isRefreshingContentEnRef = useRef(false);
 
   // Media is fetched async on the backend (can take anywhere from seconds to
   // ~20+ minutes) — a message already loaded into state with media still
@@ -116,6 +118,44 @@ export function useMessages({
       console.debug('Error refreshing pending media:', err);
     } finally {
       isRefreshingMediaRef.current = false;
+    }
+  }, [conversationId]);
+
+  // Translation runs async on the backend (fire-and-forget for assistant replies).
+  // Re-fetch message rows that still show native script only until contentEn lands.
+  const refreshPendingContentEn = useCallback(async () => {
+    if (!conversationId || isRefreshingContentEnRef.current) return;
+
+    const pendingIds = messagesRef.current
+      .filter((m) => needsContentEnRefresh(m.content, m.contentEn))
+      .map((m) => m.id);
+    if (pendingIds.length === 0) return;
+
+    isRefreshingContentEnRef.current = true;
+    try {
+      const results = await Promise.all(
+        pendingIds.map((id) =>
+          apiClient.get<Message>(`/messages/${id}`).catch(() => null),
+        ),
+      );
+
+      const updatesById = new Map<string, Message>();
+      for (const fresh of results) {
+        if (fresh) updatesById.set(fresh.id, fresh);
+      }
+      if (updatesById.size === 0) return;
+
+      setMessages((prev) =>
+        prev.map((m) => {
+          const fresh = updatesById.get(m.id);
+          if (!fresh) return m;
+          return { ...m, content: fresh.content, contentEn: fresh.contentEn };
+        }),
+      );
+    } catch (err) {
+      console.debug('Error refreshing pending contentEn:', err);
+    } finally {
+      isRefreshingContentEnRef.current = false;
     }
   }, [conversationId]);
 
@@ -318,6 +358,7 @@ export function useMessages({
     pollingIntervalRef.current = setInterval(() => {
       checkForNewMessages();
       refreshPendingMedia();
+      refreshPendingContentEn();
     }, pollingInterval);
 
     // Cleanup on unmount or when dependencies change
@@ -327,7 +368,7 @@ export function useMessages({
         pollingIntervalRef.current = null;
       }
     };
-  }, [conversationId, enablePolling, pollingInterval, pollReady, checkForNewMessages, refreshPendingMedia]);
+  }, [conversationId, enablePolling, pollingInterval, pollReady, checkForNewMessages, refreshPendingMedia, refreshPendingContentEn]);
 
   // Pause polling when tab is not visible (using Page Visibility API)
   useEffect(() => {
@@ -344,6 +385,7 @@ export function useMessages({
           pollingIntervalRef.current = setInterval(() => {
             checkForNewMessages();
             refreshPendingMedia();
+            refreshPendingContentEn();
           }, pollingInterval);
         }
       }
@@ -353,7 +395,7 @@ export function useMessages({
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [conversationId, enablePolling, pollingInterval, pollReady, checkForNewMessages, refreshPendingMedia]);
+  }, [conversationId, enablePolling, pollingInterval, pollReady, checkForNewMessages, refreshPendingMedia, refreshPendingContentEn]);
 
   // Reset when conversation changes
   useEffect(() => {
@@ -379,6 +421,12 @@ export function useMessages({
       fetchPage(null, false);
     }
   }, [conversationId, fetchPage]);
+
+  // Kick off an immediate contentEn refresh after the first page load (don't wait for the poll tick).
+  useEffect(() => {
+    if (!pollReady || messages.length === 0) return;
+    void refreshPendingContentEn();
+  }, [pollReady, conversationId, refreshPendingContentEn, messages.length]);
 
   return {
     messages,

@@ -292,7 +292,7 @@ async function handoffAfterFetch(
       where: { id: job.messageId },
       data: { content: transcript }
     });
-    void ensureMessageContentEn(job.messageId, transcript).catch((err) => {
+    await ensureMessageContentEn(job.messageId, transcript).catch((err) => {
       stepLogger.warn('ensureMessageContentEn failed for audio transcript', {
         err: err instanceof Error ? err.message : String(err)
       });

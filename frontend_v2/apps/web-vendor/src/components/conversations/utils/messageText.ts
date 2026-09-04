@@ -64,3 +64,28 @@ export function dualLanguageDisplay(
   }
   return { dual: false, text: original };
 }
+
+const LETTER = /\p{L}/u;
+const LATIN_LETTER = /\p{Script=Latin}/u;
+
+/** Mirrors backend needsEnglish — true when content has non-Latin script. */
+export function likelyNeedsEnglish(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  if (trimmed.startsWith('📍')) return false;
+  if (/^👤\s*Contact card$/i.test(trimmed)) return false;
+  if (/^🟦\s*Sticker$/i.test(trimmed)) return false;
+
+  let nonLatinLetters = 0;
+  for (const char of trimmed) {
+    if (!LETTER.test(char)) continue;
+    if (!LATIN_LETTER.test(char)) nonLatinLetters += 1;
+  }
+  return nonLatinLetters > 0;
+}
+
+/** True when the vendor portal should keep polling until contentEn arrives. */
+export function needsContentEnRefresh(content: string, contentEn?: string | null): boolean {
+  if (contentEn?.trim()) return false;
+  return likelyNeedsEnglish(content);
+}

@@ -14,6 +14,7 @@ import {
   ReactionEvent,
   StatusEvent
 } from './waParser.js';
+import { ensureMessageContentEn } from '../utils/vendorEnglish.js';
 
 const ORPHAN_TTL_SECONDS = 5 * 60; // 5 minutes
 const MEDIA_TYPES: ReadonlyArray<ParsedMessageType> = [
@@ -435,6 +436,16 @@ export async function processMessageCreated(
       messageId: persisted.id
     });
     return;
+  }
+
+  const inboundBody = bodyContentForCreate(event).trim();
+  if (inboundBody) {
+    void ensureMessageContentEn(persisted.id, inboundBody).catch((err) => {
+      stepLogger.warn('ensureMessageContentEn failed for webhook inbound', {
+        messageId: persisted.id,
+        err: err instanceof Error ? err.message : String(err)
+      });
+    });
   }
 
   if (MEDIA_TYPES.includes(event.messageType)) {
