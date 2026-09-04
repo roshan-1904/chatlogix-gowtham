@@ -8,9 +8,11 @@ declare global {
 
 const prismaLogEnabled = process.env.PRISMA_DEBUG === 'true';
 
-// Connection pool configuration to prevent exhaustion
-// Default: connection_limit=9, pool_timeout=10s
-// Increase for high-concurrency scenarios
+// Connection pool configuration to prevent exhaustion.
+// Fallback default is connection_limit=20, pool_timeout=20s if the env vars below
+// are unset — too permissive for any environment sitting behind PgBouncer (the PM2
+// backend and all Lambda functions). Those must set DATABASE_CONNECTION_LIMIT/
+// DATABASE_POOL_TIMEOUT explicitly rather than rely on this fallback.
 const connectionLimit = parseInt(process.env.DATABASE_CONNECTION_LIMIT || '20', 10);
 const poolTimeout = parseInt(process.env.DATABASE_POOL_TIMEOUT || '20', 10);
 

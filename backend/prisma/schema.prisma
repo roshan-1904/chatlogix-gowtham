@@ -8,8 +8,11 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Used only by `prisma migrate`/`db push` — bypasses PgBouncer's transaction-mode
+  // pooling, which doesn't support the session-level locks migrations need.
+  directUrl = env("DIRECT_DATABASE_URL")
 }
 
 model Vendor {
