@@ -7,6 +7,7 @@ import { ConversationHeader } from '../components/conversations/ConversationHead
 import { MessageList } from '../components/conversations/MessageList';
 import { MessageInput } from '../components/conversations/MessageInput';
 import { CustomerDetailsPanel } from '../components/conversations/CustomerDetailsPanel';
+import { MediaGalleryProvider } from '../components/conversations/MediaGalleryContext';
 import type { Conversation, CustomerInsights, Order } from '../components/conversations/types';
 import { useConversations } from '../components/conversations/hooks/useConversations';
 import { useMessages } from '../components/conversations/hooks/useMessages';
@@ -189,10 +190,10 @@ export function Conversations() {
   const combinedError = error || conversationsError || messagesError;
 
   return (
-    <div className="h-full flex items-stretch">
-      <div className="mx-auto w-full h-full flex flex-col lg:flex-row bg-gray-50 shadow-sm">
+    <div className="-m-2 h-[calc(100%+1rem)] overflow-hidden lg:-m-3 lg:h-[calc(100%+1.5rem)]">
+      <div className="flex h-full w-full flex-col overflow-hidden bg-white lg:flex-row">
         {/* Conversation List - Hidden on mobile when conversation is selected */}
-        <div className={`${selectedConversation ? 'hidden lg:block' : 'block'} w-full lg:w-[30%] lg:max-w-md`}>
+        <div className={`${selectedConversation ? 'hidden lg:flex' : 'flex'} h-full w-full min-h-0 flex-col lg:w-[30%] lg:max-w-md`}>
           <ConversationList
             conversations={conversations}
             selectedConversationId={selectedConversation?.id || null}
@@ -210,17 +211,15 @@ export function Conversations() {
           />
         </div>
 
-        {/* Center Panel - Chat View */}
-        <div className="flex-1 flex flex-col bg-white border-l border-r border-gray-200 relative">
+        <div className={`${selectedConversation ? 'flex' : 'hidden lg:flex'} relative min-h-0 min-w-0 flex-1 flex-col bg-[#efeae2]`}>
           {selectedConversation ? (
             <>
-              {/* Back button for mobile */}
               <button
                 onClick={() => setSelectedConversation(null)}
-                className="lg:hidden absolute top-2 left-2 z-10 p-2 bg-white rounded-full shadow-md hover:bg-gray-100 transition-colors"
+                className="absolute left-2 top-2 z-10 rounded-full bg-white/90 p-2 shadow-md hover:bg-white lg:hidden"
                 aria-label="Back to conversations"
               >
-                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="h-5 w-5 text-[#54656f]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </button>
@@ -228,18 +227,23 @@ export function Conversations() {
                 conversation={{ ...selectedConversation, aiPaused }}
                 onToggleAIPause={handleToggleAIPause}
               />
-              <MessageList
-                messages={messages}
-                hasMore={hasMoreMessages}
-                isLoadingMore={isLoadingOlderMessages}
-                onLoadOlder={loadOlder}
-                error={messagesError}
-                onRetry={refreshMessages}
-                hasNewMessages={hasNewMessages}
-                newMessageCount={newMessageCount}
-                onLoadNewMessages={loadNewMessages}
-                isLoadingNew={isLoadingNew}
-              />
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                <MediaGalleryProvider messages={messages}>
+                  <MessageList
+                    conversationId={selectedConversation.id}
+                    messages={messages}
+                    hasMore={hasMoreMessages}
+                    isLoadingMore={isLoadingOlderMessages}
+                    onLoadOlder={loadOlder}
+                    error={messagesError}
+                    onRetry={refreshMessages}
+                    hasNewMessages={hasNewMessages}
+                    newMessageCount={newMessageCount}
+                    onLoadNewMessages={loadNewMessages}
+                    isLoadingNew={isLoadingNew}
+                  />
+                </MediaGalleryProvider>
+              </div>
               {aiPaused && (
                 <MessageInput
                   value={newMessage}
@@ -252,14 +256,16 @@ export function Conversations() {
               )}
             </>
           ) : (
-            <div className="flex-1 flex items-center justify-center bg-gray-50 p-4">
-              <div className="text-center">
-                <div className="text-5xl sm:text-6xl mb-3 sm:mb-4">💬</div>
-                <h3 className="text-lg sm:text-xl font-medium text-gray-900 mb-2">
-                  Select a conversation
-                </h3>
-                <p className="text-sm sm:text-base text-gray-500">
-                  Choose a conversation from the list to view messages
+            <div className="chat-canvas flex flex-1 items-center justify-center p-6">
+              <div className="max-w-sm text-center">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#00a884]/10 text-[#00a884]">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                    <path d="M20 2H4a2 2 0 00-2 2v18l4-4h14a2 2 0 002-2V4a2 2 0 00-2-2zm-3 12H7v-2h10v2zm0-3H7V9h10v2zm0-3H7V6h10v2z" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-medium text-[#111b21]">Select a conversation</h3>
+                <p className="mt-2 text-sm text-[#667781]">
+                  Choose a chat from the list to view messages, photos, and voice notes.
                 </p>
               </div>
             </div>
@@ -268,7 +274,7 @@ export function Conversations() {
 
         {/* Right Panel - Customer Details - Hidden on mobile and tablet */}
         {selectedConversation && (
-          <div className="hidden xl:block xl:w-[25%] xl:max-w-sm">
+          <div className="hidden h-full min-h-0 xl:flex xl:w-[25%] xl:max-w-sm">
             <CustomerDetailsPanel
               conversation={selectedConversation}
               customerInsights={customerInsights}

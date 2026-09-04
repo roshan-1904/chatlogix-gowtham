@@ -22,24 +22,8 @@ export function MessageInput({
   };
 
   return (
-    <div className="bg-[#f0f2f5] border-t border-gray-300 px-3 py-2">
-      <div className="flex items-end space-x-2">
-        <button
-          type="button"
-          className="text-xl text-gray-600 px-2 pb-1 disabled:opacity-50"
-          disabled={disabled}
-          aria-label="Emoji (coming soon)"
-        >
-          😊
-        </button>
-        <button
-          type="button"
-          className="text-lg text-gray-600 px-1 pb-1 disabled:opacity-50"
-          disabled={disabled}
-          aria-label="Attach file (coming soon)"
-        >
-          📎
-        </button>
+    <div className="border-t border-[#d1d7db] bg-[#f0f2f5] px-3 py-2.5">
+      <div className="flex items-end gap-2">
         <textarea
           value={value}
           onChange={(e) => onChange(e.target.value)}
@@ -47,24 +31,24 @@ export function MessageInput({
           placeholder="Type a message"
           disabled={disabled}
           rows={1}
-          className="flex-1 max-h-24 resize-none px-3 py-2 rounded-lg bg-white text-sm border border-transparent focus:outline-none focus:ring-0 focus:border-transparent disabled:opacity-60"
+          className="max-h-24 flex-1 resize-none rounded-lg border-0 bg-white px-3 py-2.5 text-sm text-[#111b21] shadow-sm placeholder:text-[#667781] focus:outline-none focus:ring-0 disabled:opacity-60"
         />
         <Button
           onClick={onSend}
           disabled={!value.trim() || disabled}
-          className={`rounded-full h-10 w-10 p-0 flex items-center justify-center text-sm font-semibold ${
+          aria-label="Send message"
+          className={`flex h-11 w-11 items-center justify-center rounded-full p-0 ${
             value.trim()
-              ? 'bg-[#25d366] hover:bg-[#1da955] text-white'
-              : 'bg-gray-300 text-gray-600 cursor-default'
+              ? 'bg-[#00a884] text-white hover:bg-[#029a78]'
+              : 'cursor-default bg-[#d1d7db] text-white'
           }`}
         >
-          ➤
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+          </svg>
         </Button>
       </div>
-      {error && (
-        <div className="mt-1 text-xs text-red-600 px-1">{error}</div>
-      )}
+      {error ? <div className="mt-1 px-1 text-xs text-red-600">{error}</div> : null}
     </div>
   );
 }
-

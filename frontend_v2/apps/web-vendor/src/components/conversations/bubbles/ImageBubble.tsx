@@ -4,6 +4,7 @@ import { MessageShell } from './MessageShell';
 import { MediaPlaceholder } from './shared/MediaPlaceholder';
 import { useAuthenticatedMedia } from './shared/useAuthenticatedMedia';
 import { useMediaGallery } from '../MediaGalleryContext';
+import { MessageText } from './shared/MessageText';
 
 interface ImageBubbleProps {
   readonly message: Message;
@@ -18,12 +19,12 @@ function ImageBubbleComponent({ message, onJumpToMessage }: ImageBubbleProps) {
   const { objectUrl, error } = useAuthenticatedMedia(isReady ? media?.mediaUrl : null);
 
   return (
-    <MessageShell message={message} wide onJumpToMessage={onJumpToMessage}>
+    <MessageShell message={message} wide flush onJumpToMessage={onJumpToMessage}>
       {isReady && objectUrl && !error ? (
         <button
           type="button"
           onClick={() => openGallery(message.id)}
-          className="block w-full overflow-hidden rounded-md focus:outline-none"
+          className="group relative block w-full overflow-hidden rounded-[10px] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#25D366]"
         >
           <img
             src={objectUrl}
@@ -36,6 +37,7 @@ function ImageBubbleComponent({ message, onJumpToMessage }: ImageBubbleProps) {
             }
             className="w-full max-h-80 object-cover"
           />
+          <span className="pointer-events-none absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/10" />
         </button>
       ) : (
         <MediaPlaceholder
@@ -46,7 +48,9 @@ function ImageBubbleComponent({ message, onJumpToMessage }: ImageBubbleProps) {
         />
       )}
       {caption ? (
-        <div className="mt-1 whitespace-pre-wrap break-words">{caption}</div>
+        <div className="px-1.5 pt-1.5 whitespace-pre-wrap break-words text-[14.2px] leading-[1.55]">
+          <MessageText text={caption} />
+        </div>
       ) : null}
     </MessageShell>
   );

@@ -1,5 +1,4 @@
 import { memo, type MutableRefObject } from 'react';
-import type { Message } from './types';
 import type { MessageGroup as Group } from './utils/messageGrouping';
 import { MessageBubble } from './MessageBubble';
 
@@ -27,7 +26,7 @@ function MessageGroupComponent({ group, messageRefs, onJumpToMessage }: MessageG
           }}
           className="transition-shadow duration-300"
         >
-          <MessageBubble message={msg as Message} onJumpToMessage={onJumpToMessage} />
+          <MessageBubble message={msg} onJumpToMessage={onJumpToMessage} />
         </div>
       ))}
     </div>

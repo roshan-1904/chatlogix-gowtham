@@ -13,7 +13,9 @@ function ReactionChipsComponent({ reactions, align }: ReactionChipsProps) {
 
   return (
     <div
-      className={`flex flex-wrap gap-1 mt-1 ${align === 'end' ? 'justify-end' : 'justify-start'}`}
+      className={`relative z-[1] flex flex-wrap gap-1 -mt-2.5 mb-1 px-1 ${
+        align === 'end' ? 'justify-end' : 'justify-start'
+      }`}
     >
       {reactions.map((group) => {
         const tooltip =
@@ -27,11 +29,19 @@ function ReactionChipsComponent({ reactions, align }: ReactionChipsProps) {
           <span
             key={group.emoji}
             title={tooltip}
-            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-white/95 border border-gray-200 shadow-sm text-xs leading-none transition-transform duration-150 ease-out hover:scale-105"
+            className={
+              group.count > 1
+                ? 'inline-flex h-7 w-auto items-center justify-center gap-1 rounded-full border border-black/10 bg-white px-2 shadow-[0_1px_2px_rgba(11,20,26,0.18)] transition-transform duration-150 ease-out hover:scale-105'
+                : 'inline-flex h-7 w-7 aspect-square items-center justify-center rounded-full border border-black/10 bg-white shadow-[0_1px_2px_rgba(11,20,26,0.18)] transition-transform duration-150 ease-out hover:scale-105'
+            }
           >
-            <span aria-hidden>{group.emoji}</span>
+            <span aria-hidden className="reaction-emoji">
+              {group.emoji}
+            </span>
             {group.count > 1 ? (
-              <span className="text-gray-700 text-[11px] font-medium">{group.count}</span>
+              <span className="min-w-[0.75rem] text-center text-[11px] font-medium leading-none text-gray-700">
+                {group.count}
+              </span>
             ) : null}
           </span>
         );

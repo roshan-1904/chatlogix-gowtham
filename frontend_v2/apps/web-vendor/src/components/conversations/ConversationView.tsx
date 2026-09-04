@@ -61,7 +61,7 @@ export function ConversationView({
   }, [conversationId, aiPaused, setAiPaused, onToggleAIPause]);
 
   return (
-    <div className="flex flex-col h-full bg-white overflow-hidden">
+    <div className="flex h-full flex-col overflow-hidden bg-[#efeae2]">
       <ConversationHeader
         conversation={{ ...conversation, aiPaused }}
         onToggleAIPause={handleToggleAIPause}
@@ -69,6 +69,7 @@ export function ConversationView({
       <div className="flex-1 min-h-0 overflow-hidden">
         <MediaGalleryProvider messages={messages}>
           <MessageList
+            conversationId={conversationId}
             messages={messages}
             hasMore={hasMoreMessages}
             isLoadingMore={isLoadingOlderMessages}

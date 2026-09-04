@@ -171,6 +171,21 @@ export const enrichedInclude = (includeStatusHistory: boolean) => ({
     : (false as const)
 });
 
+export function shapeMessageMedia(messageId: string, media: any): any {
+  if (!media) return null;
+  return {
+    state: media.fetchState,
+    mimeType: media.mimeType,
+    filename: media.filename,
+    caption: media.caption,
+    durationSec: media.durationSec,
+    width: media.width,
+    height: media.height,
+    fileSizeBytes: media.fileSizeBytes,
+    mediaUrl: media.fetchState === 'ready' ? `/api/messages/${messageId}/media` : null
+  };
+}
+
 export function shapeMessage(row: any): any {
   type ReactionGroup = { emoji: string; count: number; reactorIds: string[] };
   const reactionGroups = new Map<string, ReactionGroup>();
@@ -201,21 +216,7 @@ export function shapeMessage(row: any): any {
     };
   }
 
-  let media: any = null;
-  if (row.media) {
-    const m = row.media;
-    media = {
-      state: m.fetchState,
-      mimeType: m.mimeType,
-      filename: m.filename,
-      caption: m.caption,
-      durationSec: m.durationSec,
-      width: m.width,
-      height: m.height,
-      fileSizeBytes: m.fileSizeBytes,
-      mediaUrl: m.fetchState === 'ready' ? `/api/messages/${row.id}/media` : null
-    };
-  }
+  const media = shapeMessageMedia(row.id, row.media);
 
   // Strip the joined relations from the row before merging the shaped extras.
   const { reactions: _r, replyToMessage: _rt, media: _m, statusEvents, ...base } = row;

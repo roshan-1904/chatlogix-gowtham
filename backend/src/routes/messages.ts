@@ -1,5 +1,5 @@
 import express from 'express';
-import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { prisma } from '../db/prisma.js';
 import {
   asyncHandlerWithContext,
@@ -10,29 +10,11 @@ import {
 } from '../middleware/errorHandler.js';
 import { env } from '../config/env.js';
 import { logger } from '../logger.js';
+import { mediaResponseContentType, readS3ObjectBody } from '../utils/s3Body.js';
+import { getWaMediaS3Client } from '../utils/waMediaS3.js';
 import { enrichedInclude, shapeMessage } from './conversations.js';
 
 export const messagesRouter = express.Router();
-
-let s3Client: S3Client | null = null;
-
-function getMediaS3Client(): S3Client {
-  if (!s3Client) {
-    s3Client = new S3Client({
-      region: env.WA_MEDIA_S3_REGION || env.AWS_REGION,
-      ...(env.AWS_ACCESS_KEY_ID && env.AWS_SECRET_ACCESS_KEY
-        ? {
-            credentials: {
-              accessKeyId: env.AWS_ACCESS_KEY_ID,
-              secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
-              ...(env.AWS_SESSION_TOKEN ? { sessionToken: env.AWS_SESSION_TOKEN } : {})
-            }
-          }
-        : {})
-    });
-  }
-  return s3Client;
-}
 
 // GET /api/messages/:id/media - Stream the message media from S3.
 //
@@ -101,11 +83,14 @@ messagesRouter.get(
       );
     }
 
-    let s3Response;
+    let bytes: Buffer;
+    let s3ContentType: string | undefined;
     try {
-      s3Response = await getMediaS3Client().send(
+      const s3Response = await getWaMediaS3Client().send(
         new GetObjectCommand({ Bucket: bucket, Key: media.s3Key })
       );
+      s3ContentType = s3Response.ContentType;
+      bytes = await readS3ObjectBody(s3Response.Body);
     } catch (err: any) {
       logger.error(
         {
@@ -124,20 +109,16 @@ messagesRouter.get(
       );
     }
 
-    const body = s3Response.Body as unknown as NodeJS.ReadableStream | undefined;
-    if (!body) {
-      res.status(502).end();
-      return;
-    }
-
-    res.setHeader('Cache-Control', 'no-store');
+    // Helmet defaults CORP to same-origin, which blocks the vendor dashboard
+    // from reading image/audio bodies when it is hosted on another origin
+    // (local Vite → production API). cors() alone is not enough for media.
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Cache-Control', 'private, max-age=60');
     res.setHeader(
       'Content-Type',
-      media.mimeType || s3Response.ContentType || 'application/octet-stream'
+      mediaResponseContentType(media.mimeType, s3ContentType)
     );
-    if (typeof s3Response.ContentLength === 'number') {
-      res.setHeader('Content-Length', String(s3Response.ContentLength));
-    }
+    res.setHeader('Content-Length', String(bytes.byteLength));
     if (media.filename) {
       res.setHeader(
         'Content-Disposition',
@@ -145,15 +126,7 @@ messagesRouter.get(
       );
     }
 
-    body.on('error', (err: Error) => {
-      logger.error({ err, messageId }, 'wa_media_stream_failed');
-      if (!res.headersSent) {
-        res.status(502);
-      }
-      res.end();
-    });
-
-    body.pipe(res);
+    res.end(bytes);
   }, ErrorType.AUTHORIZATION, ErrorSeverity.MEDIUM)
 );
 

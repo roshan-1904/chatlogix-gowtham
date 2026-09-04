@@ -53,5 +53,34 @@
   },
   "sticker": {
     "label": "ஸ்டிக்கர்"
+  },
+  "sender": {
+    "ai": "AI"
+  },
+  "header": {
+    "startAutoReply": "AI மீண்டும் தொடங்கு",
+    "stopAutoReply": "AI நிறுத்து",
+    "aiOn": "AI தானியங்கி பதில் இயக்கத்தில்",
+    "aiOff": "நீங்கள் கைமுறையாக பதிலளிக்கிறீர்கள்"
+  },
+  "list": {
+    "title": "உரையாடல்கள்",
+    "searchPlaceholder": "பெயர் அல்லது தொலைபேசி மூலம் தேடு",
+    "youPrefix": "நீங்கள்",
+    "noMessages": "இன்னும் செய்திகள் இல்லை",
+    "empty": "உரையாடல்கள் இல்லை"
+  },
+  "listPreview": {
+    "photo": "புகைப்படம்",
+    "voiceMessage": "குரல் செய்தி",
+    "video": "வீடியோ",
+    "document": "ஆவணம்",
+    "sticker": "ஸ்டிக்கர்",
+    "contact": "தொடர்பு",
+    "location": "இடம்"
+  },
+  "newMessages": {
+    "one": "1 புதிய செய்தி",
+    "other": "{{count}} புதிய செய்திகள்"
   }
 }

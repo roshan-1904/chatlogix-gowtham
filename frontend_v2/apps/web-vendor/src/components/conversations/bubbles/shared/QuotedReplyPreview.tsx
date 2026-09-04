@@ -1,21 +1,21 @@
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MessageReplyPreview } from '../../types';
+import type { BubbleVariant } from './bubbleChrome';
 
 interface QuotedReplyPreviewProps {
   readonly replyTo?: MessageReplyPreview | null;
-  readonly tone: 'light' | 'dark';
+  readonly variant: BubbleVariant;
   readonly onJumpTo?: (messageId: string) => void;
 }
 
-function QuotedReplyPreviewComponent({ replyTo, tone, onJumpTo }: QuotedReplyPreviewProps) {
+function QuotedReplyPreviewComponent({ replyTo, variant, onJumpTo }: QuotedReplyPreviewProps) {
   const { t } = useTranslation('conversations');
 
   if (!replyTo) return null;
 
   const isMissing = !replyTo.id;
-  const accentClass = tone === 'dark' ? 'border-blue-300' : 'border-blue-500';
-  const bgClass = tone === 'dark' ? 'bg-blue-400/30 text-blue-50' : 'bg-gray-50 text-gray-700';
+  const isOutgoing = variant === 'outgoing';
   const senderLabel = replyTo.senderType === 'customer' ? 'customer' : 'you';
 
   const handleClick = () => {
@@ -28,14 +28,14 @@ function QuotedReplyPreviewComponent({ replyTo, tone, onJumpTo }: QuotedReplyPre
       type="button"
       onClick={handleClick}
       disabled={isMissing || !onJumpTo}
-      className={`block w-full text-left mb-1 rounded-md border-l-4 ${accentClass} ${bgClass} px-2 py-1 text-xs ${
-        isMissing || !onJumpTo ? 'cursor-default' : 'cursor-pointer hover:brightness-95'
-      }`}
+      className={`block w-full text-left mb-1.5 rounded-md border-l-[3px] border-[#25D366] px-2 py-1 text-xs ${
+        isOutgoing ? 'bg-[#cde9c9] text-[#111b21]' : 'bg-[#f5f6f6] text-[#111b21]'
+      } ${isMissing || !onJumpTo ? 'cursor-default' : 'cursor-pointer hover:brightness-[0.97]'}`}
     >
-      <div className="text-[10px] uppercase tracking-wide opacity-80">
+      <div className="text-[10px] font-semibold uppercase tracking-wide text-[#00a884]">
         {t('reply.previewLabel', { sender: senderLabel })}
       </div>
-      <div className="truncate">
+      <div className="truncate text-[#3b4a54]">
         {isMissing ? t('reply.missing') : replyTo.contentPreview || t('reply.missing')}
       </div>
     </button>

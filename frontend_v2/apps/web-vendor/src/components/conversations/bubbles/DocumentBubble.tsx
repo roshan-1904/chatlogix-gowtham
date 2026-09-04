@@ -4,6 +4,8 @@ import type { Message } from '../types';
 import { MessageShell } from './MessageShell';
 import { MediaPlaceholder } from './shared/MediaPlaceholder';
 import { useAuthenticatedMedia } from './shared/useAuthenticatedMedia';
+import { innerCardClass } from './shared/bubbleChrome';
+import { MessageText } from './shared/MessageText';
 
 interface DocumentBubbleProps {
   readonly message: Message;
@@ -24,7 +26,6 @@ function formatBytes(bytes?: number | null): string {
 
 function DocumentBubbleComponent({ message, onJumpToMessage }: DocumentBubbleProps) {
   const { t } = useTranslation('conversations');
-  const isCustomer = message.senderType === 'customer';
   const media = message.media ?? null;
   const isReady = media?.state === 'ready' && Boolean(media.mediaUrl);
   const { objectUrl, error } = useAuthenticatedMedia(isReady ? media?.mediaUrl : null);
@@ -39,7 +40,6 @@ function DocumentBubbleComponent({ message, onJumpToMessage }: DocumentBubblePro
 
   const filename = media?.filename ?? message.content ?? 'document';
   const sizeLabel = formatBytes(media?.fileSizeBytes);
-  const tone = isCustomer ? 'text-gray-700' : 'text-blue-50';
 
   return (
     <MessageShell message={message} wide onJumpToMessage={onJumpToMessage}>
@@ -48,26 +48,33 @@ function DocumentBubbleComponent({ message, onJumpToMessage }: DocumentBubblePro
         target="_blank"
         rel="noopener noreferrer"
         download={filename}
-        className={`flex items-center gap-3 px-2 py-2 rounded-md ${
-          isCustomer ? 'bg-white/60 hover:bg-white/80' : 'bg-white/15 hover:bg-white/25'
-        }`}
+        className={`flex items-center gap-3 rounded-lg px-2 py-2 ${innerCardClass()} hover:bg-black/[0.07]`}
       >
         <span
           aria-hidden
-          className="flex items-center justify-center w-10 h-10 rounded-md bg-white/40 text-xl"
+          className="flex h-10 w-10 items-center justify-center rounded-md bg-[#00a884] text-white"
         >
-          📄
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M7 3h7l5 5v13a1 1 0 01-1 1H7a1 1 0 01-1-1V4a1 1 0 011-1z"
+              stroke="currentColor"
+              strokeWidth="1.6"
+            />
+            <path d="M14 3v5h5" stroke="currentColor" strokeWidth="1.6" />
+          </svg>
         </span>
-        <span className="flex flex-col min-w-0">
+        <span className="flex min-w-0 flex-col">
           <span className="truncate text-sm font-medium">{filename}</span>
-          <span className={`text-[11px] ${tone}`}>
+          <span className="text-[11px] text-[#667781]">
             {sizeLabel ? `${sizeLabel} · ` : ''}
             {t('media.downloadFile')}
           </span>
         </span>
       </a>
       {media?.caption ? (
-        <div className="mt-1 whitespace-pre-wrap break-words">{media.caption}</div>
+        <div className="mt-1.5 whitespace-pre-wrap break-words">
+          <MessageText text={media.caption} />
+        </div>
       ) : null}
     </MessageShell>
   );

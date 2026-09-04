@@ -1,17 +1,10 @@
 import type { Message } from '../types';
 
-export interface GroupedMessage {
-  id: string;
-  content: string;
-  timestamp: string;
-  senderType: string;
-}
-
 export interface MessageGroup {
   id: string;
   senderType: string;
   timestamp: string;
-  messages: GroupedMessage[];
+  messages: Message[];
 }
 
 export interface DatedGroup {
@@ -46,6 +39,7 @@ function getDateLabel(date: Date): string {
 /**
  * Group messages by date and by consecutive sender within 2 minutes.
  * Assumes messages are in chronological order (oldest first).
+ * Keeps the full Message object so image/audio bubbles still have `type` and `media`.
  */
 export function groupMessagesByDateAndSender(
   messages: Message[],
@@ -85,26 +79,12 @@ export function groupMessagesByDateAndSender(
         id: msg.id,
         senderType: msg.senderType,
         timestamp: msg.timestamp,
-        messages: [
-          {
-            id: msg.id,
-            content: msg.content,
-            timestamp: msg.timestamp,
-            senderType: msg.senderType,
-          },
-        ],
+        messages: [msg],
       });
     } else {
-      lastGroup.messages.push({
-        id: msg.id,
-        content: msg.content,
-        timestamp: msg.timestamp,
-        senderType: msg.senderType,
-      });
+      lastGroup.messages.push(msg);
     }
   }
 
   return result;
 }
-
-

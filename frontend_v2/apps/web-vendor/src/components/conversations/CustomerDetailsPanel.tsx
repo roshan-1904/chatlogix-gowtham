@@ -51,9 +51,9 @@ export function CustomerDetailsPanel({
     customerInsights?.deliveryAddress || customerInsights?.primaryDeliveryAddress;
 
   return (
-    <div className="w-[20%] min-w-[260px] bg-[#ffffff] border-l border-black/10 overflow-y-auto">
-      <div className="px-5 py-4 border-b border-gray-200 bg-[#f0f2f5]">
-        <h3 className="text-sm font-semibold text-gray-800">Customer Details</h3>
+    <div className="flex h-full min-w-[260px] w-full flex-col overflow-y-auto border-l border-[#d1d7db] bg-white">
+      <div className="border-b border-[#d1d7db] bg-[#f0f2f5] px-5 py-3">
+        <h3 className="text-sm font-semibold text-[#111b21]">Customer Details</h3>
       </div>
       <div className="p-5 space-y-5">
         {/* Basic Info */}

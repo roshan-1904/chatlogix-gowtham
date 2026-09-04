@@ -17,17 +17,23 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
   margin: 0;
   min-width: 320px;
-  min-height: 100vh;
   background-color: #ffffff;
   color: #111827; /* text-gray-900 */
 }
 
 #root {
   width: 100%;
-  min-height: 100vh;
+  height: 100%;
+  overflow: hidden;
 }
 
 /* Global form input styles - ensure black text */
@@ -70,6 +76,76 @@ textarea::placeholder {
 select option {
   color: #111827 !important;
   background-color: #ffffff !important;
+}
+
+/* WhatsApp-style chat canvas */
+.chat-canvas {
+  background-color: #ece5dd;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72' viewBox='0 0 72 72'%3E%3Ccircle cx='10' cy='12' r='1.4' fill='rgba(7,35,73,0.055)'/%3E%3Ccircle cx='46' cy='28' r='1.1' fill='rgba(37,211,102,0.08)'/%3E%3Ccircle cx='22' cy='52' r='1.2' fill='rgba(7,35,73,0.04)'/%3E%3Cpath d='M58 8c2.2 0 4 1.6 4 3.6 0 2.6-4 6.4-4 6.4s-4-3.8-4-6.4c0-2 1.8-3.6 4-3.6z' fill='rgba(7,35,73,0.035)'/%3E%3Cpath d='M8 40h6M11 37v6' stroke='rgba(37,211,102,0.07)' stroke-width='1.4' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+.conversation-row-selected {
+  background-color: #f0f2f5;
+  box-shadow: inset 3px 0 0 #25d366;
+}
+
+@keyframes voice-pulse {
+  0%,
+  100% {
+    transform: scaleY(1);
+  }
+  50% {
+    transform: scaleY(0.42);
+  }
+}
+
+.voice-bar {
+  transform-origin: center bottom;
+}
+
+.voice-bar.is-playing {
+  animation: voice-pulse 0.85s ease-in-out infinite;
+}
+
+/* Color emoji glyphs (especially Segoe UI Emoji) overflow a tight em-box. */
+.chat-emoji {
+  display: inline-block;
+  font-size: 1.4em;
+  line-height: 1.25;
+  vertical-align: -0.05em;
+  overflow: visible;
+}
+
+.chat-emoji-lg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.12em;
+  line-height: 1.2;
+  padding-block: 0.08em;
+  overflow: visible;
+}
+
+.chat-bubble {
+  overflow: visible;
+}
+
+.chat-message-list {
+  overflow-anchor: none;
+}
+
+.reaction-emoji {
+  display: inline-flex;
+  width: 1.375rem;
+  height: 1.375rem;
+  aspect-ratio: 1 / 1;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  font-size: 1.0625rem;
+  line-height: 1.375rem;
+  font-style: normal;
 }
 
 /* Custom scrollbar for conversation list */

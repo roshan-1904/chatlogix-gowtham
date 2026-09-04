@@ -22,6 +22,7 @@ import {
 } from '../utils/validation/settingsSchemas.js';
 import { settingsRateLimit } from '../middleware/settingsRateLimit.js';
 import { buildAIPromptsUpdate } from '../services/vendorAIConfigService.js';
+import { shapeMessageMedia } from './conversations.js';
 
 export const vendorsRouter = express.Router();
 
@@ -273,6 +274,7 @@ async function getVendorConversationsWithMeta(options: {
           timestamp: true,
           senderType: true,
           type: true,
+          media: true,
         },
       },
       orders: {
@@ -311,7 +313,17 @@ async function getVendorConversationsWithMeta(options: {
   const now = Date.now();
 
   const conversationsWithMeta = conversations.map((conv) => {
-    const lastMessage = conv.messages[0] || null;
+    const lastRaw = conv.messages[0] || null;
+    const lastMessage = lastRaw
+      ? {
+          id: lastRaw.id,
+          content: lastRaw.content,
+          timestamp: lastRaw.timestamp,
+          senderType: lastRaw.senderType,
+          type: lastRaw.type,
+          media: shapeMessageMedia(lastRaw.id, lastRaw.media),
+        }
+      : null;
     const orders = conv.orders || [];
 
     const orderCount = orders.length;

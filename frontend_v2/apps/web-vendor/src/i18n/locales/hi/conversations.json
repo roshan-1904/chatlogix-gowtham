@@ -53,5 +53,34 @@
   },
   "sticker": {
     "label": "स्टिकर"
+  },
+  "sender": {
+    "ai": "AI"
+  },
+  "header": {
+    "startAutoReply": "AI फिर शुरू करें",
+    "stopAutoReply": "AI रोकें",
+    "aiOn": "AI ऑटो-रिप्लाई चालू है",
+    "aiOff": "आप मैन्युअल जवाब दे रहे हैं"
+  },
+  "list": {
+    "title": "बातचीत",
+    "searchPlaceholder": "नाम या फ़ोन से खोजें",
+    "youPrefix": "आप",
+    "noMessages": "अभी कोई संदेश नहीं",
+    "empty": "कोई बातचीत नहीं मिली"
+  },
+  "listPreview": {
+    "photo": "फ़ोटो",
+    "voiceMessage": "वॉइस मैसेज",
+    "video": "वीडियो",
+    "document": "दस्तावेज़",
+    "sticker": "स्टिकर",
+    "contact": "संपर्क",
+    "location": "स्थान"
+  },
+  "newMessages": {
+    "one": "1 नया संदेश",
+    "other": "{{count}} नए संदेश"
   }
 }

@@ -5,11 +5,21 @@ import { API_URL } from '../../../../lib/api';
 // mediaUrl from the backend is always an API-relative path (e.g.
 // `/api/messages/<id>/media`), meant to be requested against the same
 // origin that serves `/api` - not the frontend's own origin, which may
-// differ (e.g. local dev, or a static frontend host in front of the API).
+// differ (e.g. local Vite on :3000 talking to chatlogix.in).
 const MEDIA_ORIGIN = API_URL.replace(/\/api\/?$/, '');
 
 const objectUrlCache = new Map<string, string>();
 const inFlightRequests = new Map<string, Promise<string>>();
+
+function resolveMediaFetchUrl(pathOrUrl: string): string {
+  if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
+  return `${MEDIA_ORIGIN}${pathOrUrl}`;
+}
+
+function isNonMediaBlob(blob: Blob): boolean {
+  const type = blob.type.toLowerCase();
+  return type.includes('application/json') || type.includes('text/html');
+}
 
 async function loadMediaObjectUrl(relativeUrl: string): Promise<string> {
   const cached = objectUrlCache.get(relativeUrl);
@@ -20,13 +30,18 @@ async function loadMediaObjectUrl(relativeUrl: string): Promise<string> {
 
   const request = (async () => {
     const token = tokenStorage.getToken();
-    const response = await fetch(`${MEDIA_ORIGIN}${relativeUrl}`, {
+    const response = await fetch(resolveMediaFetchUrl(relativeUrl), {
+      mode: 'cors',
+      credentials: 'omit',
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     });
     if (!response.ok) {
       throw new Error(`Failed to load media (${response.status})`);
     }
     const blob = await response.blob();
+    if (isNonMediaBlob(blob) || blob.size === 0) {
+      throw new Error('Media endpoint returned a non-media body');
+    }
     const objectUrl = URL.createObjectURL(blob);
     objectUrlCache.set(relativeUrl, objectUrl);
     return objectUrl;
@@ -85,8 +100,11 @@ export function useAuthenticatedMedia(
         setObjectUrl(url);
         setIsLoading(false);
       })
-      .catch(() => {
+      .catch((err: unknown) => {
         if (cancelled) return;
+        if (import.meta.env.DEV) {
+          console.warn('Failed to load message media', relativeUrl, err);
+        }
         setError(true);
         setIsLoading(false);
       });

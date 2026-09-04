@@ -40,8 +40,8 @@ export interface MessageMediaInfo {
   height?: number | null;
   fileSizeBytes?: number | null;
   /**
-   * Server-side proxy URL (e.g. `/api/messages/<id>/media`) that 302-redirects
-   * to a fresh pre-signed S3 URL. `null` when the media is not yet `ready`.
+   * Authenticated API path (e.g. `/api/messages/<id>/media`) that streams
+   * the file from S3. `null` when the media is not yet `ready`.
    */
   mediaUrl?: string | null;
 }

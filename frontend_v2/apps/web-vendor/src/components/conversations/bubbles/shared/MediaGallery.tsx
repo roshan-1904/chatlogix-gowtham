@@ -37,7 +37,7 @@ function MediaGalleryComponent() {
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/85"
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#0b141a]/92 backdrop-blur-[2px]"
       onClick={close}
     >
       {items.length > 1 && (

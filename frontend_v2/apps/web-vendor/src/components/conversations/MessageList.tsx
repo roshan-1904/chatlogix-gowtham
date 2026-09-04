@@ -1,10 +1,12 @@
-import { memo, useCallback, useLayoutEffect, useRef, UIEvent } from 'react';
+import { memo, useCallback, useLayoutEffect, useRef, useState, type UIEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Message } from './types';
 import { groupMessagesByDateAndSender } from './utils/messageGrouping';
 import { DateSeparator } from './DateSeparator';
 import { MessageGroup } from './MessageGroup';
 
 interface MessageListProps {
+  readonly conversationId?: string | null;
   readonly messages: Message[];
   readonly hasMore: boolean;
   readonly isLoadingMore: boolean;
@@ -17,7 +19,14 @@ interface MessageListProps {
   readonly isLoadingNew?: boolean;
 }
 
+const NEAR_BOTTOM_PX = 80;
+
+function isNearBottom(el: HTMLElement, threshold = NEAR_BOTTOM_PX): boolean {
+  return el.scrollHeight - el.scrollTop - el.clientHeight <= threshold;
+}
+
 function MessageListComponent({
+  conversationId,
   messages,
   hasMore,
   isLoadingMore,
@@ -29,210 +38,201 @@ function MessageListComponent({
   onLoadNewMessages,
   isLoadingNew = false,
 }: MessageListProps) {
+  const { t } = useTranslation('conversations');
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
   const messageRefs = useRef<Map<string, HTMLElement>>(new Map());
-  const previousScrollHeightRef = useRef<number>(0);
-  const previousScrollTopRef = useRef<number>(0);
-  const previousMessagesLengthRef = useRef<number>(0);
-  const isInitialLoadRef = useRef<boolean>(true);
-  const shouldPreserveScrollRef = useRef<boolean>(false);
+  const stickToBottomRef = useRef(true);
+  const previousScrollHeightRef = useRef(0);
+  const previousScrollTopRef = useRef(0);
+  const previousFirstIdRef = useRef<string | undefined>(undefined);
+  const previousLastIdRef = useRef<string | undefined>(undefined);
+  const previousLengthRef = useRef(0);
+  const shouldPreserveScrollRef = useRef(false);
+  const isJumpingRef = useRef(false);
+  const [unseenCount, setUnseenCount] = useState(0);
+
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'auto') => {
+    const el = containerRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior });
+  }, []);
+
+  const jumpToLatest = useCallback(() => {
+    isJumpingRef.current = true;
+    stickToBottomRef.current = true;
+    setUnseenCount(0);
+    scrollToBottom('smooth');
+    window.setTimeout(() => {
+      isJumpingRef.current = false;
+      stickToBottomRef.current = true;
+    }, 450);
+    if (hasNewMessages && onLoadNewMessages && !isLoadingNew) {
+      onLoadNewMessages();
+    }
+  }, [hasNewMessages, onLoadNewMessages, isLoadingNew, scrollToBottom]);
 
   const scrollToMessage = useCallback((id: string) => {
     const el = messageRefs.current.get(id);
     if (!el) return;
+    stickToBottomRef.current = false;
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    el.classList.add('ring-2', 'ring-blue-400', 'ring-offset-2', 'rounded');
+    el.classList.add('ring-2', 'ring-[#25D366]', 'ring-offset-2', 'rounded-md');
     window.setTimeout(() => {
-      el.classList.remove('ring-2', 'ring-blue-400', 'ring-offset-2', 'rounded');
+      el.classList.remove('ring-2', 'ring-[#25D366]', 'ring-offset-2', 'rounded-md');
     }, 1500);
   }, []);
 
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
     const target = event.currentTarget;
+    if (isJumpingRef.current) return;
     if (target.scrollTop <= 100 && hasMore && !isLoadingMore) {
-      // Capture scroll position before loading older messages
       previousScrollTopRef.current = target.scrollTop;
       previousScrollHeightRef.current = target.scrollHeight;
       shouldPreserveScrollRef.current = true;
       onLoadOlder();
     }
-    
-    // Auto-load new messages if user scrolls to bottom
-    const isNearBottom = 
-      target.scrollHeight - target.scrollTop - target.clientHeight < 100;
-    
-    if (isNearBottom && hasNewMessages && onLoadNewMessages && !isLoadingNew) {
-      onLoadNewMessages();
+
+    const pinned = isNearBottom(target);
+    stickToBottomRef.current = pinned;
+    if (pinned) {
+      setUnseenCount(0);
+      if (hasNewMessages && onLoadNewMessages && !isLoadingNew) {
+        onLoadNewMessages();
+      }
     }
   };
 
-  // Capture scroll position before messages change (runs synchronously before paint)
   useLayoutEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
+    stickToBottomRef.current = true;
+    shouldPreserveScrollRef.current = false;
+    previousLengthRef.current = 0;
+    previousFirstIdRef.current = undefined;
+    previousLastIdRef.current = undefined;
+    previousScrollHeightRef.current = 0;
+    previousScrollTopRef.current = 0;
+    setUnseenCount(0);
+  }, [conversationId]);
 
-    // Only capture if we're not preserving scroll (i.e., not loading older messages)
-    if (!shouldPreserveScrollRef.current) {
-      previousScrollTopRef.current = container.scrollTop;
-      previousScrollHeightRef.current = container.scrollHeight;
-    }
-  }, [messages.length]);
-
-  // Handle scroll position after messages change
   useLayoutEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
+    const el = containerRef.current;
+    if (!el) return;
 
-    const currentMessagesLength = messages.length;
-    const previousMessagesLength = previousMessagesLengthRef.current;
-    const previousScrollHeight = previousScrollHeightRef.current;
-    const previousScrollTop = previousScrollTopRef.current;
+    const firstId = messages[0]?.id;
+    const lastId = messages[messages.length - 1]?.id;
+    const prevLen = previousLengthRef.current;
+    const prevFirst = previousFirstIdRef.current;
+    const prevLast = previousLastIdRef.current;
+    const lengthDelta = messages.length - prevLen;
+    const prepended =
+      lengthDelta > 0 &&
+      prevLen > 0 &&
+      firstId !== prevFirst &&
+      (shouldPreserveScrollRef.current || lastId === prevLast);
+    const appended =
+      lengthDelta > 0 && prevLen > 0 && lastId !== prevLast && firstId === prevFirst;
 
-    // Check if we're loading older messages (prepended) - this must be checked FIRST
-    if (shouldPreserveScrollRef.current && isLoadingMore && currentMessagesLength > previousMessagesLength) {
-      // Older messages were prepended - preserve scroll position
-      const newScrollHeight = container.scrollHeight;
-      const heightDifference = newScrollHeight - previousScrollHeight;
-      
-      // Maintain the same visual position by adjusting scroll
-      container.scrollTop = previousScrollTop + heightDifference;
-      
-      // Reset the flag
+    if (prepended) {
+      const delta = el.scrollHeight - previousScrollHeightRef.current;
+      el.scrollTop = previousScrollTopRef.current + delta;
       shouldPreserveScrollRef.current = false;
-    } 
-    // Initial load - scroll to bottom
-    else if (isInitialLoadRef.current) {
-      container.scrollTop = container.scrollHeight;
-      isInitialLoadRef.current = false;
-    }
-    // New messages added at the bottom
-    else if (currentMessagesLength > previousMessagesLength && !isLoadingMore && !isLoadingNew) {
-      // Check if we're near the bottom (within 100px) - user is viewing recent messages
-      const isNearBottom = 
-        previousScrollHeight - previousScrollTop - container.clientHeight < 100;
-      
-      // Only auto-scroll if user was already at bottom
-      if (isNearBottom) {
-        container.scrollTop = container.scrollHeight;
-      }
-    }
-    
-    // Auto-scroll when new messages are loaded (if user was at bottom)
-    if (isLoadingNew && currentMessagesLength > previousMessagesLength) {
-      const isNearBottom = 
-        previousScrollHeight - previousScrollTop - container.clientHeight < 100;
-      if (isNearBottom) {
-        container.scrollTop = container.scrollHeight;
-      }
+    } else if (stickToBottomRef.current) {
+      el.scrollTop = el.scrollHeight;
+    } else if (appended) {
+      setUnseenCount((count) => count + lengthDelta);
     }
 
-    // Update refs for next render
-    previousScrollHeightRef.current = container.scrollHeight;
-    previousScrollTopRef.current = container.scrollTop;
-    previousMessagesLengthRef.current = currentMessagesLength;
-  }, [messages.length, isLoadingMore]);
+    previousLengthRef.current = messages.length;
+    previousFirstIdRef.current = firstId;
+    previousLastIdRef.current = lastId;
+    previousScrollHeightRef.current = el.scrollHeight;
+    previousScrollTopRef.current = el.scrollTop;
+  }, [messages, isLoadingMore]);
 
-  // Reset refs when conversation changes (new conversation selected)
   useLayoutEffect(() => {
-    const container = containerRef.current;
-    if (container && messages.length > 0) {
-      // Only reset if this is actually a new conversation (check first message ID)
-      const firstMessageId = messages[0]?.id;
-      if (firstMessageId && previousMessagesLengthRef.current === 0) {
-        isInitialLoadRef.current = true;
-        shouldPreserveScrollRef.current = false;
-        previousMessagesLengthRef.current = 0;
-        previousScrollHeightRef.current = 0;
-        previousScrollTopRef.current = 0;
-      }
-    }
-  }, [messages[0]?.id]);
+    const scroller = containerRef.current;
+    const content = contentRef.current;
+    if (!scroller || !content || typeof ResizeObserver === 'undefined') return;
+
+    const observer = new ResizeObserver(() => {
+      if (!stickToBottomRef.current) return;
+      scroller.scrollTop = scroller.scrollHeight;
+    });
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, [conversationId]);
 
   const datedGroups = groupMessagesByDateAndSender(messages);
+  const badgeCount = unseenCount > 0 ? unseenCount : hasNewMessages ? newMessageCount || 1 : 0;
 
   return (
-    <div
-      ref={containerRef}
-      className="flex-1 overflow-y-auto px-5 py-4 space-y-3 bg-gray-50"
-      onScroll={handleScroll}
-      role="log"
-      aria-label="Conversation messages"
-      aria-live="polite"
-    >
-      {isLoadingMore && (
-        <div className="flex justify-center my-2 text-xs text-gray-600">
-          Loading older messages…
-        </div>
-      )}
-
-      {error && (
-        <div className="flex justify-center my-2">
-          <div className="bg-red-50 text-red-700 text-xs px-3 py-1 rounded-full flex items-center space-x-2">
-            <span>{error}</span>
-            {onRetry && (
-              <button
-                type="button"
-                onClick={onRetry}
-                className="underline hover:text-red-900"
-              >
-                Retry
-              </button>
-            )}
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      <div
+        ref={containerRef}
+        className="chat-canvas conversation-scrollbar chat-message-list flex-1 min-h-0 overflow-y-auto px-3 py-3 sm:px-8"
+        onScroll={handleScroll}
+        role="log"
+        aria-label="Conversation messages"
+        aria-live="polite"
+      >
+        <div ref={contentRef} className="space-y-2">
+        {isLoadingMore && (
+          <div className="flex justify-center my-2 text-xs text-gray-600">
+            Loading older messages…
           </div>
-        </div>
-      )}
+        )}
 
-      {datedGroups.length === 0 && !isLoadingMore && !error && (
-        <div className="h-full flex items-center justify-center text-sm text-gray-600">
-          No messages yet. Say hello to start the conversation.
-        </div>
-      )}
-
-      {datedGroups.map((day) => (
-        <div key={day.dateKey} className="space-y-2">
-          <DateSeparator label={day.label} />
-          <div className="space-y-2">
-            {day.groups.map((group) => (
-              <MessageGroup
-                key={group.id}
-                group={group}
-                messageRefs={messageRefs}
-                onJumpToMessage={scrollToMessage}
-              />
-            ))}
+        {error && (
+          <div className="flex justify-center my-2">
+            <div className="bg-red-50 text-red-700 text-xs px-3 py-1 rounded-full flex items-center space-x-2">
+              <span>{error}</span>
+              {onRetry && (
+                <button type="button" onClick={onRetry} className="underline hover:text-red-900">
+                  Retry
+                </button>
+              )}
+            </div>
           </div>
-        </div>
-      ))}
+        )}
 
-      {/* New Messages Indicator */}
-      {hasNewMessages && onLoadNewMessages && (
-        <div className="sticky bottom-4 left-0 right-0 flex justify-center z-10 pointer-events-none">
+        {datedGroups.length === 0 && !isLoadingMore && !error && (
+          <div className="h-full flex items-center justify-center text-sm text-[#667781]">
+            No messages yet.
+          </div>
+        )}
+
+        {datedGroups.map((day) => (
+          <div key={day.dateKey} className="space-y-2">
+            <DateSeparator label={day.label} />
+            <div className="space-y-2">
+              {day.groups.map((group) => (
+                <MessageGroup
+                  key={group.id}
+                  group={group}
+                  messageRefs={messageRefs}
+                  onJumpToMessage={scrollToMessage}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+        </div>
+      </div>
+
+      {badgeCount > 0 && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center">
           <button
             type="button"
-            onClick={onLoadNewMessages}
+            onClick={jumpToLatest}
             disabled={isLoadingNew}
-            className="pointer-events-auto bg-blue-600 text-white px-4 py-2 rounded-full shadow-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            className="pointer-events-auto flex items-center gap-2 rounded-full bg-[#00a884] px-4 py-2 text-sm font-medium text-white shadow-lg hover:bg-[#029a78] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isLoadingNew ? (
-              <>
-                <span className="animate-spin">⏳</span>
-                <span>Loading...</span>
-              </>
-            ) : (
-              <>
-                <span>↓</span>
-                <span>
-                  {(() => {
-                    if (newMessageCount > 0) {
-                      const plural = newMessageCount === 1 ? '' : 's';
-                      return `${newMessageCount} new message${plural}`;
-                    }
-                    return 'New messages';
-                  })()}
-                </span>
-                <span>Click to load</span>
-              </>
-            )}
+            <span aria-hidden>↓</span>
+            <span>
+              {badgeCount === 1
+                ? t('newMessages.one')
+                : t('newMessages.other', { count: badgeCount })}
+            </span>
           </button>
         </div>
       )}
@@ -241,4 +241,3 @@ function MessageListComponent({
 }
 
 export const MessageList = memo(MessageListComponent);
-

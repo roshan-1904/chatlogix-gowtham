@@ -26,6 +26,14 @@ interface UseMessagesResult {
   isLoadingNew: boolean;
 }
 
+function readMessagesPayload(
+  response: MessagesResponse | { messages: Message[] } | Message[],
+): Message[] {
+  if (Array.isArray(response)) return response;
+  if ('messages' in response && Array.isArray(response.messages)) return response.messages;
+  return [];
+}
+
 /**
  * Message loading with support for cursor-based pagination.
  *
@@ -48,6 +56,7 @@ export function useMessages({
   const [hasNewMessages, setHasNewMessages] = useState(false);
   const [newMessageCount, setNewMessageCount] = useState(0);
   const [isLoadingNew, setIsLoadingNew] = useState(false);
+  const [pollReady, setPollReady] = useState(false);
   
   // Track the latest message ID and timestamp for polling
   const latestMessageIdRef = useRef<string | null>(null);
@@ -150,7 +159,6 @@ export function useMessages({
 
           setMessages((prev) => {
             const updated = append ? [...nextMessages, ...prev] : nextMessages;
-            // Update latest message refs when messages are loaded
             if (updated.length > 0 && !append) {
               const latest = updated[updated.length - 1];
               latestMessageIdRef.current = latest.id;
@@ -158,6 +166,7 @@ export function useMessages({
             }
             return updated;
           });
+          if (!append) setPollReady(true);
           return;
         }
 
@@ -172,7 +181,6 @@ export function useMessages({
           setAiPaused(Boolean(wrapper.aiPaused));
           setMessages(() => {
             const updated = limited;
-            // Update latest message refs
             if (updated.length > 0) {
               const latest = updated[updated.length - 1];
               latestMessageIdRef.current = latest.id;
@@ -180,6 +188,7 @@ export function useMessages({
             }
             return updated;
           });
+          setPollReady(true);
           setHasMore(all.length > limited.length);
           setOldestMessageId(limited[0]?.id ?? null);
           return;
@@ -191,7 +200,6 @@ export function useMessages({
           const limited = all.slice(-pageSize);
           setMessages(() => {
             const updated = limited;
-            // Update latest message refs
             if (updated.length > 0) {
               const latest = updated[updated.length - 1];
               latestMessageIdRef.current = latest.id;
@@ -199,6 +207,7 @@ export function useMessages({
             }
             return updated;
           });
+          setPollReady(true);
           setHasMore(all.length > limited.length);
           setOldestMessageId(limited[0]?.id ?? null);
           return;
@@ -230,127 +239,73 @@ export function useMessages({
     await fetchPage(oldestMessageId, true);
   }, [conversationId, hasMore, isLoading, isLoadingMore, fetchPage, oldestMessageId]);
 
-  // Poll for new messages
+  const ingestLatest = useCallback(async (): Promise<number> => {
+    if (!conversationId) return 0;
+
+    const response = await apiClient.get<MessagesResponse | { messages: Message[] } | Message[]>(
+      `/conversations/${conversationId}/messages?limit=${pageSize}`,
+    );
+    const latestPage = readMessagesPayload(response);
+    if (latestPage.length === 0) return 0;
+
+    let added = 0;
+    setMessages((prev) => {
+      const existingIds = new Set(prev.map((m) => m.id));
+      const uniqueNew = latestPage.filter((m) => !existingIds.has(m.id));
+      added = uniqueNew.length;
+      if (uniqueNew.length === 0) return prev;
+      return [...prev, ...uniqueNew].sort(
+        (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+      );
+    });
+
+    const newest = latestPage[latestPage.length - 1];
+    latestMessageIdRef.current = newest.id;
+    latestMessageTimestampRef.current = new Date(newest.timestamp);
+    return added;
+  }, [conversationId, pageSize]);
+
   const checkForNewMessages = useCallback(async () => {
     if (!conversationId || !latestMessageIdRef.current || isPollingRef.current) return;
 
     isPollingRef.current = true;
     try {
-      // Fetch only the latest message to check if there are new ones
       const response = await apiClient.get<MessagesResponse | { messages: Message[] } | Message[]>(
-        `/conversations/${conversationId}/messages?limit=1`
+        `/conversations/${conversationId}/messages?limit=1`,
       );
 
-      let latestMessage: Message | null = null;
-      
-      if (Array.isArray(response)) {
-        latestMessage = response[response.length - 1] || null;
-      } else if ('messages' in response && Array.isArray(response.messages)) {
-        latestMessage = response.messages[response.messages.length - 1] || null;
-      }
-
+      const page = readMessagesPayload(response);
+      const latestMessage = page.length > 0 ? page[page.length - 1] : null;
       if (latestMessage && latestMessage.id !== latestMessageIdRef.current) {
-        // There are new messages - count how many
-        const latestTimestamp = new Date(latestMessage.timestamp);
-        const currentTimestamp = latestMessageTimestampRef.current;
-        
-        if (currentTimestamp && latestTimestamp > currentTimestamp) {
-          // Fetch messages since the last known timestamp to count them
-          try {
-            const allResponse = await apiClient.get<MessagesResponse | { messages: Message[] } | Message[]>(
-              `/conversations/${conversationId}/messages`
-            );
-            
-            let allMessages: Message[] = [];
-            if (Array.isArray(allResponse)) {
-              allMessages = allResponse;
-            } else if ('messages' in allResponse && Array.isArray(allResponse.messages)) {
-              allMessages = allResponse.messages;
-            }
-            
-            // Count messages newer than our last known timestamp
-            const newMessages = allMessages.filter(
-              (msg) => new Date(msg.timestamp) > currentTimestamp
-            );
-            
-            setNewMessageCount(newMessages.length);
-            setHasNewMessages(true);
-          } catch (err) {
-            // If counting fails, just indicate there are new messages
-            setHasNewMessages(true);
-            setNewMessageCount(1);
-          }
-        }
+        await ingestLatest();
       }
     } catch (err) {
-      // Silently fail - don't disrupt UX
       console.debug('Error checking for new messages:', err);
     } finally {
       isPollingRef.current = false;
     }
-  }, [conversationId]);
+  }, [conversationId, ingestLatest]);
 
-  // Load new messages (append to end)
   const loadNewMessages = useCallback(async () => {
-    if (!conversationId || isLoadingNew || !hasNewMessages) return;
+    if (!conversationId || isLoadingNew) return;
 
     setIsLoadingNew(true);
     setHasNewMessages(false);
     setNewMessageCount(0);
 
     try {
-      // Fetch all messages and filter for new ones
-      const response = await apiClient.get<MessagesResponse | { messages: Message[] } | Message[]>(
-        `/conversations/${conversationId}/messages`
-      );
-
-      let allMessages: Message[] = [];
-      if (Array.isArray(response)) {
-        allMessages = response;
-      } else if ('messages' in response && Array.isArray(response.messages)) {
-        allMessages = response.messages;
-      }
-
-      const currentLatestTimestamp = latestMessageTimestampRef.current;
-      if (currentLatestTimestamp) {
-        const newMessages = allMessages.filter(
-          (msg) => new Date(msg.timestamp) > currentLatestTimestamp
-        );
-
-        if (newMessages.length > 0) {
-          setMessages((prev) => {
-            // Merge new messages, avoiding duplicates
-            const existingIds = new Set(prev.map((m) => m.id));
-            const uniqueNew = newMessages.filter((m) => !existingIds.has(m.id));
-            const updated = [...prev, ...uniqueNew].sort(
-              (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-            );
-            
-            // Update latest message refs
-            if (updated.length > 0) {
-              const latest = updated[updated.length - 1];
-              latestMessageIdRef.current = latest.id;
-              latestMessageTimestampRef.current = new Date(latest.timestamp);
-            }
-            
-            return updated;
-          });
-        }
-      } else {
-        // If we don't have a timestamp, just refresh all messages
-        await refresh();
-      }
+      await ingestLatest();
     } catch (err) {
       console.error('Error loading new messages:', err);
-      setHasNewMessages(true); // Re-enable indicator on error
+      setHasNewMessages(true);
     } finally {
       setIsLoadingNew(false);
     }
-  }, [conversationId, hasNewMessages, isLoadingNew, refresh]);
+  }, [conversationId, isLoadingNew, ingestLatest]);
 
   // Set up polling interval
   useEffect(() => {
-    if (!conversationId || !enablePolling || !latestMessageIdRef.current) {
+    if (!conversationId || !enablePolling || !pollReady) {
       return;
     }
 
@@ -372,7 +327,7 @@ export function useMessages({
         pollingIntervalRef.current = null;
       }
     };
-  }, [conversationId, enablePolling, pollingInterval, checkForNewMessages, refreshPendingMedia]);
+  }, [conversationId, enablePolling, pollingInterval, pollReady, checkForNewMessages, refreshPendingMedia]);
 
   // Pause polling when tab is not visible (using Page Visibility API)
   useEffect(() => {
@@ -385,7 +340,7 @@ export function useMessages({
         }
       } else {
         // Tab is visible - resume polling
-        if (conversationId && enablePolling && latestMessageIdRef.current && !pollingIntervalRef.current) {
+        if (conversationId && enablePolling && pollReady && !pollingIntervalRef.current) {
           pollingIntervalRef.current = setInterval(() => {
             checkForNewMessages();
             refreshPendingMedia();
@@ -398,7 +353,7 @@ export function useMessages({
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [conversationId, enablePolling, pollingInterval, checkForNewMessages, refreshPendingMedia]);
+  }, [conversationId, enablePolling, pollingInterval, pollReady, checkForNewMessages, refreshPendingMedia]);
 
   // Reset when conversation changes
   useEffect(() => {
@@ -409,6 +364,7 @@ export function useMessages({
     setAiPaused(false);
     setHasNewMessages(false);
     setNewMessageCount(0);
+    setPollReady(false);
     latestMessageIdRef.current = null;
     latestMessageTimestampRef.current = null;
     isPollingRef.current = false;

@@ -68,7 +68,7 @@ function getBadgeClasses(kind: InsightBadgeProps['kind']): string {
 export function InsightBadge({ label, kind }: InsightBadgeProps) {
   return (
     <span
-      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${getBadgeClasses(
+      className={`inline-flex items-center rounded-full px-1.5 py-px text-[10px] font-medium ${getBadgeClasses(
         kind,
       )}`}
       aria-label={label}

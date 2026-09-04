@@ -1,9 +1,19 @@
 import { memo, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { formatMessageTime } from '../../../lib/format';
 import type { Message } from '../types';
 import { StatusTick } from './shared/StatusTick';
 import { ReactionChips } from './shared/ReactionChips';
 import { QuotedReplyPreview } from './shared/QuotedReplyPreview';
+import {
+  bubbleAlignClass,
+  bubbleCornerClass,
+  bubbleMetaClass,
+  bubbleShadowClass,
+  bubbleSurfaceClass,
+  getBubbleVariant,
+  isAiSender,
+} from './shared/bubbleChrome';
 
 interface MessageShellProps {
   readonly message: Message;
@@ -18,6 +28,10 @@ interface MessageShellProps {
    * etc.) instead of being constrained to a small text width.
    */
   readonly wide?: boolean;
+  /**
+   * Tight padding around media so photos/videos sit flush to the bubble edge.
+   */
+  readonly flush?: boolean;
   readonly onJumpToMessage?: (messageId: string) => void;
 }
 
@@ -26,57 +40,58 @@ function MessageShellComponent({
   children,
   chromeless = false,
   wide = false,
-  onJumpToMessage
+  flush = false,
+  onJumpToMessage,
 }: MessageShellProps) {
-  const isCustomer = message.senderType === 'customer';
-  const tone: 'light' | 'dark' = isCustomer ? 'dark' : 'light';
-  const align = isCustomer ? 'items-start' : 'items-end';
-
-  const bubbleBg = isCustomer ? 'bg-gray-200 text-gray-900' : 'bg-blue-500 text-white';
-  const corners = isCustomer ? 'rounded-t-lg rounded-br-lg' : 'rounded-t-lg rounded-bl-lg';
-  const widthClass = wide ? 'max-w-sm lg:max-w-lg' : 'max-w-xs lg:max-w-md';
-
-  const padding = chromeless ? '' : 'px-3 pt-2 pb-2';
-  const background = chromeless ? '' : `${bubbleBg} ${corners} shadow-sm`;
+  const { t } = useTranslation('conversations');
+  const variant = getBubbleVariant(message.senderType);
+  const isIncoming = variant === 'incoming';
+  const isAi = isAiSender(message.senderType);
+  const align = bubbleAlignClass(variant);
+  const widthClass = wide ? 'max-w-[17.5rem] sm:max-w-sm lg:max-w-md' : 'max-w-[16rem] sm:max-w-xs lg:max-w-md';
+  const padding = chromeless ? '' : flush ? 'p-[3px]' : 'px-2.5 pt-1.5 pb-1';
+  const background = chromeless
+    ? ''
+    : `${bubbleSurfaceClass(variant)} ${bubbleCornerClass(variant)} ${bubbleShadowClass()}`;
 
   const isPending = message.status === 'pending' || message.status === 'processing';
   const timestamp = formatMessageTime(message.timestamp);
 
   return (
     <div className={`flex flex-col ${align}`}>
-      <div className={`relative ${widthClass} ${padding} ${background} text-sm leading-relaxed`}>
+      {isAi ? (
+        <span className="mb-0.5 px-1 text-[10px] font-semibold uppercase tracking-wide text-[#072349]/55">
+          {t('sender.ai')}
+        </span>
+      ) : null}
+      <div className={`chat-bubble relative ${widthClass} ${padding} ${background} text-[14.2px] leading-[1.55]`}>
         {message.replyTo ? (
-          <QuotedReplyPreview
-            replyTo={message.replyTo}
-            tone={tone}
-            onJumpTo={onJumpToMessage}
-          />
+          <div className={flush ? 'px-1.5 pt-1' : ''}>
+            <QuotedReplyPreview
+              replyTo={message.replyTo}
+              variant={variant}
+              onJumpTo={onJumpToMessage}
+            />
+          </div>
         ) : null}
         {children}
         {!chromeless ? (
           <div
-            className={`mt-1 flex items-center gap-1 justify-end text-[10px] ${
-              isCustomer ? 'text-gray-500' : 'text-blue-100'
-            }`}
+            className={`flex items-center gap-1 justify-end text-[11px] leading-none ${
+              flush ? 'px-1.5 pb-1 pt-0.5' : 'mt-0.5'
+            } ${bubbleMetaClass()}`}
           >
-            {isPending && message.senderType !== 'customer' ? (
+            {isPending && !isIncoming ? (
               <span className="italic opacity-80">…</span>
             ) : null}
             <span>{timestamp}</span>
-            {message.senderType !== 'customer' ? (
-              <StatusTick
-                status={message.status}
-                failureReason={message.failureReason}
-                tone={tone}
-              />
+            {!isIncoming ? (
+              <StatusTick status={message.status} failureReason={message.failureReason} />
             ) : null}
           </div>
         ) : null}
       </div>
-      <ReactionChips
-        reactions={message.reactions}
-        align={isCustomer ? 'start' : 'end'}
-      />
+      <ReactionChips reactions={message.reactions} align={isIncoming ? 'start' : 'end'} />
     </div>
   );
 }

@@ -11,9 +11,9 @@ export function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
+    <div className="h-full flex flex-col overflow-hidden bg-gray-50">
       <Header onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
-      <div className="flex flex-1 relative">
+      <div className="flex min-h-0 flex-1 relative">
         <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         {sidebarOpen && (
           <div

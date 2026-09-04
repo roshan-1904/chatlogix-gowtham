@@ -40,7 +40,13 @@ async function bootstrap() {
   app.use(requestLogger());
 
   app.use(cors());
-  app.use(helmet());
+  // Helmet 7 defaults CORP to same-origin. This API is fetched from the
+  // vendor dashboard on a different origin in local dev (and whenever the
+  // SPA is not served from the same host). cors() does not override CORP,
+  // so image/audio responses would otherwise be unreadable.
+  app.use(helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' }
+  }));
   app.use(morgan('combined'));
   // Note: webhook route needs raw body; attach JSON parser after mounting webhook
   app.use('/webhook', webhookRouter);

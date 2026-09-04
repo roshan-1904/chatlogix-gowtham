@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { PutObjectCommand } from '@aws-sdk/client-s3';
 import fetch from 'node-fetch';
 import imageSize from 'image-size';
 import OpenAI, { toFile } from 'openai';
@@ -7,6 +7,7 @@ import { env, numericEnv } from '../config/env.js';
 import { prisma } from '../db/prisma.js';
 import { StepLogger } from '../logger.js';
 import { emitMetric, emitDuration } from '../observability/metrics.js';
+import { getWaMediaS3Client } from '../utils/waMediaS3.js';
 
 export interface MediaFetchJob {
   type: 'MediaFetchJob';
@@ -44,25 +45,6 @@ export function backoffForAttempt(attemptIndex: number): number {
     return RETRY_BACKOFF_SECONDS[RETRY_BACKOFF_SECONDS.length - 1];
   }
   return RETRY_BACKOFF_SECONDS[attemptIndex];
-}
-
-let s3Client: S3Client | null = null;
-function getS3(): S3Client {
-  if (!s3Client) {
-    s3Client = new S3Client({
-      region: env.WA_MEDIA_S3_REGION || env.AWS_REGION,
-      ...(env.AWS_ACCESS_KEY_ID && env.AWS_SECRET_ACCESS_KEY
-        ? {
-            credentials: {
-              accessKeyId: env.AWS_ACCESS_KEY_ID,
-              secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
-              ...(env.AWS_SESSION_TOKEN ? { sessionToken: env.AWS_SESSION_TOKEN } : {})
-            }
-          }
-        : {})
-    });
-  }
-  return s3Client;
 }
 
 function extensionForMime(mime?: string): string {
@@ -148,7 +130,7 @@ async function uploadToS3(
   body: Buffer,
   contentType?: string
 ): Promise<void> {
-  await getS3().send(
+  await getWaMediaS3Client().send(
     new PutObjectCommand({
       Bucket: bucket,
       Key: key,

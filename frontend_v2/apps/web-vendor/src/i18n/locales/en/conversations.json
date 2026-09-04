@@ -53,5 +53,34 @@
   },
   "sticker": {
     "label": "Sticker"
+  },
+  "sender": {
+    "ai": "AI"
+  },
+  "header": {
+    "startAutoReply": "Resume AI",
+    "stopAutoReply": "Pause AI",
+    "aiOn": "AI auto-reply is on",
+    "aiOff": "You're replying manually"
+  },
+  "list": {
+    "title": "Conversations",
+    "searchPlaceholder": "Search by name or phone",
+    "youPrefix": "You",
+    "noMessages": "No messages yet",
+    "empty": "No conversations found"
+  },
+  "listPreview": {
+    "photo": "Photo",
+    "voiceMessage": "Voice message",
+    "video": "Video",
+    "document": "Document",
+    "sticker": "Sticker",
+    "contact": "Contact",
+    "location": "Location"
+  },
+  "newMessages": {
+    "one": "1 new message",
+    "other": "{{count}} new messages"
   }
 }
