@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import { env } from '../../config/env.js';
 import { logger } from '../../logger.js';
 import type { CartOp, CartSnapshot } from '../types.js';
+import type { ApplyOpsResult } from '../cart/engine.js';
 
 // Module-level singleton, same pattern as llm1.ts / every other OpenAI call
 // site in the codebase.
@@ -130,6 +131,39 @@ export function renderSnapshotReply(snapshot: CartSnapshot): string {
     (i) => `${i.name}${i.variantLabel ? ` (${i.variantLabel})` : ''} x${i.quantity} ${i.unit} - Rs${(i.lineTotalPaise / 100).toFixed(2)}`
   );
   return [...lines, `Total: Rs${(snapshot.totalPaise / 100).toFixed(2)}`].join('\n');
+}
+
+const REJECTION_REASON_TEXT: Record<string, string> = {
+  product_not_found: "that item isn't available in our catalog",
+  variant_not_found: "that exact option isn't available — only the listed sizes/variants are",
+  line_not_found: "I couldn't find that item in your current order to change",
+  no_order_to_cancel: "there's no active order to cancel",
+  no_order_to_refund: "there's no matching order to refund",
+  not_cancellable_at_this_stage: "that order can't be changed at this stage — I've flagged this for the team"
+};
+
+function rejectionReasonText(reason: string): string {
+  if (REJECTION_REASON_TEXT[reason]) return REJECTION_REASON_TEXT[reason];
+  if (reason.startsWith('missing_')) return "I still need a few details before I can confirm that";
+  return "I wasn't able to do that";
+}
+
+/**
+ * Deterministic reply for a turn where CartEngine rejected part (or all) of
+ * what was asked (spec §17's correctness backstop, extended): LLM-1's/LLM-2's
+ * prose is never trusted here, because neither is grounded in whether the op
+ * actually applied — copyMatchesSnapshot only checks that the reply doesn't
+ * *omit* a snapshot line, which is vacuously true against an empty snapshot,
+ * so a hallucinated "I've added X" can slip through untouched otherwise.
+ * Always paired with the true resulting cart state so anything that DID
+ * succeed in the same turn still shows up correctly.
+ */
+export function renderRejectedOpsReply(rejectedOps: ApplyOpsResult['rejectedOps'], snapshot: CartSnapshot): string {
+  const uniqueReasons = [...new Set(rejectedOps.map((r) => rejectionReasonText(r.reason)))];
+  const explanation = uniqueReasons.length === 1
+    ? `I'm sorry, ${uniqueReasons[0]}.`
+    : `I'm sorry, I couldn't complete part of your request — ${uniqueReasons.join('; ')}.`;
+  return `${explanation}\n\n${renderSnapshotReply(snapshot)}`;
 }
 
 /**

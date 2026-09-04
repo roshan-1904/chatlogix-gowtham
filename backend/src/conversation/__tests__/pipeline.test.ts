@@ -28,6 +28,7 @@ const {
   applyMock,
   runLlm2Mock,
   selectFinalReplyMock,
+  renderRejectedOpsReplyMock,
   triggerHandoffMock,
   notifyVendorNewOrderMock,
   notifyVendorOfPostSalesEventMock,
@@ -59,6 +60,7 @@ const {
     applyMock: vi.fn(),
     runLlm2Mock: vi.fn(),
     selectFinalReplyMock: vi.fn(),
+    renderRejectedOpsReplyMock: vi.fn(),
     triggerHandoffMock: vi.fn(),
     notifyVendorNewOrderMock: vi.fn(),
     notifyVendorOfPostSalesEventMock: vi.fn(),
@@ -103,7 +105,8 @@ vi.mock('../llm/llm1.js', () => ({ runLlm1: (...args: unknown[]) => runLlm1Mock(
 vi.mock('../cart/engine.js', () => ({ apply: (...args: unknown[]) => applyMock(...args) }));
 vi.mock('../llm/llm2.js', () => ({
   runLlm2: (...args: unknown[]) => runLlm2Mock(...args),
-  selectFinalReply: (...args: unknown[]) => selectFinalReplyMock(...args)
+  selectFinalReply: (...args: unknown[]) => selectFinalReplyMock(...args),
+  renderRejectedOpsReply: (...args: unknown[]) => renderRejectedOpsReplyMock(...args)
 }));
 vi.mock('../handoff.js', () => ({ triggerHandoff: (...args: unknown[]) => triggerHandoffMock(...args) }));
 vi.mock('../postSalesAlert.js', () => ({ notifyVendorOfPostSalesEvent: (...args: unknown[]) => notifyVendorOfPostSalesEventMock(...args) }));
@@ -149,6 +152,7 @@ beforeEach(() => {
   messageProcessingUpdateMany.mockResolvedValue({ count: 1 });
   messageProcessingFindUnique.mockResolvedValue(null);
   debitAfterEnqueueMock.mockResolvedValue('debited');
+  renderRejectedOpsReplyMock.mockReturnValue('rejected-ops reply');
 });
 
 describe('finalizeTurn', () => {
@@ -541,15 +545,20 @@ describe('processMessage', () => {
     expect(notifyVendorNewOrderMock).toHaveBeenCalledWith('vendor-1', 'order-99');
   });
 
-  it('rejected confirm: does NOT notify the vendor', async () => {
+  it('rejected confirm: does NOT notify the vendor, and grounds the reply instead of trusting LLM-1/LLM-2', async () => {
     const confirmOp = { type: 'confirm' as const };
+    const rejectedOps = [{ op: confirmOp, reason: 'missing_address' }];
     runLlm1Mock.mockResolvedValue({ ...llm1Result, ops: [confirmOp] });
-    applyMock.mockResolvedValue({ snapshot, mutated: false, rejectedOps: [{ op: confirmOp, reason: 'missing_address' }] });
+    applyMock.mockResolvedValue({ snapshot, mutated: false, rejectedOps });
 
     await processMessage(rawInput);
     await new Promise((resolve) => setImmediate(resolve));
 
     expect(notifyVendorNewOrderMock).not.toHaveBeenCalled();
+    expect(renderRejectedOpsReplyMock).toHaveBeenCalledWith(rejectedOps, snapshot);
+    expect(runLlm2Mock).not.toHaveBeenCalled();
+    expect(selectFinalReplyMock).not.toHaveBeenCalled();
+    expect(persistTurnMock).toHaveBeenCalledWith(expect.objectContaining({ finalText: 'rejected-ops reply' }));
   });
 
   it('always releases the lock, even when a step mid-pipeline throws, and classifies the error for ProcessorError', async () => {

@@ -108,7 +108,7 @@ const EnvSchema = z.object({
   MULTI_STAGE_AI_ROLLOUT_PERCENTAGE: z.string().optional(), // 0-100
   USE_AI_MEMORY_EXTRACTION: z.string().optional(), // 'true' | 'false', default: 'true'
 
-  LOG_LEVEL: z.string().default('error'),
+  LOG_LEVEL: z.string().default('info'),
   ENABLE_FILE_LOGS: z.string().optional(),
   ENABLE_CONVERSATION_LOGS: z.string().optional(),
   ENABLE_MULTI_STAGE_LOGS: z.string().optional(), // 'true' | 'false' (default: false) — per-message stage JSON files

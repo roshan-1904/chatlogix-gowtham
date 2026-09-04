@@ -16,7 +16,7 @@ vi.mock('../../logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
 }));
 
-import { shouldRunLlm2, runLlm2, renderSnapshotReply, copyMatchesSnapshot, selectFinalReply } from '../llm/llm2.js';
+import { shouldRunLlm2, runLlm2, renderSnapshotReply, renderRejectedOpsReply, copyMatchesSnapshot, selectFinalReply } from '../llm/llm2.js';
 import type { CartOp, CartSnapshot } from '../types.js';
 
 const snapshotWithItems: CartSnapshot = {
@@ -126,6 +126,47 @@ describe('renderSnapshotReply', () => {
 
   it('returns an empty-cart message for an empty cart', () => {
     expect(renderSnapshotReply(emptySnapshot)).toMatch(/empty/i);
+  });
+});
+
+describe('renderRejectedOpsReply', () => {
+  it('never claims success — states the rejection reason and shows the true (empty) cart', () => {
+    const text = renderRejectedOpsReply(
+      [{ op: { type: 'add', productId: 'nonexistent', qty: 1 }, reason: 'product_not_found' }],
+      emptySnapshot
+    );
+    expect(text).toMatch(/catalog/i);
+    expect(text).toMatch(/empty/i);
+    expect(text).not.toMatch(/added|confirmed/i);
+  });
+
+  it('reflects a variant_not_found rejection distinctly from product_not_found', () => {
+    const text = renderRejectedOpsReply(
+      [{ op: { type: 'add', productId: 'prod-1', variantSku: 'no-cashew', qty: 1 }, reason: 'variant_not_found' }],
+      emptySnapshot
+    );
+    expect(text).toMatch(/option/i);
+  });
+
+  it('still shows real cart contents when other items succeeded in the same turn', () => {
+    const text = renderRejectedOpsReply(
+      [{ op: { type: 'add', productId: 'nonexistent', qty: 1 }, reason: 'product_not_found' }],
+      snapshotWithItems
+    );
+    expect(text).toContain('Brownie x2 box');
+    expect(text).toContain('Cookies x1 box');
+  });
+
+  it('combines multiple distinct rejection reasons into one message', () => {
+    const text = renderRejectedOpsReply(
+      [
+        { op: { type: 'add', productId: 'nonexistent', qty: 1 }, reason: 'product_not_found' },
+        { op: { type: 'confirm' }, reason: 'missing_address' }
+      ],
+      emptySnapshot
+    );
+    expect(text).toMatch(/catalog/i);
+    expect(text).toMatch(/details/i);
   });
 });
 

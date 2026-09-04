@@ -79,28 +79,31 @@ export class StepLogger {
     this.operationId = operationId;
     this.startTime = Date.now();
     this.stepCounter = 0;
-    // Info logging disabled to save server space
+    logger.info({ operationId, operation, context }, `▶ ${operation}`);
   }
 
   step(stepName: string, data?: Record<string, any>, level: 'info' | 'warn' | 'error' = 'info') {
     this.stepCounter++;
-    // Only log errors - info and warn are disabled to save server space
+    const elapsed = Date.now() - this.startTime;
+    const logData = {
+      operationId: this.operationId,
+      step: `STEP_${this.stepCounter}`,
+      stepName,
+      elapsedMs: elapsed,
+      data,
+    };
     if (level === 'error') {
-      const elapsed = Date.now() - this.startTime;
-      const logData = {
-        operationId: this.operationId,
-        step: `STEP_${this.stepCounter}`,
-        stepName,
-        elapsedMs: elapsed,
-        data,
-        timestamp: new Date().toISOString(),
-      };
       logger.error(logData, `❌ Step ${this.stepCounter}: ${stepName}`);
+    } else if (level === 'warn') {
+      logger.warn(logData, `⚠️ Step ${this.stepCounter}: ${stepName}`);
+    } else {
+      logger.info(logData, `Step ${this.stepCounter}: ${stepName}`);
     }
   }
 
   success(result?: Record<string, any>) {
-    // Success logging disabled to save server space
+    const elapsed = Date.now() - this.startTime;
+    logger.info({ operationId: this.operationId, step: 'SUCCESS', elapsedMs: elapsed, result }, `✅ ${this.operationId} succeeded`);
   }
 
   error(error: Error | string, context?: Record<string, any>) {

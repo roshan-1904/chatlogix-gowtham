@@ -14,7 +14,7 @@ import { stashForBurstMerge, mergeDebounced } from './burstMerge.js';
 import { prefetchHotSet } from './prefetch.js';
 import { runLlm1 } from './llm/llm1.js';
 import { apply } from './cart/engine.js';
-import { runLlm2, selectFinalReply } from './llm/llm2.js';
+import { runLlm2, selectFinalReply, renderRejectedOpsReply } from './llm/llm2.js';
 import { triggerHandoff } from './handoff.js';
 import { notifyVendorOfPostSalesEvent } from './postSalesAlert.js';
 import { WALLET_EMPTY_TEMPLATE } from './templates.js';
@@ -317,6 +317,15 @@ export async function processMessage(input: ProcessMessageInput): Promise<void> 
           logger.error({ err: error, vendorId, conversationId, traceId }, 'Post-sales vendor notify failed');
         });
       }
+    } else if (applyResult.rejectedOps.length > 0) {
+      // CartEngine rejected part (or all) of what was asked -- never let
+      // LLM-1's draft or LLM-2's polish claim success here. Neither is
+      // grounded in whether the op actually applied (copyMatchesSnapshot only
+      // catches an *omitted* snapshot line, which is vacuously satisfied by
+      // an empty snapshot), so a hallucinated "added"/"confirmed" reply can
+      // otherwise reach the customer even though nothing was persisted.
+      logCount('RejectedOpsGrounded', { vendorId }, applyResult.rejectedOps.length);
+      finalText = renderRejectedOpsReply(applyResult.rejectedOps, applyResult.snapshot);
     } else {
       // Step 6: LLM-2, conditionally (runLlm2 checks shouldRunLlm2 internally).
       const llm2StartedAt = Date.now();
