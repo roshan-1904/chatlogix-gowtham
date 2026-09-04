@@ -25,6 +25,7 @@ const orderCount = vi.fn(() => Promise.resolve(0));
 const productFindFirst = vi.fn();
 const customerInsightsFindUnique = vi.fn(() => Promise.resolve(null));
 const orderAuditLogCreate = vi.fn(() => Promise.resolve({}));
+const orderAuditLogFindFirst = vi.fn(() => Promise.resolve(null));
 const vendorFindUnique = vi.fn(() => Promise.resolve({ orderPrefix: 'TEST' }));
 
 // Referenced directly (no `(...args) => mock(...args)` wrapper) — these
@@ -37,7 +38,7 @@ const txStub = {
   order: { findFirst: orderFindFirst, update: orderUpdate, create: orderCreate, count: orderCount },
   product: { findFirst: productFindFirst },
   customerInsights: { findUnique: customerInsightsFindUnique },
-  orderAuditLog: { create: orderAuditLogCreate },
+  orderAuditLog: { create: orderAuditLogCreate, findFirst: orderAuditLogFindFirst },
   vendor: { findUnique: vendorFindUnique }
 };
 
@@ -95,6 +96,7 @@ beforeEach(() => {
   fakeOrder = null;
   customerInsightsFindUnique.mockResolvedValue(null);
   orderAuditLogCreate.mockResolvedValue({});
+  orderAuditLogFindFirst.mockResolvedValue(null);
   vendorFindUnique.mockResolvedValue({ orderPrefix: 'TEST' });
   orderCount.mockResolvedValue(0);
   productFindFirst.mockImplementation(({ where }: any) =>

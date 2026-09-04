@@ -142,19 +142,34 @@ ordersRouter.put('/:id/notes', asyncHandlerWithContext(async (req: any, res: any
   ensureOrderAccess(req, existingOrder.vendorId);
 
   try {
+    const previousOrder = await prisma.order.findUnique({ where: { id: orderId }, select: { specialRequests: true } });
+
     // Note: customerNotes field is commented out in schema
     // For now, we'll store it in specialRequests field instead
-    const order = await prisma.order.update({
-      where: { id: orderId },
-      data: { 
-        specialRequests: customerNotes,
-        updatedAt: new Date()
-      },
-      include: {
-        vendor: { select: { businessName: true, aiBotName: true, phone: true } },
-        customer: { select: { phone: true } },
-      },
-    });
+    const [order] = await prisma.$transaction([
+      prisma.order.update({
+        where: { id: orderId },
+        data: {
+          specialRequests: customerNotes,
+          updatedAt: new Date()
+        },
+        include: {
+          vendor: { select: { businessName: true, aiBotName: true, phone: true } },
+          customer: { select: { phone: true } },
+        },
+      }),
+      prisma.orderAuditLog.create({
+        data: {
+          id: crypto.randomUUID(),
+          orderId,
+          action: 'vendor_notes_update',
+          changes: { vendorInitiated: true },
+          previousState: { specialRequests: previousOrder?.specialRequests ?? null },
+          newState: { specialRequests: customerNotes },
+          timestamp: new Date()
+        }
+      })
+    ]);
 
     res.json(order);
   } catch (dbError: any) {

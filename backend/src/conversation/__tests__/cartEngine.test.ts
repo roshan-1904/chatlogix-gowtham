@@ -11,6 +11,7 @@ const orderCount = vi.fn();
 const productFindFirst = vi.fn();
 const customerInsightsFindUnique = vi.fn();
 const orderAuditLogCreate = vi.fn();
+const orderAuditLogFindFirst = vi.fn();
 const vendorFindUnique = vi.fn();
 
 const txStub = {
@@ -27,7 +28,8 @@ const txStub = {
     findUnique: (...args: unknown[]) => customerInsightsFindUnique(...args)
   },
   orderAuditLog: {
-    create: (...args: unknown[]) => orderAuditLogCreate(...args)
+    create: (...args: unknown[]) => orderAuditLogCreate(...args),
+    findFirst: (...args: unknown[]) => orderAuditLogFindFirst(...args)
   },
   vendor: {
     findUnique: (...args: unknown[]) => vendorFindUnique(...args)
@@ -116,6 +118,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   customerInsightsFindUnique.mockResolvedValue(null);
   orderAuditLogCreate.mockResolvedValue({});
+  orderAuditLogFindFirst.mockResolvedValue(null); // no prior application by default -- individual retry-guard tests override this
   vendorFindUnique.mockResolvedValue({ orderPrefix: 'TEST' });
   orderCount.mockResolvedValue(0);
 });
@@ -393,6 +396,93 @@ describe('CartEngine.apply', () => {
     expect(ssLine?.quantity).toBe(1);
     expect(ssLine?.unitPricePaise).toBe(179900);
   });
+
+  it('rounds lineTotalPaise/totalPaise to an integer for a divisible (weight-based) product, even after floating-point-prone qty accumulation', async () => {
+    const riceBrownie = {
+      id: 'prod-rice-brownie',
+      name: 'Karuppu Kavuni Rice Brownie',
+      baseUnit: 'kg',
+      baseQuantity: 1,
+      basePrice: 120000, // Rs1200/kg
+      fulfillmentType: 'made_to_order',
+      inStock: true,
+      stockQuantity: null,
+      minOrderQuantity: 0.1,
+      maxOrderQuantity: 100
+    };
+    // Existing line at 0.1kg -- adding 0.2kg reproduces the classic
+    // 0.1 + 0.2 = 0.30000000000000004 floating-point case.
+    orderFindFirst.mockResolvedValue(
+      existingOrder([
+        { productId: 'prod-rice-brownie', name: 'Karuppu Kavuni Rice Brownie', quantity: 0.1, unit: 'kg', unitPricePaise: 120000, lineTotalPaise: 12000 }
+      ])
+    );
+    productFindFirst.mockResolvedValue(riceBrownie);
+    orderUpdate.mockImplementation(({ data }: any) => ({ ...existingOrder(data.items), ...data }));
+
+    const result = await apply({
+      vendorId: VENDOR_ID,
+      conversationId: CONVERSATION_ID,
+      customerId: CUSTOMER_ID,
+      orderId: 'order-1',
+      ops: [{ type: 'add', productId: 'prod-rice-brownie', qty: 0.2 }],
+      traceId: 'wamid.30'
+    });
+
+    const line = result.snapshot.items.find((l) => l.productId === 'prod-rice-brownie');
+    expect(Number.isInteger(line?.lineTotalPaise)).toBe(true);
+    expect(Number.isInteger(result.snapshot.totalPaise)).toBe(true);
+    // 0.1 + 0.2 kg at Rs1200/kg = Rs360.00 exactly, not 359.9999... or 360.00000006
+    expect(line?.lineTotalPaise).toBe(36000);
+  });
+
+  it('retry guard: skips re-applying ops when this traceId was already applied to the order (SQS redelivery)', async () => {
+    orderFindFirst.mockResolvedValue(
+      existingOrder([{ productId: 'prod-brownie', name: 'Brownie', quantity: 2, unit: 'box', unitPricePaise: 10000, lineTotalPaise: 20000 }])
+    );
+    productFindFirst.mockResolvedValue(brownie);
+    // Simulates a prior successful apply() for this exact traceId already
+    // having written an OrderAuditLog row for this order.
+    orderAuditLogFindFirst.mockResolvedValue({ id: 'audit-1', orderId: 'order-1', changes: { traceId: 'wamid.retry-1' } });
+
+    const result = await apply({
+      vendorId: VENDOR_ID,
+      conversationId: CONVERSATION_ID,
+      customerId: CUSTOMER_ID,
+      orderId: 'order-1',
+      ops: [{ type: 'add', productId: 'prod-brownie', qty: 2 }], // would double 2 -> 4 if re-applied
+      traceId: 'wamid.retry-1'
+    });
+
+    expect(result.mutated).toBe(false);
+    expect(result.rejectedOps).toHaveLength(0);
+    const brownieLine = result.snapshot.items.find((l) => l.productId === 'prod-brownie');
+    expect(brownieLine?.quantity).toBe(2); // unchanged, not doubled to 4
+    expect(orderUpdate).not.toHaveBeenCalled();
+    expect(orderAuditLogCreate).not.toHaveBeenCalled();
+  });
+
+  it('retry guard: a different traceId for the same order is NOT treated as a duplicate', async () => {
+    orderFindFirst.mockResolvedValue(
+      existingOrder([{ productId: 'prod-brownie', name: 'Brownie', quantity: 2, unit: 'box', unitPricePaise: 10000, lineTotalPaise: 20000 }])
+    );
+    productFindFirst.mockResolvedValue(brownie);
+    orderUpdate.mockImplementation(({ data }: any) => ({ ...existingOrder(data.items), ...data }));
+    // No audit log row matches THIS traceId (default beforeEach mock: null).
+
+    const result = await apply({
+      vendorId: VENDOR_ID,
+      conversationId: CONVERSATION_ID,
+      customerId: CUSTOMER_ID,
+      orderId: 'order-1',
+      ops: [{ type: 'add', productId: 'prod-brownie', qty: 2 }],
+      traceId: 'wamid.a-genuinely-new-turn'
+    });
+
+    expect(result.mutated).toBe(true);
+    const brownieLine = result.snapshot.items.find((l) => l.productId === 'prod-brownie');
+    expect(brownieLine?.quantity).toBe(4); // legitimately applied
+  });
 });
 
 describe('CartEngine.apply — refund_request and historical cancel (#3)', () => {
@@ -435,6 +525,19 @@ describe('CartEngine.apply — refund_request and historical cancel (#3)', () =>
       orderNumber: 'ORD-HIST-0001',
       detail: expect.stringContaining('₹1299.00')
     });
+    // Regression: this order is NOT `order` (the conversation's own live
+    // draft — there is none here), so it must not be silently skipped by
+    // the shared mutated-gated audit write.
+    expect(orderAuditLogCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          orderId: 'order-hist-1',
+          action: 'refund_request',
+          previousState: { status: 'pending' },
+          newState: { status: 'cancelled' }
+        })
+      })
+    );
   });
 
   it('refund_request: ineligible status (already delivered) leaves the order untouched and reports refund_denied', async () => {
@@ -521,6 +624,17 @@ describe('CartEngine.apply — refund_request and historical cancel (#3)', () =>
       orderNumber: 'ORD-HIST-0004',
       detail: 'Cancelled as requested.'
     });
+    // Regression: a cancel on a historical order previously left zero audit trail.
+    expect(orderAuditLogCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          orderId: 'order-hist-4',
+          action: 'cancel',
+          previousState: { status: 'confirmed' },
+          newState: { status: 'cancelled' }
+        })
+      })
+    );
   });
 
   it('cancel: rejects with not_cancellable_at_this_stage when the target order is already preparing, and does not mutate it', async () => {

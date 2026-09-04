@@ -12,6 +12,8 @@ interface OrderListItemProps {
   onClick: (orderId: string) => void;
   onQuickAction?: (orderId: string, action: string) => void;
   viewMode?: 'table' | 'card';
+  /** True while a quick action for this order is in flight — disables the menu trigger to prevent a double-submit. */
+  disabled?: boolean;
 }
 
 interface QuickAction {
@@ -75,6 +77,7 @@ export function OrderListItem({
   onClick,
   onQuickAction,
   viewMode = 'table',
+  disabled = false,
 }: OrderListItemProps) {
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -166,6 +169,7 @@ export function OrderListItem({
               variant="secondary"
               size="sm"
               onClick={() => setShowMenu(!showMenu)}
+              disabled={disabled}
             >
               ⋯
             </Button>
@@ -235,6 +239,7 @@ export function OrderListItem({
               setShowMenu(!showMenu);
             }}
             className="hover:bg-gray-100"
+            disabled={disabled}
           >
             ⋯
           </Button>

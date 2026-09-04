@@ -252,14 +252,34 @@ export class OrderService {
         updateData.estimatedDelivery = additionalData.estimatedDelivery;
       }
 
-      const order = await prisma.order.update({
-        where: { id: orderId },
-        data: updateData,
-        include: {
-          vendor: { select: { businessName: true, aiBotName: true } },
-          customer: { select: { phone: true } }
-        }
-      });
+      const [order] = await prisma.$transaction([
+        prisma.order.update({
+          where: { id: orderId },
+          data: updateData,
+          include: {
+            vendor: { select: { businessName: true, aiBotName: true } },
+            customer: { select: { phone: true } }
+          }
+        }),
+        // Regression: this was the entire vendor-dashboard mutation surface
+        // writing zero OrderAuditLog rows -- only AI-driven cart changes
+        // were ever logged, leaving every manual status change invisible to
+        // a future "what happened to this order" investigation.
+        prisma.orderAuditLog.create({
+          data: {
+            id: crypto.randomUUID(),
+            orderId,
+            action: 'vendor_status_update',
+            changes: { vendorInitiated: true, requestedStatus: status },
+            previousState: { status: currentOrder.status },
+            // JSON round-trip: updateData mixes Date objects (confirmedAt
+            // etc.) with plain values -- normalize to plain JSON rather than
+            // relying on Prisma's Json-field Date handling.
+            newState: JSON.parse(JSON.stringify({ status, ...updateData })),
+            timestamp: new Date()
+          }
+        })
+      ]);
 
       logger.info({ orderId, status }, 'Order status updated');
       return order;

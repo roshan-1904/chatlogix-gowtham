@@ -26,7 +26,8 @@ const catalog: CompactCatalogEntry[] = [
     inStock: true,
     stockQuantity: null,
     variants: [],
-    description: ''
+    description: '',
+    isDivisible: true
   }
 ];
 

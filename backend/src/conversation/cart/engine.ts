@@ -93,6 +93,40 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
         });
         let customerName = insights?.customerName ?? null;
 
+        // Retry guard: if an SQS redelivery re-invokes apply() for a
+        // whatsappMessageId whose ops were already committed to this order
+        // (e.g. LLM-2 or a DB blip threw AFTER apply()'s own transaction
+        // committed but BEFORE the pipeline's idempotency marker was
+        // written), re-running the ops loop would double-apply an additive
+        // op like `add` (2 pizzas -> 4). `traceId` is already written into
+        // every mutating turn's OrderAuditLog row (below), so its presence
+        // for this order is a reliable "already applied" signal.
+        if (order) {
+          const alreadyApplied = await tx.orderAuditLog.findFirst({
+            where: { orderId: order.id, changes: { path: ['traceId'], equals: traceId } }
+          });
+          if (alreadyApplied) {
+            logger.info(
+              { traceId, vendorId, conversationId, orderId: order.id },
+              'CartEngine.apply: ops for this traceId already applied to this order — skipping re-apply (SQS retry)'
+            );
+            const missing = computeMissing(lines, customerName, deliveryAddress);
+            return {
+              snapshot: {
+                orderId: order.id,
+                status,
+                items: lines,
+                totalPaise: Math.round(lines.reduce((sum, line) => sum + line.lineTotalPaise, 0)),
+                customerName,
+                address: deliveryAddress,
+                missing
+              },
+              mutated: false,
+              rejectedOps: []
+            };
+          }
+        }
+
         const rejectedOps: Array<{ op: CartOp; reason: string }> = [];
         let mutated = false;
         let postSalesOutcome: PostSalesOutcome | undefined;
@@ -101,6 +135,31 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
         // (not through the shared lines/order persistence below), but the
         // caller-facing `mutated` flag should still reflect that something changed.
         let historicalOrderChanged = false;
+
+        // Historical-order cancel/refund updates a DIFFERENT order than the
+        // conversation's own (`order`), so it can't go through the shared
+        // `mutated`-gated audit-log write below (that write is scoped to
+        // `order` only) -- without this, a real cancellation/refund on a
+        // past order left zero OrderAuditLog trace.
+        async function writeHistoricalAuditLog(
+          targetOrderId: string,
+          action: string,
+          previousStatus: string,
+          newStatus: string,
+          op: CartOp
+        ): Promise<void> {
+          await tx.orderAuditLog.create({
+            data: {
+              id: crypto.randomUUID(),
+              orderId: targetOrderId,
+              action,
+              changes: { traceId, ops: [op] } as unknown as Prisma.InputJsonValue,
+              previousState: { status: previousStatus } as unknown as Prisma.InputJsonValue,
+              newState: { status: newStatus } as unknown as Prisma.InputJsonValue,
+              timestamp: new Date()
+            }
+          });
+        }
 
         function notCancellableOutcome(orderId: string, orderNumber: string, status: string): PostSalesOutcome {
           return {
@@ -158,7 +217,14 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
               if (existingLine) {
                 existingLine.quantity = newQty;
                 existingLine.unitPricePaise = unitPricePaise;
-                existingLine.lineTotalPaise = unitPricePaise * newQty;
+                // Rounded: qty is a raw float for divisible products, and
+                // newQty accumulates plain floating-point addition across
+                // turns (e.g. 0.1 + 0.2) -- an unrounded result here can be a
+                // non-integer paise value, which Order.totalAmount (an Int
+                // column) rejects, aborting the whole transaction and leaving
+                // the cart permanently stuck on retry (same bad qty is
+                // already stored).
+                existingLine.lineTotalPaise = Math.round(unitPricePaise * newQty);
                 if (op.notes) existingLine.notes = op.notes;
               } else {
                 lines.push({
@@ -167,7 +233,7 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
                   quantity: op.qty,
                   unit: variant?.unit || product.baseUnit,
                   unitPricePaise,
-                  lineTotalPaise: unitPricePaise * op.qty,
+                  lineTotalPaise: Math.round(unitPricePaise * op.qty),
                   notes: op.notes,
                   variantSku: variant?.sku ?? null,
                   variantLabel: variant?.label ?? null
@@ -209,7 +275,7 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
               if (existingLine) {
                 existingLine.quantity = op.qty;
                 existingLine.unitPricePaise = unitPricePaise;
-                existingLine.lineTotalPaise = unitPricePaise * op.qty;
+                existingLine.lineTotalPaise = Math.round(unitPricePaise * op.qty); // see the `add` case for why this is rounded
               } else {
                 lines.push({
                   productId: product.id,
@@ -217,7 +283,7 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
                   quantity: op.qty,
                   unit: variant?.unit || product.baseUnit,
                   unitPricePaise,
-                  lineTotalPaise: unitPricePaise * op.qty,
+                  lineTotalPaise: Math.round(unitPricePaise * op.qty),
                   variantSku: variant?.sku ?? null,
                   variantLabel: variant?.label ?? null
                 });
@@ -309,6 +375,7 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
                   where: { id: targetOrder.id },
                   data: { status: 'cancelled', cancelledAt: new Date(), cancellationReason: 'Cancelled via AI assistant' }
                 });
+                await writeHistoricalAuditLog(targetOrder.id, 'cancel', targetOrder.status, 'cancelled', op);
                 historicalOrderChanged = true;
               }
               postSalesOutcome = { type: 'order_cancelled', orderId: targetOrder.id, orderNumber: targetOrder.orderNumber, detail: 'Cancelled as requested.' };
@@ -334,6 +401,7 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
                   where: { id: targetOrder.id },
                   data: { status: 'cancelled', cancelledAt: new Date(), cancellationReason: op.reason || 'Refund approved' }
                 });
+                await writeHistoricalAuditLog(targetOrder.id, 'refund_request', targetOrder.status, 'cancelled', op);
                 historicalOrderChanged = true;
               }
               postSalesOutcome = {
@@ -353,7 +421,10 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
           }
         }
 
-        const totalPaise = lines.reduce((sum, line) => sum + line.lineTotalPaise, 0);
+        // Defensive round (Order.totalAmount is an Int column) -- every
+        // lineTotalPaise contributing here is already rounded at the point
+        // it's set, this just guards the sum itself.
+        const totalPaise = Math.round(lines.reduce((sum, line) => sum + line.lineTotalPaise, 0));
 
         if (mutated) {
           const itemsJson = lines as unknown as Prisma.InputJsonValue;

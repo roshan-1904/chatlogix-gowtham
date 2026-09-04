@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@chatlogix/ui';
 import { useAuth } from '@chatlogix/auth';
 import { apiClient } from '../lib/api';
+import { orderService } from '../services/orderService';
 import { getErrorMessage } from '../utils/errorHandling';
 import type { Order } from '../components/conversations/types';
 import { OrderStatsCards } from '../components/orders/OrderStatsCards';
@@ -37,6 +38,7 @@ export function Orders() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingStats, setIsLoadingStats] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [actionInProgressId, setActionInProgressId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'table' | 'card'>(() => {
     const saved = localStorage.getItem(ORDER_VIEW_STORAGE_KEY);
     return (saved as 'table' | 'card') || DEFAULT_ORDER_VIEW;
@@ -272,12 +274,52 @@ export function Orders() {
     navigateToOrderDetails(orderId, navigate);
   };
 
-  const handleQuickAction = (orderId: string, action: string) => {
+  // Maps a list-item quick-action id to the order status it transitions to.
+  // Matches OrderService.validStatusTransitions on the backend.
+  const QUICK_ACTION_STATUS: Record<string, string> = {
+    confirm: 'confirmed',
+    start_preparing: 'preparing',
+    mark_ready: 'ready',
+    out_for_delivery: 'out_for_delivery',
+    mark_delivered: 'delivered',
+    cancel: 'cancelled',
+  };
+
+  // Not yet implemented on the backend (payment-link generation is a 501
+  // stub; shipment creation/tracking don't exist yet) -- surfaced honestly
+  // instead of silently doing nothing.
+  const NOT_YET_AVAILABLE_ACTIONS = new Set(['send_payment_link', 'create_shipment', 'track', 'view_invoice']);
+
+  const handleQuickAction = async (orderId: string, action: string) => {
     if (action === 'view') {
       handleOrderClick(orderId);
-    } else {
-      // TODO: Handle other actions
-      console.log('Quick action:', action, orderId);
+      return;
+    }
+
+    if (NOT_YET_AVAILABLE_ACTIONS.has(action)) {
+      window.alert('This action is not available yet.');
+      return;
+    }
+
+    const targetStatus = QUICK_ACTION_STATUS[action];
+    if (!targetStatus) {
+      console.warn('Unknown quick action:', action, orderId);
+      return;
+    }
+
+    if (targetStatus === 'cancelled') {
+      const confirmed = window.confirm('Are you sure you want to cancel this order? This action cannot be undone.');
+      if (!confirmed) return;
+    }
+
+    setActionInProgressId(orderId);
+    try {
+      const updatedOrder = await orderService.updateOrderStatus(orderId, { status: targetStatus });
+      setOrders((prev) => prev.map((o) => (o.id === orderId ? updatedOrder : o)));
+    } catch (err: any) {
+      window.alert(getErrorMessage(err) || 'Failed to update order status.');
+    } finally {
+      setActionInProgressId(null);
     }
   };
 
@@ -434,6 +476,7 @@ export function Orders() {
                     onClick={handleOrderClick}
                     onQuickAction={handleQuickAction}
                     viewMode="table"
+                    disabled={actionInProgressId === order.id}
                   />
                 ))}
               </tbody>
@@ -449,6 +492,7 @@ export function Orders() {
               onClick={handleOrderClick}
               onQuickAction={handleQuickAction}
               viewMode="card"
+              disabled={actionInProgressId === order.id}
             />
           ))}
         </div>

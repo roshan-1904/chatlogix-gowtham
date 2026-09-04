@@ -14,7 +14,8 @@ const brownie: CompactCatalogEntry = {
   inStock: true,
   stockQuantity: null,
   variants: [],
-  description: ''
+  description: '',
+  isDivisible: true
 };
 
 function makeHotSet(overrides: Partial<HotSet> = {}): HotSet {
@@ -78,6 +79,18 @@ describe('buildCatalogTable', () => {
     const dataRow = table.split('\n')[1];
     const columns = dataRow.trim().split(',');
     expect(columns[columns.length - 1]).toBe(''); // desc is the last column
+  });
+
+  it('exposes isDivisible as a "baseOrderable" yes/no column', () => {
+    const header = buildCatalogTable([brownie]).split('\n')[0].trim().split(',');
+    const baseOrderableIndex = header.indexOf('baseOrderable');
+    expect(baseOrderableIndex).toBeGreaterThanOrEqual(0);
+
+    const divisibleRow = buildCatalogTable([{ ...brownie, isDivisible: true }]).split('\n')[1].trim().split(',');
+    expect(divisibleRow[baseOrderableIndex]).toBe('yes');
+
+    const notDivisibleRow = buildCatalogTable([{ ...brownie, isDivisible: false }]).split('\n')[1].trim().split(',');
+    expect(notDivisibleRow[baseOrderableIndex]).toBe('no');
   });
 });
 
@@ -190,6 +203,24 @@ describe('buildLlm1SystemPrompt', () => {
       })
     );
     expect(prompt).toContain('[prod-tin,SS-7X7]');
+  });
+
+  it('2026-09-04 incident regression: tells the model a divisible product can be added directly with no variantSku, even though it also has variants', () => {
+    const prompt = buildLlm1SystemPrompt(
+      makeHotSet({
+        compactCatalog: [
+          {
+            ...brownie,
+            id: 'prod-brownie',
+            isDivisible: true,
+            variants: [
+              { sku: 'BOX-1', label: '1 box', attributes: {}, unit: 'box', baseQuantity: 1, price: 49900, isDivisible: false, isActive: true }
+            ]
+          }
+        ]
+      })
+    );
+    expect(prompt).toMatch(/"baseOrderable" is "yes".*added directly using the base productId with NO variantSku/s);
   });
 
   it('includes the repeat-order, cancel, refund, and complaint/return handoff rules', () => {

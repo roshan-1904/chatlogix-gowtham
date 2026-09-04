@@ -66,7 +66,8 @@ const hotSet: HotSet = {
       inStock: true,
       stockQuantity: null,
       variants: [],
-      description: ''
+      description: '',
+      isDivisible: true
     }
   ],
   memory: null,

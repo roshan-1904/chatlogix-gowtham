@@ -53,10 +53,12 @@ const emptySnapshot: CartSnapshot = {
 };
 
 const compactCatalog: CompactCatalogEntry[] = [
-  { id: 'prod-1', name: 'Brownie', price: 10000, unit: 'box', minQty: null, maxQty: null, keywords: [], fulfillmentType: 'made_to_order', inStock: true, stockQuantity: null, variants: [], description: '' },
-  { id: 'prod-2', name: 'Cookies', price: 5000, unit: 'box', minQty: null, maxQty: null, keywords: [], fulfillmentType: 'made_to_order', inStock: true, stockQuantity: null, variants: [], description: '' },
-  // Mirrors the real 2026-09-04 incident's catalog entry.
-  { id: 'prod-3', name: 'Karuppu Kavuni Rice Brownie with Cashew', price: 120000, unit: 'kg', minQty: 0.5, maxQty: 100, keywords: [], fulfillmentType: 'made_to_order', inStock: true, stockQuantity: 1000, variants: [], description: '' }
+  { id: 'prod-1', name: 'Brownie', price: 10000, unit: 'box', minQty: null, maxQty: null, keywords: [], fulfillmentType: 'made_to_order', inStock: true, stockQuantity: null, variants: [], description: '', isDivisible: true },
+  { id: 'prod-2', name: 'Cookies', price: 5000, unit: 'box', minQty: null, maxQty: null, keywords: [], fulfillmentType: 'made_to_order', inStock: true, stockQuantity: null, variants: [], description: '', isDivisible: true },
+  // Mirrors the real 2026-09-04 incident's catalog entry: sold loose by kg
+  // (isDivisible: true) AND as fixed box variants -- the actual root cause
+  // of that incident was the prompt not surfacing isDivisible at all.
+  { id: 'prod-3', name: 'Karuppu Kavuni Rice Brownie with Cashew', price: 120000, unit: 'kg', minQty: 0.5, maxQty: 100, keywords: [], fulfillmentType: 'made_to_order', inStock: true, stockQuantity: 1000, variants: [], description: '', isDivisible: true }
 ];
 
 beforeEach(() => {

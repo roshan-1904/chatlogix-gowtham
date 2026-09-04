@@ -52,7 +52,25 @@ describe('validateProductIds — variantSku hallucination guard', () => {
       inStock: true,
       stockQuantity: null,
       variants: [{ sku: 'SS-7X7', label: 'SS 7x7', attributes: {}, unit: 'unit', baseQuantity: 1, price: 179900, isDivisible: false, isActive: true }],
-      description: ''
+      description: '',
+      isDivisible: false // variant pick required -- base price is a reference/range only
+    },
+    // Mirrors the real 2026-09-04 incident's catalog entry: sold loose by kg
+    // (isDivisible: true) AND as fixed box variants.
+    {
+      id: 'prod-brownie',
+      name: 'Karuppu Kavuni Rice Brownie',
+      price: 120000,
+      unit: 'kg',
+      minQty: 0.5,
+      maxQty: 100,
+      keywords: [],
+      fulfillmentType: 'made_to_order',
+      inStock: true,
+      stockQuantity: 1000,
+      variants: [{ sku: 'BOX-1', label: '1 box', attributes: {}, unit: 'box', baseQuantity: 1, price: 49900, isDivisible: false, isActive: true }],
+      description: '',
+      isDivisible: true
     }
   ];
 
@@ -70,6 +88,30 @@ describe('validateProductIds — variantSku hallucination guard', () => {
 
   it('keeps an add op naming a real variantSku', () => {
     const { valid, invalid } = validateProductIds([{ type: 'add', productId: 'prod-tin', qty: 1, variantSku: 'SS-7X7' }], catalog);
+    expect(valid).toHaveLength(1);
+    expect(invalid).toHaveLength(0);
+  });
+
+  it('2026-09-04 incident regression: keeps an add op with no variantSku for a divisible product that also has variants', () => {
+    const { valid, invalid } = validateProductIds([{ type: 'add', productId: 'prod-brownie', qty: 2.5 }], catalog);
+    expect(valid).toHaveLength(1);
+    expect(invalid).toHaveLength(0);
+  });
+
+  it('still drops an add op naming an invented variantSku on a divisible product', () => {
+    const { valid, invalid } = validateProductIds(
+      [{ type: 'add', productId: 'prod-brownie', qty: 1, variantSku: 'BOX-99' }],
+      catalog
+    );
+    expect(valid).toHaveLength(0);
+    expect(invalid).toHaveLength(1);
+  });
+
+  it('keeps an add op naming a real variantSku on a divisible product', () => {
+    const { valid, invalid } = validateProductIds(
+      [{ type: 'add', productId: 'prod-brownie', qty: 1, variantSku: 'BOX-1' }],
+      catalog
+    );
     expect(valid).toHaveLength(1);
     expect(invalid).toHaveLength(0);
   });
