@@ -263,6 +263,8 @@ Ops:
 
 After parse, ops whose `productId` is not in this turn’s compact catalog are **dropped** (`validateProductIds`). CartEngine still re-resolves every product from Postgres.
 
+`validateProductIds` also drops an `add`/`set_qty` op for a product that has variants when `variantSku` is missing or names a variant not on that product — *unless* the compact catalog entry’s `isDivisible` is `true`, in which case a missing `variantSku` is a legitimate “add by base unit” op (e.g. a product sold both loose by weight and as fixed variants), not a hallucination. An explicitly wrong/invented `variantSku` is still always dropped regardless of `isDivisible`. (Fixed 2026-09-04: before this, `isDivisible` wasn’t in the compact catalog at all, so the prompt could never tell the model a divisible product’s base id was directly orderable, and this guard silently dropped every base-unit `add` for any variant-bearing product — see `prompts.ts`’s `baseOrderable` catalog column and its variant-table rules.)
+
 ```mermaid
 flowchart TD
   HS[HotSet] --> SYS[buildLlm1SystemPrompt]

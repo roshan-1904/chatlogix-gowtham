@@ -160,6 +160,14 @@ export interface CompactCatalogEntry {
   stockQuantity: number | null;
   variants: ProductVariant[]; // active only; empty for a plain single-price product
   description: string; // '' when the vendor left it blank
+  // Whether the BASE product row (this entry's own price/unit/minQty/maxQty)
+  // is itself directly orderable, independent of `variants`. A product can
+  // have both: e.g. sold loose by weight (isDivisible: true, minQty/maxQty
+  // meaningful) AND as fixed pre-packed variants. When false, the base
+  // price/row is a reference/range only and an order MUST pick a variant
+  // (see prompts.ts's variant-table rule) -- prompts.ts must surface this so
+  // LLM-1 doesn't wrongly demand a variant pick for a divisible product.
+  isDivisible: boolean;
 }
 
 /** Conversation memory (spec §11, `conv:{id}:memory`: "stage, facts, language"). */

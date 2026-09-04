@@ -47,6 +47,12 @@ export function buildCatalogTable(catalog: CompactCatalogEntry[]): string {
     unit: p.unit,
     minQty: p.minQty !== null ? String(p.minQty) : '',
     maxQty: p.maxQty !== null ? String(p.maxQty) : '',
+    // "yes" = this base id/price/unit row is itself directly orderable (e.g.
+    // sold loose by weight) even if the product also has variants below.
+    // "no" = the base row is a reference/range only; a variantSku is
+    // required to add this product. See the variant-table rule for how to
+    // use this.
+    baseOrderable: p.isDivisible ? 'yes' : 'no',
     keywords: p.keywords.join(' '),
     fulfillment: p.fulfillmentType,
     inStock: p.inStock ? 'yes' : 'no',
@@ -142,7 +148,7 @@ function buildStaticBlock(hotSet: HotSet): string {
   if (v.aiContentImportantInstructions) parts.push(`Important: ${v.aiContentImportantInstructions}`);
 
   parts.push('');
-  parts.push('PRODUCT CATALOG (id,name,price,unit,minQty,maxQty,keywords,fulfillment,inStock,stockQty,desc):');
+  parts.push('PRODUCT CATALOG (id,name,price,unit,minQty,maxQty,baseOrderable,keywords,fulfillment,inStock,stockQty,desc):');
   parts.push(buildCatalogTable(hotSet.compactCatalog));
   parts.push(
     "- A product's \"desc\" may contain compatibility/eligibility notes or vendor instructions (e.g. an accessory that only fits one size, or a step to confirm before an order is valid). Read it and apply it, not just recite it — e.g. warn the customer or ask the confirming question yourself before adding the item, don't wait for them to ask."
@@ -154,10 +160,10 @@ function buildStaticBlock(hotSet: HotSet): string {
     parts.push('PRODUCT VARIANTS (productId,sku,label,attrs,price):');
     parts.push(variantsTable);
     parts.push(
-      "- A productId listed above is a range/reference price only — the real price is this table's. Ask the customer to pick a size/material/etc from this table before adding it."
+      '- If the catalog row\'s "baseOrderable" is "no": that productId\'s price/unit is a range/reference only — you MUST get the customer to pick a size/material/etc from this table and add it with that exact "variantSku". Never invent one, and never guess an attribute the customer didn\'t confirm — if what they ask for isn\'t a row here, say so and offer the closest real options instead.'
     );
     parts.push(
-      '- "variantSku" on an "add"/"set_qty" op for such a product must be exactly one of the "sku" values shown here. Never invent one, and never guess a size/attribute the customer didn\'t confirm exists — if what they ask for isn\'t a row here, say so and offer the closest real options instead.'
+      '- If the catalog row\'s "baseOrderable" is "yes": that product can ALSO be added directly using the base productId with NO variantSku, at whatever quantity of its base "unit" the customer asked for (e.g. weight in kg) — this is a real, separate way to order it, not a fallback. Only use one of this product\'s variantSku rows instead when the customer clearly asked for one of those specific packaged options (e.g. a fixed box/pack size) rather than a bulk/weight amount.'
     );
   }
 

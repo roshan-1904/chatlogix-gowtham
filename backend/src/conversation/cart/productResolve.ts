@@ -83,7 +83,7 @@ export function validateProductIds(
   ops: CartOp[],
   compactCatalog: CompactCatalogEntry[]
 ): { valid: CartOp[]; invalid: CartOp[] } {
-  const validIds = new Set(compactCatalog.map((p) => p.id));
+  const catalogById = new Map(compactCatalog.map((p) => [p.id, p]));
   // Only products that actually have variants require a matching sku — a
   // plain single-price product's ops correctly carry variantSku: null.
   const variantSkusByProduct = new Map(compactCatalog.map((p) => [p.id, new Set(p.variants.map((v) => v.sku))]));
@@ -97,19 +97,31 @@ export function validateProductIds(
       valid.push(op);
       continue;
     }
-    if (!validIds.has(op.productId)) {
+    const product = catalogById.get(op.productId);
+    if (!product) {
       invalid.push(op);
       continue;
     }
     const requiredSkus = variantSkusByProduct.get(op.productId);
+    const hasVariants = requiredSkus && requiredSkus.size > 0;
+    const missingOrInvalidSku = !op.variantSku || !requiredSkus!.has(op.variantSku);
     // Hallucination guard (spec §13, same rationale as productId above):
-    // a product that has variants has no meaningful single price, so an op
-    // naming an unrecognized (or missing) variantSku for it must be dropped
-    // here rather than reaching CartEngine, which would otherwise be the
-    // only backstop against a fabricated size/material.
-    if (requiredSkus && requiredSkus.size > 0 && (!op.variantSku || !requiredSkus.has(op.variantSku))) {
-      invalid.push(op);
-      continue;
+    // a product that has variants normally has no meaningful single price,
+    // so an op naming an unrecognized (or missing) variantSku for it must be
+    // dropped here rather than reaching CartEngine, which would otherwise be
+    // the only backstop against a fabricated size/material.
+    //
+    // Exception (2026-09-04 incident): a product can be sold BOTH loose by
+    // its base unit (isDivisible: true — e.g. by weight in kg) AND as fixed
+    // variants (e.g. pre-packed boxes). For such a product, omitting
+    // variantSku is a legitimate "add by base unit" op, not a hallucination
+    // — only an explicitly wrong/invented variantSku is still rejected below.
+    if (hasVariants && missingOrInvalidSku) {
+      const baseOrderableWithNoSku = !op.variantSku && product.isDivisible;
+      if (!baseOrderableWithNoSku) {
+        invalid.push(op);
+        continue;
+      }
     }
     valid.push(op);
   }

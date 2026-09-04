@@ -134,7 +134,8 @@ async function loadCompactCatalog(vendorId: string): Promise<CompactCatalogEntry
       inStock: true,
       stockQuantity: true,
       variants: true,
-      description: true
+      description: true,
+      isDivisible: true
     }
   });
 
@@ -150,7 +151,8 @@ async function loadCompactCatalog(vendorId: string): Promise<CompactCatalogEntry
     inStock: p.inStock,
     stockQuantity: p.stockQuantity !== null ? Number(p.stockQuantity) : null,
     variants: normalizeVariants(p.variants).filter((v) => v.isActive),
-    description: p.description ?? ''
+    description: p.description ?? '',
+    isDivisible: p.isDivisible
   }));
 }
 
