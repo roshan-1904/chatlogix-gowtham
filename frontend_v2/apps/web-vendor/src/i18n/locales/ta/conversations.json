@@ -36,7 +36,8 @@
   "audio": {
     "play": "ஒலியை இயக்கு",
     "pause": "ஒலியை இடைநிறுத்து",
-    "seek": "ஒலியில் நகர்த்து"
+    "seek": "ஒலியில் நகர்த்து",
+    "transcriptLabel": "எழுத்துப்பெயர்ப்பு"
   },
   "location": {
     "openInMaps": "Google Maps-இல் திற",

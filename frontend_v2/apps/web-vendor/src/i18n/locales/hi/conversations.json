@@ -36,7 +36,8 @@
   "audio": {
     "play": "ऑडियो चलाएँ",
     "pause": "ऑडियो रोकें",
-    "seek": "ऑडियो में जाएँ"
+    "seek": "ऑडियो में जाएँ",
+    "transcriptLabel": "प्रतिलेख"
   },
   "location": {
     "openInMaps": "Google Maps में खोलें",

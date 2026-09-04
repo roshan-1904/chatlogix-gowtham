@@ -80,10 +80,14 @@ export class LambdaConfigurationService {
    * pipelines (.github/workflows/deploy.yml, bitbucket-pipelines.yml) —
    * those call `aws lambda update-function-code` directly and do NOT go
    * through this service, so nothing enforces the two staying in sync.
-   * `chatlogix-media-fetcher` is deliberately omitted: there is no handler
-   * file for it yet (see backend/src/lambdas/README.md), and running
-   * `npm run deploy:lambda` against a guessed handler would just replace
-   * one broken config with another.
+   * `chatlogix-media-fetcher` is deliberately omitted: its handler file
+   * (`src/lambdas/handlers/mediaFetcher.ts`) exists and is complete, but the
+   * deployed function's Handler setting is misconfigured (see
+   * backend/src/lambdas/README.md and docs/CONVERSATION_WORKER_GAPS.md §2.1)
+   * — fix that directly via `aws lambda update-function-configuration
+   * --handler dist/lambdas/handlers/mediaFetcher.handler`, don't add it here
+   * and run `npm run deploy:lambda` against a guessed handler, since that
+   * script only pushes code, never touches an existing handler/trigger config.
    */
   static getFunctionDefinitions(): LambdaFunctionDefinition[] {
     const baseEnv = this.getBaseEnvironment();

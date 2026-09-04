@@ -67,9 +67,13 @@ export function useMessages({
   // Media is fetched async on the backend (can take anywhere from seconds to
   // ~20+ minutes) — a message already loaded into state with media still
   // `pending` never otherwise gets refreshed, so it's stuck on a placeholder
-  // until the vendor reloads the whole conversation. This patches just the
-  // `media`/`status` fields of already-loaded messages once their media
-  // fetch completes, piggybacking on the existing polling tick.
+  // until the vendor reloads the whole conversation. This patches the
+  // `media`/`status`/`content` fields of already-loaded messages once their
+  // media fetch completes, piggybacking on the existing polling tick.
+  // `content` matters for audio: the Whisper transcript overwrites it
+  // server-side in the same pass that flips media.state to 'ready', so it
+  // must be refreshed here too or the transcript never appears without a
+  // full reload.
   const refreshPendingMedia = useCallback(async () => {
     if (!conversationId || isRefreshingMediaRef.current) return;
 
@@ -96,7 +100,7 @@ export function useMessages({
         prev.map((m) => {
           const fresh = updatesById.get(m.id);
           if (!fresh) return m;
-          return { ...m, media: fresh.media, status: fresh.status };
+          return { ...m, media: fresh.media, status: fresh.status, content: fresh.content };
         }),
       );
     } catch (err) {

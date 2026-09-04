@@ -36,7 +36,8 @@
   "audio": {
     "play": "Play audio",
     "pause": "Pause audio",
-    "seek": "Seek audio"
+    "seek": "Seek audio",
+    "transcriptLabel": "Transcript"
   },
   "location": {
     "openInMaps": "Open in Google Maps",

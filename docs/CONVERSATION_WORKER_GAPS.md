@@ -39,6 +39,13 @@ The **old** pipeline — `multiStageOrchestrator.ts` (14-stage) and `unifiedAIPr
 
 ### 2.1 Audio and image messages are silently dropped
 
+> **UPDATE (2026-09-04): the section below is stale.** It describes `webhookHandler.ts` as it existed at the initial commit (2026-05-12). Commits `04f2164`/`00e7a93`/`469a0ff` (all 2026-09-01, one day *before* this doc was written) refactored it to delegate to `webhookEventProcessor.ts#processWebhookEventBatch` — the same function the old Express route uses, per that function's own doc comment ("Shared by the Express webhook route and the API Gateway Lambda so both entry points see identical behavior"). As of that refactor, the live Lambda **does** persist a `MessageMedia` placeholder and enqueue a `MediaFetchJob` to `MEDIA_FETCH_QUEUE_URL` for `audio/image/video/document/sticker`, and **does** process reactions and status updates (§2.2 below is also stale for the same reason). The real remaining gaps, verified 2026-09-04:
+>
+> 1. `chatlogix-media-fetcher` (the sole intended consumer of `MEDIA_FETCH_QUEUE_URL` in production — `mediaWorker.ts` was deliberately retired from PM2, see `ecosystem.config.js`) has a broken Lambda "Handler" configuration: it's set to `mediaFetcher.handler` instead of `dist/lambdas/handlers/mediaFetcher.handler` (the pattern the other 4 functions use, per `lambdaConfigurationService.ts`). The handler file itself (`backend/src/lambdas/handlers/mediaFetcher.ts`) is complete and correct — every invocation just fails immediately with `Runtime.HandlerNotFound` before it runs. This is a one-line AWS config fix, not a code change.
+> 2. `chatlogix-incoming-response-generator`'s only configured trigger is `TEXT_QUEUE_URL` (per its own README entry). `AUDIO_QUEUE_URL`/`IMAGE_QUEUE_URL` aren't wired to it, so even once media-fetcher is fixed and successfully transcribes/captions, the AI pipeline never sees it — needs those two queues added as additional SQS event source mappings on that function. No code change needed there either; its handler already accepts a generic `{type:'TextMessage', ...}` payload regardless of source queue.
+>
+> Original (now-superseded) text kept below for the audit trail:
+
 `backend/src/lambdas/handlers/webhookHandler.ts` (the live webhook Lambda) only handles `message.type === 'text'`. Audio and image fall into its `default:` branch and return `{ success: false, error: 'Unsupported message type' }` — nothing is enqueued, nothing is stored, the customer gets no reply and no acknowledgment.
 
 The old Express route (`backend/src/routes/webhook.ts` + `webhookEventProcessor.ts`) *does* handle media — it persists a placeholder `MessageMedia` row and enqueues a `MediaFetchJob` to `MEDIA_FETCH_QUEUE_URL`, which `mediaWorker.ts` (still running on PM2, Whisper transcription + S3 upload + retry backoff, all intact) picks up and processes. But that Express route is not what WhatsApp calls in production anymore — API Gateway → Lambda is. So:
@@ -48,7 +55,7 @@ The old Express route (`backend/src/routes/webhook.ts` + `webhookEventProcessor.
 
 This matches `docs/CONVERSATION_PROCESSOR_LAMBDA.md` §5 ("Does not: Whisper / image caption") — it's a known, deliberately-scoped-out gap for that spec, but nothing has picked it up since.
 
-**Impact:** any customer who sends a voice note or photo currently gets no response at all.
+**Impact (as of 2026-09-04, only #1 and #2 above are actually blocking):** any customer who sends a voice note or photo currently gets no response at all.
 
 ### 2.2 Message reactions and delivery/read status updates aren't processed
 
