@@ -320,7 +320,7 @@ async function fetchDashboardStatsFromDB(
             messages: {
               orderBy: { timestamp: 'desc' },
               take: 1,
-              select: { content: true, timestamp: true },
+              select: { content: true, contentEn: true, timestamp: true },
             },
             orders: {
               where: { status: { notIn: ['delivered', 'cancelled'] } },
@@ -498,7 +498,7 @@ async function fetchDashboardStatsFromDB(
       id: conv.id,
       customerName,
       customerPhone: conv.customer.phone,
-      lastMessage: lastMessage?.content || '',
+      lastMessage: lastMessage?.contentEn ?? lastMessage?.content ?? '',
       minutesSinceLastMessage,
       hasActiveOrder: !!activeOrder,
       orderStatus: activeOrder?.status,

@@ -119,6 +119,9 @@ model Message {
   conversationId        String
   senderType            String
   content               String
+  /// Vendor-portal English (translated / transliterated). Original WhatsApp /
+  /// transcript / bot text stays in `content`. Not a reuse of `normalizedContent`.
+  contentEn             String?
   type                  MessageType
   timestamp             DateTime              @default(now())
   aiTokensUsed          Int                   @default(0)

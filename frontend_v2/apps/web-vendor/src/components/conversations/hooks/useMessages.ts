@@ -77,12 +77,12 @@ export function useMessages({
   // ~20+ minutes) — a message already loaded into state with media still
   // `pending` never otherwise gets refreshed, so it's stuck on a placeholder
   // until the vendor reloads the whole conversation. This patches the
-  // `media`/`status`/`content` fields of already-loaded messages once their
-  // media fetch completes, piggybacking on the existing polling tick.
-  // `content` matters for audio: the Whisper transcript overwrites it
-  // server-side in the same pass that flips media.state to 'ready', so it
-  // must be refreshed here too or the transcript never appears without a
-  // full reload.
+  // `media`/`status`/`content`/`contentEn` fields of already-loaded messages
+  // once their media fetch completes, piggybacking on the existing polling tick.
+  // `content` and `contentEn` matter for audio: Whisper overwrites `content`
+  // server-side in the same pass that flips media.state to 'ready', and the
+  // vendor English transcript lands on `contentEn` — both must be refreshed
+  // here or they never appear without a full reload.
   const refreshPendingMedia = useCallback(async () => {
     if (!conversationId || isRefreshingMediaRef.current) return;
 
@@ -109,7 +109,7 @@ export function useMessages({
         prev.map((m) => {
           const fresh = updatesById.get(m.id);
           if (!fresh) return m;
-          return { ...m, media: fresh.media, status: fresh.status, content: fresh.content };
+          return { ...m, media: fresh.media, status: fresh.status, content: fresh.content, contentEn: fresh.contentEn };
         }),
       );
     } catch (err) {

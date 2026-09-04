@@ -19,6 +19,7 @@ import { triggerHandoff } from './handoff.js';
 import { notifyVendorOfPostSalesEvent } from './postSalesAlert.js';
 import { WALLET_EMPTY_TEMPLATE } from './templates.js';
 import { logStage, logLatency, logCount } from './metrics.js';
+import { ensureMessageContentEn, normalizeSetFieldOps } from '../utils/vendorEnglish.js';
 import type { CartOp, CartSnapshot, PostSalesOutcome } from './types.js';
 
 /** Deterministic customer-facing copy for a refund/cancel outcome — never LLM-authored (same reasoning as the handoff short-circuit: money/eligibility facts must not go through a free-text model). */
@@ -211,7 +212,16 @@ export async function processMessage(input: ProcessMessageInput): Promise<void> 
     // Still ensures the customer Message row exists -- a no-op when the
     // webhook already created it, the only path (today) that creates it
     // when it hasn't (the legacy Express route without the parity flag).
-    await upsertInboundMessage({ vendorId, conversationId, customerId, content: input.content, whatsappMessageId: input.whatsappMessageId });
+    const { messageId: inboundMessageId } = await upsertInboundMessage({
+      vendorId,
+      conversationId,
+      customerId,
+      content: input.content,
+      whatsappMessageId: input.whatsappMessageId
+    });
+    void ensureMessageContentEn(inboundMessageId, input.content).catch((error) => {
+      logger.warn({ err: error, traceId, vendorId, conversationId, messageId: inboundMessageId }, 'ensureMessageContentEn failed for inbound message');
+    });
 
     // Guards (§7 step 3), before any paid LLM call.
     const conversation = await prisma.conversation.findUnique({ where: { id: conversationId }, select: { aiPaused: true } });
@@ -258,6 +268,8 @@ export async function processMessage(input: ProcessMessageInput): Promise<void> 
       model: llm1Result.model
     });
 
+    const normalizedOps = await normalizeSetFieldOps(llm1Result.ops);
+
     // Step 5: CartEngine.apply -- the model never writes Order.items directly.
     let applyResult;
     try {
@@ -266,7 +278,7 @@ export async function processMessage(input: ProcessMessageInput): Promise<void> 
         conversationId,
         customerId,
         orderId: hotSet.pendingOrder?.orderId ?? null,
-        ops: llm1Result.ops,
+        ops: normalizedOps,
         traceId
       });
     } catch (error) {

@@ -21,7 +21,8 @@
     "lambda:list": "cross-env NODE_ENV=production node --loader ts-node/esm --experimental-specifier-resolution=node ./scripts/deploy-lambda.ts --list",
     "monitor:db-failures": "cross-env NODE_ENV=production node --loader ts-node/esm --experimental-specifier-resolution=node ./scripts/monitor-db-failures.ts",
     "test": "vitest run",
-    "test:intent-classification": "tsx scripts/test-intent-classification.ts"
+    "test:intent-classification": "tsx scripts/test-intent-classification.ts",
+    "backfill:vendor-english": "tsx scripts/backfill-vendor-english.ts"
   },
   "dependencies": {
     "@aws-sdk/client-cloudwatch": "^3.917.0",

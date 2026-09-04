@@ -8,6 +8,7 @@ import { prisma } from '../db/prisma.js';
 import { StepLogger } from '../logger.js';
 import { emitMetric, emitDuration } from '../observability/metrics.js';
 import { getWaMediaS3Client } from '../utils/waMediaS3.js';
+import { ensureMessageContentEn } from '../utils/vendorEnglish.js';
 
 export interface MediaFetchJob {
   type: 'MediaFetchJob';
@@ -291,6 +292,11 @@ async function handoffAfterFetch(
       where: { id: job.messageId },
       data: { content: transcript }
     });
+    void ensureMessageContentEn(job.messageId, transcript).catch((err) => {
+      stepLogger.warn('ensureMessageContentEn failed for audio transcript', {
+        err: err instanceof Error ? err.message : String(err)
+      });
+    });
     await publishToQueue(env.AUDIO_QUEUE_URL, {
       type: 'TextMessage',
       messageId: job.messageId,
@@ -333,6 +339,29 @@ async function handoffAfterFetch(
     });
   }
   // Other media types (video/document/sticker): no AI handoff today.
+}
+
+async function ensureCaptionContentEn(
+  messageId: string,
+  caption: string | null | undefined,
+  stepLogger: StepLogger
+): Promise<void> {
+  let text = (caption ?? '').trim();
+  if (!text) {
+    const row = await prisma.message.findUnique({
+      where: { id: messageId },
+      select: { content: true }
+    });
+    text = (row?.content ?? '').trim();
+  }
+  if (!text) return;
+  try {
+    await ensureMessageContentEn(messageId, text);
+  } catch (err) {
+    stepLogger.warn('ensureMessageContentEn failed for media caption', {
+      err: err instanceof Error ? err.message : String(err)
+    });
+  }
 }
 
 export type ProcessJobOutcome = 'success' | 'terminal' | 'noop' | { retryAfterSeconds: number };
@@ -421,6 +450,7 @@ export async function processJob(job: MediaFetchJob, stepLogger: StepLogger): Pr
     // we don't want a Whisper hiccup to redownload the audio from WhatsApp.
     try {
       await handoffAfterFetch(job, bytes, effectiveMime, media.caption, stepLogger);
+      await ensureCaptionContentEn(job.messageId, media.caption, stepLogger);
     } catch (handoffErr) {
       stepLogger.warn('Post-fetch handoff failed; media remains in S3', {
         err: handoffErr instanceof Error ? handoffErr.message : String(handoffErr)

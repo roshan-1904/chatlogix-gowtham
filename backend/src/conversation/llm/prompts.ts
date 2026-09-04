@@ -190,6 +190,9 @@ function buildStaticBlock(hotSet: HotSet): string {
     '- NEVER invent a delivery date, ETA, or "arrives on X" — only the vendor sets that after confirming. Use neutral prep-timing language instead.'
   );
   parts.push('- Keep catalog product names exactly as written above — do not translate brand/product names.');
+  parts.push(
+    '- For set_field ops (name, address, notes, delivery_date): always emit "value" in English / Latin script — transliterate personal and place names (e.g. Raji, Coimbatore); never use native Tamil/Devanagari/etc. script in set_field values.'
+  );
   parts.push('- draftReply must be no more than about 120 words.');
   parts.push(
     "- Reply in the same language/script as the customer's latest message (English, Tamil, Hindi, Tanglish/Hinglish, or a natural mix)."

@@ -10,6 +10,7 @@ import {
 import { requireVendorAccess } from '../middleware/authorize.js';
 import { publishToQueue } from '../queue/sqsClient.js';
 import { env } from '../config/env.js';
+import { ensureMessageContentEn } from '../utils/vendorEnglish.js';
 
 export const conversationsRouter = express.Router();
 
@@ -142,6 +143,10 @@ conversationsRouter.post(
       })
     ]);
 
+    void ensureMessageContentEn(message.id, content.trim()).catch(() => {
+      // Non-blocking — vendor typed English is a no-op; translation failure is acceptable.
+    });
+
     // Queue message to WhatsApp response queue
     await publishToQueue(env.RESPONSE_QUEUE_URL, {
       to: conversation.customer.phone,
@@ -164,7 +169,7 @@ export const enrichedInclude = (includeStatusHistory: boolean) => ({
   media: true,
   reactions: { where: { active: true } },
   replyToMessage: {
-    select: { id: true, content: true, type: true, senderType: true, timestamp: true }
+    select: { id: true, content: true, contentEn: true, type: true, senderType: true, timestamp: true }
   },
   statusEvents: includeStatusHistory
     ? ({ orderBy: { occurredAt: 'asc' as const } } as const)
@@ -206,7 +211,8 @@ export function shapeMessage(row: any): any {
   let replyTo: any = null;
   if (row.replyToMessage) {
     const r = row.replyToMessage;
-    const preview = (r.content ?? '').slice(0, REPLY_PREVIEW_CHARS);
+    const previewSource = r.contentEn ?? r.content ?? '';
+    const preview = previewSource.slice(0, REPLY_PREVIEW_CHARS);
     replyTo = {
       id: r.id,
       contentPreview: preview,

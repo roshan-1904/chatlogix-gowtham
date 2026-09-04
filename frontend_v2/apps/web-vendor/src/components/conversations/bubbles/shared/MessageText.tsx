@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import {
+  dualLanguageDisplay,
   splitEmojiAndText,
   standaloneEmojiClass,
   standaloneEmojiCount,
@@ -46,3 +47,32 @@ function MessageTextComponent({ text, className = '' }: MessageTextProps) {
 }
 
 export const MessageText = memo(MessageTextComponent);
+
+interface DualLanguageMessageTextProps {
+  readonly original: string;
+  readonly contentEn?: string | null;
+  readonly className?: string;
+}
+
+function DualLanguageMessageTextComponent({
+  original,
+  contentEn,
+  className = '',
+}: DualLanguageMessageTextProps) {
+  const display = dualLanguageDisplay(original, contentEn);
+
+  if (!display.dual) {
+    return <MessageText text={display.text} className={className} />;
+  }
+
+  return (
+    <span className="block">
+      <MessageText text={display.english} className={className} />
+      <span className="mt-0.5 block text-[12px] leading-[1.4] text-[#667781]">
+        <MessageText text={display.original} />
+      </span>
+    </span>
+  );
+}
+
+export const DualLanguageMessageText = memo(DualLanguageMessageTextComponent);

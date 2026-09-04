@@ -271,6 +271,7 @@ async function getVendorConversationsWithMeta(options: {
         select: {
           id: true,
           content: true,
+          contentEn: true,
           timestamp: true,
           senderType: true,
           type: true,
@@ -318,6 +319,7 @@ async function getVendorConversationsWithMeta(options: {
       ? {
           id: lastRaw.id,
           content: lastRaw.content,
+          contentEn: lastRaw.contentEn,
           timestamp: lastRaw.timestamp,
           senderType: lastRaw.senderType,
           type: lastRaw.type,

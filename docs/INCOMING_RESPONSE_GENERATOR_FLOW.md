@@ -10,7 +10,7 @@
 | **Consumes** | `TEXT_QUEUE_URL` (`type: TextMessage` only) |
 | **Publishes** | `RESPONSE_QUEUE_URL` (finished customer text) |
 | **Design spec** | `docs/CONVERSATION_PROCESSOR_LAMBDA.md` (locked design; this file follows the **code**) |
-| **Last verified** | 2026-09-04 against `backend/src/conversation/` (updated same day for the phantom-mutation backstop in §9) |
+| **Last verified** | 2026-09-04 against `backend/src/conversation/` (vendor English display: `contentEn` + set_field normalization) |
 
 **SLA clock:** Lambda start → successful `publishToQueue(RESPONSE_QUEUE_URL)`. Targets: p90 ≤ 5s, p95 ≤ 10s, p99 ≤ 15s. Meta delivery time is out of scope.
 
@@ -39,6 +39,7 @@
 | Debit after enqueue | `backend/src/conversation/billing.ts` |
 | Guard templates | `backend/src/conversation/templates.ts` |
 | Shared types | `backend/src/conversation/types.ts` |
+| Vendor English display | `backend/src/utils/vendorEnglish.ts` |
 | Webhook enqueue | `backend/src/lambdas/handlers/webhookHandler.ts` |
 
 ---
@@ -100,9 +101,10 @@ flowchart TD
   STASH --> RETRY[throw → SQS retry]
   LOCK -->|LockUnavailable Redis down| RETRY
   LOCK -->|OK| INB[3. upsertInboundMessage<br/>unique whatsappMessageId]
+  INB --> EN[3b. ensureMessageContentEn<br/>fire-and-forget → Message.contentEn]
 
-  INB -->|already exists| DUP[Success exit<br/>already processed, no second reply]
-  INB -->|new row| PAUSED{4. conversation.aiPaused?}
+  EN -->|already exists| DUP[Success exit<br/>already processed, no second reply]
+  EN -->|new row| PAUSED{4. conversation.aiPaused?}
 
   PAUSED -->|yes| STORE[Inbound stored, no LLM, no debit, no reply<br/>vendor answers in dashboard]
   PAUSED -->|no| CREDIT{5. canProcessMessage wallet?}
@@ -113,7 +115,8 @@ flowchart TD
   BURST --> TYPING[7. sendTypingIndicator fire-and-forget]
   TYPING --> PRE[8. prefetchHotSet in parallel]
   PRE --> LLM1[9. LLM-1: ops + draftReply]
-  LLM1 --> CART[10. CartEngine.apply in one Postgres txn]
+  LLM1 --> NORM[9b. normalizeSetFieldOps<br/>name/address/notes → English/Latin]
+  NORM --> CART[10. CartEngine.apply in one Postgres txn]
   CART --> BRANCH{11. Which reply path?}
 
   BRANCH -->|ops contains handoff| HO[triggerHandoff<br/>pause AI + canned customer copy]
@@ -254,7 +257,7 @@ Ops:
 | `add` | Sum qty onto that `productId` (+ `variantSku`) |
 | `set_qty` | Absolute qty; `0` removes |
 | `remove` | Drop the line |
-| `set_field` | `name` / `address` / `notes` / `delivery_date` (advisory only; never a promised ETA) |
+| `set_field` | `name` / `address` / `notes` / `delivery_date` (advisory only; never a promised ETA). **Values must be English/Latin script** — LLM-1 is prompted accordingly, and `normalizeSetFieldOps` transliterates before CartEngine so `CustomerInsights` / `Order` stay English-only for the vendor portal. |
 | `confirm` | Customer confirmed — engine still requires name + address + items |
 | `cancel` | Live cart, or a past order via `orderNumber` |
 | `refund_request` | Engine decides eligibility |
@@ -272,7 +275,8 @@ flowchart TD
   API --> PARSE[JSON.parse → Llm1Result]
   PARSE --> VAL[validateProductIds vs compactCatalog]
   VAL --> DROP[drop unknown productId ops]
-  DROP --> OUT[ops + draftReply + confidence + needsVerify]
+  DROP --> NORM[normalizeSetFieldOps for set_field values]
+  NORM --> OUT[ops + draftReply + confidence + needsVerify]
 ```
 
 The model must not emit a full cart JSON list. It proposes **deltas**. Postgres is the only source of truth (I1).
@@ -373,7 +377,8 @@ Order rows are already written by CartEngine. `finalizeTurn` is the back half.
 ```mermaid
 flowchart TD
   FT[finalizeTurn] --> P[persistTurn transaction]
-  P --> M[create assistant Message]
+  P --> M[create assistant Message content=finalText]
+  M --> EN2[ensureMessageContentEn → contentEn if needed]
   P --> I[upsert CustomerInsights name/address/language]
   P --> MEM[upsert ConversationMemory stage + turn++]
   P --> MP[upsert MessageProcessing status=applied]
@@ -387,7 +392,14 @@ flowchart TD
   LOG --> DONE
 ```
 
-Response payload includes `phoneNumberId` and `messageId` (assistant row) so the dispatcher uses the right WABA number and can mark delivery.
+Response payload includes `phoneNumberId` and `messageId` (assistant row) so the dispatcher uses the right WABA number and can mark delivery. **`contentEn` is never sent to the customer** — only `finalText` (original language) goes on `RESPONSE_QUEUE`.
+
+### Vendor portal English (`Message.contentEn`)
+
+- **Inbound customer text:** after `upsertInboundMessage`, `ensureMessageContentEn` writes `contentEn` asynchronously (including when `aiPaused` — inbound is stored but no LLM runs). Original stays in `content`; LLM-1 and the response queue always use the original.
+- **Assistant replies:** `persistTurn` sets `content` to `finalText` (customer language), then `ensureMessageContentEn` for the vendor thread.
+- **Media:** `mediaFetchProcessor` sets `contentEn` after Whisper transcripts and image/video/document captions (captions often never hit `TEXT_QUEUE`).
+- **Vendor typed send:** `POST /api/conversations/:id/messages` triggers the same helper after creating the row.
 
 Debit failure must not throw: the customer already has a reply on the way; SQS retry would re-run LLM-1/CartEngine. `reconcileStuckDebits` retries `MessageProcessing` rows that are `queued` with `debitedAt = null`.
 

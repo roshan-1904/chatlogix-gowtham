@@ -6,7 +6,7 @@ import { MediaPlaceholder } from './shared/MediaPlaceholder';
 import { AudioPlayer } from './shared/AudioPlayer';
 import { useAuthenticatedMedia } from './shared/useAuthenticatedMedia';
 import { getBubbleVariant } from './shared/bubbleChrome';
-import { MessageText } from './shared/MessageText';
+import { DualLanguageMessageText } from './shared/MessageText';
 
 interface AudioBubbleProps {
   readonly message: Message;
@@ -34,7 +34,7 @@ function AudioBubbleComponent({ message, onJumpToMessage }: AudioBubbleProps) {
             {t('audio.transcriptLabel')}
           </div>
           <div className="mt-0.5 whitespace-pre-wrap break-words text-[13px] text-[#3b4a54]">
-            <MessageText text={transcript} />
+            <DualLanguageMessageText original={transcript} contentEn={message.contentEn} />
           </div>
         </div>
       ) : null}

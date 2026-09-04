@@ -8,6 +8,21 @@ import { OrderQuickDetailsModal } from './modals/OrderQuickDetailsModal';
 import { useModal } from '../../hooks/useModal';
 import { navigateToOrderDetails } from '../../utils/navigation';
 
+function formatPreferredLanguage(code: string): string {
+  const labels: Record<string, string> = {
+    en: 'English',
+    hi: 'Hindi',
+    ta: 'Tamil',
+    te: 'Telugu',
+    kn: 'Kannada',
+    ml: 'Malayalam',
+    bn: 'Bengali',
+    mr: 'Marathi',
+    gu: 'Gujarati',
+  };
+  return labels[code.toLowerCase()] ?? code;
+}
+
 interface CustomerDetailsPanelProps {
   readonly conversation: Conversation;
   readonly customerInsights: CustomerInsights | null;
@@ -93,7 +108,7 @@ export function CustomerDetailsPanel({
               <div className="flex items-center justify-between">
                 <span className="text-gray-500">Language</span>
                 <span className="text-gray-900 text-sm">
-                  {customerInsights.preferredLanguage}
+                  {formatPreferredLanguage(customerInsights.preferredLanguage)}
                 </span>
               </div>
             )}

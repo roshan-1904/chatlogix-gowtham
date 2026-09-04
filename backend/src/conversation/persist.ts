@@ -2,6 +2,7 @@ import { prisma } from '../db/prisma.js';
 import { logger } from '../logger.js';
 import { calculateCost } from '../utils/costCalculator.js';
 import { invalidateCustomerContext } from './prefetch.js';
+import { ensureMessageContentEn } from '../utils/vendorEnglish.js';
 import type { CartSnapshot } from './types.js';
 
 export interface PersistInput {
@@ -114,6 +115,13 @@ export async function persistTurn(input: PersistInput): Promise<PersistResult> {
   if (snapshot.customerName || snapshot.address) {
     await invalidateCustomerContext(customerId, vendorId, conversationId);
   }
+
+  void ensureMessageContentEn(assistantMessage.id, finalText).catch((error) => {
+    logger.warn(
+      { err: error, traceId: whatsappMessageId, vendorId, conversationId, assistantMessageId: assistantMessage.id },
+      'ensureMessageContentEn failed for assistant message'
+    );
+  });
 
   logger.info(
     { traceId: whatsappMessageId, vendorId, conversationId, assistantMessageId: assistantMessage.id, intent, stage },

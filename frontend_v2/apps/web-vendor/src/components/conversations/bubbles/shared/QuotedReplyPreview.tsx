@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { vendorSnippet } from '../../utils/vendorDisplayText';
 import type { MessageReplyPreview } from '../../types';
 import type { BubbleVariant } from './bubbleChrome';
 
@@ -36,7 +37,9 @@ function QuotedReplyPreviewComponent({ replyTo, variant, onJumpTo }: QuotedReply
         {t('reply.previewLabel', { sender: senderLabel })}
       </div>
       <div className="truncate text-[#3b4a54]">
-        {isMissing ? t('reply.missing') : replyTo.contentPreview || t('reply.missing')}
+        {isMissing
+          ? t('reply.missing')
+          : vendorSnippet(replyTo.contentPreview, replyTo.contentEn) || t('reply.missing')}
       </div>
     </button>
   );

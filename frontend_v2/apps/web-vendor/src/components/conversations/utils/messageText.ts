@@ -44,3 +44,23 @@ export function standaloneEmojiClass(count: number): string {
   if (count <= 6) return 'chat-emoji-lg text-[1.65rem]';
   return 'chat-emoji-lg text-[1.45em]';
 }
+
+export type DualLanguageDisplay =
+  | { dual: false; text: string }
+  | { dual: true; english: string; original: string };
+
+/**
+ * Thread copy: English first + original underneath only when `contentEn` is
+ * present, non-empty, and distinct from the original. Otherwise a single line.
+ */
+export function dualLanguageDisplay(
+  original: string,
+  contentEn?: string | null,
+): DualLanguageDisplay {
+  const english = contentEn?.trim() ?? '';
+  const origTrimmed = original.trim();
+  if (english && origTrimmed && english !== origTrimmed) {
+    return { dual: true, english, original };
+  }
+  return { dual: false, text: original };
+}

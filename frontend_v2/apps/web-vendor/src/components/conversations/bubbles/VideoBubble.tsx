@@ -4,7 +4,7 @@ import { MessageShell } from './MessageShell';
 import { MediaPlaceholder } from './shared/MediaPlaceholder';
 import { useAuthenticatedMedia } from './shared/useAuthenticatedMedia';
 import { useMediaGallery } from '../MediaGalleryContext';
-import { MessageText } from './shared/MessageText';
+import { DualLanguageMessageText } from './shared/MessageText';
 
 interface VideoBubbleProps {
   readonly message: Message;
@@ -59,7 +59,7 @@ function VideoBubbleComponent({ message, onJumpToMessage }: VideoBubbleProps) {
       )}
       {caption ? (
         <div className="px-1.5 pt-1.5 whitespace-pre-wrap break-words text-[14.2px] leading-[1.55]">
-          <MessageText text={caption} />
+          <DualLanguageMessageText original={caption} contentEn={message.contentEn} />
         </div>
       ) : null}
     </MessageShell>

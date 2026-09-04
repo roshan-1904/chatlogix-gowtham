@@ -24,8 +24,12 @@ vi.mock('../../logger.js', () => ({
 }));
 
 const invalidateCustomerContext = vi.fn();
+const ensureMessageContentEn = vi.fn();
 vi.mock('../prefetch.js', () => ({
   invalidateCustomerContext: (...args: unknown[]) => invalidateCustomerContext(...args)
+}));
+vi.mock('../../utils/vendorEnglish.js', () => ({
+  ensureMessageContentEn: (...args: unknown[]) => ensureMessageContentEn(...args)
 }));
 
 import { persistTurn } from '../persist.js';
@@ -54,6 +58,7 @@ beforeEach(() => {
   customerInsightsUpsert.mockResolvedValue({});
   conversationMemoryUpsert.mockResolvedValue({});
   messageProcessingUpsert.mockResolvedValue({});
+  ensureMessageContentEn.mockResolvedValue(undefined);
 });
 
 describe('persistTurn', () => {
@@ -216,5 +221,23 @@ describe('persistTurn', () => {
     expect(call.where).toEqual({ whatsappMessageId: 'wamid.7' });
     expect(call.update.status).toBe('applied');
     expect(call.create.status).toBe('applied');
+  });
+
+  it('keeps assistant content as finalText (customer language) and triggers contentEn when needed', async () => {
+    const tamilReply = 'உங்கள் ஆர்டர் சேர்க்கப்பட்டது';
+    await persistTurn({
+      vendorId: VENDOR_ID,
+      conversationId: CONVERSATION_ID,
+      customerId: CUSTOMER_ID,
+      snapshot: snapshot(),
+      finalText: tamilReply,
+      language: 'ta',
+      intent: 'order_item',
+      tokenMeta: { model: 'gpt-4.1-mini', promptTokens: 1, completionTokens: 1 },
+      whatsappMessageId: 'wamid.10'
+    });
+
+    expect(messageCreate.mock.calls[0][0].data.content).toBe(tamilReply);
+    expect(ensureMessageContentEn).toHaveBeenCalledWith('assistant-msg-1', tamilReply);
   });
 });

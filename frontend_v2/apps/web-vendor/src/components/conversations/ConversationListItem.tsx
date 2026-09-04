@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { formatPhone, formatTime, truncateMessage } from '../../lib/format';
 import type { Conversation, Message, MessageType } from './types';
 import { calculateConversationBadges } from './utils/ConversationInsights';
+import { vendorSnippet } from './utils/vendorDisplayText';
 import { InsightBadge } from './InsightBadge';
 import { useAuthenticatedMedia } from './bubbles/shared/useAuthenticatedMedia';
 import { getAvatarClasses, getInitials } from './utils/avatar';
@@ -91,7 +92,7 @@ function LastMessagePreview({
   const { objectUrl } = useAuthenticatedMedia(wantsThumb ? mediaUrl : null);
 
   const typeLabelKey = listPreviewKey(message.type);
-  const caption = message.content.trim();
+  const caption = vendorSnippet(message.content, message.contentEn);
   const text = caption
     ? truncateMessage(caption, 42)
     : typeLabelKey

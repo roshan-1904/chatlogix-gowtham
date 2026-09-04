@@ -5,8 +5,9 @@ import type { Message } from '../types';
 import { StatusTick } from './shared/StatusTick';
 import { ReactionChips } from './shared/ReactionChips';
 import { QuotedReplyPreview } from './shared/QuotedReplyPreview';
-import { MessageText } from './shared/MessageText';
+import { DualLanguageMessageText } from './shared/MessageText';
 import { standaloneEmojiCount } from '../utils/messageText';
+import { showDualLanguage } from '../utils/vendorDisplayText';
 import {
   bubbleAlignClass,
   bubbleCornerClass,
@@ -53,7 +54,7 @@ function TextBubbleComponent({ message, onJumpToMessage }: TextBubbleProps) {
 
   useEffect(() => {
     checkIfSingleLine();
-  }, [checkIfSingleLine, message.content]);
+  }, [checkIfSingleLine, message.content, message.contentEn]);
 
   useEffect(() => {
     const handleResize = () => checkIfSingleLine();
@@ -62,14 +63,16 @@ function TextBubbleComponent({ message, onJumpToMessage }: TextBubbleProps) {
   }, [checkIfSingleLine]);
 
   const content = stripHtml(message.content);
+  const contentEn = message.contentEn != null ? stripHtml(message.contentEn) : message.contentEn;
+  const isDual = showDualLanguage(content, contentEn);
   const timestamp = formatMessageTime(message.timestamp);
 
   const isPending =
     !isIncoming && (message.status === 'pending' || message.status === 'processing');
 
   const hasReply = Boolean(message.replyTo);
-  const emojiOnly = standaloneEmojiCount(content) > 0;
-  const useInline = !hasReply && !emojiOnly && showTimestampInline;
+  const emojiOnly = !isDual && standaloneEmojiCount(content) > 0;
+  const useInline = !hasReply && !emojiOnly && !isDual && showTimestampInline;
   const metaClass = bubbleMetaClass();
 
   const timestampRow = (
@@ -105,21 +108,21 @@ function TextBubbleComponent({ message, onJumpToMessage }: TextBubbleProps) {
         {emojiOnly ? (
           <div className="flex items-end gap-1.5">
             <span className="min-w-min max-w-full overflow-visible">
-              <MessageText text={content} />
+              <DualLanguageMessageText original={content} contentEn={contentEn} />
             </span>
             {timestampRow}
           </div>
         ) : useInline ? (
           <span className="inline-flex items-end flex-wrap gap-x-1.5">
             <span className="whitespace-pre-wrap break-words">
-              <MessageText text={content} />
+              <DualLanguageMessageText original={content} contentEn={contentEn} />
             </span>
             {timestampRow}
           </span>
         ) : (
           <>
             <div ref={textRef} className="whitespace-pre-wrap break-words">
-              <MessageText text={content} />
+              <DualLanguageMessageText original={content} contentEn={contentEn} />
             </div>
             <span className="absolute bottom-1 right-2">{timestampRow}</span>
           </>

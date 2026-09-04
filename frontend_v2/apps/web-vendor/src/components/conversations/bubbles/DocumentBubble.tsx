@@ -5,7 +5,7 @@ import { MessageShell } from './MessageShell';
 import { MediaPlaceholder } from './shared/MediaPlaceholder';
 import { useAuthenticatedMedia } from './shared/useAuthenticatedMedia';
 import { innerCardClass } from './shared/bubbleChrome';
-import { MessageText } from './shared/MessageText';
+import { DualLanguageMessageText } from './shared/MessageText';
 
 interface DocumentBubbleProps {
   readonly message: Message;
@@ -73,7 +73,7 @@ function DocumentBubbleComponent({ message, onJumpToMessage }: DocumentBubblePro
       </a>
       {media?.caption ? (
         <div className="mt-1.5 whitespace-pre-wrap break-words">
-          <MessageText text={media.caption} />
+          <DualLanguageMessageText original={media.caption} contentEn={message.contentEn} />
         </div>
       ) : null}
     </MessageShell>

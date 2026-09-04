@@ -32,7 +32,9 @@ const {
   triggerHandoffMock,
   notifyVendorNewOrderMock,
   notifyVendorOfPostSalesEventMock,
-  sendTypingIndicatorMock
+  sendTypingIndicatorMock,
+  ensureMessageContentEnMock,
+  normalizeSetFieldOpsMock
 } = vi.hoisted(() => {
   class MockLockContentionError extends Error {}
   class MockLockUnavailableError extends Error {}
@@ -64,7 +66,9 @@ const {
     triggerHandoffMock: vi.fn(),
     notifyVendorNewOrderMock: vi.fn(),
     notifyVendorOfPostSalesEventMock: vi.fn(),
-    sendTypingIndicatorMock: vi.fn()
+    sendTypingIndicatorMock: vi.fn(),
+    ensureMessageContentEnMock: vi.fn(),
+    normalizeSetFieldOpsMock: vi.fn()
   };
 });
 
@@ -117,6 +121,10 @@ vi.mock('../../services/whatsappTemplateService.js', () => ({
 }));
 vi.mock('../../services/whatsappClient.js', () => ({
   sendTypingIndicator: (...args: unknown[]) => sendTypingIndicatorMock(...args)
+}));
+vi.mock('../../utils/vendorEnglish.js', () => ({
+  ensureMessageContentEn: (...args: unknown[]) => ensureMessageContentEnMock(...args),
+  normalizeSetFieldOps: (...args: unknown[]) => normalizeSetFieldOpsMock(...args)
 }));
 
 import { finalizeTurn, processMessage } from '../pipeline.js';
@@ -271,6 +279,8 @@ describe('processMessage', () => {
     notifyVendorNewOrderMock.mockResolvedValue({ success: true, queued: true });
     sendTypingIndicatorMock.mockResolvedValue({ ok: true });
     notifyVendorOfPostSalesEventMock.mockResolvedValue(undefined);
+    normalizeSetFieldOpsMock.mockImplementation(async (ops: unknown[]) => ops);
+    ensureMessageContentEnMock.mockResolvedValue(undefined);
   });
 
   it('fires read+typing after guards pass, before prefetch/LLM-1', async () => {
@@ -423,11 +433,26 @@ describe('processMessage', () => {
 
     await processMessage(rawInput);
 
+    expect(ensureMessageContentEnMock).toHaveBeenCalledWith('inbound-msg-1', rawInput.content);
     expect(runLlm1Mock).not.toHaveBeenCalled();
     expect(publishToQueueMock).not.toHaveBeenCalled();
     expect(debitAfterEnqueueMock).not.toHaveBeenCalled();
     expect(releaseLockMock).toHaveBeenCalled();
     expect(sendTypingIndicatorMock).not.toHaveBeenCalled();
+  });
+
+  it('normalizes non-English set_field ops to English before CartEngine.apply', async () => {
+    const tamilOps = [{ type: 'set_field' as const, field: 'name' as const, value: 'ராஜி' }];
+    const englishOps = [{ type: 'set_field' as const, field: 'name' as const, value: 'Raji' }];
+    runLlm1Mock.mockResolvedValue({ ...llm1Result, ops: tamilOps });
+    normalizeSetFieldOpsMock.mockResolvedValue(englishOps);
+
+    await processMessage(rawInput);
+
+    expect(normalizeSetFieldOpsMock).toHaveBeenCalledWith(tamilOps);
+    expect(applyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ ops: englishOps })
+    );
   });
 
   it('wallet guard: publishes the templated reply, no LLM, no debit', async () => {

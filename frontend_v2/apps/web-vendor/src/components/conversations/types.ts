@@ -25,6 +25,11 @@ export type MediaFetchState = 'pending' | 'ready' | 'failed' | 'expired' | strin
 export interface MessageReplyPreview {
   id: string;
   contentPreview: string;
+  /**
+   * Vendor English for the quoted body, when the API sends it.
+   * Preview uses `contentEn ?? contentPreview`.
+   */
+  contentEn?: string | null;
   type: MessageType;
   senderType: string;
   timestamp: string;
@@ -62,6 +67,12 @@ export interface MessageStatusEvent {
 export interface Message {
   id: string;
   content: string;
+  /**
+   * Vendor-facing English (or Latin-script) rendering of `content`.
+   * Thread shows English first with the original underneath when this differs
+   * from `content`. List snippets use this when present.
+   */
+  contentEn?: string | null;
   timestamp: string;
   senderType: string;
   type: MessageType;
