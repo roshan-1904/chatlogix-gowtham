@@ -30,7 +30,8 @@
   "lightbox": {
     "close": "लाइटबॉक्स बंद करें",
     "previous": "पिछला मीडिया",
-    "next": "अगला मीडिया"
+    "next": "अगला मीडिया",
+    "counter": "{{total}} में से {{current}}"
   },
   "audio": {
     "play": "ऑडियो चलाएँ",

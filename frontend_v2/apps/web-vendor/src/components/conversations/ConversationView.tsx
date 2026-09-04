@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { useMessages } from './hooks/useMessages';
 import { ConversationHeader } from './ConversationHeader';
 import { MessageList } from './MessageList';
+import { MediaGalleryProvider } from './MediaGalleryContext';
 import type { Conversation } from './types';
 import { apiClient } from '../../lib/api';
 
@@ -66,18 +67,20 @@ export function ConversationView({
         onToggleAIPause={handleToggleAIPause}
       />
       <div className="flex-1 min-h-0 overflow-hidden">
-        <MessageList
-          messages={messages}
-          hasMore={hasMoreMessages}
-          isLoadingMore={isLoadingOlderMessages}
-          onLoadOlder={loadOlder}
-          error={messagesError}
-          onRetry={refreshMessages}
-          hasNewMessages={hasNewMessages}
-          newMessageCount={newMessageCount}
-          onLoadNewMessages={loadNewMessages}
-          isLoadingNew={isLoadingNew}
-        />
+        <MediaGalleryProvider messages={messages}>
+          <MessageList
+            messages={messages}
+            hasMore={hasMoreMessages}
+            isLoadingMore={isLoadingOlderMessages}
+            onLoadOlder={loadOlder}
+            error={messagesError}
+            onRetry={refreshMessages}
+            hasNewMessages={hasNewMessages}
+            newMessageCount={newMessageCount}
+            onLoadNewMessages={loadNewMessages}
+            isLoadingNew={isLoadingNew}
+          />
+        </MediaGalleryProvider>
       </div>
     </div>
   );

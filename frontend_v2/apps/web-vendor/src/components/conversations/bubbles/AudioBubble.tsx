@@ -3,6 +3,7 @@ import type { Message } from '../types';
 import { MessageShell } from './MessageShell';
 import { MediaPlaceholder } from './shared/MediaPlaceholder';
 import { AudioPlayer } from './shared/AudioPlayer';
+import { useAuthenticatedMedia } from './shared/useAuthenticatedMedia';
 
 interface AudioBubbleProps {
   readonly message: Message;
@@ -14,13 +15,14 @@ function AudioBubbleComponent({ message, onJumpToMessage }: AudioBubbleProps) {
   const tone: 'light' | 'dark' = isCustomer ? 'dark' : 'light';
   const media = message.media ?? null;
   const isReady = media?.state === 'ready' && Boolean(media.mediaUrl);
+  const { objectUrl, error } = useAuthenticatedMedia(isReady ? media?.mediaUrl : null);
 
   return (
     <MessageShell message={message} wide onJumpToMessage={onJumpToMessage}>
-      {isReady && media?.mediaUrl ? (
-        <AudioPlayer src={media.mediaUrl} durationSec={media.durationSec} tone={tone} />
+      {isReady && objectUrl && !error ? (
+        <AudioPlayer src={objectUrl} durationSec={media?.durationSec} tone={tone} />
       ) : (
-        <MediaPlaceholder state={media?.state ?? 'pending'} icon="audio" />
+        <MediaPlaceholder state={error ? 'failed' : media?.state ?? 'pending'} icon="audio" />
       )}
     </MessageShell>
   );

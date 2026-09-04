@@ -30,7 +30,8 @@
   "lightbox": {
     "close": "Close lightbox",
     "previous": "Previous media",
-    "next": "Next media"
+    "next": "Next media",
+    "counter": "{{current}} of {{total}}"
   },
   "audio": {
     "play": "Play audio",

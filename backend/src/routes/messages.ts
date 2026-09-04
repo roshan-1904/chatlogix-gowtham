@@ -1,6 +1,5 @@
 import express from 'express';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { prisma } from '../db/prisma.js';
 import {
   asyncHandlerWithContext,
@@ -14,8 +13,6 @@ import { logger } from '../logger.js';
 import { enrichedInclude, shapeMessage } from './conversations.js';
 
 export const messagesRouter = express.Router();
-
-const PRESIGNED_GET_EXPIRY_SECONDS = 15 * 60;
 
 let s3Client: S3Client | null = null;
 
@@ -37,7 +34,14 @@ function getMediaS3Client(): S3Client {
   return s3Client;
 }
 
-// GET /api/messages/:id/media - Redirect to a fresh pre-signed S3 URL for the message media
+// GET /api/messages/:id/media - Stream the message media from S3.
+//
+// This is fetched from the vendor dashboard via `fetch()` + a Bearer token
+// (an <img>/<video>/<audio> element can't attach that header, so the client
+// turns the response into a blob: URL - see useAuthenticatedMedia.ts on the
+// frontend). Streaming the bytes here, rather than 302-redirecting to a
+// presigned S3 URL, keeps that fetch same-origin so it isn't at the mercy of
+// the media bucket's CORS configuration.
 messagesRouter.get(
   '/:id/media',
   asyncHandlerWithContext(async (req: any, res: any) => {
@@ -97,20 +101,11 @@ messagesRouter.get(
       );
     }
 
-    const command = new GetObjectCommand({
-      Bucket: bucket,
-      Key: media.s3Key,
-      ...(media.mimeType ? { ResponseContentType: media.mimeType } : {}),
-      ...(media.filename
-        ? { ResponseContentDisposition: `inline; filename="${media.filename.replace(/"/g, '')}"` }
-        : {})
-    });
-
-    let signedUrl: string;
+    let s3Response;
     try {
-      signedUrl = await getSignedUrl(getMediaS3Client(), command, {
-        expiresIn: PRESIGNED_GET_EXPIRY_SECONDS
-      });
+      s3Response = await getMediaS3Client().send(
+        new GetObjectCommand({ Bucket: bucket, Key: media.s3Key })
+      );
     } catch (err: any) {
       logger.error(
         {
@@ -119,18 +114,46 @@ messagesRouter.get(
           bucket,
           s3Key: media.s3Key
         },
-        'wa_media_presign_get_failed'
+        'wa_media_fetch_failed'
       );
       throw new CustomError(
-        'Failed to generate media URL',
+        'Failed to fetch media',
         503,
         ErrorType.SYSTEM,
         ErrorSeverity.HIGH
       );
     }
 
+    const body = s3Response.Body as unknown as NodeJS.ReadableStream | undefined;
+    if (!body) {
+      res.status(502).end();
+      return;
+    }
+
     res.setHeader('Cache-Control', 'no-store');
-    res.redirect(302, signedUrl);
+    res.setHeader(
+      'Content-Type',
+      media.mimeType || s3Response.ContentType || 'application/octet-stream'
+    );
+    if (typeof s3Response.ContentLength === 'number') {
+      res.setHeader('Content-Length', String(s3Response.ContentLength));
+    }
+    if (media.filename) {
+      res.setHeader(
+        'Content-Disposition',
+        `inline; filename="${media.filename.replace(/"/g, '')}"`
+      );
+    }
+
+    body.on('error', (err: Error) => {
+      logger.error({ err, messageId }, 'wa_media_stream_failed');
+      if (!res.headersSent) {
+        res.status(502);
+      }
+      res.end();
+    });
+
+    body.pipe(res);
   }, ErrorType.AUTHORIZATION, ErrorSeverity.MEDIUM)
 );
 

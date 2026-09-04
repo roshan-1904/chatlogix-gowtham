@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { Message } from '../types';
 import { MessageShell } from './MessageShell';
 import { MediaPlaceholder } from './shared/MediaPlaceholder';
+import { useAuthenticatedMedia } from './shared/useAuthenticatedMedia';
 
 interface DocumentBubbleProps {
   readonly message: Message;
@@ -26,11 +27,12 @@ function DocumentBubbleComponent({ message, onJumpToMessage }: DocumentBubblePro
   const isCustomer = message.senderType === 'customer';
   const media = message.media ?? null;
   const isReady = media?.state === 'ready' && Boolean(media.mediaUrl);
+  const { objectUrl, error } = useAuthenticatedMedia(isReady ? media?.mediaUrl : null);
 
-  if (!isReady) {
+  if (!isReady || !objectUrl || error) {
     return (
       <MessageShell message={message} wide onJumpToMessage={onJumpToMessage}>
-        <MediaPlaceholder state={media?.state ?? 'pending'} icon="document" />
+        <MediaPlaceholder state={error ? 'failed' : media?.state ?? 'pending'} icon="document" />
       </MessageShell>
     );
   }
@@ -42,7 +44,7 @@ function DocumentBubbleComponent({ message, onJumpToMessage }: DocumentBubblePro
   return (
     <MessageShell message={message} wide onJumpToMessage={onJumpToMessage}>
       <a
-        href={media?.mediaUrl ?? '#'}
+        href={objectUrl}
         target="_blank"
         rel="noopener noreferrer"
         download={filename}
