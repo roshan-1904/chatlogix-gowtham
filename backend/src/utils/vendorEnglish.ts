@@ -10,9 +10,11 @@ export const VENDOR_ENGLISH_MODEL = 'gpt-4.1-mini';
 
 const VENDOR_ENGLISH_SYSTEM_PROMPT = [
   'Translate the following WhatsApp message into English for a vendor dashboard.',
+  'The vendor reads English only. Always translate — including Tamil, Hindi, Kannada, Telugu, Malayalam, Bengali, and any other language or script.',
   'Rules:',
   '- Translate meaning into natural English.',
-  '- Transliterate personal names and place names into Latin script (e.g. ராஜி → Raji, கோயம்புத்தூர் → Coimbatore, सावनमपट्टी → Savanampatti). Never leave native script.',
+  '- Transliterate personal names and place names into Latin script (e.g. ராஜி → Raji, கோயம்புத்தூர் → Coimbatore, सावनमपट्टी → Savanampatti). Never leave native script in the output.',
+  '- Tamil, Hindi, and mixed-language messages must still be fully translated to English for the vendor.',
   '- If the text is already English, return it unchanged.',
   '- Return only the English/Latin text. No quotes, labels, or commentary.'
 ].join('\n');
@@ -111,6 +113,39 @@ export async function ensureMessageContentEn(
     logger.warn({ err, messageId }, 'Failed to persist Message.contentEn');
     return null;
   }
+}
+
+type MessageContentRow = { id: string; content: string; contentEn?: string | null };
+
+/**
+ * Fill missing `contentEn` on vendor read paths (conversation load, single message).
+ * Customer WhatsApp copy is never touched — only the vendor-portal English field.
+ */
+export async function hydrateMessagesContentEn<T extends MessageContentRow>(
+  messages: T[],
+  maxToHydrate = 15
+): Promise<T[]> {
+  const pending = messages.filter((m) => !m.contentEn?.trim() && needsEnglish(m.content));
+  if (pending.length === 0) return messages;
+
+  const batch = pending.slice(0, maxToHydrate);
+  const results = await Promise.all(
+    batch.map(async (m) => {
+      const contentEn = await ensureMessageContentEn(m.id, m.content);
+      return contentEn ? { id: m.id, contentEn } : null;
+    })
+  );
+
+  const byId = new Map<string, string>();
+  for (const row of results) {
+    if (row) byId.set(row.id, row.contentEn);
+  }
+  if (byId.size === 0) return messages;
+
+  return messages.map((m) => {
+    const contentEn = byId.get(m.id);
+    return contentEn ? { ...m, contentEn } : m;
+  });
 }
 
 const SET_FIELD_ENGLISH_FIELDS = new Set<Extract<CartOp, { type: 'set_field' }>['field']>([

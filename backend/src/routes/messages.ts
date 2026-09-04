@@ -13,6 +13,7 @@ import { logger } from '../logger.js';
 import { mediaResponseContentType, readS3ObjectBody } from '../utils/s3Body.js';
 import { getWaMediaS3Client } from '../utils/waMediaS3.js';
 import { enrichedInclude, shapeMessage } from './conversations.js';
+import { ensureMessageContentEn, needsEnglish } from '../utils/vendorEnglish.js';
 
 export const messagesRouter = express.Router();
 
@@ -173,6 +174,13 @@ messagesRouter.get(
         true,
         { messageId, vendorId: (message as any).conversation.vendorId }
       );
+    }
+
+    if (!message.contentEn?.trim() && needsEnglish(message.content)) {
+      const contentEn = await ensureMessageContentEn(message.id, message.content);
+      if (contentEn) {
+        (message as { contentEn?: string | null }).contentEn = contentEn;
+      }
     }
 
     const { conversation: _c, ...shaped } = shapeMessage(message);

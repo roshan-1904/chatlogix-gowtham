@@ -34,6 +34,7 @@ import {
   toVendorEnglish,
   ensureMessageContentEn,
   normalizeSetFieldOps,
+  hydrateMessagesContentEn,
   VENDOR_ENGLISH_MODEL
 } from '../vendorEnglish.js';
 
@@ -201,5 +202,28 @@ describe('normalizeSetFieldOps', () => {
 
     expect(result).toEqual(ops);
     expect(createMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('hydrateMessagesContentEn', () => {
+  beforeEach(() => {
+    findUniqueMock.mockResolvedValue({ contentEn: null });
+    updateManyMock.mockResolvedValue({ count: 1 });
+    createMock.mockResolvedValue({
+      choices: [{ message: { content: 'I am asking about the address.' } }]
+    });
+  });
+
+  it('fills contentEn on rows missing translation for non-Latin content', async () => {
+    const rows = [
+      { id: 'm1', content: HINDI, contentEn: null },
+      { id: 'm2', content: 'Hello', contentEn: null }
+    ];
+
+    const result = await hydrateMessagesContentEn(rows);
+
+    expect(result[0].contentEn).toBe('I am asking about the address.');
+    expect(result[1].contentEn).toBeNull();
+    expect(createMock).toHaveBeenCalledTimes(1);
   });
 });

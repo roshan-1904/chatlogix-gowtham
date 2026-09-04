@@ -30,7 +30,7 @@ async function backfillMessages(dryRun: boolean, batchSize: number): Promise<num
 
   for (;;) {
     const batch = await prisma.message.findMany({
-      where: { contentEn: null },
+      where: { OR: [{ contentEn: null }, { contentEn: '' }] },
       select: { id: true, content: true },
       orderBy: { id: 'asc' },
       take: batchSize,

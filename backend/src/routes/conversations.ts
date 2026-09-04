@@ -10,7 +10,7 @@ import {
 import { requireVendorAccess } from '../middleware/authorize.js';
 import { publishToQueue } from '../queue/sqsClient.js';
 import { env } from '../config/env.js';
-import { ensureMessageContentEn } from '../utils/vendorEnglish.js';
+import { ensureMessageContentEn, hydrateMessagesContentEn } from '../utils/vendorEnglish.js';
 
 export const conversationsRouter = express.Router();
 
@@ -293,7 +293,8 @@ conversationsRouter.get(
       });
       const hasMore = rawMessages.length > NO_LIMIT_CAP;
       const pagedNewestFirst = rawMessages.slice(0, NO_LIMIT_CAP);
-      const messages = pagedNewestFirst.slice().reverse().map(shapeMessage);
+      const hydrated = await hydrateMessagesContentEn(pagedNewestFirst);
+      const messages = hydrated.slice().reverse().map(shapeMessage);
       const oldestMessageId = messages.length > 0 ? messages[0].id : null;
 
       return res.json({
@@ -335,7 +336,9 @@ conversationsRouter.get(
     });
 
     const hasMore = rawMessages.length > pageSize;
-    const pagedMessages = rawMessages.slice(0, pageSize).reverse().map(shapeMessage);
+    const pagedNewestFirst = rawMessages.slice(0, pageSize);
+    const hydrated = await hydrateMessagesContentEn(pagedNewestFirst);
+    const pagedMessages = hydrated.slice().reverse().map(shapeMessage);
 
     const oldestMessageId = pagedMessages.length > 0 ? pagedMessages[0].id : null;
 
