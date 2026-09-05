@@ -1,5 +1,11 @@
 # Conversation Processor Lambda
 
+<!-- DOC_SYNC
+  last_verified_commit: 547b10e7701dc88fd4f0463a37c009964dfea7f4
+  last_verified_at: 2026-09-05
+  scope: Locked design spec (v1) — implementation drift noted inline; as-implemented behavior in INCOMING_RESPONSE_GENERATOR_FLOW.md
+-->
+
 **Status:** Locked design (v1) — ready to implement  
 **Date:** 2026-09-01  
 **Mode:** Development / testing. No live customers. **Replace** the existing text AI processor; do not dual-run.  
@@ -13,6 +19,7 @@ This document is the source of truth for rewriting WhatsApp **text** conversatio
 Related docs (do not contradict this spec for the **text** path):
 
 - `docs/INCOMING_RESPONSE_GENERATOR_FLOW.md` — **living as-implemented** walkthrough of how the reply is prepared (follows the code; update it when `backend/src/conversation/` changes)
+- `docs/DOC_SYNC_INDEX.md` — audit index of doc ↔ commit SHA sync status
 - `docs/DEPLOYMENT.md` — current webhook → SQS → Lambda topology  
 - `docs/LAMBDA_MIGRATION_PLAN.md` — VM vs Lambda; Postgres stays on Lightsail for now  
 - `backend/src/services/unifiedAIProcessorService.ts` — current single-call AI (replaced for text)  
@@ -413,6 +420,8 @@ type Llm1Result = {
 };
 ```
 
+> **Implementation note (2026-09-05, commit `547b10e`):** Shipped code uses `language: string` (free-form ISO 639-1 — en, hi, ta, ml, kn, te, bn, gu, …, or `mixed`) in `types.ts` and `prompts.ts` JSON schema. Pipeline branches on **English vs non-English** only via `conversation/language.ts` (`isEnglishLanguage`). See `docs/INCOMING_RESPONSE_GENERATOR_FLOW.md` §7 and §9.
+
 Rules:
 
 - `productId` must come from the compact catalog or keyword search. Unmatched names → `noop` + clarify; **never** write a fuzzy unmatched line into `Order.items`.  
@@ -532,11 +541,15 @@ LLM-2 must not emit ops and must not be parsed for cart fields.
 
 Skip LLM-2 for greetings, thanks, and high-confidence `noop` so p90 can hit 5s.
 
+> **Implementation note (2026-09-05, commit `547b10e`):** Shipped `shouldRunLlm2` also **skips LLM-2 when every mutating op is `set_field`** (name/address/notes/delivery_date only). On disagreement, `selectFinalReply` merges a conversational lead with a grounded cart block (`mergeLeadWithSnapshot`) rather than always falling back to a bare `renderSnapshotReply` list — except for `query`/noop turns (no cart dump) and phantom-mutation backstop. Non-English `copyMatchesSnapshot` uses relaxed total+quantity matching. See `docs/INCOMING_RESPONSE_GENERATOR_FLOW.md` §9.
+
 ---
 
 ## 18. Language (Q12)
 
 Detect language/script from the **latest customer message**. Reply in that language (English, Tamil / Tanglish, Hindi / Hinglish, mixed → follow the last message’s dominant script).
+
+> **Implementation note (2026-09-05, commit `547b10e`):** LLM-1 emits a free-form ISO 639-1 `language` string (not limited to en/ta/hi/mixed). `conversation/language.ts` adds `detectLanguageFromText()` for Unicode script detection (hi, ta, te, ml, kn, bn, gu, pa, or, si) and `isEnglishLanguage()` for pipeline branching. Deterministic engine strings (cart lists, rejection openers) are English-only; regional conversational prose comes from LLM-1/LLM-2 `draftReply`. Vendor portal reads `Message.contentEn` (see `backend/src/utils/vendorEnglish.ts` and flow doc §10).
 
 `CustomerInsights.preferredLanguage` and memory are **fallback** only.
 

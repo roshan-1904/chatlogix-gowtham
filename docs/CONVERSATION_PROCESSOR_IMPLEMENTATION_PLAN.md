@@ -1,5 +1,11 @@
 # Implementation Plan — `chatlogix-conversation-processor`
 
+<!-- DOC_SYNC
+  last_verified_commit: 547b10e7701dc88fd4f0463a37c009964dfea7f4
+  last_verified_at: 2026-09-05
+  scope: Build plan and progress tracker for conversation processor; post-ship enhancements section tracks language/contentEn/LLM-2 updates
+-->
+
 ## Context
 
 `docs/CONVERSATION_PROCESSOR_LAMBDA.md` (v1.1, locked design) specifies a full rewrite of the WhatsApp **text** conversation processor to fix two problems: (1) latency — a dual-poller SQS race between `incomingMessageWorker.ts` and `multiStageAIWorker.ts` causes up to a 30s stall before the AI even starts, and (2) cart correctness — today's writer (`dataExtractionService.ts`) lets the LLM's free-form JSON overwrite `Order.items` directly, guarded by a pile of "CRITICAL FIX" branches that fight each other, causing quantities to double or lines to vanish. The fix is a new Lambda that has the model emit **ops** (`add`/`set_qty`/`remove`/etc.) which a new deterministic `CartEngine` applies transactionally — the model never touches `Order.items` directly, and the WhatsApp reply is always rendered from the post-apply snapshot so the customer's chat and the vendor's dashboard cart can never disagree.
@@ -20,7 +26,7 @@ This plan translates that spec (plus the v1.1 scale-hardening addendum already a
 | 4 — Prefetch/compact catalog | **Done** | `prefetch.ts` + `cart/candidateSearch.ts` written. Cache invalidation wired into `routes/products.ts` (create/update/delete/bulk) and `catalogCommitService.ts` (bulk import commit). 28/28 tests passing across the whole `conversation/` module. `tsc --noEmit` clean. |
 | 5 — LLM-1 | **Done** | `llm/{prompts,llm1}.ts` written; `cart/productResolve.ts` gained `validateProductIds`. 41/41 tests passing across the whole `conversation/` module. `tsc --noEmit` clean. |
 | 6 — Persist/publish/debit + sweep | **Done** | `persist.ts`, `billing.ts`, `pipeline.ts` (skeleton — see status note), `lambdas/handlers/debitReconciliationSweep.ts` written. Schema gained one more additive field (`MessageProcessing.debitedAt`) beyond Step 2's original migration, not yet applied to any DB. 58/58 tests passing across the whole `conversation/` module. `tsc --noEmit` clean. |
-| 7 — LLM-2 | **Done** | `llm/llm2.ts` written (`shouldRunLlm2`, `runLlm2`, plus the render/validation trio `renderSnapshotReply`/`copyMatchesSnapshot`/`selectFinalReply`). New env var `VERIFY_THRESHOLD` (default `0.75`). 72/72 tests passing across the whole `conversation/` module, including the exact §26 test 9 scenario. `tsc --noEmit` clean. |
+| 7 — LLM-2 | **Done** (+ enhanced 2026-09-05) | `llm/llm2.ts` — see [Post-ship enhancements](#post-ship-enhancements-2026-09) for `selectFinalReply` / language / `set_field` skip updates beyond the original Step 7 scope. |
 | 8 — Burst/lock/idempotency | **Done** | `burstMerge.ts`, `lock.ts`, `idempotency.ts` written; `sqsClient.ts`'s `receiveMessages` gained the planned optional `visibilityTimeout` param. 95/95 tests passing across the whole `conversation/` module, including a new `goldenTranscripts.test.ts` replaying spec §2.2's two motivating bugs end-to-end. `tsc --noEmit` clean. |
 | 9 — Handoff | **Done** | `handoff.ts` written (`triggerHandoff` + internal `notifyVendor`). 100/100 tests passing across the whole `conversation/` module. `tsc --noEmit` clean. |
 | 10 — Full orchestrator + SQS handler/worker | **Done** | `identity.ts` + `templates.ts` (new, not in the original file list — see status note), `pipeline.ts` gained the full `processMessage` orchestrator (spec §7 steps 0-11), `handler.ts`, `lambdas/handlers/conversationProcessor.ts`, `workers/conversationWorker.ts`, `worker:conversation` npm script. 122/122 tests passing across the whole `conversation/` module. `tsc --noEmit` clean. |
@@ -363,7 +369,7 @@ export async function runLlm2(input: { draftReply: string; snapshot: CartSnapsho
 ### Status — Done
 - [x] `config/env.ts` gained `VERIFY_THRESHOLD: z.string().default('0.75')`, in its own "Conversation processor LLM-2 verifier" section, matching the existing "(Conversation Parity)" env-var grouping convention.
 - [x] `llm/llm2.ts` — `shouldRunLlm2` (exported standalone, per the plan's signature) and `runLlm2` (calls `shouldRunLlm2` internally and short-circuits to `{skipped: true}`, so pipeline code has one call site instead of duplicating the skip decision). Same OpenAI client / strict structured-output pattern as `llm1.ts`, `max_completion_tokens: 300` for the §8 ≤1.2s budget.
-- [x] The §17 correctness backstop ("discard the copy, use the engine renderer") is real code, not just a comment: `renderSnapshotReply` (deterministic, snapshot-only text), `copyMatchesSnapshot` (checks every item name is mentioned — deliberately **not** attempting price-string matching, since LLM phrasing of totals varies too much for a naive match to avoid false rejections; documented as a v1 scope limit, not an oversight), and `selectFinalReply` (the actual decision: skipped → draft reply as-is; LLM-2 ran and matches → its copy; LLM-2 ran and disagrees → `renderSnapshotReply`, logged as a warning).
+- [x] The §17 correctness backstop is real code: `renderSnapshotReply`, `copyMatchesSnapshot`, and `selectFinalReply`. **Updated 2026-09-05:** on LLM-2 disagreement, `selectFinalReply` now branches on intent/ops (`query` → no cart dump; item mutation → `mergeLeadWithSnapshot`; `set_field`-only → `renderSetFieldConfirmation`) instead of always falling back to bare `renderSnapshotReply`. `copyMatchesSnapshot` uses English (all names) vs non-English (total + quantities) rules via `isEnglishLanguage`. `shouldRunLlm2` skips when every mutating op is `set_field`. See `docs/INCOMING_RESPONSE_GENERATOR_FLOW.md` §9.
 - [x] §26 test 9's exact scenario ("LLM-2 returns a list that omits a snapshot line") is directly covered now, in `llm2.test.ts`, rather than deferred to `goldenTranscripts.test.ts` in Step 8 — consistent with this plan's pattern (Steps 4–6 also added coverage beyond §26's literal minimum). Step 8's `goldenTranscripts.test.ts` can reference this instead of re-testing it in isolation.
 - [x] 72/72 tests passing across the whole `conversation/` module (`llm2.test.ts` 14, plus the 58 from Steps 3–6). `tsc --noEmit` clean. Full-suite regression check: same 5 pre-existing failing files, 228 passing overall (up by exactly the 14 new tests).
 
@@ -551,6 +557,21 @@ No new `backend/src/conversation/` files. Optionally a `scripts/loadTestConversa
 `backend/src/lambdas/handlers/qualityJudgeSweep.ts` (EventBridge-scheduled Lambda, weekly — same scheduling mechanism chosen for step 6's debit sweep)
 
 Runs gpt-4.1-mini as LLM-judge over the full sampled `QualityMetrics` set plus every `needsVerify=true`/below-threshold transcript, scoring against the fixed rubric from §23.1 (cart-accuracy-vs-DB, correct language, no invented ETA/date, tone fit). Findings feed back into `VERIFY_THRESHOLD` tuning (the env var added in step 7) and prompt iteration. Per-vendor breakdown (§23.1.4) implies a small reporting query — flag as a follow-on outside this Lambda's own code, not part of this module.
+
+---
+
+## Post-ship enhancements (2026-09)
+
+Changes after Steps 7–11 shipped, verified at commit `547b10e`:
+
+| Area | Files | Behavior |
+|---|---|---|
+| **Language model** | `conversation/language.ts`, `types.ts`, `llm/prompts.ts` | `Llm1Result.language` is `string` (ISO 639-1, not en/ta/hi/mixed enum). `isEnglishLanguage()` drives pipeline branching; `detectLanguageFromText()` detects hi/ta/te/ml/kn/bn/gu/pa/or/si from Unicode ranges. |
+| **LLM-2 skip** | `llm/llm2.ts` | `set_field`-only turns skip LLM-2 (name/address/notes/delivery_date). |
+| **Reply selection** | `llm/llm2.ts`, `pipeline.ts` | `selectFinalReply` takes `language`, `cartMutated`, `compactCatalog`; merges conversational lead + cart on item mutations; `renderRejectedOpsReply` path when `rejectedOps.length > 0`. No per-language string tables — English deterministic strings only. |
+| **Vendor English** | `utils/vendorEnglish.ts`, `pipeline.ts` | `ensureMessageContentEn` on inbound + assistant messages; `normalizeSetFieldOps` transliterates set_field values before CartEngine; `hydrateMessagesContentEn` on vendor read paths. `content` stays customer language; `contentEn` is vendor-portal only. |
+
+Living walkthrough: `docs/INCOMING_RESPONSE_GENERATOR_FLOW.md`.
 
 ---
 

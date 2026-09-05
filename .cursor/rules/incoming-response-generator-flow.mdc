@@ -27,6 +27,6 @@ Any behavioral edit in `backend/src/conversation/` or the webhook `TextMessage` 
 - Step order in §2 if `processMessage` is reordered
 - Tables for guards, ops, and “what the customer receives”
 - Source-file table if a module is added/renamed
-- Header **Last verified** date
+- The `DOC_SYNC` HTML comment at the top of the flow doc (`last_verified_commit`, `last_verified_at`) and the matching row in `docs/DOC_SYNC_INDEX.md`
 
 Do not leave the doc describing a path the code no longer takes.

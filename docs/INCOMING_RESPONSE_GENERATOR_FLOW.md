@@ -1,5 +1,11 @@
 # Incoming Response Generator — How We Prepare a WhatsApp Reply
 
+<!-- DOC_SYNC
+  last_verified_commit: 547b10e7701dc88fd4f0463a37c009964dfea7f4
+  last_verified_at: 2026-09-05
+  scope: As-implemented incoming-response-generator pipeline (language, LLM-2 reply selection, contentEn)
+-->
+
 **Living document.** This describes the **as-implemented** text path in `chatlogix-incoming-response-generator`, not the locked design spec. When the pipeline in `backend/src/conversation/` changes, update this file in the same change (see `.cursor/rules/incoming-response-generator-flow.mdc`).
 
 | | |
@@ -10,7 +16,7 @@
 | **Consumes** | `TEXT_QUEUE_URL` (`type: TextMessage` only) |
 | **Publishes** | `RESPONSE_QUEUE_URL` (finished customer text) |
 | **Design spec** | `docs/CONVERSATION_PROCESSOR_LAMBDA.md` (locked design; this file follows the **code**) |
-| **Last verified** | 2026-09-04 against `backend/src/conversation/` (vendor English display: `contentEn` + set_field normalization) |
+| **Doc sync index** | `docs/DOC_SYNC_INDEX.md` |
 
 **SLA clock:** Lambda start → successful `publishToQueue(RESPONSE_QUEUE_URL)`. Targets: p90 ≤ 5s, p95 ≤ 10s, p99 ≤ 15s. Meta delivery time is out of scope.
 
@@ -33,6 +39,7 @@
 | Availability | `backend/src/conversation/cart/availability.ts` |
 | Refund eligibility | `backend/src/conversation/cart/refund.ts` |
 | LLM-2 + final-text selection | `backend/src/conversation/llm/llm2.ts` |
+| Language helpers (English vs regional) | `backend/src/conversation/language.ts` |
 | Handoff | `backend/src/conversation/handoff.ts` |
 | Post-sales vendor alert | `backend/src/conversation/postSalesAlert.ts` |
 | Persist turn | `backend/src/conversation/persist.ts` |
@@ -121,10 +128,12 @@ flowchart TD
 
   BRANCH -->|ops contains handoff| HO[triggerHandoff<br/>pause AI + canned customer copy]
   BRANCH -->|postSalesOutcome set| PS[renderPostSalesReply<br/>deterministic money copy]
+  BRANCH -->|rejectedOps.length > 0| REJ[renderRejectedOpsReply<br/>skip LLM-2]
   BRANCH -->|normal turn| LLM2[LLM-2 maybe, then selectFinalReply]
 
   HO --> FIN[12. finalizeTurn]
   PS --> FIN
+  REJ --> FIN
   LLM2 --> FIN
 
   FIN --> PERSIST[persistTurn: assistant Message,<br/>insights, memory, MessageProcessing]
@@ -241,7 +250,7 @@ Required JSON (`Llm1Result`):
 
 ```ts
 {
-  language: 'en' | 'ta' | 'hi' | 'mixed',
+  language: string,        // free-form ISO 639-1 (en, hi, ta, ml, kn, te, bn, gu, …) or "mixed"
   intent: string,          // telemetry only — never used to write the cart
   ops: CartOp[],
   draftReply: string,      // ~120 words, same language/script as the customer
@@ -249,6 +258,8 @@ Required JSON (`Llm1Result`):
   needsVerify: boolean
 }
 ```
+
+The JSON schema in `prompts.ts` uses `language: { type: 'string' }` — not a fixed enum. `conversation/language.ts` provides `isEnglishLanguage()` (pipeline branches on English vs non-English only) and `detectLanguageFromText()` (Unicode script detection: hi, ta, te, ml, kn, bn, gu, pa, or, si → en fallback). LLM-1 sets `language` from the customer message; insights/memory language is prompt context only.
 
 Ops:
 
@@ -328,51 +339,79 @@ flowchart TD
 
 ## 9. Choosing the customer-facing text
 
-Three mutually exclusive paths. Money and handoff copy never go through a free-text rewriter.
+Four mutually exclusive paths after `CartEngine.apply`. Money, handoff, and rejection copy never go through a free-text rewriter.
 
 ```mermaid
 flowchart TD
-  A[applyResult + llm1Result.ops] --> H{ops contains handoff?}
-  H -->|yes| H1[triggerHandoff]
-  H1 --> H2[aiPaused = true]
-  H2 --> H3[canned connecting-you-to-the-team copy]
-  H3 --> H4[fire-and-forget vendor WhatsApp alert]
-  H4 --> F[finalText]
+  A[applyResult + llm1Result] --> H{ops contains handoff?}
+  H -->|yes| H1[triggerHandoff → canned copy + vendor alert]
+  H1 --> F[finalText]
 
   H -->|no| P{postSalesOutcome?}
-  P -->|refund_approved / order_cancelled| T1[deterministic success sentence]
-  P -->|refund_denied / not_cancellable| T2[deterministic denial + vendor alert]
-  T1 --> F
-  T2 --> F
+  P -->|yes| T[renderPostSalesReply deterministic]
+  T --> F
 
-  P -->|none| L[LLM-2 path]
-  L --> Q{mutating op OR needsVerify<br/>OR confidence < VERIFY_THRESHOLD default 0.75?}
-  Q -->|no| PM{ops empty AND intent is<br/>add/remove/set_qty AND draftReply<br/>names a catalog item not in snapshot?}
-  PM -->|no| D[use LLM-1 draftReply as-is]
-  PM -->|yes| MISS[renderPossibleMissedItemReply<br/>true cart + ask customer to repeat item]
-  Q -->|yes| L2[LLM-2: rewrite wording only]
-  L2 --> M{copy mentions every cart item name?}
-  M -->|yes| L2OK[use LLM-2 finalReply]
-  M -->|no| ENG[engine renderer from snapshot lines]
+  P -->|no| R{rejectedOps.length > 0?}
+  R -->|yes| RJ[renderRejectedOpsReply<br/>English opener or draftReply + cart block]
+  RJ --> F
+
+  R -->|no| L2[runLlm2 — may skip internally]
+  L2 --> SEL[selectFinalReply]
+
+  SEL --> S1{LLM-2 skipped?}
+  S1 -->|yes + set_field only| SF[renderSetFieldConfirmation]
+  S1 -->|yes + phantom mutation| PM[renderPossibleMissedItemReply]
+  S1 -->|yes| D[use LLM-1 draftReply]
+  S1 -->|no + copyMatchesSnapshot| OK[use LLM-2 finalReply]
+  S1 -->|no + query/no mutation| Q[keep conversational reply — no cart dump]
+  S1 -->|no + set_field only| SF2[renderSetFieldConfirmation]
+  S1 -->|no + item mutation| MERGE[mergeLeadWithSnapshot<br/>draft/LLM-2 lead + grounded cart]
+
+  SF --> F
+  PM --> F
   D --> F
-  MISS --> F
-  L2OK --> F
-  ENG --> F
+  OK --> F
+  Q --> F
+  SF2 --> F
+  MERGE --> F
 ```
 
-Mutating op types that force LLM-2: `add`, `set_qty`, `remove`, `confirm`, `cancel`. **`set_field`-only turns skip LLM-2** and use a short localized confirmation (`renderSetFieldConfirmation`) instead of a full cart dump.
+### When LLM-2 runs (`shouldRunLlm2`)
 
-LLM-2 (when it runs): same vendor model, temperature 0.2, ~300 tokens. May rewrite wording only, and now also drops any claim about an item absent from CART SNAPSHOT. Cart is frozen after `apply`. The prompt tells LLM-2 to answer the customer's question first and only include a full line list when items changed or they asked to review the order.
+Runs when **any** of: mutating ops present (and not **set_field-only**), `needsVerify === true`, or `confidence < VERIFY_THRESHOLD` (default 0.75).
 
-If LLM-2’s copy omits a product name, `selectFinalReply` no longer sends a bare cart list:
-- **`query` / noop turns:** keep LLM-2's (or draft) conversational reply — no cart dump.
-- **`set_field`-only:** localized name/address confirmation; cart lines omitted unless still missing fields.
-- **Item mutations (`add` / `set_qty` / `remove`):** merge LLM-1's draft lead with a grounded cart block (`mergeLeadWithSnapshot`), so the customer gets context plus correct lines/total.
-- **`copyMatchesSnapshot`** uses relaxed matching for Hindi/Tamil (total + quantities) so valid non-English replies are not rejected just because catalog names stay in English.
+Mutating op types: `add`, `set_qty`, `remove`, `set_field`, `confirm`, `cancel`. **`set_field`-only turns skip LLM-2** — `shouldRunLlm2` returns false when every mutating op is `set_field`.
 
-`renderSnapshotReply` uses catalog English product names + `Total: Rs…` (universal). Conversational prose for any regional language comes from LLM-1/LLM-2 `draftReply`; pipeline logic is **English vs non-English** only (`conversation/language.ts`). LLM-1 `language` is a free-form ISO 639-1 code (en, hi, ta, ml, kn, te, …, mixed) — not a fixed enum.
+LLM-2 (when it runs): same vendor model, temperature 0.2, ~300 tokens. Rewrites wording only; drops claims about items absent from CART SNAPSHOT. Cart is frozen after `apply`. Prompt includes the LLM-1 `language` string and tells the model to answer the customer's question first, listing cart lines only when items changed or they asked to review the order.
 
-**Phantom-mutation backstop** (added after a 2026-09-04 incident where LLM-1 confirmed adding an item in `draftReply` while emitting zero ops for it, and the empty-ops turn skipped LLM-2 entirely — see `docs/CONVERSATION_WORKER_GAPS.md` if a writeup exists, or the git history of `llm1.ts`/`llm2.ts`/`prompts.ts` around this date): `buildLlm1SystemPrompt` now explicitly requires every claim in `draftReply` to be backed by a matching op, and to set `needsVerify: true` whenever it isn't certain — this is the primary fix, and routes the turn through LLM-2 above via the existing `needsVerify` branch. As defense-in-depth for the case LLM-1 still doesn't set `needsVerify`, `selectFinalReply` (`llm2.ts`) also runs `isPhantomMutation` even on the `Q -->|no|` path: gated on `llm1Result.intent` being `add`/`remove`/`set_qty` (never fires on `query`-classified informational replies) and `ops.length === 0`, it checks whether `draftReply` names a vendor catalog product absent from the cart snapshot. On a hit, the reply is never trusted — the customer gets the true cart plus a prompt to repeat the item name, never a false confirmation.
+### `selectFinalReply` branches (after LLM-2)
+
+| Condition | Reply |
+|---|---|
+| LLM-2 skipped + `set_field` only | `renderSetFieldConfirmation` — English deterministic strings, or LLM-1 `draftReply` for non-English |
+| LLM-2 skipped + phantom mutation (`intent` add/remove/set_qty, `ops` empty, draft names catalog item not in snapshot) | `renderPossibleMissedItemReply` — English prompt + true cart |
+| LLM-2 skipped (otherwise) | LLM-1 `draftReply` as-is |
+| LLM-2 ran + `copyMatchesSnapshot` | LLM-2 `finalReply` |
+| LLM-2 ran + disagree + `query`/noop (no mutating ops) | Conversational LLM-2 or draft text — **no cart dump** |
+| LLM-2 ran + disagree + `set_field` only | `renderSetFieldConfirmation` |
+| LLM-2 ran + disagree + item mutation or `cartMutated` | `mergeLeadWithSnapshot` — conversational lead from draft or LLM-2, plus grounded cart block |
+
+### `copyMatchesSnapshot` (English vs non-English)
+
+- **English** (`isEnglishLanguage`): every catalog product name must appear in the reply text.
+- **Non-English**: relaxed — snapshot total amount **and** all line quantities must appear (catalog names stay English in the product table, so name matching alone would false-reject valid regional replies).
+
+### Deterministic renderers (no per-language string tables)
+
+`renderSnapshotReply`, rejection openers, and phantom-mutation prompts use **English-only** deterministic strings. Non-English conversational prose always comes from LLM-1/LLM-2 `draftReply`. Pipeline logic uses `isEnglishLanguage()` only — not separate Tamil/Hindi/etc. template tables.
+
+`renderSnapshotReply` always uses catalog English product names + `Total: Rs…`. For non-English customers, `mergeLeadWithSnapshot` appends the cart block without an English header; English customers get `Here's your updated order:` before the lines.
+
+### Rejected ops path (`renderRejectedOpsReply`)
+
+When CartEngine rejects part or all of what was asked, the pipeline **never** runs LLM-2. Non-English customers with a usable `draftReply` get that lead plus a grounded cart block; English customers get a deterministic rejection opener plus cart lines.
+
+**Phantom-mutation backstop** (defense-in-depth when LLM-1 claims an add in `draftReply` but emits zero ops): `buildLlm1SystemPrompt` requires ops to back every cart claim and sets `needsVerify: true` when uncertain. `selectFinalReply` also runs `isPhantomMutation` on the LLM-2-skipped path when `intent` is `add`/`remove`/`set_qty` and `ops` is empty.
 
 ---
 
@@ -420,8 +459,8 @@ After finalize, if a `confirm` op was not rejected and the snapshot has an `orde
 | “Hi” | `noop` | no mutation | LLM-1 draft (LLM-2 skipped) |
 | “2 brownies” | `add` | new/updated line, priced from Product | LLM-2 polish, or engine list if copy disagrees |
 | “Make it 5” | `set_qty` | overwrite qty | same |
-| Name + address | `set_field` | insights later in persist | draft / LLM-2 |
-| “Yes, place it” but missing address | `confirm` **rejected** | cart unchanged | draft should ask for the missing field |
+| Name + address | `set_field` | insights later in persist | `renderSetFieldConfirmation` or draft (LLM-2 skipped) |
+| “Yes, place it” but missing address | `confirm` **rejected** | cart unchanged | `renderRejectedOpsReply` — explains rejection + true cart |
 | “Yes, place it” complete | `confirm` accepted | still `pending` | confirmation copy, **no delivery date** |
 | “Where is my order?” | `noop` | none | draft grounded on RECENT ORDERS |
 | “Cancel ORD-…” | `cancel` | cancel if pending/confirmed | canned `Order … has been cancelled` |
@@ -468,7 +507,7 @@ Update this file in the **same change** as any behavioral edit to the files list
 
 1. Mermaid diagrams whose nodes/edges no longer match the code.
 2. Step order in §2 if `processMessage` is reordered.
-3. Tables in §4, §7, §11 if guards, ops, or reply sources change.
-4. The **Last verified** date in the header.
+3. Tables in §4, §7, §9, §11 if guards, ops, or reply sources change.
+4. The `DOC_SYNC` HTML comment at the top (`last_verified_commit`, `last_verified_at`) and the matching row in `docs/DOC_SYNC_INDEX.md`.
 
 Do **not** rewrite `docs/CONVERSATION_PROCESSOR_LAMBDA.md` for implementation drift — that is the locked design. If code diverges from the spec, this flow doc follows the **code** and should note the divergence (as §2 already does for lock-vs-identity order).

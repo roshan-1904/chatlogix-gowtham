@@ -39,7 +39,13 @@ echo "=== prisma migrate deploy ==="
 npx prisma migrate deploy
 cd ..
 
-echo "=== pm2 reload ==="
-pm2 reload ecosystem.config.js --env production
+echo "=== pm2 restart (fork mode cannot reload on a single port) ==="
+pm2 stop chatlogix-backend || true
+sleep 2
+if command -v fuser >/dev/null 2>&1; then
+  fuser -k 3000/tcp 2>/dev/null || true
+fi
+sleep 1
+pm2 restart chatlogix-backend --update-env || pm2 start ecosystem.config.js --env production
 pm2 save
 echo "=== deploy-ec2.sh done ==="

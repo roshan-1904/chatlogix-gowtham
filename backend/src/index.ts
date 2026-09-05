@@ -120,10 +120,11 @@ async function bootstrap() {
   const port = Number(env.PORT);
   const server = app.listen(port, () => {
     logger.info({ port }, 'HTTP server started');
-    // Tell PM2 (wait_ready: true in ecosystem.config.js) this process is
-    // actually listening, so `pm2 reload` waits for us before killing the
-    // old instance instead of timing out and racing it for the port.
     process.send?.('ready');
+  });
+  server.on('error', (err: NodeJS.ErrnoException) => {
+    logger.error({ err, port }, 'HTTP server failed to listen');
+    process.exit(1);
   });
 
   const shutdown = (signal: string) => {

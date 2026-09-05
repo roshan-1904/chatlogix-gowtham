@@ -28,8 +28,10 @@ module.exports = {
       watch: false,
       ignore_watch: ['node_modules', 'logs', 'dist'],
       kill_timeout: 5000,
-      wait_ready: true,
-      listen_timeout: 10000
+      // Fork + a single port cannot zero-downtime reload: PM2 starts the new
+      // process before the old one releases :3000 → EADDRINUSE crash loop.
+      // Deploy uses `pm2 restart` (stop then start). wait_ready is unused.
+      wait_ready: false
     }
     // chatlogix-media-worker retired from production PM2 — media fetch now
     // runs on the chatlogix-media-fetcher Lambda (SQS-triggered off
@@ -47,7 +49,7 @@ module.exports = {
       repo: 'git@github.com:your-username/chatlogix.git',
       path: '/home/ubuntu/chatlogix',
       'pre-deploy-local': '',
-      'post-deploy': 'npm install && npm run build && pm2 reload ecosystem.config.js --env production',
+      'post-deploy': 'npm install && npm run build && pm2 restart ecosystem.config.js --env production',
       'pre-setup': ''
     }
   }
