@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import { env } from '../../config/env.js';
 import { logger } from '../../logger.js';
+import { isEnglishLanguage, type CustomerLanguage } from '../language.js';
 import type { CartOp, CartSnapshot, CompactCatalogEntry } from '../types.js';
 import type { ApplyOpsResult } from '../cart/engine.js';
 
@@ -12,15 +13,23 @@ const DEFAULT_VERIFY_THRESHOLD = Number(env.VERIFY_THRESHOLD || '0.75');
 
 const MUTATING_OP_TYPES = new Set<CartOp['type']>(['add', 'set_qty', 'remove', 'set_field', 'confirm', 'cancel']);
 
+/** English-only deterministic strings — non-English prose comes from LLM draftReply. */
+const EMPTY_CART_EN = 'Your cart is currently empty. What would you like to order?';
+const MISSED_ITEM_PROMPT_EN = "Sorry, I didn't quite catch that item — could you tell me the product name again?";
+const UPDATED_ORDER_HEADER_EN = "Here's your updated order:";
+
 /**
  * Run LLM-2 iff a cart-mutating op was applied, LLM-1 flagged needsVerify,
  * or confidence fell below threshold (spec §17, Q3). Skipping greetings,
- * thanks, and high-confidence noop is what lets p90 hit 5s (§8) — LLM-2
- * costs up to ~1.2s when it runs.
+ * thanks, high-confidence noop, and set_field-only turns is what lets p90
+ * hit 5s (§8) — LLM-2 costs up to ~1.2s when it runs.
  */
 export function shouldRunLlm2(ops: CartOp[], needsVerify: boolean, confidence: number, threshold: number = DEFAULT_VERIFY_THRESHOLD): boolean {
-  const hasMutatingOp = ops.some((op) => MUTATING_OP_TYPES.has(op.type));
-  return hasMutatingOp || needsVerify || confidence < threshold;
+  const mutatingOps = ops.filter((op) => MUTATING_OP_TYPES.has(op.type));
+  if (mutatingOps.length > 0 && mutatingOps.every((op) => op.type === 'set_field')) {
+    return false;
+  }
+  return mutatingOps.length > 0 || needsVerify || confidence < threshold;
 }
 
 export interface Llm2Input {
@@ -55,6 +64,7 @@ function buildLlm2Prompt(input: Llm2Input): string {
   parts.push('- If the draft reply claims an item was added, updated, removed, or confirmed and that item is NOT listed in CART SNAPSHOT, remove that claim entirely — never tell the customer an item was added/changed when it is not actually in the snapshot.');
   parts.push('- Do not invent a delivery date, ETA, or "arrives on X".');
   parts.push(`- Reply in this language/script: ${language}.`);
+  parts.push('- Answer the customer\'s actual question first. Only include the full cart line list when they asked to review the order or you changed items this turn.');
   parts.push('- No more than about 120 words.');
   parts.push('- Output only the polished reply text — you are not proposing cart changes.');
 
@@ -120,13 +130,12 @@ export async function runLlm2(input: Llm2Input): Promise<Llm2Output> {
 }
 
 /**
- * Deterministic fallback reply, built purely from the snapshot — never from
- * any LLM's prose. This is the "engine renderer" spec §17 requires when a
- * verifier's copy can't be trusted.
+ * Structural cart block: catalog English product names + Rs amounts.
+ * Conversational wrapper comes from LLM draftReply for non-English customers.
  */
-export function renderSnapshotReply(snapshot: CartSnapshot): string {
+export function renderSnapshotReply(snapshot: CartSnapshot, _language: CustomerLanguage = 'en'): string {
   if (snapshot.items.length === 0) {
-    return 'Your cart is currently empty. What would you like to order?';
+    return EMPTY_CART_EN;
   }
   const lines = snapshot.items.map(
     (i) => `${i.name}${i.variantLabel ? ` (${i.variantLabel})` : ''} x${i.quantity} ${i.unit} - Rs${(i.lineTotalPaise / 100).toFixed(2)}`
@@ -149,54 +158,172 @@ function rejectionReasonText(reason: string): string {
   return "I wasn't able to do that";
 }
 
-/**
- * Deterministic reply for a turn where CartEngine rejected part (or all) of
- * what was asked (spec §17's correctness backstop, extended): LLM-1's/LLM-2's
- * prose is never trusted here, because neither is grounded in whether the op
- * actually applied — copyMatchesSnapshot only checks that the reply doesn't
- * *omit* a snapshot line, which is vacuously true against an empty snapshot,
- * so a hallucinated "I've added X" can slip through untouched otherwise.
- * Always paired with the true resulting cart state so anything that DID
- * succeed in the same turn still shows up correctly.
- */
-export function renderRejectedOpsReply(rejectedOps: ApplyOpsResult['rejectedOps'], snapshot: CartSnapshot): string {
-  const uniqueReasons = [...new Set(rejectedOps.map((r) => rejectionReasonText(r.reason)))];
-  const explanation = uniqueReasons.length === 1
+function englishRejectionOpener(uniqueReasons: string[]): string {
+  return uniqueReasons.length === 1
     ? `I'm sorry, ${uniqueReasons[0]}.`
     : `I'm sorry, I couldn't complete part of your request — ${uniqueReasons.join('; ')}.`;
-  return `${explanation}\n\n${renderSnapshotReply(snapshot)}`;
 }
 
 /**
- * Cheap, deliberately narrow check: does the copy at least mention every
- * item's name? This directly targets spec §17's stated failure mode ("the
- * verifier's copy disagrees with snapshot lines") and the exact scenario
- * §26 test 9 describes (a list that omits a line). Price-string matching is
- * NOT attempted here — LLM phrasing of totals varies too much (currency
- * symbols, rounding, "Rs." vs "₹" vs "rupees") for a naive string match to
- * avoid false rejections; that's a deliberate v1 scope limit, not an
- * oversight, and can be tightened later from real Gate A transcripts.
+ * Deterministic reply for a turn where CartEngine rejected part (or all) of
+ * what was asked (spec §17's correctness backstop, extended).
  */
-export function copyMatchesSnapshot(text: string, snapshot: CartSnapshot): boolean {
+export function renderRejectedOpsReply(
+  rejectedOps: ApplyOpsResult['rejectedOps'],
+  snapshot: CartSnapshot,
+  language: CustomerLanguage = 'en',
+  draftReply?: string
+): string {
+  const uniqueReasons = [...new Set(rejectedOps.map((r) => rejectionReasonText(r.reason)))];
+
+  if (!isEnglishLanguage(language) && draftReply?.trim() && !looksLikeBareCartList(draftReply, snapshot)) {
+    if (snapshot.items.length === 0) return draftReply.trim();
+    return `${draftReply.trim()}\n\n${renderSnapshotReply(snapshot, language)}`;
+  }
+
+  const explanation = englishRejectionOpener(uniqueReasons);
+  if (snapshot.items.length === 0) {
+    return `${explanation}\n\n${renderSnapshotReply(snapshot, language)}`;
+  }
+  return `${explanation}\n\n${UPDATED_ORDER_HEADER_EN}\n${renderSnapshotReply(snapshot, language)}`;
+}
+
+function snapshotTotalAppearsInText(text: string, snapshot: CartSnapshot): boolean {
+  const totalFormatted = (snapshot.totalPaise / 100).toFixed(2);
+  const totalWhole = String(Math.round(snapshot.totalPaise / 100));
+  return (
+    text.includes(totalFormatted) ||
+    text.includes(totalWhole) ||
+    text.includes(totalFormatted.replace('.00', ''))
+  );
+}
+
+/**
+ * English: every catalog product name must appear in the reply.
+ * Non-English: relaxed — total amount + line quantities (names stay English in catalog).
+ */
+export function copyMatchesSnapshot(text: string, snapshot: CartSnapshot, language: CustomerLanguage = 'en'): boolean {
+  if (snapshot.items.length === 0) {
+    return true;
+  }
   const lower = text.toLowerCase();
-  return snapshot.items.every((item) => lower.includes(item.name.toLowerCase()));
+  const allNames = snapshot.items.every((item) => lower.includes(item.name.toLowerCase()));
+  if (allNames) return true;
+
+  if (isEnglishLanguage(language)) {
+    return false;
+  }
+
+  if (!snapshotTotalAppearsInText(text, snapshot)) {
+    return false;
+  }
+
+  const allQtys = snapshot.items.every((item) => new RegExp(`(?:x|\\s|^)${item.quantity}(?:\\s|$|\\.|-)`).test(text));
+  return allQtys;
 }
 
 const MUTATING_INTENTS = new Set(['add', 'remove', 'set_qty']);
 
+export function isSetFieldOnlyOps(ops: CartOp[]): boolean {
+  const mutating = ops.filter((op) => MUTATING_OP_TYPES.has(op.type));
+  return mutating.length > 0 && mutating.every((op) => op.type === 'set_field');
+}
+
+export function isQueryWithoutMutation(intent: string, ops: CartOp[]): boolean {
+  if (intent !== 'query') return false;
+  return !ops.some((op) => MUTATING_OP_TYPES.has(op.type));
+}
+
+export function isCartItemMutation(ops: CartOp[]): boolean {
+  return ops.some((op) => op.type === 'add' || op.type === 'set_qty' || op.type === 'remove');
+}
+
+function englishNameSaved(value: string): string {
+  return `Thanks! I've saved your name as ${value}.`;
+}
+
+function englishAddressSaved(value: string): string {
+  return `Thanks! I've saved your delivery address:\n${value}`;
+}
+
+function englishMissingFieldsPrompt(missing: CartSnapshot['missing']): string | null {
+  if (missing.length === 0) return null;
+  const needName = missing.includes('name');
+  const needAddress = missing.includes('address');
+  const needItems = missing.includes('items');
+  if (needAddress && !needName && !needItems) return 'Please share your full delivery address so we can ship your order.';
+  if (needName && needAddress) return 'To proceed, please share your name and delivery address.';
+  if (needName) return 'To proceed, please share your name.';
+  if (needItems) return 'To proceed, please tell me what you would like to order.';
+  return null;
+}
+
 /**
- * Last-resort, non-LLM safety net for exactly the case shouldRunLlm2
- * legitimately skips (empty ops, needsVerify false, high confidence) but
- * draftReply still names a catalog item that never made it into the cart --
- * i.e. LLM-1 classified the turn as a cart change, said it happened, but
- * emitted no op for it (the "phantom mutation" bug: LLM-1 confirms an add
- * in prose while ops stays empty). Deliberately conservative: gated on
- * `intent` being one of the mutating types first, so it never fires on a
- * "query"-classified reply that simply mentions a product informationally
- * (e.g. answering "what brownies do you have?"). A false positive here only
- * costs a blander (but still correct) reply via renderPossibleMissedItemReply
- * -- it never lets a false confirmation through.
+ * Short confirmation when only name/address/notes/delivery_date changed.
+ * Non-English: uses LLM-1 draftReply (already in the customer's language).
  */
+export function renderSetFieldConfirmation(
+  ops: CartOp[],
+  snapshot: CartSnapshot,
+  language: CustomerLanguage,
+  draftReply?: string
+): string {
+  if (!isEnglishLanguage(language) && draftReply?.trim() && !looksLikeBareCartList(draftReply, snapshot)) {
+    return draftReply.trim();
+  }
+
+  const fields = ops.filter((op): op is Extract<CartOp, { type: 'set_field' }> => op.type === 'set_field');
+  const parts: string[] = [];
+  for (const op of fields) {
+    switch (op.field) {
+      case 'name':
+        parts.push(englishNameSaved(op.value));
+        break;
+      case 'address':
+        parts.push(englishAddressSaved(op.value));
+        break;
+      case 'notes':
+        parts.push("Got it, I've noted that.");
+        break;
+      case 'delivery_date':
+        parts.push(`Thanks! Preferred delivery date saved: ${op.value}.`);
+        break;
+    }
+  }
+  const missingPrompt = englishMissingFieldsPrompt(snapshot.missing);
+  if (missingPrompt) parts.push(missingPrompt);
+  return parts.join('\n\n');
+}
+
+function looksLikeBareCartList(text: string, snapshot: CartSnapshot): boolean {
+  const lines = text.split('\n').filter((l) => l.trim());
+  if (lines.length === 0) return false;
+  const cartLinePattern = /x\d+(?:\.\d+)?\s+\S+\s*-\s*Rs/i;
+  const cartLines = lines.filter((l) => cartLinePattern.test(l) || /^Total:/i.test(l.trim()));
+  return snapshot.items.length > 0 && cartLines.length >= snapshot.items.length && cartLines.length / lines.length >= 0.6;
+}
+
+function pickConversationalLead(llm2Reply: string, draftReply: string, snapshot: CartSnapshot): string {
+  const draft = draftReply.trim();
+  const polished = llm2Reply.trim();
+  if (draft && !looksLikeBareCartList(draft, snapshot)) return draft;
+  if (polished && !looksLikeBareCartList(polished, snapshot)) return polished;
+  return draft || polished;
+}
+
+function mergeLeadWithSnapshot(lead: string, snapshot: CartSnapshot, language: CustomerLanguage, appendCart: boolean): string {
+  if (!appendCart || snapshot.items.length === 0) {
+    return lead.trim();
+  }
+  const cartBlock = renderSnapshotReply(snapshot, language);
+  if (!lead.trim()) return cartBlock;
+  if (looksLikeBareCartList(lead, snapshot)) return cartBlock;
+  if (isEnglishLanguage(language)) {
+    return `${lead.trim()}\n\n${UPDATED_ORDER_HEADER_EN}\n${cartBlock}`;
+  }
+  return `${lead.trim()}\n\n${cartBlock}`;
+}
+
 export function possiblyOverclaimsAgainstCatalog(
   text: string,
   snapshot: CartSnapshot,
@@ -205,7 +332,7 @@ export function possiblyOverclaimsAgainstCatalog(
   const lower = text.toLowerCase();
   const snapshotProductIds = new Set(snapshot.items.map((i) => i.productId));
   return compactCatalog.some((p) => {
-    if (snapshotProductIds.has(p.id)) return false; // already genuinely in the cart
+    if (snapshotProductIds.has(p.id)) return false;
     const name = p.name.toLowerCase();
     return name.length > 0 && lower.includes(name);
   });
@@ -224,14 +351,13 @@ export function isPhantomMutation(
 }
 
 /**
- * Deterministic reply for a suspected phantom mutation (draftReply claims a
- * change that isn't reflected anywhere in ops/snapshot) -- same reasoning as
- * renderRejectedOpsReply, just for a *missing* op instead of a *rejected*
- * one: never trust the free-text claim, always show the true cart, and ask
- * the customer to repeat the item so it can actually be added.
+ * Phantom-mutation backstop — never trust draftReply's false add claim;
+ * English prompt + grounded cart (non-English customers still see English
+ * here because the draft cannot be trusted on this path).
  */
-export function renderPossibleMissedItemReply(snapshot: CartSnapshot): string {
-  return `Sorry, I didn't quite catch that item — could you tell me the product name again?\n\n${renderSnapshotReply(snapshot)}`;
+export function renderPossibleMissedItemReply(snapshot: CartSnapshot, _language: CustomerLanguage = 'en'): string {
+  if (snapshot.items.length === 0) return MISSED_ITEM_PROMPT_EN;
+  return `${MISSED_ITEM_PROMPT_EN}\n\n${renderSnapshotReply(snapshot)}`;
 }
 
 export interface RenderDecision {
@@ -239,13 +365,6 @@ export interface RenderDecision {
   usedEngineRenderer: boolean;
 }
 
-/**
- * Selects the text actually sent to the customer (spec §7 step 7, §17's
- * correctness backstop for I1): LLM-2's copy when it ran and matches the
- * snapshot; the draft reply as-is when LLM-2 was skipped (unless it looks
- * like a phantom mutation -- see isPhantomMutation); the deterministic
- * snapshot renderer when LLM-2 ran but its copy disagrees with the cart.
- */
 export function selectFinalReply(input: {
   draftReply: string;
   llm2Result: Llm2Output;
@@ -254,21 +373,57 @@ export function selectFinalReply(input: {
   intent: string;
   ops: CartOp[];
   compactCatalog: CompactCatalogEntry[];
+  language: CustomerLanguage;
+  cartMutated?: boolean;
 }): RenderDecision {
-  const { draftReply, llm2Result, snapshot, traceId, intent, ops, compactCatalog } = input;
+  const {
+    draftReply,
+    llm2Result,
+    snapshot,
+    traceId,
+    intent,
+    ops,
+    compactCatalog,
+    language,
+    cartMutated = false
+  } = input;
 
   if (llm2Result.skipped) {
+    if (isSetFieldOnlyOps(ops)) {
+      return {
+        finalReply: renderSetFieldConfirmation(ops, snapshot, language, draftReply),
+        usedEngineRenderer: true
+      };
+    }
     if (isPhantomMutation(intent, ops, draftReply, snapshot, compactCatalog)) {
       logger.warn({ traceId, intent, draftReply }, 'Suspected phantom cart mutation (LLM-2 skipped) — falling back to engine renderer');
-      return { finalReply: renderPossibleMissedItemReply(snapshot), usedEngineRenderer: true };
+      return { finalReply: renderPossibleMissedItemReply(snapshot, language), usedEngineRenderer: true };
     }
     return { finalReply: draftReply, usedEngineRenderer: false };
   }
 
-  if (!copyMatchesSnapshot(llm2Result.finalReply, snapshot)) {
-    logger.warn({ traceId, llm2Reply: llm2Result.finalReply }, 'LLM-2 copy disagreed with cart snapshot — falling back to engine renderer');
-    return { finalReply: renderSnapshotReply(snapshot), usedEngineRenderer: true };
+  if (copyMatchesSnapshot(llm2Result.finalReply, snapshot, language)) {
+    return { finalReply: llm2Result.finalReply, usedEngineRenderer: false };
   }
 
-  return { finalReply: llm2Result.finalReply, usedEngineRenderer: false };
+  logger.warn({ traceId, llm2Reply: llm2Result.finalReply }, 'LLM-2 copy disagreed with cart snapshot — merging conversational lead with grounded cart');
+
+  if (isQueryWithoutMutation(intent, ops)) {
+    const conversational = llm2Result.finalReply.trim() || draftReply;
+    return { finalReply: conversational, usedEngineRenderer: false };
+  }
+
+  if (isSetFieldOnlyOps(ops)) {
+    return {
+      finalReply: renderSetFieldConfirmation(ops, snapshot, language, draftReply),
+      usedEngineRenderer: true
+    };
+  }
+
+  const appendCart = isCartItemMutation(ops) || cartMutated;
+  const lead = pickConversationalLead(llm2Result.finalReply, draftReply, snapshot);
+  return {
+    finalReply: mergeLeadWithSnapshot(lead, snapshot, language, appendCart),
+    usedEngineRenderer: true
+  };
 }

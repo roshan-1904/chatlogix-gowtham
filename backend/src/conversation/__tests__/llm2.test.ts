@@ -21,6 +21,7 @@ import {
   runLlm2,
   renderSnapshotReply,
   renderRejectedOpsReply,
+  renderSetFieldConfirmation,
   copyMatchesSnapshot,
   selectFinalReply,
   possiblyOverclaimsAgainstCatalog,
@@ -69,11 +70,10 @@ describe('shouldRunLlm2', () => {
   const noop: CartOp[] = [{ type: 'noop' }];
   const addOp: CartOp[] = [{ type: 'add', productId: 'p1', qty: 1 }];
 
-  it('runs for any cart-mutating op type', () => {
+  it('runs for cart-mutating op types except set_field-only', () => {
     expect(shouldRunLlm2(addOp, false, 0.99)).toBe(true);
     expect(shouldRunLlm2([{ type: 'set_qty', productId: 'p1', qty: 1 }], false, 0.99)).toBe(true);
     expect(shouldRunLlm2([{ type: 'remove', productId: 'p1' }], false, 0.99)).toBe(true);
-    expect(shouldRunLlm2([{ type: 'set_field', field: 'address', value: 'x' }], false, 0.99)).toBe(true);
     expect(shouldRunLlm2([{ type: 'confirm' }], false, 0.99)).toBe(true);
     expect(shouldRunLlm2([{ type: 'cancel' }], false, 0.99)).toBe(true);
   });
@@ -90,6 +90,15 @@ describe('shouldRunLlm2', () => {
   it('runs when confidence is below the threshold', () => {
     expect(shouldRunLlm2(noop, false, 0.5)).toBe(true);
     expect(shouldRunLlm2(noop, false, 0.8, 0.9)).toBe(true); // explicit threshold override
+  });
+
+  it('does not run for set_field-only ops (deterministic confirmation path)', () => {
+    expect(shouldRunLlm2([{ type: 'set_field', field: 'address', value: '123 Main St' }], false, 0.99)).toBe(false);
+    expect(shouldRunLlm2(
+      [{ type: 'set_field', field: 'name', value: 'Raji' }, { type: 'set_field', field: 'address', value: 'Coimbatore' }],
+      true,
+      0.99
+    )).toBe(false);
   });
 });
 
@@ -146,6 +155,12 @@ describe('renderSnapshotReply', () => {
   it('returns an empty-cart message for an empty cart', () => {
     expect(renderSnapshotReply(emptySnapshot)).toMatch(/empty/i);
   });
+
+  it('uses universal Total: Rs label for all languages', () => {
+    const text = renderSnapshotReply(snapshotWithItems, 'ml');
+    expect(text).toContain('Total: Rs250.00');
+    expect(text).toContain('Brownie x2 box');
+  });
 });
 
 describe('renderRejectedOpsReply', () => {
@@ -197,6 +212,36 @@ describe('copyMatchesSnapshot', () => {
   it('is false when a snapshot line is omitted (§26 test 9 scenario)', () => {
     expect(copyMatchesSnapshot('You have 2 Brownie in your cart.', snapshotWithItems)).toBe(false);
   });
+
+  it('accepts non-English replies that include total and quantities without English product names', () => {
+    const hindiReply = 'ठीक है! 2 बॉक्स और 1 बॉक्स जोड़ दिया। कुल Rs250.00 है।';
+    expect(copyMatchesSnapshot(hindiReply, snapshotWithItems, 'hi')).toBe(true);
+    expect(copyMatchesSnapshot(hindiReply, snapshotWithItems, 'ml')).toBe(true);
+  });
+});
+
+describe('renderSetFieldConfirmation', () => {
+  it('uses English templates for en', () => {
+    const text = renderSetFieldConfirmation(
+      [{ type: 'set_field', field: 'address', value: 'Tower 10, Coimbatore' }],
+      snapshotWithItems,
+      'en'
+    );
+    expect(text).toContain('Tower 10, Coimbatore');
+    expect(text).not.toContain('Brownie x2');
+  });
+
+  it('uses LLM draftReply for non-English instead of English templates', () => {
+    const malayalamDraft = 'നന്ദി! ഡെലിവറി വിലാസം സേവ് ചെയ്തു.';
+    const text = renderSetFieldConfirmation(
+      [{ type: 'set_field', field: 'address', value: 'Kochi' }],
+      snapshotWithItems,
+      'ml',
+      malayalamDraft
+    );
+    expect(text).toBe(malayalamDraft);
+    expect(text).not.toContain('Brownie x2');
+  });
 });
 
 describe('selectFinalReply', () => {
@@ -208,9 +253,26 @@ describe('selectFinalReply', () => {
       traceId: 'wamid.1',
       intent: 'query',
       ops: [],
-      compactCatalog
+      compactCatalog,
+      language: 'en'
     });
     expect(decision).toEqual({ finalReply: 'draft text', usedEngineRenderer: false });
+  });
+
+  it('uses set_field confirmation when LLM-2 was skipped for address-only ops', () => {
+    const decision = selectFinalReply({
+      draftReply: 'Thanks, saved your address!',
+      llm2Result: { skipped: true },
+      snapshot: snapshotWithItems,
+      traceId: 'wamid.1b',
+      intent: 'set_field',
+      ops: [{ type: 'set_field', field: 'address', value: '123 Main St' }],
+      compactCatalog,
+      language: 'en'
+    });
+    expect(decision.usedEngineRenderer).toBe(true);
+    expect(decision.finalReply).toContain('123 Main St');
+    expect(decision.finalReply).not.toContain('Brownie x2');
   });
 
   it('uses LLM-2\'s copy when it matches the snapshot', () => {
@@ -221,25 +283,62 @@ describe('selectFinalReply', () => {
       traceId: 'wamid.2',
       intent: 'add',
       ops: [{ type: 'add', productId: 'prod-1', qty: 2 }],
-      compactCatalog
+      compactCatalog,
+      language: 'en'
     });
     expect(decision.finalReply).toBe('You ordered 2 Brownie and 1 Cookies, total Rs250.');
     expect(decision.usedEngineRenderer).toBe(false);
   });
 
-  it('§26 test 9: falls back to the engine renderer when LLM-2 omits a snapshot line, never sending LLM-2\'s bad list', () => {
+  it('§26 test 9: merges draft lead with grounded cart when LLM-2 omits a snapshot line', () => {
     const decision = selectFinalReply({
-      draftReply: 'draft text',
+      draftReply: 'Added your items!',
       llm2Result: { skipped: false, finalReply: 'You ordered 2 Brownie, total Rs250.', promptTokens: 1, completionTokens: 1 }, // omits Cookies
       snapshot: snapshotWithItems,
       traceId: 'wamid.3',
       intent: 'add',
       ops: [{ type: 'add', productId: 'prod-1', qty: 2 }],
-      compactCatalog
+      compactCatalog,
+      language: 'en',
+      cartMutated: true
     });
     expect(decision.usedEngineRenderer).toBe(true);
-    expect(decision.finalReply).toBe(renderSnapshotReply(snapshotWithItems));
+    expect(decision.finalReply).toContain('Added your items!');
     expect(decision.finalReply).toContain('Cookies');
+    expect(decision.finalReply).not.toBe('You ordered 2 Brownie, total Rs250.');
+  });
+
+  it('keeps non-English address reply without cart dump on query turns', () => {
+    const hindiReply = 'कृपया अपना पूरा डिलीवरी पता भेजें — अभी तक हमारे पास पता नहीं है।';
+    const decision = selectFinalReply({
+      draftReply: hindiReply,
+      llm2Result: { skipped: false, finalReply: hindiReply, promptTokens: 1, completionTokens: 1 },
+      snapshot: snapshotWithItems,
+      traceId: 'wamid.3b',
+      intent: 'query',
+      ops: [{ type: 'noop' }],
+      compactCatalog,
+      language: 'hi'
+    });
+    expect(decision.usedEngineRenderer).toBe(false);
+    expect(decision.finalReply).toBe(hindiReply);
+    expect(decision.finalReply).not.toContain('Brownie x2');
+  });
+
+  it('keeps Malayalam query reply without cart dump', () => {
+    const mlReply = 'ദയവായി നിങ്ങളുടെ ഡെലിവറി വിലാസം അയയ്ക്കുക.';
+    const decision = selectFinalReply({
+      draftReply: mlReply,
+      llm2Result: { skipped: false, finalReply: mlReply, promptTokens: 1, completionTokens: 1 },
+      snapshot: snapshotWithItems,
+      traceId: 'wamid.3c',
+      intent: 'query',
+      ops: [{ type: 'noop' }],
+      compactCatalog,
+      language: 'ml'
+    });
+    expect(decision.finalReply).toBe(mlReply);
+    expect(decision.finalReply).not.toContain('Brownie');
   });
 
   it('2026-09-04 incident repro: LLM-2 skipped, ops empty, intent "add", draftReply confirms an item not in the cart — falls back to renderPossibleMissedItemReply instead of the false confirmation', () => {
@@ -251,7 +350,8 @@ describe('selectFinalReply', () => {
       traceId: 'wamid.4',
       intent: 'add',
       ops: [],
-      compactCatalog
+      compactCatalog,
+      language: 'en'
     });
     expect(decision.usedEngineRenderer).toBe(true);
     expect(decision.finalReply).not.toContain('Adding 2.5 kg of Karuppu Kavuni');
@@ -267,7 +367,8 @@ describe('selectFinalReply', () => {
       traceId: 'wamid.5',
       intent: 'query',
       ops: [],
-      compactCatalog
+      compactCatalog,
+      language: 'en'
     });
     expect(decision).toEqual({ finalReply: draftReply, usedEngineRenderer: false });
   });

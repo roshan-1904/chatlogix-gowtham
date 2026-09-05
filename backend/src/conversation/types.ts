@@ -49,7 +49,8 @@ export interface PostSalesOutcome {
 }
 
 export interface Llm1Result {
-  language: 'en' | 'ta' | 'hi' | 'mixed';
+  /** ISO 639-1 code (en, hi, ta, ml, kn, te, …) or "mixed" for code-switching. */
+  language: string;
   intent: string; // telemetry only — CartEngine does not trust this for writes
   ops: CartOp[];
   draftReply: string;

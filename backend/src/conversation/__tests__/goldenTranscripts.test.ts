@@ -169,11 +169,14 @@ describe('Golden transcripts (spec §2.2 motivating bugs, replayed end-to-end)',
       traceId: 'wamid.turn1',
       intent: 'add',
       ops: [{ type: 'add', productId: 'prod-cookies', qty: 1 }],
-      compactCatalog: []
+      compactCatalog: [],
+      language: 'en',
+      cartMutated: true
     });
 
     expect(decision.usedEngineRenderer).toBe(true);
     expect(decision.finalReply).toContain('Cookies');
+    expect(decision.finalReply).toContain('Added your items!');
   });
 
   it('a batch-merged burst message ("hi" + "2 brownies" in one turn) still results in exactly one op application, not two competing carts', async () => {

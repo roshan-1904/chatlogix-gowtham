@@ -195,7 +195,10 @@ function buildStaticBlock(hotSet: HotSet): string {
   );
   parts.push('- draftReply must be no more than about 120 words.');
   parts.push(
-    "- Reply in the same language/script as the customer's latest message (English, Tamil, Hindi, Tanglish/Hinglish, or a natural mix)."
+    '- Set "language" to an ISO 639-1 code for the customer\'s latest message (e.g. en, hi, ta, ml, kn, te, bn, gu, or mixed for code-switching).'
+  );
+  parts.push(
+    "- Reply in the same language/script as the customer's latest message — English, Tamil, Hindi, Malayalam, Kannada, Telugu, Bengali, other regional languages, or a natural mix (Tanglish/Hinglish/Manglish)."
   );
   parts.push(
     '- If the customer asks about an order (status, "where is it", "did I already order"), answer directly from RECENT ORDERS below — state the exact order number and status. NEVER say "I\'m checking" or "I\'ll get back to you" — you already have the data, right now, in this prompt. If RECENT ORDERS is empty, say plainly that you don\'t see any order on file and ask if they\'d like to place one — don\'t ask for their name/address "to check the status" first.'
@@ -372,7 +375,10 @@ const cartOpSchema = {
 export const llm1JsonSchema: Record<string, unknown> = {
   type: 'object',
   properties: {
-    language: { type: 'string', enum: ['en', 'ta', 'hi', 'mixed'] },
+    language: {
+      type: 'string',
+      description: 'ISO 639-1 code for the customer message (en, hi, ta, ml, kn, te, bn, gu, …) or mixed for code-switching'
+    },
     intent: { type: 'string' },
     ops: { type: 'array', items: cartOpSchema },
     draftReply: { type: 'string' },

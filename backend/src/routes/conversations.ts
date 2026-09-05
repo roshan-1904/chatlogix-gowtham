@@ -229,6 +229,7 @@ export function shapeMessage(row: any): any {
 
   return {
     ...base,
+    contentEn: row.contentEn ?? null,
     replyTo,
     media,
     reactions,

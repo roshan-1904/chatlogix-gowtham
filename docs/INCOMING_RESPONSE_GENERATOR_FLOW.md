@@ -360,11 +360,17 @@ flowchart TD
   ENG --> F
 ```
 
-Mutating op types that force LLM-2: `add`, `set_qty`, `remove`, `set_field`, `confirm`, `cancel`.
+Mutating op types that force LLM-2: `add`, `set_qty`, `remove`, `confirm`, `cancel`. **`set_field`-only turns skip LLM-2** and use a short localized confirmation (`renderSetFieldConfirmation`) instead of a full cart dump.
 
-LLM-2 (when it runs): same vendor model, temperature 0.2, ~300 tokens. May rewrite wording only, and now also drops any claim about an item absent from CART SNAPSHOT. Cart is frozen after `apply`.
+LLM-2 (when it runs): same vendor model, temperature 0.2, ~300 tokens. May rewrite wording only, and now also drops any claim about an item absent from CART SNAPSHOT. Cart is frozen after `apply`. The prompt tells LLM-2 to answer the customer's question first and only include a full line list when items changed or they asked to review the order.
 
-If LLM-2’s copy omits a product name, `selectFinalReply` falls back to `renderSnapshotReply` (deterministic line list + total).
+If LLM-2’s copy omits a product name, `selectFinalReply` no longer sends a bare cart list:
+- **`query` / noop turns:** keep LLM-2's (or draft) conversational reply — no cart dump.
+- **`set_field`-only:** localized name/address confirmation; cart lines omitted unless still missing fields.
+- **Item mutations (`add` / `set_qty` / `remove`):** merge LLM-1's draft lead with a grounded cart block (`mergeLeadWithSnapshot`), so the customer gets context plus correct lines/total.
+- **`copyMatchesSnapshot`** uses relaxed matching for Hindi/Tamil (total + quantities) so valid non-English replies are not rejected just because catalog names stay in English.
+
+`renderSnapshotReply` uses catalog English product names + `Total: Rs…` (universal). Conversational prose for any regional language comes from LLM-1/LLM-2 `draftReply`; pipeline logic is **English vs non-English** only (`conversation/language.ts`). LLM-1 `language` is a free-form ISO 639-1 code (en, hi, ta, ml, kn, te, …, mixed) — not a fixed enum.
 
 **Phantom-mutation backstop** (added after a 2026-09-04 incident where LLM-1 confirmed adding an item in `draftReply` while emitting zero ops for it, and the empty-ops turn skipped LLM-2 entirely — see `docs/CONVERSATION_WORKER_GAPS.md` if a writeup exists, or the git history of `llm1.ts`/`llm2.ts`/`prompts.ts` around this date): `buildLlm1SystemPrompt` now explicitly requires every claim in `draftReply` to be backed by a matching op, and to set `needsVerify: true` whenever it isn't certain — this is the primary fix, and routes the turn through LLM-2 above via the existing `needsVerify` branch. As defense-in-depth for the case LLM-1 still doesn't set `needsVerify`, `selectFinalReply` (`llm2.ts`) also runs `isPhantomMutation` even on the `Q -->|no|` path: gated on `llm1Result.intent` being `add`/`remove`/`set_qty` (never fires on `query`-classified informational replies) and `ops.length === 0`, it checks whether `draftReply` names a vendor catalog product absent from the cart snapshot. On a hit, the reply is never trusted — the customer gets the true cart plus a prompt to repeat the item name, never a false confirmation.
 

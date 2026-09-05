@@ -356,7 +356,9 @@ describe('processMessage', () => {
       expect.objectContaining({
         intent: llm1Result.intent,
         ops: llm1Result.ops,
-        compactCatalog: hotSet.compactCatalog
+        compactCatalog: hotSet.compactCatalog,
+        language: llm1Result.language,
+        cartMutated: applyResult.mutated
       })
     );
   });
@@ -599,7 +601,7 @@ describe('processMessage', () => {
     await new Promise((resolve) => setImmediate(resolve));
 
     expect(notifyVendorNewOrderMock).not.toHaveBeenCalled();
-    expect(renderRejectedOpsReplyMock).toHaveBeenCalledWith(rejectedOps, snapshot);
+    expect(renderRejectedOpsReplyMock).toHaveBeenCalledWith(rejectedOps, snapshot, llm1Result.language, llm1Result.draftReply);
     expect(runLlm2Mock).not.toHaveBeenCalled();
     expect(selectFinalReplyMock).not.toHaveBeenCalled();
     expect(persistTurnMock).toHaveBeenCalledWith(expect.objectContaining({ finalText: 'rejected-ops reply' }));

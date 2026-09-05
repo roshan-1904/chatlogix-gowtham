@@ -344,7 +344,7 @@ export async function processMessage(input: ProcessMessageInput): Promise<void> 
       // an empty snapshot), so a hallucinated "added"/"confirmed" reply can
       // otherwise reach the customer even though nothing was persisted.
       logCount('RejectedOpsGrounded', { vendorId }, applyResult.rejectedOps.length);
-      finalText = renderRejectedOpsReply(applyResult.rejectedOps, applyResult.snapshot);
+      finalText = renderRejectedOpsReply(applyResult.rejectedOps, applyResult.snapshot, llm1Result.language, llm1Result.draftReply);
     } else {
       // Step 6: LLM-2, conditionally (runLlm2 checks shouldRunLlm2 internally).
       const llm2StartedAt = Date.now();
@@ -377,8 +377,10 @@ export async function processMessage(input: ProcessMessageInput): Promise<void> 
         snapshot: applyResult.snapshot,
         traceId,
         intent: llm1Result.intent,
-        ops: llm1Result.ops,
-        compactCatalog: hotSet.compactCatalog
+        ops: normalizedOps,
+        compactCatalog: hotSet.compactCatalog,
+        language: llm1Result.language,
+        cartMutated: applyResult.mutated
       });
       finalText = decision.finalReply;
     }
