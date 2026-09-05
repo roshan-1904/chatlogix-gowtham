@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import { env } from './config/env.js';
@@ -39,7 +40,15 @@ async function bootstrap() {
   // Add request logging middleware before other middleware
   app.use(requestLogger());
 
-  app.use(cors());
+  const corsOrigins = env.CORS_ALLOWED_ORIGINS.split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  app.use(cors({
+    origin: corsOrigins,
+    credentials: true
+  }));
+  app.use(cookieParser());
   // Helmet 7 defaults CORP to same-origin. This API is fetched from the
   // vendor dashboard on a different origin in local dev (and whenever the
   // SPA is not served from the same host). cors() does not override CORP,

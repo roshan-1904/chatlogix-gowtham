@@ -24,6 +24,11 @@ vi.mock('../../logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
 }));
 
+vi.mock('../../utils/sendCodeRateLimit.js', () => ({
+  getSendCodeRetryAfterSeconds: vi.fn().mockResolvedValue(0),
+  recordSendCodeSent: vi.fn().mockResolvedValue(undefined)
+}));
+
 const { sendVerificationCode, verifyCode } = await import('../phoneAuth.js');
 
 describe('phoneAuth', () => {
@@ -103,5 +108,44 @@ describe('phoneAuth', () => {
       sessionInfo: 'firebase-session',
       code: '654321'
     });
+  });
+
+  it('maps Firebase TOO_MANY_ATTEMPTS to 429 with retry hint', async () => {
+    envState.apiKey = 'test-key';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        json: async () => ({ error: { message: 'TOO_MANY_ATTEMPTS_TRY_LATER' } })
+      })
+    );
+
+    await expect(sendVerificationCode('+919876543210', 'recaptcha-token')).rejects.toMatchObject({
+      statusCode: 429,
+      message: expect.stringMatching(/15 minutes/i),
+      context: { retryAfterSeconds: 900 }
+    });
+  });
+
+  it('falls back to dev OTP after repeated Firebase send failures in non-production', async () => {
+    envState.apiKey = 'test-key';
+    envState.nodeEnv = 'development';
+    const phone = '+919876543211';
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      json: async () => ({ error: { message: 'TOO_MANY_ATTEMPTS_TRY_LATER' } })
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(sendVerificationCode(phone, 'recaptcha-token')).rejects.toMatchObject({
+      statusCode: 429
+    });
+
+    const result = await sendVerificationCode(phone, 'recaptcha-token');
+    expect(result.delivery).toBe('dev');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const verified = await verifyCode(result.sessionInfo, '123456');
+    expect(verified.phoneNumber).toBe(phone);
   });
 });

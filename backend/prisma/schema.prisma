@@ -368,6 +368,19 @@ model Admin {
   @@map("Admin")
 }
 
+model RefreshToken {
+  id          String    @id @default(uuid())
+  userId      String
+  phoneNumber String
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId])
+  @@map("RefreshToken")
+}
+
 model Product {
   id               String   @id @default(dbgenerated("(gen_random_uuid())::text"))
   vendorId         String

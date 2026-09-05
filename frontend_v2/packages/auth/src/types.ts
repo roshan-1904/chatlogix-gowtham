@@ -12,6 +12,11 @@ export interface AuthResponse {
   isNewUser: boolean;
 }
 
+export interface RefreshResponse {
+  token: string;
+  user: User;
+}
+
 export interface SendCodeResponse {
   sessionInfo: string;
   expiresIn: number;

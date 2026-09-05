@@ -1,5 +1,9 @@
 # reCAPTCHA Setup Guide
 
+## Problem: Hostname match not found / SITE_MISMATCH
+
+Use **`http://127.0.0.1:3000`** (not `localhost`) and add **`127.0.0.1`** to Firebase Authorized domains. Ensure the Web reCAPTCHA platform key includes the same hostname.
+
 ## Problem: SITE_MISMATCH Error
 
 If you're seeing the error:
@@ -11,7 +15,21 @@ This means the reCAPTCHA site key in your frontend doesn't match the one configu
 
 ## Solution
 
-### Step 1: Get the reCAPTCHA Site Key from Firebase Console
+### Step 1: reCAPTCHA params (current implementation)
+
+Login no longer uses a static `VITE_RECAPTCHA_SITE_KEY`. The frontend calls:
+
+```
+GET /api/auth/recaptcha-params
+```
+
+and renders invisible reCAPTCHA with the returned `recaptchaSiteKey` **and** `recaptchaStoken`.
+
+See `frontend_v2/apps/web-vendor/src/lib/firebaseRecaptcha.ts` and `documentation/modules/authentication/guides/authentication.md`.
+
+### Step 1 (legacy): Static site key from Firebase Console
+
+If debugging an older build that still used `react-google-recaptcha`:
 
 1. Go to [Firebase Console](https://console.firebase.google.com/)
 2. Select your project

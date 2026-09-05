@@ -116,7 +116,11 @@ const EnvSchema = z.object({
 
   // Auth & Firebase
   AUTH_JWT_SECRET: z.string().default('change-me-secret'),
+  AUTH_ACCESS_TOKEN_EXPIRES_IN: z.string().optional(),
   AUTH_TOKEN_EXPIRES_IN: z.string().default('1h'),
+  AUTH_REFRESH_TOKEN_EXPIRES_IN: z.string().default('7d'),
+  AUTH_COOKIE_SECURE: z.string().optional(),
+  CORS_ALLOWED_ORIGINS: z.string().default('http://127.0.0.1:3000'),
   FIREBASE_PROJECT_ID: z.string().optional(),
   FIREBASE_CLIENT_EMAIL: z.string().optional(),
   FIREBASE_PRIVATE_KEY: z.string().optional(),

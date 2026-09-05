@@ -16,7 +16,8 @@ export interface AuthTokenPayload {
 }
 
 const JWT_SECRET: Secret = env.AUTH_JWT_SECRET;
-const DEFAULT_EXPIRES_IN: string | number = env.AUTH_TOKEN_EXPIRES_IN || '1h';
+const DEFAULT_EXPIRES_IN: string | number =
+  env.AUTH_ACCESS_TOKEN_EXPIRES_IN || env.AUTH_TOKEN_EXPIRES_IN || '1h';
 
 export function generateAuthToken(
   payload: AuthTokenPayload,

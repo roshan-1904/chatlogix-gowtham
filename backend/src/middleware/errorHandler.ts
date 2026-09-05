@@ -128,6 +128,21 @@ export function createExternalAPIError(message: string, service?: string, endpoi
   );
 }
 
+export function createRateLimitError(
+  message: string,
+  retryAfterSeconds: number,
+  context: Record<string, unknown> = {}
+): AppError {
+  return new CustomError(
+    message,
+    429,
+    ErrorType.RATE_LIMIT,
+    ErrorSeverity.MEDIUM,
+    true,
+    { retryAfterSeconds: Math.max(1, Math.ceil(retryAfterSeconds)), ...context }
+  );
+}
+
 export function createWhatsAppError(message: string, phoneNumberId?: string, customerPhone?: string): AppError {
   return new CustomError(
     message, 
@@ -234,11 +249,16 @@ export function globalErrorHandler(
 
   // Determine status code
   const statusCode = error.statusCode || 500;
+  const retryAfterSeconds = error.context?.retryAfterSeconds;
   
   // Don't expose internal errors in production
   const message = process.env.NODE_ENV === 'production' && statusCode >= 500 
     ? 'Internal Server Error' 
     : error.message;
+
+  if (typeof retryAfterSeconds === 'number' && retryAfterSeconds > 0) {
+    res.setHeader('Retry-After', String(Math.ceil(retryAfterSeconds)));
+  }
 
   // Enhanced error response
   const errorResponse = {
@@ -248,6 +268,9 @@ export function globalErrorHandler(
       operationId,
       timestamp: new Date().toISOString(),
       errorCode: error.errorCode || 'UNKNOWN_ERROR',
+      ...(typeof retryAfterSeconds === 'number' && retryAfterSeconds > 0
+        ? { retryAfter: Math.ceil(retryAfterSeconds) }
+        : {}),
       ...(process.env.NODE_ENV !== 'production' && { 
         stack: error.stack,
         context: error.context,

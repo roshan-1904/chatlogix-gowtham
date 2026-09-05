@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 
 beforeAll(() => {
   process.env.AUTH_JWT_SECRET = 'unit-test-secret';
@@ -34,6 +34,26 @@ describe('tokenService', () => {
   it('should throw on invalid tokens', async () => {
     const { verifyAuthToken } = await import('../../src/services/tokenService.js');
     expect(() => verifyAuthToken('invalid-token')).toThrowError();
+  });
+
+  it('should prefer AUTH_ACCESS_TOKEN_EXPIRES_IN over AUTH_TOKEN_EXPIRES_IN', async () => {
+    process.env.AUTH_ACCESS_TOKEN_EXPIRES_IN = '2h';
+    process.env.AUTH_TOKEN_EXPIRES_IN = '1h';
+
+    vi.resetModules();
+    const { generateAuthToken } = await import('../../src/services/tokenService.js');
+    const jwt = await import('jsonwebtoken');
+
+    const token = generateAuthToken({
+      userId: 'firebase-uid-123',
+      phoneNumber: '+15551234567',
+      roles: ['vendor']
+    });
+
+    const decoded = jwt.decode(token) as { exp?: number; iat?: number };
+    expect(decoded.exp).toBeDefined();
+    expect(decoded.iat).toBeDefined();
+    expect((decoded.exp as number) - (decoded.iat as number)).toBe(2 * 60 * 60);
   });
 });
 

@@ -46,7 +46,6 @@ Map the current Bitbucket repository variables to GitHub. In your GitHub repo, g
 |---|---|---|
 | `AWS_ACCESS_KEY_ID` | `AWS_ACCESS_KEY_ID` | Lambda deploy |
 | `AWS_SECRET_ACCESS_KEY` | `AWS_SECRET_ACCESS_KEY` | Lambda deploy |
-| `VITE_RECAPTCHA_SITE_KEY` | `VITE_RECAPTCHA_SITE_KEY` | Frontend build |
 | `EC2_SSH_PRIVATE_KEY` | (from Bitbucket → Deployments → production → SSH keys, copy private key) | EC2 deploy |
 | `EC2_HOST` | `EC2_HOST` | EC2 deploy |
 | `EC2_USER` | `EC2_USER` | EC2 deploy |

@@ -1,4 +1,4 @@
-import type { AuthResponse, SendCodeResponse } from './types';
+import type { AuthResponse, RefreshResponse, SendCodeResponse } from './types';
 
 export interface AuthApiConfig {
   baseURL: string;
@@ -32,6 +32,7 @@ export class AuthApi {
       headers: {
         'Content-Type': 'application/json',
       },
+      credentials: 'include',
       body: JSON.stringify({
         phoneNumber,
         ...(token ? { recaptchaToken: token } : {}),
@@ -56,6 +57,7 @@ export class AuthApi {
       headers: {
         'Content-Type': 'application/json',
       },
+      credentials: 'include',
       body: JSON.stringify({
         phoneNumber,
         sessionInfo,
@@ -70,5 +72,29 @@ export class AuthApi {
 
     return response.json();
   }
-}
 
+  async refresh(): Promise<RefreshResponse | null> {
+    const response = await fetch(`${this.baseURL}/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+
+    if (response.status === 401) {
+      return null;
+    }
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Failed to refresh session' }));
+      throw new Error(error.message || `HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async logout(): Promise<void> {
+    await fetch(`${this.baseURL}/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+  }
+}

@@ -55,9 +55,10 @@ function extractUserFromToken(token: string): User | null {
 interface AuthContextValue extends AuthState {
   login: (phoneNumber: string, sessionInfo: string, code: string) => Promise<void>;
   sendCode: (phoneNumber: string, recaptchaToken?: string) => Promise<SendCodeResponse>;
-  logout: () => void;
+  logout: () => Promise<void>;
   hasRole: (role: string) => boolean;
   refreshAuth: () => Promise<void>;
+  restoreSession: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -75,50 +76,54 @@ export function AuthProvider({ children, api }: AuthProviderProps) {
     isLoading: true,
   });
 
-  // Load token from storage on mount and restore user session
-  useEffect(() => {
+  const clearSession = useCallback(() => {
+    tokenStorage.removeToken();
+    setState({
+      user: null,
+      token: null,
+      isAuthenticated: false,
+      isLoading: false,
+    });
+  }, []);
+
+  const applySession = useCallback((token: string, user: User) => {
+    tokenStorage.setToken(token);
+    setState({
+      user,
+      token,
+      isAuthenticated: true,
+      isLoading: false,
+    });
+  }, []);
+
+  const restoreSession = useCallback(async () => {
     const token = tokenStorage.getToken();
-    if (token) {
-      // Check if token is expired
-      if (isTokenExpired(token)) {
-        // Token is expired, clear it
-        tokenStorage.removeToken();
-        setState({
-          user: null,
-          token: null,
-          isAuthenticated: false,
-          isLoading: false,
-        });
-        return;
-      }
-      
-      // Decode token to extract user information
+
+    if (token && !isTokenExpired(token)) {
       const user = extractUserFromToken(token);
       if (user) {
-        // Restore authenticated session
-        setState({
-          user,
-          token,
-          isAuthenticated: true,
-          isLoading: false,
-        });
-      } else {
-        // Token is invalid or corrupted, clear it
-        tokenStorage.removeToken();
-        setState({
-          user: null,
-          token: null,
-          isAuthenticated: false,
-          isLoading: false,
-        });
+        applySession(token, user);
+        return;
       }
-    } else {
-      setState((prev) => ({
-        ...prev,
-        isLoading: false,
-      }));
     }
-  }, []);
+
+    try {
+      const response = await api.refresh();
+      if (response) {
+        applySession(response.token, response.user);
+        return;
+      }
+    } catch (error) {
+      console.warn('Failed to restore session via refresh token:', error);
+    }
+
+    clearSession();
+  }, [api, applySession, clearSession]);
+
+  // Load token from storage on mount and restore user session
+  useEffect(() => {
+    void restoreSession();
+  }, [restoreSession]);
 
   const sendCode = useCallback(
     async (phoneNumber: string, recaptchaToken?: string) => {
@@ -132,17 +137,7 @@ export function AuthProvider({ children, api }: AuthProviderProps) {
     async (phoneNumber: string, sessionInfo: string, code: string) => {
       try {
         const response: AuthResponse = await api.verifyCode(phoneNumber, sessionInfo, code);
-        
-        // Store token
-        tokenStorage.setToken(response.token);
-        
-        // Update state
-        setState({
-          user: response.user,
-          token: response.token,
-          isAuthenticated: true,
-          isLoading: false,
-        });
+        applySession(response.token, response.user);
       } catch (error) {
         setState((prev) => ({
           ...prev,
@@ -151,18 +146,18 @@ export function AuthProvider({ children, api }: AuthProviderProps) {
         throw error;
       }
     },
-    [api]
+    [api, applySession]
   );
 
-  const logout = useCallback(() => {
-    tokenStorage.removeToken();
-    setState({
-      user: null,
-      token: null,
-      isAuthenticated: false,
-      isLoading: false,
-    });
-  }, []);
+  const logout = useCallback(async () => {
+    try {
+      await api.logout();
+    } catch (error) {
+      console.warn('Logout request failed:', error);
+    } finally {
+      clearSession();
+    }
+  }, [api, clearSession]);
 
   const hasRole = useCallback(
     (role: string) => {
@@ -172,48 +167,8 @@ export function AuthProvider({ children, api }: AuthProviderProps) {
   );
 
   const refreshAuth = useCallback(async () => {
-    // Reload token from storage and restore user info
-    const token = tokenStorage.getToken();
-    if (token) {
-      // Check if token is expired
-      if (isTokenExpired(token)) {
-        tokenStorage.removeToken();
-        setState({
-          user: null,
-          token: null,
-          isAuthenticated: false,
-          isLoading: false,
-        });
-        return;
-      }
-      
-      const user = extractUserFromToken(token);
-      if (user) {
-        setState({
-          user,
-          token,
-          isAuthenticated: true,
-          isLoading: false,
-        });
-      } else {
-        // Token is invalid, clear it
-        tokenStorage.removeToken();
-        setState({
-          user: null,
-          token: null,
-          isAuthenticated: false,
-          isLoading: false,
-        });
-      }
-    } else {
-      setState({
-        user: null,
-        token: null,
-        isAuthenticated: false,
-        isLoading: false,
-      });
-    }
-  }, []);
+    await restoreSession();
+  }, [restoreSession]);
 
   return (
     <AuthContext.Provider
@@ -224,6 +179,7 @@ export function AuthProvider({ children, api }: AuthProviderProps) {
         logout,
         hasRole,
         refreshAuth,
+        restoreSession,
       }}
     >
       {children}
@@ -238,4 +194,3 @@ export function useAuth(): AuthContextValue {
   }
   return context;
 }
-

@@ -3,16 +3,24 @@ import { env } from '../config/env.js';
 import {
   createValidationError,
   createExternalAPIError,
+  createRateLimitError,
   ErrorType,
   ErrorSeverity,
   CustomError
 } from '../middleware/errorHandler.js';
 import { logger } from '../logger.js';
+import {
+  getSendCodeRetryAfterSeconds,
+  recordSendCodeSent
+} from '../utils/sendCodeRateLimit.js';
 
 const PHONE_REGEX = /^\+[1-9]\d{6,14}$/;
 const OTP_EXPIRY_MS = 2 * 60 * 1000;
 const IDENTITY_TOOLKIT = 'https://identitytoolkit.googleapis.com/v1';
 const DEV_OTP = '123456';
+/** Suggested wait when Firebase returns TOO_MANY_ATTEMPTS_TRY_LATER */
+const FIREBASE_TOO_MANY_ATTEMPTS_RETRY_SECONDS = 900;
+const DEV_OTP_FALLBACK_AFTER_FAILURES = 2;
 
 interface OtpSession {
   phoneNumber: string;
@@ -22,6 +30,7 @@ interface OtpSession {
 }
 
 const otpSessions = new Map<string, OtpSession>();
+const firebaseSendFailures = new Map<string, number>();
 
 setInterval(() => {
   const now = Date.now();
@@ -81,7 +90,9 @@ function mapFirebaseStatus(message: string): number {
 
 function humanizeFirebaseAuthError(message: string): string {
   const upper = message.toUpperCase();
-  if (upper.includes('TOO_MANY_ATTEMPTS')) return 'Too many attempts. Please try again later.';
+  if (upper.includes('TOO_MANY_ATTEMPTS')) {
+    return 'Too many verification attempts for this phone number. Please wait about 15 minutes before requesting another SMS code.';
+  }
   if (upper.includes('INVALID_PHONE_NUMBER')) return 'Invalid phone number.';
   if (upper.includes('MISSING_PHONE_NUMBER')) return 'Phone number is required.';
   if (upper.includes('INVALID_CODE') || upper.includes('SESSION_EXPIRED')) {
@@ -110,14 +121,24 @@ function humanizeFirebaseAuthError(message: string): string {
 
 function throwMappedFirebaseError(message: string): never {
   const statusCode = mapFirebaseStatus(message);
+  const upper = message.toUpperCase();
+
+  if (statusCode === 429) {
+    throw createRateLimitError(
+      humanizeFirebaseAuthError(message),
+      upper.includes('TOO_MANY_ATTEMPTS')
+        ? FIREBASE_TOO_MANY_ATTEMPTS_RETRY_SECONDS
+        : 60,
+      env.NODE_ENV !== 'production' ? { firebaseError: message } : {}
+    );
+  }
+
   const errorType =
-    statusCode === 429
-      ? ErrorType.RATE_LIMIT
-      : statusCode === 400
-        ? ErrorType.VALIDATION
-        : statusCode === 401
-          ? ErrorType.AUTHENTICATION
-          : ErrorType.EXTERNAL_API;
+    statusCode === 400
+      ? ErrorType.VALIDATION
+      : statusCode === 401
+        ? ErrorType.AUTHENTICATION
+        : ErrorType.EXTERNAL_API;
 
   throw new CustomError(
     humanizeFirebaseAuthError(message),
@@ -179,6 +200,52 @@ async function firebasePost(path: string, body: Record<string, string>): Promise
   return data;
 }
 
+async function assertSendCodeRateLimit(phoneNumber: string): Promise<void> {
+  const retryAfter = await getSendCodeRetryAfterSeconds(phoneNumber);
+  if (retryAfter > 0) {
+    throw createRateLimitError(
+      `Please wait ${retryAfter} seconds before requesting another verification code.`,
+      retryAfter,
+      { source: 'send_code_cooldown' }
+    );
+  }
+}
+
+function createDevOtpSession(normalizedPhone: string): { sessionInfo: string; delivery: 'dev' } {
+  const sessionId = generateSessionId(normalizedPhone);
+  otpSessions.set(sessionId, {
+    phoneNumber: normalizedPhone,
+    otp: DEV_OTP,
+    expiresAt: Date.now() + OTP_EXPIRY_MS,
+    attempts: 0
+  });
+  logger.warn({ phoneNumber: normalizedPhone, sessionId }, 'DEV OTP session created');
+  return { sessionInfo: sessionId, delivery: 'dev' };
+}
+
+function maybeUseDevOtpFallback(
+  normalizedPhone: string,
+  err: unknown
+): { sessionInfo: string; delivery: 'dev' } | null {
+  if (!allowDevOtp() || !(err instanceof CustomError)) {
+    return null;
+  }
+
+  const failures = (firebaseSendFailures.get(normalizedPhone) ?? 0) + 1;
+  firebaseSendFailures.set(normalizedPhone, failures);
+
+  if (failures < DEV_OTP_FALLBACK_AFTER_FAILURES) {
+    return null;
+  }
+
+  logger.warn(
+    { phoneNumber: normalizedPhone, failures, firebaseError: err.context?.firebaseError ?? err.message },
+    'Firebase send-code failed repeatedly; using dev OTP fallback'
+  );
+  firebaseSendFailures.delete(normalizedPhone);
+  return createDevOtpSession(normalizedPhone);
+}
+
 /**
  * Send an SMS OTP.
  * When FIREBASE_API_KEY is set: Identity Toolkit (requires recaptchaToken).
@@ -190,24 +257,37 @@ export async function sendVerificationCode(
   recaptchaToken?: string
 ): Promise<{ sessionInfo: string; delivery: 'firebase' | 'dev' }> {
   const normalizedPhone = assertPhoneNumber(phoneNumber);
+  await assertSendCodeRateLimit(normalizedPhone);
 
   if (isFirebasePhoneAuth()) {
     if (!recaptchaToken) {
       throw createValidationError('reCAPTCHA token is required', 'recaptchaToken');
     }
-    const data = await firebasePost('accounts:sendVerificationCode', {
-      phoneNumber: normalizedPhone,
-      recaptchaToken
-    });
-    if (!data.sessionInfo) {
-      throw createExternalAPIError(
-        'Could not send verification code. Please try again.',
-        'firebase',
-        'accounts:sendVerificationCode'
-      );
+
+    try {
+      const data = await firebasePost('accounts:sendVerificationCode', {
+        phoneNumber: normalizedPhone,
+        recaptchaToken
+      });
+      if (!data.sessionInfo) {
+        throw createExternalAPIError(
+          'Could not send verification code. Please try again.',
+          'firebase',
+          'accounts:sendVerificationCode'
+        );
+      }
+      firebaseSendFailures.delete(normalizedPhone);
+      await recordSendCodeSent(normalizedPhone);
+      logger.info({ phoneNumber: normalizedPhone }, 'Firebase OTP sent');
+      return { sessionInfo: data.sessionInfo, delivery: 'firebase' };
+    } catch (err) {
+      const fallback = maybeUseDevOtpFallback(normalizedPhone, err);
+      if (fallback) {
+        await recordSendCodeSent(normalizedPhone);
+        return fallback;
+      }
+      throw err;
     }
-    logger.info({ phoneNumber: normalizedPhone }, 'Firebase OTP sent');
-    return { sessionInfo: data.sessionInfo, delivery: 'firebase' };
   }
 
   if (!allowDevOtp()) {
@@ -219,15 +299,43 @@ export async function sendVerificationCode(
     );
   }
 
-  const sessionId = generateSessionId(normalizedPhone);
-  otpSessions.set(sessionId, {
-    phoneNumber: normalizedPhone,
-    otp: DEV_OTP,
-    expiresAt: Date.now() + OTP_EXPIRY_MS,
-    attempts: 0
-  });
-  logger.warn({ phoneNumber: normalizedPhone, sessionId }, 'DEV OTP session created');
-  return { sessionInfo: sessionId, delivery: 'dev' };
+  await recordSendCodeSent(normalizedPhone);
+  return createDevOtpSession(normalizedPhone);
+}
+
+function verifyDevOtpSession(
+  sessionInfo: string,
+  code: string
+): {
+  userId: string;
+  phoneNumber: string;
+  isNewUser: boolean;
+} {
+  const session = otpSessions.get(sessionInfo);
+  if (!session) {
+    throw new CustomError('Invalid or expired session', 401, ErrorType.AUTHENTICATION, ErrorSeverity.MEDIUM);
+  }
+  if (Date.now() > session.expiresAt) {
+    otpSessions.delete(sessionInfo);
+    throw new CustomError('Verification code has expired', 401, ErrorType.AUTHENTICATION, ErrorSeverity.MEDIUM);
+  }
+  if (session.attempts >= 5) {
+    otpSessions.delete(sessionInfo);
+    throw new CustomError(
+      'Too many verification attempts. Please request a new code',
+      429,
+      ErrorType.AUTHENTICATION,
+      ErrorSeverity.MEDIUM
+    );
+  }
+  session.attempts++;
+  if (code.trim() !== session.otp) {
+    throw new CustomError('Invalid verification code', 401, ErrorType.AUTHENTICATION, ErrorSeverity.MEDIUM);
+  }
+  otpSessions.delete(sessionInfo);
+  const userId = crypto.createHash('sha256').update(session.phoneNumber).digest('hex').substring(0, 16);
+  logger.info({ phoneNumber: session.phoneNumber, userId }, 'OTP verified successfully');
+  return { userId, phoneNumber: session.phoneNumber, isNewUser: false };
 }
 
 export async function verifyCode(
@@ -243,6 +351,10 @@ export async function verifyCode(
   }
   if (!code || code.trim().length < 4) {
     throw createValidationError('Invalid verification code', 'code');
+  }
+
+  if (otpSessions.has(sessionInfo)) {
+    return verifyDevOtpSession(sessionInfo, code);
   }
 
   if (isFirebasePhoneAuth()) {
@@ -276,29 +388,5 @@ export async function verifyCode(
     );
   }
 
-  const session = otpSessions.get(sessionInfo);
-  if (!session) {
-    throw new CustomError('Invalid or expired session', 401, ErrorType.AUTHENTICATION, ErrorSeverity.MEDIUM);
-  }
-  if (Date.now() > session.expiresAt) {
-    otpSessions.delete(sessionInfo);
-    throw new CustomError('Verification code has expired', 401, ErrorType.AUTHENTICATION, ErrorSeverity.MEDIUM);
-  }
-  if (session.attempts >= 5) {
-    otpSessions.delete(sessionInfo);
-    throw new CustomError(
-      'Too many verification attempts. Please request a new code',
-      429,
-      ErrorType.AUTHENTICATION,
-      ErrorSeverity.MEDIUM
-    );
-  }
-  session.attempts++;
-  if (code.trim() !== session.otp) {
-    throw new CustomError('Invalid verification code', 401, ErrorType.AUTHENTICATION, ErrorSeverity.MEDIUM);
-  }
-  otpSessions.delete(sessionInfo);
-  const userId = crypto.createHash('sha256').update(session.phoneNumber).digest('hex').substring(0, 16);
-  logger.info({ phoneNumber: session.phoneNumber, userId }, 'OTP verified successfully');
-  return { userId, phoneNumber: session.phoneNumber, isNewUser: false };
+  return verifyDevOtpSession(sessionInfo, code);
 }

@@ -5,6 +5,7 @@ export interface ApiClientConfig {
   baseURL: string;
   getToken?: () => string | null;
   onUnauthorized?: () => void;
+  onRefresh?: () => Promise<string | null>;
   retries?: number;
 }
 
@@ -12,6 +13,7 @@ export class ApiClient {
   private baseURL: string;
   private getToken?: () => string | null;
   private onUnauthorized?: () => void;
+  private onRefresh?: () => Promise<string | null>;
   private retries: number;
 
   constructor(config: ApiClientConfig | string, getToken?: () => string | null) {
@@ -24,6 +26,7 @@ export class ApiClient {
       this.baseURL = config.baseURL;
       this.getToken = config.getToken;
       this.onUnauthorized = config.onUnauthorized;
+      this.onRefresh = config.onRefresh;
       this.retries = config.retries ?? 1;
     }
   }
@@ -31,7 +34,8 @@ export class ApiClient {
   private async requestWithRetry<T>(
     endpoint: string,
     options: RequestInit = {},
-    retryCount = 0
+    retryCount = 0,
+    refreshAttempted = false
   ): Promise<T> {
     const token = this.getToken?.();
     const headers: Record<string, string> = {
@@ -47,10 +51,17 @@ export class ApiClient {
       const response = await fetch(`${this.baseURL}${endpoint}`, {
         ...options,
         headers,
+        credentials: options.credentials ?? 'include',
       });
 
-      // Handle unauthorized (401) - trigger logout
       if (response.status === 401) {
+        if (!refreshAttempted && this.onRefresh) {
+          const newToken = await this.onRefresh();
+          if (newToken) {
+            return this.requestWithRetry<T>(endpoint, options, retryCount, true);
+          }
+        }
+
         this.onUnauthorized?.();
         throw new Error('Unauthorized - Please login again');
       }
@@ -68,10 +79,14 @@ export class ApiClient {
         // Retry on 5xx errors
         if (response.status >= 500 && retryCount < this.retries) {
           await new Promise((resolve) => setTimeout(resolve, 1000 * (retryCount + 1)));
-          return this.requestWithRetry<T>(endpoint, options, retryCount + 1);
+          return this.requestWithRetry<T>(endpoint, options, retryCount + 1, refreshAttempted);
         }
 
         throw new Error(errorMessage);
+      }
+
+      if (response.status === 204) {
+        return undefined as T;
       }
 
       return response.json();
@@ -79,7 +94,7 @@ export class ApiClient {
       // Retry on network errors
       if (retryCount < this.retries && error instanceof TypeError) {
         await new Promise((resolve) => setTimeout(resolve, 1000 * (retryCount + 1)));
-        return this.requestWithRetry<T>(endpoint, options, retryCount + 1);
+        return this.requestWithRetry<T>(endpoint, options, retryCount + 1, refreshAttempted);
       }
       throw error;
     }
@@ -113,4 +128,3 @@ export class ApiClient {
     return this.request<T>(endpoint, { ...options, method: 'DELETE' });
   }
 }
-

@@ -5,6 +5,13 @@ import { fetchRecaptchaParams } from '../services/recaptchaParams.js';
 import { isFirebaseAuthConfigured } from '../config/env.js';
 import { resolveRolesForPhone } from '../services/roleService.js';
 import { generateAuthToken } from '../services/tokenService.js';
+import {
+  createRefreshToken,
+  rotateRefreshToken,
+  revokeRefreshToken,
+  validateRefreshToken
+} from '../services/refreshTokenService.js';
+import { setRefreshCookie, clearRefreshCookie, REFRESH_COOKIE_NAME } from '../utils/authCookies.js';
 import { logger } from '../logger.js';
 
 export const authRouter = Router();
@@ -77,6 +84,12 @@ authRouter.post(
       vendorId
     });
 
+    const { rawToken: refreshToken } = await createRefreshToken(
+      verification.userId,
+      verification.phoneNumber
+    );
+    setRefreshCookie(res, refreshToken);
+
     res.json({
       token,
       user: {
@@ -89,8 +102,53 @@ authRouter.post(
   })
 );
 
+authRouter.post(
+  '/refresh',
+  asyncHandler(async (req: Request, res: Response) => {
+    const rawToken = req.cookies?.[REFRESH_COOKIE_NAME] as string | undefined;
+
+    if (!rawToken) {
+      res.status(401).json({ error: 'Refresh token is required' });
+      return;
+    }
+
+    const { userId, phoneNumber } = await validateRefreshToken(rawToken);
+    const { roles, vendorId } = await resolveRolesForPhone(phoneNumber);
+    const rotated = await rotateRefreshToken(rawToken, userId);
+    setRefreshCookie(res, rotated.rawToken);
+
+    const token = generateAuthToken({
+      userId,
+      phoneNumber,
+      roles,
+      vendorId
+    });
+
+    res.json({
+      token,
+      user: {
+        phoneNumber,
+        roles,
+        vendorId
+      }
+    });
+  })
+);
+
+authRouter.post(
+  '/logout',
+  asyncHandler(async (req: Request, res: Response) => {
+    const rawToken = req.cookies?.[REFRESH_COOKIE_NAME] as string | undefined;
+
+    if (rawToken) {
+      await revokeRefreshToken(rawToken);
+    }
+
+    clearRefreshCookie(res);
+    res.status(204).send();
+  })
+);
+
 function normalizeDigits(phone: string): string {
   return phone.replace(/\D/g, '');
 }
-
-
