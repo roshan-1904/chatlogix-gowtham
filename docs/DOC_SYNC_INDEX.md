@@ -25,6 +25,8 @@ When you change `backend/src/conversation/` behavior documented in the files abo
 |---|---|
 | `docs/CONVERSATION_WORKER_GAPS.md` | Migration/gap writeup; no language/LLM-2/contentEn claims to reconcile |
 | `docs/LAMBDA_MIGRATION_PLAN.md` | Infrastructure plan, not pipeline logic |
+| `docs/API_LAMBDA_CLOUDFRONT_MIGRATION_PLAN.md` | Dashboard API + SPA hosting plan; not pipeline logic |
+| `docs/API_LAMBDA_CLOUDFRONT_IMPLEMENTATION.md` | Step-by-step runbook for the plan above |
 | `docs/DEPLOYMENT.md` | Deploy topology only |
 | `docs/troubleshooting/*` | Case studies; not pipeline reference docs |
 | `CLAUDE.md` / `.cursorrules` | No materially wrong language restrictions (points to flow doc for pipeline details) |

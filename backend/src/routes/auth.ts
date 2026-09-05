@@ -1,33 +1,43 @@
 import { Router, Request, Response } from 'express';
 import { asyncHandler, createValidationError } from '../middleware/errorHandler.js';
 import { sendVerificationCode, verifyCode } from '../services/phoneAuth.js';
+import { fetchRecaptchaParams } from '../services/recaptchaParams.js';
+import { isFirebaseAuthConfigured } from '../config/env.js';
 import { resolveRolesForPhone } from '../services/roleService.js';
 import { generateAuthToken } from '../services/tokenService.js';
 import { logger } from '../logger.js';
 
 export const authRouter = Router();
 
+authRouter.get(
+  '/recaptcha-params',
+  asyncHandler(async (_req: Request, res: Response) => {
+    if (!isFirebaseAuthConfigured) {
+      res.status(503).json({ error: 'Firebase phone auth is not configured' });
+      return;
+    }
+    const params = await fetchRecaptchaParams();
+    res.json(params);
+  })
+);
+
 authRouter.post(
   '/send-code',
   asyncHandler(async (req: Request, res: Response) => {
-    const { phoneNumber } = req.body ?? {};
+    const { phoneNumber, recaptchaToken } = req.body ?? {};
 
     if (!phoneNumber) {
       throw createValidationError('phoneNumber is required', 'phoneNumber');
     }
 
-    const { sessionInfo } = await sendVerificationCode(phoneNumber);
+    const { sessionInfo, delivery } = await sendVerificationCode(phoneNumber, recaptchaToken);
 
-    logger.info(
-      {
-        phoneNumber
-      },
-      'OTP session created'
-    );
+    logger.info({ phoneNumber, delivery }, 'OTP session created');
 
     res.json({
       sessionInfo,
-      expiresIn: 120 // 2 minutes
+      expiresIn: 120,
+      delivery
     });
   })
 );

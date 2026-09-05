@@ -27,10 +27,6 @@ export class AuthApi {
       }
     }
 
-    if (!token) {
-      throw new Error('reCAPTCHA token is required');
-    }
-
     const response = await fetch(`${this.baseURL}/auth/send-code`, {
       method: 'POST',
       headers: {
@@ -38,7 +34,7 @@ export class AuthApi {
       },
       body: JSON.stringify({
         phoneNumber,
-        recaptchaToken: token,
+        ...(token ? { recaptchaToken: token } : {}),
       }),
     });
 

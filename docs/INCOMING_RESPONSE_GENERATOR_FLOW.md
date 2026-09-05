@@ -220,16 +220,19 @@ flowchart TD
   P --> INS[customer insights<br/>name, address, language]
   P --> REC[last 6 messages]
   P --> HIST[last 10 orders for this customer+vendor]
-  P --> FAQ[FAQ vector search<br/>only if vendor has FAQs]
+  P --> FAQ[FAQ lexical + optional vector search]
   INS --> PO[pending Order snapshot<br/>needs insights.name]
   VC & CAT & MEM & INS & REC & HIST & FAQ & PO --> HOT[HotSet]
 ```
 
 FAQ path:
 
-1. Cached count of active FAQs. Zero → skip embedding.
-2. Embed the customer text (`faq/embedding.ts`).
-3. Postgres cosine search, top-K (default 3), similarity ≥ threshold (default 0.75).
+1. Cached count of active FAQs. Zero → skip.
+2. Lexical token overlap against the vendor's FAQ questions (always; works even if embeddings are missing).
+3. Embed the customer text (`faq/embedding.ts`) and Postgres cosine search when pgvector is available.
+4. Merge vector + lexical, top-K (default 3). Vector hits still need similarity ≥ threshold (default 0.75); lexical needs ≥ 0.34 token overlap.
+
+`POST /api/faqs/reindex` backfills null embeddings. Create/update swallows embedding failures so the FAQ row still saves — the list API sets `embeddingPending` when `embedding IS NULL`.
 
 Pending cart is **prompt context only**. `CartEngine.apply` always re-reads Postgres. The 60s pending-order cache must never be trusted for a write.
 

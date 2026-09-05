@@ -104,6 +104,8 @@ Smaller blast radius than the API. Validates the new patterns (SQS trigger, env 
 
 ## Phase B — Migrate the Express API (~2–3 weeks)
 
+> **Superseded (2026-09-05):** the nginx-in-front-of-API-Gateway design below is no longer the plan. The live successor is [`docs/API_LAMBDA_CLOUDFRONT_MIGRATION_PLAN.md`](./API_LAMBDA_CLOUDFRONT_MIGRATION_PLAN.md) (`api.chatlogix.in` + S3/CloudFront for the SPA). Execute from [`docs/API_LAMBDA_CLOUDFRONT_IMPLEMENTATION.md`](./API_LAMBDA_CLOUDFRONT_IMPLEMENTATION.md). Kept below as historical context.
+
 The big one. Touches every dashboard request.
 
 ### Architecture target

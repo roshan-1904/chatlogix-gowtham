@@ -1,24 +1,17 @@
 import { UseFormReturn } from 'react-hook-form';
 import { Button, Input } from '@chatlogix/ui';
-import ReCAPTCHA from 'react-google-recaptcha';
 import { CountryCodeSelector } from './CountryCodeSelector';
 
 interface PhoneLoginFormProps {
   form: UseFormReturn<{ countryCode: string; phone: string }>;
   onSubmit: (data: { countryCode: string; phone: string }) => void;
   isLoading: boolean;
-  recaptchaRef: React.RefObject<ReCAPTCHA>;
-  recaptchaSiteKey: string;
-  onRecaptchaError: (error: Error) => void;
 }
 
 export function PhoneLoginForm({
   form,
   onSubmit,
   isLoading,
-  recaptchaRef,
-  recaptchaSiteKey,
-  onRecaptchaError,
 }: Readonly<PhoneLoginFormProps>) {
   const countryCode = form.watch('countryCode') || '+91';
 
@@ -55,21 +48,9 @@ export function PhoneLoginForm({
         </p>
       </div>
 
-      {recaptchaSiteKey && (
-        <div className="hidden">
-          <ReCAPTCHA
-            ref={recaptchaRef}
-            sitekey={recaptchaSiteKey}
-            size="invisible"
-            onError={onRecaptchaError}
-          />
-        </div>
-      )}
-
       <Button type="submit" disabled={isLoading} isLoading={isLoading} className="w-full" size="lg">
         {isLoading ? 'Sending...' : 'Send Verification Code'}
       </Button>
     </form>
   );
 }
-

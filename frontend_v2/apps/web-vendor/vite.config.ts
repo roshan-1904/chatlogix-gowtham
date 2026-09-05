@@ -19,37 +19,17 @@ export default defineConfig(({ mode }) => {
   // This ensures .env.production is loaded when mode === 'production'
   const env = loadEnv(mode, process.cwd(), '');
 
-  // Validate required environment variables at build time
-  const recaptchaKey = env.VITE_RECAPTCHA_SITE_KEY || '';
+  // reCAPTCHA site key is fetched at runtime from GET /api/auth/recaptcha-params (Firebase Identity Toolkit).
+  const apiUrl = env.VITE_API_URL || '';
 
-  // Warn in development if env vars are missing
-  if (mode === 'development') {
-    if (!recaptchaKey || recaptchaKey.includes('your-') || recaptchaKey.includes('placeholder')) {
-      console.warn(
-        '\n⚠️  Missing or placeholder environment variables detected:\n' +
-        '  - VITE_RECAPTCHA_SITE_KEY\n' +
-        '\nPlease create .env.local file with these variables.\n' +
-        'See env.template for reference.\n'
-      );
-    } else {
-      console.log('✅ reCAPTCHA Site Key loaded from .env files');
-    }
+  if (mode === 'production' && !apiUrl) {
+    throw new Error(
+      '❌ VITE_API_URL is missing!\nProduction builds require the backend API URL.\n'
+    );
   }
 
-  // Error in production build if critical env vars are missing
-  if (mode === 'production') {
-    if (!recaptchaKey || recaptchaKey.includes('your-') || recaptchaKey.includes('placeholder')) {
-      console.error('\n❌ Environment variable validation failed:');
-      console.error('  VITE_RECAPTCHA_SITE_KEY:', recaptchaKey ? `"${recaptchaKey.substring(0, 20)}..."` : '(empty)');
-      console.error('\n📁 Looking for .env files in:', process.cwd());
-      throw new Error(
-        '❌ VITE_RECAPTCHA_SITE_KEY is missing or contains placeholder value!\n' +
-        'Production builds require a valid reCAPTCHA site key.\n' +
-        'Set it in .env.production or as an environment variable before building.\n' +
-        `Current value: ${recaptchaKey ? `"${recaptchaKey.substring(0, 30)}..."` : '(empty)'}`
-      );
-    }
-    console.log('✅ reCAPTCHA Site Key validated for production build');
+  if (mode === 'development' && !apiUrl) {
+    console.warn('\n⚠️  VITE_API_URL is not set; defaulting to http://localhost:8000/api at runtime.\n');
   }
 
   return {
@@ -68,8 +48,9 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
+      host: '127.0.0.1',
       port: 3000,
-      open: true,
+      open: 'http://127.0.0.1:3000/login',
     },
     build: {
       outDir: 'dist',

@@ -1,14 +1,13 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import ReCAPTCHA from 'react-google-recaptcha';
 import { useLogin, useAuth } from '@chatlogix/auth';
 import { z } from 'zod';
 import { normalizePhoneToE164 } from '@chatlogix/utils';
 import { PhoneLoginForm } from '../components/auth/PhoneLoginForm';
 import { OtpVerificationForm } from '../components/auth/OtpVerificationForm';
-import { getRecaptchaSiteKey } from '../lib/env';
+import { executeFirebaseRecaptcha } from '../lib/firebaseRecaptcha';
 
 const phoneSchema = z.object({
   countryCode: z.string().min(1, 'Country code is required'),
@@ -26,20 +25,16 @@ const otpSchema = z.object({
 type PhoneFormData = z.infer<typeof phoneSchema>;
 type OtpFormData = z.infer<typeof otpSchema>;
 
-// Get reCAPTCHA site key from environment variables
-// This ensures it's loaded from .env.local (dev) or .env.production (build)
-const RECAPTCHA_SITE_KEY = getRecaptchaSiteKey();
-
 export function Login() {
   const navigate = useNavigate();
   const { login, sendCode } = useLogin();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
-  const recaptchaRef = useRef<ReCAPTCHA>(null);
   const [step, setStep] = useState<'phone' | 'otp'>('phone');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [sessionInfo, setSessionInfo] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [devOtpHint, setDevOtpHint] = useState(false);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -60,6 +55,21 @@ export function Login() {
     resolver: zodResolver(otpSchema),
   });
 
+  const resolveRecaptchaToken = async (): Promise<string | undefined> => {
+    try {
+      return await executeFirebaseRecaptcha();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '';
+      if (
+        !import.meta.env.PROD &&
+        message.includes('Could not load reCAPTCHA configuration')
+      ) {
+        return undefined;
+      }
+      throw err instanceof Error ? err : new Error('reCAPTCHA verification failed. Please try again.');
+    }
+  };
+
   const handleSendCode = async (data: PhoneFormData) => {
     setIsLoading(true);
     setError(null);
@@ -76,44 +86,15 @@ export function Login() {
       const fullPhone = `${data.countryCode}${data.phone}`;
       const normalizedPhone = normalizePhoneToE164(fullPhone);
 
-      // Get reCAPTCHA token if available
-      let recaptchaToken: string | undefined;
-      if (RECAPTCHA_SITE_KEY && recaptchaRef.current) {
-        try {
-          recaptchaToken = await recaptchaRef.current.executeAsync() || undefined;
-        } catch (recaptchaError) {
-          const errorMessage = RECAPTCHA_SITE_KEY.includes('6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI')
-            ? 'reCAPTCHA configuration error: The test site key does not match Firebase configuration. Please configure the correct reCAPTCHA site key in Firebase Console and update VITE_RECAPTCHA_SITE_KEY in your .env.local file.'
-            : 'reCAPTCHA verification failed. Please try again.';
-          setError(errorMessage);
-          setIsLoading(false);
-          if (recaptchaRef.current) {
-            recaptchaRef.current.reset();
-          }
-          return;
-        }
-      } else if (!RECAPTCHA_SITE_KEY) {
-        setError('reCAPTCHA is not configured. Please set VITE_RECAPTCHA_SITE_KEY in your .env.local file.');
-        setIsLoading(false);
-        return;
-      }
+      const recaptchaToken = await resolveRecaptchaToken();
 
-      // Send code with normalized phone (E.164 format) and reCAPTCHA token
       const response = await sendCode(normalizedPhone, recaptchaToken);
       setPhoneNumber(`${data.countryCode} ${data.phone}`);
       setSessionInfo(response.sessionInfo);
+      setDevOtpHint(response.delivery === 'dev');
       setStep('otp');
-      
-      // Reset reCAPTCHA after successful submission
-      if (recaptchaRef.current) {
-        recaptchaRef.current.reset();
-      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to send code');
-      // Reset reCAPTCHA on error
-      if (recaptchaRef.current) {
-        recaptchaRef.current.reset();
-      }
     } finally {
       setIsLoading(false);
     }
@@ -144,15 +125,11 @@ export function Login() {
     }
   };
 
-  const handleRecaptchaError = (error: Error) => {
-    console.error('reCAPTCHA error:', error);
-    setError(`reCAPTCHA error: ${error.message}. Check browser console for details.`);
-  };
-
   const handleBack = () => {
     setStep('phone');
     setError(null);
     setSessionInfo(null);
+    setDevOtpHint(false);
     otpForm.reset();
   };
 
@@ -166,44 +143,14 @@ export function Login() {
       const fullPhone = `${phoneData.countryCode}${phoneData.phone}`;
       const normalizedPhone = normalizePhoneToE164(fullPhone);
 
-      // Get reCAPTCHA token if available
-      let recaptchaToken: string | undefined;
-      if (RECAPTCHA_SITE_KEY && recaptchaRef.current) {
-        try {
-          recaptchaToken = await recaptchaRef.current.executeAsync() || undefined;
-        } catch (recaptchaError) {
-          const errorMessage = RECAPTCHA_SITE_KEY.includes('6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI')
-            ? 'reCAPTCHA configuration error: The test site key does not match Firebase configuration. Please configure the correct reCAPTCHA site key in Firebase Console and update VITE_RECAPTCHA_SITE_KEY in your .env.local file.'
-            : 'reCAPTCHA verification failed. Please try again.';
-          setError(errorMessage);
-          setIsLoading(false);
-          if (recaptchaRef.current) {
-            recaptchaRef.current.reset();
-          }
-          throw new Error(errorMessage);
-        }
-      } else if (!RECAPTCHA_SITE_KEY) {
-        const errorMsg = 'reCAPTCHA is not configured. Please set VITE_RECAPTCHA_SITE_KEY in your .env.local file.';
-        setError(errorMsg);
-        setIsLoading(false);
-        throw new Error(errorMsg);
-      }
-
-      // Resend code with normalized phone (E.164 format) and reCAPTCHA token
+      const recaptchaToken = await resolveRecaptchaToken();
       const response = await sendCode(normalizedPhone, recaptchaToken);
       setSessionInfo(response.sessionInfo);
-      
-      // Reset reCAPTCHA after successful submission
-      if (recaptchaRef.current) {
-        recaptchaRef.current.reset();
-      }
+      setDevOtpHint(response.delivery === 'dev');
+
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to resend code');
-      // Reset reCAPTCHA on error
-      if (recaptchaRef.current) {
-        recaptchaRef.current.reset();
-      }
-      throw err; // Re-throw to let the component handle it
+      throw err;
     } finally {
       setIsLoading(false);
     }
@@ -310,11 +257,14 @@ export function Login() {
                 form={phoneForm}
                 onSubmit={handleSendCode}
                 isLoading={isLoading}
-                recaptchaRef={recaptchaRef}
-                recaptchaSiteKey={RECAPTCHA_SITE_KEY}
-                onRecaptchaError={handleRecaptchaError}
               />
             ) : (
+              <>
+                {devOtpHint && (
+                  <p className="mb-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-900">
+                    Local auth is using the development code <strong>123456</strong>. Production uses a real SMS from Firebase.
+                  </p>
+                )}
               <OtpVerificationForm
                 form={otpForm}
                 onSubmit={handleVerifyCode}
@@ -323,6 +273,7 @@ export function Login() {
                 onBack={handleBack}
                 onResend={handleResendCode}
               />
+              </>
             )}
           </div>
 

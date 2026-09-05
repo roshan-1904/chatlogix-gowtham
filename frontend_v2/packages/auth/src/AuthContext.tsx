@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import type { AuthState, AuthResponse, UserRole, User } from './types';
+import type { AuthState, AuthResponse, SendCodeResponse, UserRole, User } from './types';
 import { tokenStorage } from './storage';
 import { AuthApi } from './api';
 
@@ -54,7 +54,7 @@ function extractUserFromToken(token: string): User | null {
 
 interface AuthContextValue extends AuthState {
   login: (phoneNumber: string, sessionInfo: string, code: string) => Promise<void>;
-  sendCode: (phoneNumber: string, recaptchaToken?: string) => Promise<{ sessionInfo: string; expiresIn: number }>;
+  sendCode: (phoneNumber: string, recaptchaToken?: string) => Promise<SendCodeResponse>;
   logout: () => void;
   hasRole: (role: string) => boolean;
   refreshAuth: () => Promise<void>;

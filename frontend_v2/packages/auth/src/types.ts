@@ -15,6 +15,7 @@ export interface AuthResponse {
 export interface SendCodeResponse {
   sessionInfo: string;
   expiresIn: number;
+  delivery?: 'firebase' | 'dev';
 }
 
 export interface AuthState {

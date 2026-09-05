@@ -123,7 +123,9 @@ const EnvSchema = z.object({
   FIREBASE_SERVICE_ACCOUNT_KEY_PATH: z.string().optional(),
   FIREBASE_API_KEY: z.string().optional(),
   RECAPTCHA_SECRET_KEY: z.string().optional(),
-  AUTH_ADMIN_PHONES: z.string().optional()
+  AUTH_ADMIN_PHONES: z.string().optional(),
+  // When Firebase is not configured, allow the local 123456 OTP. Forced off in production.
+  AUTH_ALLOW_DEV_OTP: z.string().optional()
 });
 
 export type Env = z.infer<typeof EnvSchema> & {
@@ -147,18 +149,15 @@ export function getTextQueueUrl(): string {
   return url;
 }
 
-export const isFirebaseAuthConfigured =
-  Boolean(
-    env.FIREBASE_API_KEY &&
-    env.FIREBASE_PROJECT_ID &&
-    env.FIREBASE_CLIENT_EMAIL &&
-    (env.FIREBASE_PRIVATE_KEY || env.FIREBASE_SERVICE_ACCOUNT_KEY_PATH)
-  );
+export const isFirebaseAuthConfigured = Boolean(env.FIREBASE_API_KEY);
 
-if (!isFirebaseAuthConfigured) {
+if (!isFirebaseAuthConfigured && env.NODE_ENV === 'production') {
   console.warn(
-    'Firebase phone authentication is not fully configured. Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, ' +
-    'FIREBASE_API_KEY, and either FIREBASE_PRIVATE_KEY or FIREBASE_SERVICE_ACCOUNT_KEY_PATH to enable /auth routes.'
+    'FIREBASE_API_KEY is not set. Vendor phone login will return 503 in production until configured.'
+  );
+} else if (!isFirebaseAuthConfigured) {
+  console.warn(
+    'FIREBASE_API_KEY is not set. /auth/send-code will use the local DEV OTP (123456) unless AUTH_ALLOW_DEV_OTP=false.'
   );
 }
 console.log('Environment configuration loaded (isFirebaseAuthConfigured=%s)', isFirebaseAuthConfigured ? 'true' : 'false');
