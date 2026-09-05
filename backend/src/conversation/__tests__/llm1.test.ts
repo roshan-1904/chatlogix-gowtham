@@ -113,6 +113,22 @@ describe('runLlm1', () => {
     expect(call.messages[1]).toEqual({ role: 'user', content: 'add 2 brownies' });
   });
 
+  it('puts voice-note instructions in the system prompt when sourceMessageType is audio', async () => {
+    createMock.mockResolvedValue(mockCompletion());
+
+    await runLlm1({
+      vendorId: 'vendor-1',
+      hotSet,
+      mergedContent: 'பையனுக்கு birthday',
+      traceId: 'wamid.audio',
+      sourceMessageType: 'audio'
+    });
+
+    const call = createMock.mock.calls[0][0];
+    expect(call.messages[0].content).toContain('VOICE NOTE:');
+    expect(call.messages[1]).toEqual({ role: 'user', content: 'பையனுக்கு birthday' });
+  });
+
   it('returns the parsed result plus model/token usage', async () => {
     createMock.mockResolvedValue(mockCompletion());
 

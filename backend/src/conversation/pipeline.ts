@@ -150,6 +150,8 @@ export interface ProcessMessageInput {
   customerPhone: string;
   content: string;
   whatsappMessageId: string;
+  /** Voice-note transcript or image caption, when the TextMessage was handed off from media fetch. */
+  sourceMessageType?: 'audio' | 'image';
 }
 
 const whatsappTemplateService = new WhatsAppTemplateService(); // no exported singleton on this service; matches every other call site's `new WhatsAppTemplateService()`
@@ -267,7 +269,13 @@ export async function processMessage(input: ProcessMessageInput): Promise<void> 
 
     // Step 4: LLM-1 -- ops + draft reply.
     const llm1StartedAt = Date.now();
-    const llm1Result = await runLlm1({ vendorId, hotSet, mergedContent, traceId });
+    const llm1Result = await runLlm1({
+      vendorId,
+      hotSet,
+      mergedContent,
+      traceId,
+      sourceMessageType: input.sourceMessageType
+    });
     logLatency('Llm1Ms', Date.now() - llm1StartedAt, { vendorId });
     logStage('llm1_done', { traceId, vendorId, conversationId }, {
       promptTokens: llm1Result.promptTokens,

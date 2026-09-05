@@ -7,7 +7,7 @@ import { processJob, MediaFetchJob } from '../../services/mediaFetchProcessor.js
 /**
  * AWS Lambda handler for fetching customer-sent WhatsApp media (audio/image/
  * video/document/sticker): downloads from the WhatsApp Graph API, uploads to
- * S3, transcribes audio via Whisper. SQS-triggered off MEDIA_FETCH_QUEUE_URL,
+ * S3, transcribes audio via gpt-4o-transcribe. SQS-triggered off MEDIA_FETCH_QUEUE_URL,
  * the same queue backend/src/workers/mediaWorker.ts polls for local dev.
  * Shares processJob() with that worker via services/mediaFetchProcessor.ts.
  */

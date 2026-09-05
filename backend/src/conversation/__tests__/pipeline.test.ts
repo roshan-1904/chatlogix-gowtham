@@ -334,6 +334,17 @@ describe('processMessage', () => {
     expect(logCountMock).toHaveBeenCalledWith('ProcessorSuccess', { vendorId: 'vendor-1' });
   });
 
+  it('forwards sourceMessageType=audio to LLM-1', async () => {
+    await processMessage({ ...rawInput, sourceMessageType: 'audio' });
+
+    expect(runLlm1Mock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mergedContent: '2 brownies please',
+        sourceMessageType: 'audio'
+      })
+    );
+  });
+
   it('§23: logs the required timestamp checkpoints in order — handler_start, prefetch_done, llm1_done, cart_apply_done, response_queue_published', async () => {
     await processMessage(rawInput);
 

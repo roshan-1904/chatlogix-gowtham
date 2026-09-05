@@ -9,6 +9,8 @@ interface TextMessagePayload {
   content: string;
   phoneNumberId: string;
   whatsappMessageId: string;
+  /** Set by mediaFetchProcessor when the TextMessage is a voice/image caption handoff. */
+  sourceMessageType?: string;
 }
 
 /**
@@ -28,15 +30,21 @@ export const handler: SQSHandler = async (event: SQSEvent): Promise<SQSBatchResp
     try {
       const body = JSON.parse(record.body) as TextMessagePayload;
       if (body.type !== 'TextMessage') {
-        continue; // audio/image use other queues (§5) — never expected here, but ignore rather than fail the record
+        continue; // non-TextMessage payloads are ignored rather than failed
       }
+
+      const sourceMessageType =
+        body.sourceMessageType === 'audio' || body.sourceMessageType === 'image'
+          ? body.sourceMessageType
+          : undefined;
 
       await processMessage({
         vendorId: body.vendorId,
         phoneNumberId: body.phoneNumberId,
         customerPhone: body.customerPhone,
         content: body.content,
-        whatsappMessageId: body.whatsappMessageId
+        whatsappMessageId: body.whatsappMessageId,
+        ...(sourceMessageType ? { sourceMessageType } : {})
       });
     } catch (error) {
       logger.error({ err: error, messageId: record.messageId }, 'conversationProcessor: record failed, will retry via SQS');

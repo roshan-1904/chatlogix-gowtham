@@ -1,9 +1,9 @@
 # Incoming Response Generator — How We Prepare a WhatsApp Reply
 
 <!-- DOC_SYNC
-  last_verified_commit: 547b10e7701dc88fd4f0463a37c009964dfea7f4
+  last_verified_commit: 3367ddaf3bd3f41ef8a613ba04f1bfaec2e061e2
   last_verified_at: 2026-09-05
-  scope: As-implemented incoming-response-generator pipeline (language, LLM-2 reply selection, contentEn)
+  scope: As-implemented incoming-response-generator pipeline (language, LLM-2 reply selection, contentEn, voice-note ASR)
 -->
 
 **Living document.** This describes the **as-implemented** text path in `chatlogix-incoming-response-generator`, not the locked design spec. When the pipeline in `backend/src/conversation/` changes, update this file in the same change (see `.cursor/rules/incoming-response-generator-flow.mdc`).
@@ -78,6 +78,8 @@ Audio/image are dropped at the webhook today (known gap). They must not land on 
 ## 1. SQS handler
 
 `handler.ts` implements `ReportBatchItemFailures`. All step 0–11 logic lives in `processMessage`; the handler only parses and delegates.
+
+When the body is `type: TextMessage` and `sourceMessageType` is `audio` or `image` (media-fetch handoff of a voice transcript or caption), that field is forwarded to `processMessage` → LLM-1. Typed WhatsApp text omits it.
 
 ```mermaid
 flowchart TD
@@ -242,7 +244,7 @@ One OpenAI call with strict structured output (`llm1JsonSchema`). Model = `Vendo
 System prompt (`buildLlm1SystemPrompt`):
 
 - **Static** (prompt-cache prefix): bot identity, vendor rules, compact catalog table, variant SKU table, op rules.
-- **Dynamic**: current cart, customer name/address, recent orders, matched FAQs, last 6 turns.
+- **Dynamic**: current cart, customer name/address, recent orders, matched FAQs, last 6 turns. When `sourceMessageType` is `audio`, a **VOICE NOTE** block is appended: treat the user text as ASR, ask a clarifying question if it is garbled or off-catalog, and prefer CURRENT CART / RECENT ORDERS when the transcript is close (cake, brownie, kg).
 
 User message: merged customer text.
 
@@ -443,7 +445,7 @@ Response payload includes `phoneNumberId` and `messageId` (assistant row) so the
 
 - **Inbound customer text:** after `upsertInboundMessage`, `ensureMessageContentEn` writes `contentEn` asynchronously (including when `aiPaused` — inbound is stored but no LLM runs). Original stays in `content`; LLM-1 and the response queue always use the original.
 - **Assistant replies:** `persistTurn` sets `content` to `finalText` (customer language), then `ensureMessageContentEn` for the vendor thread.
-- **Media:** `mediaFetchProcessor` sets `contentEn` after Whisper transcripts and image/video/document captions (captions often never hit `TEXT_QUEUE`).
+- **Media:** `mediaFetchProcessor` transcribes voice notes with `gpt-4o-transcribe` (retry with a domain prompt if the transcript is implausibly short for the audio size; otherwise a typed-reply template and no AI enqueue). It sets `contentEn` from the transcript with the audio translation prompt (do not invent addresses/medical facts from garbled ASR) and from image/video/document captions (captions often never hit `TEXT_QUEUE`).
 - **Vendor typed send:** `POST /api/conversations/:id/messages` triggers the same helper after creating the row.
 
 Debit failure must not throw: the customer already has a reply on the way; SQS retry would re-run LLM-1/CartEngine. `reconcileStuckDebits` retries `MessageProcessing` rows that are `queued` with `debitedAt = null`.

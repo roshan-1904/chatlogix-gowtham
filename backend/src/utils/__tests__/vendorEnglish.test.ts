@@ -35,7 +35,8 @@ import {
   ensureMessageContentEn,
   normalizeSetFieldOps,
   hydrateMessagesContentEn,
-  VENDOR_ENGLISH_MODEL
+  VENDOR_ENGLISH_MODEL,
+  UNCLEAR_VOICE_NOTE_EN
 } from '../vendorEnglish.js';
 
 const TAMIL = 'வணக்கம், என் ஆர்டர் எங்கே?';
@@ -100,10 +101,20 @@ describe('toVendorEnglish', () => {
     expect(call.max_completion_tokens).toBe(800);
     expect(call.messages[0].role).toBe('system');
     expect(call.messages[0].content).toContain('Transliterate personal names and place names');
+    expect(call.messages[0].content).not.toContain('speech-to-text transcript');
     expect(call.messages[1]).toEqual({
       role: 'user',
       content: 'ராஜி, சவணம்பட்டி, 641035, கோயம்புத்தூர்'
     });
+  });
+
+  it('adds the voice-note rules when source is audio', async () => {
+    await toVendorEnglish(TAMIL, { source: 'audio' });
+
+    const call = createMock.mock.calls[0][0];
+    expect(call.messages[0].content).toContain('speech-to-text transcript');
+    expect(call.messages[0].content).toContain('Do not invent medical conditions');
+    expect(call.messages[0].content).toContain(UNCLEAR_VOICE_NOTE_EN);
   });
 
   it('strips wrapping quotes from the model output', async () => {

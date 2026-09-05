@@ -8,6 +8,14 @@ const openai = env.OPENAI_API_KEY ? new OpenAI({ apiKey: env.OPENAI_API_KEY }) :
 
 export const VENDOR_ENGLISH_MODEL = 'gpt-4.1-mini';
 
+export type VendorEnglishSource = 'audio';
+
+export interface VendorEnglishOptions {
+  source?: VendorEnglishSource;
+}
+
+export const UNCLEAR_VOICE_NOTE_EN = '[unclear voice note]';
+
 const VENDOR_ENGLISH_SYSTEM_PROMPT = [
   'Translate the following WhatsApp message into English for a vendor dashboard.',
   'The vendor reads English only. Always translate — including Tamil, Hindi, Kannada, Telugu, Malayalam, Bengali, and any other language or script.',
@@ -17,6 +25,12 @@ const VENDOR_ENGLISH_SYSTEM_PROMPT = [
   '- Tamil, Hindi, and mixed-language messages must still be fully translated to English for the vendor.',
   '- If the text is already English, return it unchanged.',
   '- Return only the English/Latin text. No quotes, labels, or commentary.'
+].join('\n');
+
+const VENDOR_ENGLISH_AUDIO_EXTRA = [
+  'This text is a speech-to-text transcript of a WhatsApp voice note, not typed text. It may be garbled.',
+  'Translate only what is clearly said. Do not invent medical conditions, street addresses, quantities, dates, or other facts that are not clearly in the transcript.',
+  `If the transcript is incoherent or you cannot be reasonably sure of the meaning, return exactly: ${UNCLEAR_VOICE_NOTE_EN}`
 ].join('\n');
 
 const LETTER = /\p{L}/u;
@@ -42,7 +56,10 @@ export function needsEnglish(text: string): boolean {
  * Translate / transliterate `text` for vendor display.
  * Skips the model when the body is empty, a placeholder, or already Latin-script.
  */
-export async function toVendorEnglish(text: string): Promise<string> {
+export async function toVendorEnglish(
+  text: string,
+  opts?: VendorEnglishOptions
+): Promise<string> {
   const trimmed = text.trim();
   if (!trimmed || isPlaceholderBody(trimmed) || !needsEnglish(trimmed)) {
     return trimmed;
@@ -53,10 +70,15 @@ export async function toVendorEnglish(text: string): Promise<string> {
     return trimmed;
   }
 
+  const system =
+    opts?.source === 'audio'
+      ? `${VENDOR_ENGLISH_SYSTEM_PROMPT}\n${VENDOR_ENGLISH_AUDIO_EXTRA}`
+      : VENDOR_ENGLISH_SYSTEM_PROMPT;
+
   const completion = await openai.chat.completions.create({
     model: VENDOR_ENGLISH_MODEL,
     messages: [
-      { role: 'system', content: VENDOR_ENGLISH_SYSTEM_PROMPT },
+      { role: 'system', content: system },
       { role: 'user', content: trimmed }
     ],
     temperature: 0,
@@ -79,7 +101,8 @@ export async function toVendorEnglish(text: string): Promise<string> {
  */
 export async function ensureMessageContentEn(
   messageId: string,
-  original: string
+  original: string,
+  opts?: VendorEnglishOptions
 ): Promise<string | null> {
   try {
     if (!original.trim() || isPlaceholderBody(original) || !needsEnglish(original)) {
@@ -98,7 +121,7 @@ export async function ensureMessageContentEn(
       return existing.contentEn;
     }
 
-    const english = await toVendorEnglish(original);
+    const english = await toVendorEnglish(original, opts);
     const trimmedOriginal = original.trim();
     if (!english || english === trimmedOriginal) {
       return null;

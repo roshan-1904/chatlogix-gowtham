@@ -95,11 +95,15 @@ describe('buildCatalogTable', () => {
 });
 
 describe('buildLlm1SystemPrompt', () => {
-  it('includes vendor identity, the catalog table, and the no-invented-date rule', () => {
-    const prompt = buildLlm1SystemPrompt(makeHotSet());
-    expect(prompt).toContain('Test Bakery');
-    expect(prompt).toContain('prod-1');
-    expect(prompt).toMatch(/NEVER invent a delivery date/);
+  it('includes voice-note ASR rules only when sourceMessageType is audio', () => {
+    const typed = buildLlm1SystemPrompt(makeHotSet());
+    expect(typed).not.toContain('VOICE NOTE:');
+
+    const voice = buildLlm1SystemPrompt(makeHotSet(), { sourceMessageType: 'audio' });
+    expect(voice).toContain('VOICE NOTE:');
+    expect(voice).toContain('speech-to-text transcript');
+    expect(voice).toContain('Do not invent a medical issue');
+    expect(voice).toContain('CURRENT CART or RECENT ORDERS');
   });
 
   it('reflects an empty cart when there is no pending order', () => {

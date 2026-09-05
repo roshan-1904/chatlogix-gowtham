@@ -9,6 +9,14 @@ import { StepLogger } from '../logger.js';
 import { emitMetric, emitDuration } from '../observability/metrics.js';
 import { getWaMediaS3Client } from '../utils/waMediaS3.js';
 import { ensureMessageContentEn } from '../utils/vendorEnglish.js';
+import {
+  TRANSCRIBE_MODEL,
+  UNCLEAR_VOICE_REPLY,
+  VOICE_NOTE_TRANSCRIBE_PROMPT,
+  estimateOpusDurationSec,
+  pickUsableTranscript,
+  isTranscriptTooThin
+} from './audioTranscription.js';
 
 export interface MediaFetchJob {
   type: 'MediaFetchJob';
@@ -26,7 +34,6 @@ export interface MediaFetchJob {
 }
 
 const openai = env.OPENAI_API_KEY ? new OpenAI({ apiKey: env.OPENAI_API_KEY }) : null;
-const WHISPER_MODEL = 'whisper-1';
 // Fallback text used when an image arrives with no caption. Sent directly to
 // the response queue (bypassing AI) per design — see commit "Scope B" and
 // the AskUserQuestion answers on docs/DEPLOYMENT.md cleanup.
@@ -162,30 +169,72 @@ function probeImageDimensions(
   }
 }
 
-async function transcribeAudio(
+async function transcribeOnce(
   bytes: Buffer,
   mimeType: string | undefined,
-  stepLogger: StepLogger
+  prompt?: string
 ): Promise<string> {
   if (!openai) {
     throw new Error('OPENAI_API_KEY not configured; cannot transcribe audio');
   }
   const ext = extensionForMime(mimeType ?? 'audio/ogg');
   const file = await toFile(bytes, `audio.${ext}`, { type: mimeType ?? 'audio/ogg' });
-  const start = Date.now();
   const res = await openai.audio.transcriptions.create({
     file,
-    model: WHISPER_MODEL
+    model: TRANSCRIBE_MODEL,
+    ...(prompt ? { prompt } : {})
   });
-  const transcript = (res.text ?? '').trim();
-  stepLogger.step('Whisper transcription complete', {
+  return (res.text ?? '').trim();
+}
+
+async function transcribeAudio(
+  bytes: Buffer,
+  mimeType: string | undefined,
+  stepLogger: StepLogger
+): Promise<string> {
+  const start = Date.now();
+  const first = await transcribeOnce(bytes, mimeType);
+  stepLogger.step('Audio transcription complete', {
+    model: TRANSCRIBE_MODEL,
     durationMs: Date.now() - start,
-    transcriptLength: transcript.length
+    transcriptLength: first.length,
+    tooThin: isTranscriptTooThin(first, bytes.byteLength)
   });
   emitDuration('media.whisper.duration_ms', Date.now() - start, {
-    dimensions: { messageType: 'audio' }
+    dimensions: { messageType: 'audio', model: TRANSCRIBE_MODEL }
   });
-  return transcript;
+
+  if (!isTranscriptTooThin(first, bytes.byteLength)) {
+    return first;
+  }
+
+  emitMetric('media.transcript.too_thin', 1, {
+    dimensions: { messageType: 'audio', model: TRANSCRIBE_MODEL }
+  });
+  stepLogger.warn('Transcript too thin for audio length; retrying with domain prompt', {
+    firstLength: first.length,
+    estimatedDurationSec: Math.round(estimateOpusDurationSec(bytes.byteLength))
+  });
+
+  const retryStart = Date.now();
+  const retry = await transcribeOnce(bytes, mimeType, VOICE_NOTE_TRANSCRIBE_PROMPT);
+  stepLogger.step('Audio transcription retry complete', {
+    model: TRANSCRIBE_MODEL,
+    durationMs: Date.now() - retryStart,
+    transcriptLength: retry.length,
+    tooThin: isTranscriptTooThin(retry, bytes.byteLength)
+  });
+  emitDuration('media.whisper.duration_ms', Date.now() - retryStart, {
+    dimensions: { messageType: 'audio', model: TRANSCRIBE_MODEL, pass: 'retry' }
+  });
+
+  const picked = pickUsableTranscript(first, retry, bytes.byteLength);
+  if (!picked) {
+    emitMetric('media.transcript.unusable', 1, {
+      dimensions: { messageType: 'audio' }
+    });
+  }
+  return picked;
 }
 
 async function sendTemplatedReply(
@@ -280,19 +329,15 @@ async function handoffAfterFetch(
     }
     const transcript = await transcribeAudio(bytes, effectiveMime, stepLogger);
     if (!transcript) {
-      stepLogger.warn('Whisper returned empty transcript; sending templated reply');
-      await sendTemplatedReply(
-        job,
-        "I couldn't make out the voice note. Could you type your question instead?",
-        stepLogger
-      );
+      stepLogger.warn('Transcription unusable; sending templated reply');
+      await sendTemplatedReply(job, UNCLEAR_VOICE_REPLY, stepLogger);
       return;
     }
     await prisma.message.update({
       where: { id: job.messageId },
       data: { content: transcript }
     });
-    await ensureMessageContentEn(job.messageId, transcript).catch((err) => {
+    await ensureMessageContentEn(job.messageId, transcript, { source: 'audio' }).catch((err) => {
       stepLogger.warn('ensureMessageContentEn failed for audio transcript', {
         err: err instanceof Error ? err.message : String(err)
       });
@@ -432,6 +477,9 @@ export async function processJob(job: MediaFetchJob, stepLogger: StepLogger): Pr
         fileSizeBytes: meta.fileSize ?? bytes.byteLength,
         ...(width !== undefined ? { width } : {}),
         ...(height !== undefined ? { height } : {}),
+        ...(job.messageType === 'audio'
+          ? { durationSec: Math.max(1, Math.round(estimateOpusDurationSec(bytes.byteLength))) }
+          : {}),
         fetchState: 'ready',
         fetchedAt: new Date(),
         lastFetchError: null
@@ -447,7 +495,7 @@ export async function processJob(job: MediaFetchJob, stepLogger: StepLogger): Pr
 
     // Hand off to the appropriate AI queue. Failures here are logged but do
     // not flip the fetch outcome to retry — S3 upload already succeeded and
-    // we don't want a Whisper hiccup to redownload the audio from WhatsApp.
+    // we don't want a transcription hiccup to redownload the audio from WhatsApp.
     try {
       await handoffAfterFetch(job, bytes, effectiveMime, media.caption, stepLogger);
       await ensureCaptionContentEn(job.messageId, media.caption, stepLogger);

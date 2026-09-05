@@ -15,6 +15,7 @@ export interface Llm1Input {
   hotSet: HotSet;
   mergedContent: string; // post burst-merge (Step 8)
   traceId: string;
+  sourceMessageType?: 'audio' | 'image';
 }
 
 export interface Llm1Output extends Llm1Result {
@@ -36,13 +37,13 @@ export async function runLlm1(input: Llm1Input): Promise<Llm1Output> {
     throw new Error('OpenAI API key not configured');
   }
 
-  const { vendorId, hotSet, mergedContent, traceId } = input;
+  const { vendorId, hotSet, mergedContent, traceId, sourceMessageType } = input;
   // Already resolved with the aiService.ts-style fallback in prefetch.ts's
   // loadVendorConfig (Q10) — unifiedAIProcessorService.ts never applies this
   // fallback despite fetching vendor config, which is a real bug there, not
   // a pattern to copy.
   const model = hotSet.vendorConfig.aiModel;
-  const systemPrompt = buildLlm1SystemPrompt(hotSet);
+  const systemPrompt = buildLlm1SystemPrompt(hotSet, { sourceMessageType });
 
   const completion = await openai.chat.completions.create({
     model,

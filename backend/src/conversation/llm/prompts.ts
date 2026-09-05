@@ -222,11 +222,15 @@ function buildStaticBlock(hotSet: HotSet): string {
   return parts.join('\n');
 }
 
+export interface Llm1PromptOptions {
+  sourceMessageType?: 'audio' | 'image';
+}
+
 /**
  * Turn-specific context — changes every message, so it comes after the
  * static block (outside OpenAI's cached prefix).
  */
-function buildDynamicBlock(hotSet: HotSet): string {
+function buildDynamicBlock(hotSet: HotSet, opts?: Llm1PromptOptions): string {
   const parts: string[] = [];
 
   parts.push('CURRENT CART:');
@@ -268,11 +272,24 @@ function buildDynamicBlock(hotSet: HotSet): string {
     parts.push(hotSet.recentMessages.map((m) => `${m.role}: ${m.content}`).join('\n'));
   }
 
+  if (opts?.sourceMessageType === 'audio') {
+    parts.push('');
+    parts.push(
+      'VOICE NOTE: the customer message is a speech-to-text transcript of a WhatsApp voice note, not typed text. It may contain ASR errors.'
+    );
+    parts.push(
+      '- If the transcript is garbled, internally contradictory, or about something clearly outside this vendor\'s catalog, ask a short clarifying question. Do not invent a medical issue, street address, or product the customer did not mention.'
+    );
+    parts.push(
+      '- When the transcript is close to something already in CURRENT CART or RECENT ORDERS (cake, brownie, kg, boxes), prefer that reading over an unrelated topic.'
+    );
+  }
+
   return parts.join('\n');
 }
 
-export function buildLlm1SystemPrompt(hotSet: HotSet): string {
-  return `${buildStaticBlock(hotSet)}\n\n${buildDynamicBlock(hotSet)}`;
+export function buildLlm1SystemPrompt(hotSet: HotSet, opts?: Llm1PromptOptions): string {
+  return `${buildStaticBlock(hotSet)}\n\n${buildDynamicBlock(hotSet, opts)}`;
 }
 
 const cartOpSchema = {
