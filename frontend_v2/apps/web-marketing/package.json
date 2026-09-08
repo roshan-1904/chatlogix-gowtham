@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@chatlogix/design-tokens": "file:../../packages/design-tokens",
+    "@chatlogix/hooks": "file:../../packages/hooks",
     "@chatlogix/ui": "file:../../packages/ui",
     "@fontsource/inter": "^5.2.5",
     "react": "^18.3.1",

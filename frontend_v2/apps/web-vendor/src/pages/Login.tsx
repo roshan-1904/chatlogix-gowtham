@@ -173,9 +173,9 @@ export function Login() {
         <div className="max-w-xl mx-auto">
           <div className="mb-6">
             <BrandLogo variant="icon" className="mb-6 h-12 w-12 rounded-lg" />
-            <h1 className="text-3xl xl:text-4xl font-bold mb-3">Welcome to ChatLogix</h1>
+            <h1 className="text-3xl xl:text-4xl font-bold mb-3">Your WhatsApp shop, on autopilot</h1>
             <p className="text-base xl:text-lg text-white/90">
-              Streamline your customer conversations, orders, and business workflows <br className="hidden xl:block" />- all in one powerful platform.
+              AI answers customers from your catalog and helps turn chats into orders — while you run the business.
             </p>
           </div>
 

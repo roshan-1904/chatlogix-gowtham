@@ -11,7 +11,6 @@ export function SignupMarketingPanel() {
         <h1 className="mt-3 text-4xl font-semibold leading-tight tracking-tight text-balance text-primary-500 xl:text-[2.6rem]">
           {hero.h1}
         </h1>
-        <p className="sr-only">{hero.seoH1}</p>
         <p className="mt-4 text-base leading-relaxed text-gray-600">{hero.subhead}</p>
 
         <SignupDemoPreview />

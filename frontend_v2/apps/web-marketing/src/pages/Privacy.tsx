@@ -1,11 +1,15 @@
 import { Link } from 'react-router-dom';
 import { MarketingLayout } from '../components/MarketingLayout';
-import { usePageMeta } from '../hooks/usePageMeta';
+import { usePageMeta } from '@chatlogix/hooks';
 import { privacyLastUpdated, privacyMeta } from '../copy';
 import { site } from '../lib/site';
 
 export function Privacy() {
-  usePageMeta(privacyMeta);
+  usePageMeta({
+    ...privacyMeta,
+    canonical: site.urls.privacy,
+    robots: 'index, follow',
+  });
 
   return (
     <MarketingLayout>

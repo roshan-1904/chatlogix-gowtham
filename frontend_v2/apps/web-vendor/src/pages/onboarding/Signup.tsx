@@ -16,7 +16,6 @@ import { SignupDemoPreview } from '../../components/onboarding/SignupDemoPreview
 import { SignupFaq } from '../../components/onboarding/SignupFaq';
 import { mapOnboardingError } from '../../components/onboarding/mapOnboardingError';
 import { redirectPathForStatus, fetchOnboardingProfile } from '../../lib/onboarding';
-import { usePageMeta } from '../../hooks/usePageMeta';
 
 const phoneSchema = z.object({
   countryCode: z.string().min(1),
@@ -39,9 +38,7 @@ export function Signup() {
   const [error, setError] = useState<string | null>(null);
   const [devOtpHint, setDevOtpHint] = useState(false);
 
-  const { form: formCopy, meta, marketing } = onboardingCopy.signup;
-
-  usePageMeta(meta);
+  const { form: formCopy, marketing } = onboardingCopy.signup;
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -124,7 +121,7 @@ export function Signup() {
       <div className="flex flex-1 flex-col justify-center bg-white px-5 py-10 sm:px-10 lg:w-[40%] lg:px-16">
         <div className="mx-auto w-full max-w-md">
           <div className="mb-6">
-            <BrandLogo className="h-9 w-auto" />
+            <BrandLogo className="h-12 w-auto sm:h-14 lg:h-16" />
           </div>
 
           {step === 'phone' ? (

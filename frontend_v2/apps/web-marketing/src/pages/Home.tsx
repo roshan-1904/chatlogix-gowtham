@@ -1,3 +1,4 @@
+import { usePageMeta } from '@chatlogix/hooks';
 import { MarketingLayout } from '../components/MarketingLayout';
 import { HeroSection } from '../components/sections/HeroSection';
 import { ProblemSection } from '../components/sections/ProblemSection';
@@ -7,11 +8,15 @@ import { CustomerExperienceSection } from '../components/sections/CustomerExperi
 import { TrustSection } from '../components/sections/TrustSection';
 import { TryWithProductsSection } from '../components/sections/TryWithProductsSection';
 import { FaqCtaSection } from '../components/sections/FaqCtaSection';
-import { usePageMeta } from '../hooks/usePageMeta';
 import { homeMeta } from '../copy';
+import { site } from '../lib/site';
 
 export function Home() {
-  usePageMeta(homeMeta);
+  usePageMeta({
+    ...homeMeta,
+    canonical: `${site.siteOrigin}/`,
+    robots: 'index, follow',
+  });
 
   return (
     <MarketingLayout snapScroll>

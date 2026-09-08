@@ -1,5 +1,2 @@
-// Shared React Hooks
-// useAuth, useToast, useApiClient, useDebounce, etc.
-
-export {};
-
+export { usePageMeta } from './usePageMeta';
+export type { PageMeta } from './usePageMeta';

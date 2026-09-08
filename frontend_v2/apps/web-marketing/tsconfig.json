@@ -20,7 +20,8 @@
     "paths": {
       "@/*": ["./src/*"],
       "@chatlogix/ui": ["../../packages/ui/src"],
-      "@chatlogix/design-tokens": ["../../packages/design-tokens/src"]
+      "@chatlogix/design-tokens": ["../../packages/design-tokens/src"],
+      "@chatlogix/hooks": ["../../packages/hooks/src"]
     }
   },
   "include": ["src"],

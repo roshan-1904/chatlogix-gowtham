@@ -1,10 +1,15 @@
 import { Link } from 'react-router-dom';
 import { MarketingLayout } from '../components/MarketingLayout';
-import { usePageMeta } from '../hooks/usePageMeta';
+import { usePageMeta } from '@chatlogix/hooks';
 import { about, aboutMeta } from '../copy';
+import { site } from '../lib/site';
 
 export function About() {
-  usePageMeta(aboutMeta);
+  usePageMeta({
+    ...aboutMeta,
+    canonical: site.urls.about,
+    robots: 'index, follow',
+  });
 
   return (
     <MarketingLayout>

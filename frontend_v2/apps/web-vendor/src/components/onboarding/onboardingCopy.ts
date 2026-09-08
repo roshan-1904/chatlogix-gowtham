@@ -22,18 +22,16 @@ export const onboardingCopy = {
       badge: '₹100 FREE — No payment required',
     },
     meta: {
-      title: 'Free WhatsApp Shop Assistant for Small Business | ChatLogix',
+      title: 'Try ChatLogix free — ₹100 to test your WhatsApp AI',
       description:
-        'Experience your AI assistant with your own store. Get ₹100 free credits to test catalog, text and voice — no card, customers not contacted.',
+        'Create a demo shop in minutes. Upload your catalog, chat like a customer, and watch the assistant reply. ₹100 free credits. No card. Customers are not contacted.',
     },
     marketing: {
       hero: {
         kicker: 'TRY IT BEFORE YOU PAY',
-        h1: 'Experience your AI assistant with your own store — before you pay.',
+        h1: 'Try your WhatsApp assistant on your catalog — before you pay.',
         subhead:
           'Get ₹100 in free credits. Upload your catalog, set up your store, and chat with your AI assistant using real product questions, text and voice messages. Test everything yourself before spending your money.',
-        seoH1:
-          'Free WhatsApp shop assistant for small business — automatic replies and orders',
       },
       benefits: [
         '₹100 in free credits',

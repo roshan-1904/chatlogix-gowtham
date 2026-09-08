@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /signup
+Allow: /login
+Disallow: /dashboard
+Disallow: /conversations
+Disallow: /orders
+Disallow: /catalog
+Disallow: /faqs
+Disallow: /settings
+Disallow: /onboarding

@@ -28,10 +28,12 @@ import { OnboardingReview } from './pages/onboarding/OnboardingReview';
 import { OnboardingSubmitted } from './pages/onboarding/OnboardingSubmitted';
 import { OnboardingRejected } from './pages/onboarding/OnboardingRejected';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
+import { VendorRouteMeta } from './components/seo/VendorRouteMeta';
 
 function App() {
   return (
     <>
+      <VendorRouteMeta />
       <Toaster
         position="top-right"
         toastOptions={{

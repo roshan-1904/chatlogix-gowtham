@@ -1,13 +1,13 @@
 export const homeMeta = {
-  title: 'WhatsApp ordering for your shop | ChatLogix',
+  title: 'Stop typing WhatsApp replies | ChatLogix',
   description:
-    'ChatLogix answers customer questions, helps them find products, and guides orders on WhatsApp. Try with ₹100 free credits — no card required.',
+    'ChatLogix answers product questions, quotes from your catalog, and turns chats into orders on WhatsApp — 24/7. Try with ₹100 free credits. No card needed.',
 };
 
 export const hero = {
   eyebrow: 'Turn WhatsApp chats into sales',
-  headlineLine1: 'Tired of Typing to Customer Queries?',
-  headlineLine2: 'Let AI Handle the Chats and Orders.',
+  headlineLine1: 'Still typing the same WhatsApp replies?',
+  headlineLine2: 'Let AI take the chats — and the orders.',
   subtext:
     'ChatLogix answers customer questions, helps them find the right products, and guides them through the order — right on WhatsApp.',
   bullets: [
@@ -695,18 +695,20 @@ export const faq = {
 };
 
 export const aboutMeta = {
-  title: 'About ChatLogix',
-  description: 'ChatLogix helps businesses turn WhatsApp conversations into sales with catalog-aware AI assistance.',
+  title: 'The WhatsApp assistant built for real shops | ChatLogix',
+  description:
+    'ChatLogix helps shops answer WhatsApp questions, share prices from the catalog, and take orders with AI — while you stay in control of the business.',
 };
 
 export const about = {
-  headline: 'About ChatLogix',
-  body: 'ChatLogix is a conversational commerce platform for businesses that sell and support customers through WhatsApp. We help shop owners answer product questions, guide orders, and reduce repetitive chat work while keeping business rules in control.',
+  headline: 'The WhatsApp assistant built for real shops',
+  body: 'ChatLogix is a conversational commerce platform for businesses that sell and support customers through WhatsApp. We help shop owners answer product questions, guide orders, and cut repetitive chat work — without giving up control of catalog, prices, or orders.',
 };
 
 export const privacyMeta = {
   title: 'Privacy Policy | ChatLogix',
-  description: 'How ChatLogix collects, uses, and protects information on our WhatsApp commerce platform.',
+  description:
+    'How ChatLogix collects, uses, and protects shop, customer, and WhatsApp conversation data on our commerce platform.',
 };
 
 export const privacyLastUpdated = 'September 6, 2026';

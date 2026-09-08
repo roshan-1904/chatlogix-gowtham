@@ -9,6 +9,7 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
       '@chatlogix/ui': path.resolve(__dirname, '../../packages/ui/src'),
       '@chatlogix/design-tokens': path.resolve(__dirname, '../../packages/design-tokens/src'),
+      '@chatlogix/hooks': path.resolve(__dirname, '../../packages/hooks/src'),
     },
   },
   server: {
