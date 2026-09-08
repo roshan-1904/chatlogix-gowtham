@@ -14,10 +14,16 @@ import {
 } from './catalogImportAuditService.js';
 import { extract } from './catalogExtractionService.js';
 import { commit as commitProducts, type CommitSummary } from './catalogCommitService.js';
+import type { MergedVendorProfile } from '../lib/visionClient.js';
 import { assertKeyBelongsToVendor } from './fileIntakeService.js';
 import { recordCatalogImportSpend } from './billingService.js';
 import { catalogImportEventBus } from './catalogImportEventBus.js';
 import { classifyRow } from './catalogNormalizationService.js';
+import {
+  applyExtractedCatalogProfile,
+  onboardingAiConfigFromProfile,
+  hasOnboardingProfileFacts
+} from './vendorAIConfigService.js';
 
 export interface AnalyzeStart {
   jobId: string;
@@ -70,7 +76,8 @@ async function runExtractionInBackground(
       imageKeys: req.brochureImageKeys,
       tabularFileKey: req.tabularFileKey,
       category: req.importOptions.category,
-      languageHint: req.importOptions.languageHint
+      languageHint: req.importOptions.languageHint,
+      maxProducts: req.importOptions.maxProducts
     });
 
     await recordTokenUsage(jobId, result.tokenUsage as unknown as Prisma.InputJsonValue);
@@ -84,9 +91,15 @@ async function runExtractionInBackground(
 
     await mergeJobResult(jobId, {
       normalizedProducts: result.normalizedProducts,
+      vendorProfile: result.vendorProfile,
       warnings: result.warnings,
       pageProgress: result.pageProgress
     });
+    try {
+      await applyExtractedCatalogProfile(vendorId, result.vendorProfile);
+    } catch (err) {
+      logger.warn({ err, vendorId, jobId }, 'extracted_catalog_profile_apply_failed');
+    }
     await setJobStatus(jobId, 'ready');
     const durationMs = Date.now() - startedAt;
     logger.info(
@@ -129,6 +142,7 @@ interface JobResultShape {
   commitSummary?: CachedSummary;
   commitSummaryWave2?: CachedSummary;
   normalizedProducts?: NormalizedProductDraft[];
+  vendorProfile?: MergedVendorProfile;
   deferred?: Array<{ row: NormalizedProductDraft; warnings: string[]; rowStatus: string }>;
 }
 
@@ -213,6 +227,24 @@ export async function commit(vendorId: string, req: CommitRequest): Promise<{
         [cacheKey]: { idempotencyKey: req.idempotencyKey, summary },
         committedAt: new Date().toISOString()
       });
+    }
+
+    const manifest = (job.inputManifest ?? {}) as {
+      importOptions?: { autoGenerateAIConfig?: boolean };
+    };
+    if (
+      req.wave === 1 &&
+      manifest.importOptions?.autoGenerateAIConfig !== false &&
+      result.vendorProfile
+    ) {
+      const generatedInput = onboardingAiConfigFromProfile(result.vendorProfile);
+      if (hasOnboardingProfileFacts(generatedInput)) {
+        try {
+          await applyExtractedCatalogProfile(vendorId, result.vendorProfile);
+        } catch (err) {
+          logger.warn({ err, vendorId, jobId: req.jobId }, 'onboarding_ai_config_apply_failed');
+        }
+      }
     }
   }
 

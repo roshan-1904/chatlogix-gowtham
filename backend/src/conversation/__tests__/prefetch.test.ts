@@ -22,6 +22,11 @@ vi.mock('../../utils/redis.js', () => ({
 
 const vendorFindUnique = vi.fn();
 const productFindMany = vi.fn();
+const productUpdate = vi.fn();
+const transactionMock = vi.fn(async (arg: unknown) => {
+  if (Array.isArray(arg)) return Promise.all(arg);
+  throw new Error('unexpected $transaction shape');
+});
 const conversationMemoryFindUnique = vi.fn();
 const customerInsightsFindUnique = vi.fn();
 const messageFindMany = vi.fn();
@@ -33,7 +38,11 @@ const queryRaw = vi.fn();
 vi.mock('../../db/prisma.js', () => ({
   prisma: {
     vendor: { findUnique: (...args: unknown[]) => vendorFindUnique(...args) },
-    product: { findMany: (...args: unknown[]) => productFindMany(...args) },
+    product: {
+      findMany: (...args: unknown[]) => productFindMany(...args),
+      update: (...args: unknown[]) => productUpdate(...args)
+    },
+    $transaction: (...args: unknown[]) => transactionMock(...args),
     conversationMemory: { findUnique: (...args: unknown[]) => conversationMemoryFindUnique(...args) },
     customerInsights: { findUnique: (...args: unknown[]) => customerInsightsFindUnique(...args) },
     message: { findMany: (...args: unknown[]) => messageFindMany(...args) },
@@ -53,6 +62,10 @@ const embedTextMock = vi.fn();
 vi.mock('../faq/embedding.js', () => ({
   embedText: (...args: unknown[]) => embedTextMock(...args),
   toVectorLiteral: (embedding: number[]) => `[${embedding.join(',')}]`
+}));
+
+vi.mock('../../logger.js', () => ({
+  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
 }));
 
 import { prefetchHotSet, invalidateCompactCatalog, invalidateFaqs } from '../prefetch.js';
@@ -89,6 +102,7 @@ beforeEach(() => {
     askForPreferredDeliveryDate: false
   });
   productFindMany.mockResolvedValue([]);
+  productUpdate.mockResolvedValue({ id: 'prod-1' });
   conversationMemoryFindUnique.mockResolvedValue(null);
   customerInsightsFindUnique.mockResolvedValue(null);
   messageFindMany.mockResolvedValue([]);
@@ -150,6 +164,101 @@ describe('prefetchHotSet', () => {
         description: ''
       }
     ]);
+  });
+
+  it('ignores a Redis compact catalog whose prices look 100× inflated and persists the healed paise', async () => {
+    cacheStore.set('vendor:vendor-1:catalog_compact', [
+      {
+        id: 'prod-1',
+        name: 'Plain Bar',
+        price: 1_800_000,
+        unit: 'piece',
+        minQty: null,
+        maxQty: null,
+        keywords: ['plain'],
+        fulfillmentType: 'made_to_order',
+        inStock: true,
+        stockQuantity: null,
+        variants: [],
+        description: '',
+        isDivisible: false
+      }
+    ]);
+    productFindMany.mockResolvedValue([
+      {
+        id: 'prod-1',
+        name: 'Plain Bar',
+        basePrice: 1_800_000,
+        baseUnit: 'piece',
+        minOrderQuantity: null,
+        maxOrderQuantity: null,
+        keywords: ['plain'],
+        fulfillmentType: 'made_to_order',
+        inStock: true,
+        stockQuantity: null,
+        variants: [],
+        description: '',
+        isDivisible: false
+      }
+    ]);
+
+    const hotSet = await prefetchHotSet(VENDOR_ID, CONVERSATION_ID, CUSTOMER_ID, MESSAGE_TEXT);
+
+    expect(hotSet.compactCatalog[0]?.price).toBe(18000);
+    expect(productUpdate).toHaveBeenCalledWith({
+      where: { id: 'prod-1' },
+      data: { basePrice: 18000 }
+    });
+    expect(transactionMock).toHaveBeenCalledOnce();
+    expect(deleteCachedMock).toHaveBeenCalledWith('vendor:vendor-1:catalog_compact');
+    expect(setCachedMock).toHaveBeenCalledWith(
+      'vendor:vendor-1:catalog_compact',
+      expect.arrayContaining([expect.objectContaining({ id: 'prod-1', price: 18000 })]),
+      3600
+    );
+  });
+
+  it('does not rewrite Product rows when Redis is inflated but Postgres is already healed', async () => {
+    cacheStore.set('vendor:vendor-1:catalog_compact', [
+      {
+        id: 'prod-1',
+        name: 'Plain Bar',
+        price: 1_800_000,
+        unit: 'piece',
+        minQty: null,
+        maxQty: null,
+        keywords: ['plain'],
+        fulfillmentType: 'made_to_order',
+        inStock: true,
+        stockQuantity: null,
+        variants: [],
+        description: '',
+        isDivisible: false
+      }
+    ]);
+    productFindMany.mockResolvedValue([
+      {
+        id: 'prod-1',
+        name: 'Plain Bar',
+        basePrice: 18000,
+        baseUnit: 'piece',
+        minOrderQuantity: null,
+        maxOrderQuantity: null,
+        keywords: ['plain'],
+        fulfillmentType: 'made_to_order',
+        inStock: true,
+        stockQuantity: null,
+        variants: [],
+        description: '',
+        isDivisible: false
+      }
+    ]);
+
+    const hotSet = await prefetchHotSet(VENDOR_ID, CONVERSATION_ID, CUSTOMER_ID, MESSAGE_TEXT);
+
+    expect(hotSet.compactCatalog[0]?.price).toBe(18000);
+    expect(productUpdate).not.toHaveBeenCalled();
+    expect(transactionMock).not.toHaveBeenCalled();
   });
 
   it('prefers primaryDeliveryAddress over deliveryAddress on CustomerInsights', async () => {

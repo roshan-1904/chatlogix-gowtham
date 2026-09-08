@@ -10,10 +10,10 @@ const productCreate = vi.fn();
 const productUpdate = vi.fn();
 const productFindUnique = vi.fn();
 const catalogImportJobFindFirst = vi.fn();
-const txQueryRaw = vi.fn();
+const txExecuteRaw = vi.fn();
 
 const txStub = {
-  $queryRaw: (...args: unknown[]) => txQueryRaw(...args),
+  $executeRaw: (...args: unknown[]) => txExecuteRaw(...args),
   product: {
     findUnique: (...args: unknown[]) => productFindUnique(...args),
     create: (...args: unknown[]) => productCreate(...args),
@@ -83,7 +83,7 @@ function makeReq(over: Partial<CommitRequest> = {}): CommitRequest {
 describe('catalogCommitService.commit — dryRun savepoint behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    txQueryRaw.mockResolvedValue(undefined);
+    txExecuteRaw.mockResolvedValue(0);
     catalogImportJobFindFirst.mockResolvedValue(null);
     productFindUnique.mockResolvedValue(null);
     productCreate.mockResolvedValue({ id: 'p_new' });
@@ -204,5 +204,13 @@ describe('catalogCommitService.commit — dryRun savepoint behavior', () => {
     );
     expect(summary.wave).toBe(2);
     expect(summary.createdCount).toBe(1);
+  });
+
+  it('deflates brochure prices that were converted to paise twice before create', async () => {
+    const draft = makeDraft({ basePrice: 1_800_000 });
+    await commit('vendor_1', makeReq({ dryRun: false, approvedProducts: [draft] }));
+    expect(productCreate).toHaveBeenCalledOnce();
+    const arg = productCreate.mock.calls[0][0] as { data: { basePrice: number } };
+    expect(arg.data.basePrice).toBe(18000);
   });
 });

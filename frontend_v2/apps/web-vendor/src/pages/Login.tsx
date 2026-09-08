@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useLogin, useAuth } from '@chatlogix/auth';
@@ -8,6 +8,8 @@ import { normalizePhoneToE164 } from '@chatlogix/utils';
 import { PhoneLoginForm } from '../components/auth/PhoneLoginForm';
 import { OtpVerificationForm } from '../components/auth/OtpVerificationForm';
 import { executeFirebaseRecaptcha } from '../lib/firebaseRecaptcha';
+import { mapOnboardingError } from '../components/onboarding/mapOnboardingError';
+import { redirectPathForStatus, fetchOnboardingProfile } from '../lib/onboarding';
 
 const phoneSchema = z.object({
   countryCode: z.string().min(1, 'Country code is required'),
@@ -39,7 +41,13 @@ export function Login() {
   // Redirect if already authenticated
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
-      navigate('/dashboard', { replace: true });
+      void fetchOnboardingProfile()
+        .then((profile) => {
+          navigate(redirectPathForStatus(profile.registrationStatus as any, profile.onboardingStep), {
+            replace: true,
+          });
+        })
+        .catch(() => navigate('/dashboard', { replace: true }));
     }
   }, [isAuthenticated, authLoading, navigate]);
 
@@ -117,9 +125,10 @@ export function Login() {
       const normalizedPhone = normalizePhoneToE164(fullPhone);
       
       await login(normalizedPhone, sessionInfo, data.otp);
-      navigate('/dashboard');
+      const profile = await fetchOnboardingProfile();
+      navigate(redirectPathForStatus(profile.registrationStatus, profile.onboardingStep));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Invalid verification code');
+      setError(mapOnboardingError(err));
     } finally {
       setIsLoading(false);
     }
@@ -277,14 +286,30 @@ export function Login() {
             )}
           </div>
 
-          <div className="mt-6 sm:mt-8 text-center">
+          <div className="mt-6 sm:mt-8 text-center space-y-2">
+            <p className="text-xs sm:text-sm text-gray-600">
+              New here?{' '}
+              <Link to="/signup" className="text-primary-500 hover:opacity-80 font-medium">
+                Start free WhatsApp trial
+              </Link>
+            </p>
             <p className="text-xs sm:text-sm text-gray-600">
               By continuing, you agree to our{' '}
-              <a href="#" className="text-primary-500 hover:opacity-80 font-medium">
+              <a
+                href="https://chatlogix.in/terms"
+                target="_blank"
+                rel="noreferrer"
+                className="text-primary-500 hover:opacity-80 font-medium"
+              >
                 Terms of Service
               </a>{' '}
               and{' '}
-              <a href="#" className="text-primary-500 hover:opacity-80 font-medium">
+              <a
+                href="https://chatlogix.in/privacy"
+                target="_blank"
+                rel="noreferrer"
+                className="text-primary-500 hover:opacity-80 font-medium"
+              >
                 Privacy Policy
               </a>
             </p>

@@ -8,6 +8,7 @@ import { getDashboardStats } from '../services/dashboardStatsService.js';
 import type { DateRangePreset } from '../utils/dateRange.js';
 import { sendPhoneVerificationCode, verifyPhoneChange } from '../services/settingsVerification.js';
 import { sendEmailVerificationCode, verifyEmailChange } from '../services/emailVerification.js';
+import { vendorOnboardingRouter } from './vendorOnboarding.js';
 import {
   phoneVerificationSendSchema,
   phoneVerificationConfirmSchema,
@@ -25,6 +26,8 @@ import { buildAIPromptsUpdate } from '../services/vendorAIConfigService.js';
 import { shapeMessageMedia } from './conversations.js';
 
 export const vendorsRouter = express.Router();
+
+vendorsRouter.use(vendorOnboardingRouter);
 
 // Helper function to handle Prisma errors consistently
 function handlePrismaError(error: any, operation: string, table: string, next: express.NextFunction) {

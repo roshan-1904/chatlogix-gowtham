@@ -10,7 +10,8 @@ export const ImportOptionsSchema = z.object({
   languageHint: z.enum(['ta', 'hi', 'en']).optional(),
   allowUpdateExisting: z.boolean().default(false),
   autoGenerateAIConfig: z.boolean().default(true),
-  category: z.string().min(1).max(64).optional()
+  category: z.string().min(1).max(64).optional(),
+  maxProducts: z.number().int().min(1).max(60).optional()
 });
 
 export const AnalyzeRequestSchema = z.object({

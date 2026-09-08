@@ -9,8 +9,9 @@ echo "=== git fetch + reset to ${DEPLOY_SHA} ==="
 git fetch origin
 git reset --hard "${DEPLOY_SHA}"
 
-rm -rf backend/dist backend/node_modules frontend/dist
-mkdir -p frontend backend
+rm -rf backend/dist backend/node_modules frontend/dist \
+  www/marketing www/vendor www/admin
+mkdir -p frontend backend www/marketing www/vendor www/admin
 
 echo "=== extracting dist tarball ==="
 tar -xzf /tmp/chatlogix-dist.tar.gz -C .

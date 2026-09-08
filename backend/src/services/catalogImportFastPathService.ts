@@ -4,7 +4,7 @@ import type { NormalizedProductDraft } from '../routes/schemas/catalogImport.js'
 import { callVisionExtraction } from '../lib/visionClient.js';
 import { fetchAndValidate } from './fileIntakeService.js';
 import { visionRowToDraft, classifyRow } from './catalogNormalizationService.js';
-import { enrichKeywordsBatch } from './catalogEnrichmentService.js';
+import { enrichKeywordsBatch, shopContextFromVendorProfile } from './catalogEnrichmentService.js';
 import { recordCatalogImportSpend } from './billingService.js';
 
 export interface FastPhotoResult {
@@ -25,7 +25,7 @@ const USD_TO_PAISE = 83 * 100;
 export async function fastPhoto(vendorId: string, imageKey: string): Promise<FastPhotoResult> {
   const startedAt = Date.now();
   const { buffer, contentType } = await fetchAndValidate(imageKey);
-  const { products, cost } = await callVisionExtraction({
+  const { products, vendorProfile, cost } = await callVisionExtraction({
     imageBuffer: buffer,
     contentType
   });
@@ -42,7 +42,10 @@ export async function fastPhoto(vendorId: string, imageKey: string): Promise<Fas
 
   // Cheap one-row enrichment — 1 batch of size 1. Worth the extra ~300 tokens
   // because the fast-path skips the review-grid enrichment pass entirely.
-  const { updated } = await enrichKeywordsBatch([best]);
+  const { updated } = await enrichKeywordsBatch(
+    [best],
+    shopContextFromVendorProfile(vendorProfile)
+  );
   const enriched = updated[0] ?? best;
 
   const classified = classifyRow(enriched);

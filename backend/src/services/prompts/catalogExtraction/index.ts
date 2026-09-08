@@ -16,11 +16,19 @@ const REGISTRY: Record<string, string> = {
   appliance: ELECTRONICS_APPENDIX
 };
 
-export function getExtractionPrompt(category?: string, languageHint?: 'ta' | 'hi' | 'en'): string {
+export function getExtractionPrompt(
+  category?: string,
+  languageHint?: 'ta' | 'hi' | 'en',
+  maxProducts = 60
+): string {
   const key = (category ?? '').trim().toLowerCase();
   const appendix = REGISTRY[key] ?? DEFAULT_APPENDIX;
   const langNote = languageHint
     ? `\nMERCHANT LANGUAGE HINT: Expect printed text primarily in "${languageHint}". Translate only when asked.`
     : '';
-  return `${BASE_EXTRACTION_PROMPT}${appendix}${langNote}`;
+  const capNote =
+    maxProducts < 60
+      ? `\nPRODUCT CAP: Return at most ${maxProducts} products. Prefer items with a clear name and price.`
+      : '';
+  return `${BASE_EXTRACTION_PROMPT}${appendix}${langNote}${capNote}`;
 }

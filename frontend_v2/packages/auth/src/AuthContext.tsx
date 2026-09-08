@@ -1,11 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import type { AuthState, AuthResponse, SendCodeResponse, UserRole, User } from './types';
+import type { AuthState, AuthResponse, SendCodeResponse, UserRole, User, SignupResponse, RegistrationStatus } from './types';
 import { tokenStorage } from './storage';
 import { AuthApi } from './api';
 
 // Utility to decode JWT token payload (without verification)
 // This is safe for extracting user info - backend verifies the signature
-function decodeJWT(token: string): { userId: string; phoneNumber: string; roles: string[]; vendorId?: string; exp?: number } | null {
+function decodeJWT(token: string): { userId: string; phoneNumber: string; roles: string[]; vendorId?: string; registrationStatus?: string; exp?: number } | null {
   try {
     const parts = token.split('.');
     if (parts.length !== 3) {
@@ -49,11 +49,13 @@ function extractUserFromToken(token: string): User | null {
     phoneNumber: decoded.phoneNumber,
     roles: decoded.roles as UserRole[],
     vendorId: decoded.vendorId,
+    registrationStatus: decoded.registrationStatus as RegistrationStatus | undefined,
   };
 }
 
 interface AuthContextValue extends AuthState {
   login: (phoneNumber: string, sessionInfo: string, code: string) => Promise<void>;
+  signup: (phoneNumber: string, sessionInfo: string, code: string) => Promise<SignupResponse>;
   sendCode: (phoneNumber: string, recaptchaToken?: string) => Promise<SendCodeResponse>;
   logout: () => Promise<void>;
   hasRole: (role: string) => boolean;
@@ -133,6 +135,23 @@ export function AuthProvider({ children, api }: AuthProviderProps) {
     [api]
   );
 
+  const signup = useCallback(
+    async (phoneNumber: string, sessionInfo: string, code: string) => {
+      try {
+        const response: SignupResponse = await api.signupVerify(phoneNumber, sessionInfo, code);
+        applySession(response.token, response.user);
+        return response;
+      } catch (error) {
+        setState((prev) => ({
+          ...prev,
+          isLoading: false,
+        }));
+        throw error;
+      }
+    },
+    [api, applySession]
+  );
+
   const login = useCallback(
     async (phoneNumber: string, sessionInfo: string, code: string) => {
       try {
@@ -175,6 +194,7 @@ export function AuthProvider({ children, api }: AuthProviderProps) {
       value={{
         ...state,
         login,
+        signup,
         sendCode,
         logout,
         hasRole,

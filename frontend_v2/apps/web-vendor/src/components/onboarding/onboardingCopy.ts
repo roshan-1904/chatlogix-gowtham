@@ -1,0 +1,362 @@
+export const onboardingCopy = {
+  signup: {
+    success:
+      'Your trial shop is ready. You have ₹100.00 to test how ChatLogix answers customer questions. Nothing is sent to your real WhatsApp yet.',
+    form: {
+      phone: {
+        title: 'Start your free demo',
+        subtext:
+          'Enter your mobile number to create your demo account. We’ll add ₹100 in free credits so you can try the assistant before spending your own money.',
+        fieldLabel: 'Mobile number',
+        helper: 'No card required.',
+        cta: 'Get ₹100 & Start Testing',
+        footnote: 'Nothing to pay. See the quality yourself before it reaches your customers.',
+      },
+      otp: {
+        title: 'Enter the verification code',
+        subtext: 'Sent to {phone}. Then you can set up your store and test the assistant.',
+        cta: 'Verify and start',
+      },
+      footerLogin: 'Already have a shop?',
+      footerLoginLink: 'Log in',
+      badge: '₹100 FREE — No payment required',
+    },
+    meta: {
+      title: 'Free WhatsApp Shop Assistant for Small Business | ChatLogix',
+      description:
+        'Experience your AI assistant with your own store. Get ₹100 free credits to test catalog, text and voice — no card, customers not contacted.',
+    },
+    marketing: {
+      hero: {
+        kicker: 'TRY IT BEFORE YOU PAY',
+        h1: 'Experience your AI assistant with your own store — before you pay.',
+        subhead:
+          'Get ₹100 in free credits. Upload your catalog, set up your store, and chat with your AI assistant using real product questions, text and voice messages. Test everything yourself before spending your money.',
+        seoH1:
+          'Free WhatsApp shop assistant for small business — automatic replies and orders',
+      },
+      benefits: [
+        '₹100 in free credits',
+        'No card required',
+        'Use your own catalog',
+        'Try it before customers do',
+      ],
+      preview: {
+        title: 'What you try in the demo',
+        badge: 'Demo only',
+        chatName: 'Your shop assistant',
+        status: 'Online',
+        composer: 'Ask about your products…',
+        caption: 'You check a product before you sell it. Do the same with this assistant.',
+        steps: [
+          { title: 'Your catalog', body: 'Upload your products' },
+          { title: 'AI conversations', body: 'Ask like a customer' },
+          { title: 'Voice & text', body: 'See how it replies' },
+        ],
+        customerText: 'Almond cookies — stock irukka?',
+        assistantText: 'Yes — ₹180 a box of 12. Fresh batch today.',
+        voiceLabel: 'Voice note',
+        voiceDuration: '0:07',
+        assistantFollowUp: 'I can note 2 boxes for this evening. Shall I?',
+      },
+      problem: {
+        h2: 'Why shop owners struggle with WhatsApp every day',
+        bullets: [
+          {
+            title: 'Same questions, every day',
+            body: '"Rate enna?", "Delivery irukka?", "Stock irukka?" — repeated questions eat hours you could spend on your work.',
+          },
+          {
+            title: 'Missed messages = missed sales',
+            body: 'When you\'re busy in the kitchen, on the shop floor, or on the road, customers move to the next seller.',
+          },
+          {
+            title: 'Late-night typing',
+            body: 'Replying manually after a long day instead of resting or growing the business.',
+          },
+        ],
+      },
+      solution: {
+        h2: 'How ChatLogix automates your WhatsApp customer service',
+        bullets: [
+          {
+            title: 'Smart automatic replies on WhatsApp',
+            body: 'Answers like a trained shop staff member, using your products and prices.',
+          },
+          {
+            title: 'WhatsApp order support built in',
+            body: 'Customers ask; your assistant guides them toward a clear order.',
+          },
+          {
+            title: 'Try it safely before going live',
+            body: 'Test the **same AI** in a private demo. **Your real WhatsApp customers are not messaged** during trial.',
+          },
+        ],
+      },
+      offer: {
+        h2: '₹100 free trial credit — start your WhatsApp automation today',
+        body: 'Create your account in minutes. We add **₹100 free** to your trial wallet so you can test **automatic WhatsApp replies**, upload your menu or product list, and chat with the assistant like a real customer.',
+        reassurance:
+          '**No payment card. No setup fee. No message to your live WhatsApp until you choose to connect after approval.**',
+        microLine: 'Transparent usage — you see exactly what each reply costs in rupees.',
+      },
+      trust: [
+        'Your phone is verified — only you can log in',
+        'Built for **local shops, home bakers, tailors & sellers** — not big-company software',
+        'Same AI engine used for **live WhatsApp** after you go live',
+        'Human review before full access — we check your shop details, usually **1–2 business days**',
+      ],
+    },
+    faq: {
+      h2: 'Common questions',
+      items: [
+        {
+          question: 'What is a WhatsApp shop assistant?',
+          answer:
+            'A tool that reads customer messages on WhatsApp and replies with your prices, products, and order details — automatically, in a natural way.',
+        },
+        {
+          question: 'Is the ₹100 trial really free?',
+          answer:
+            'Yes. Sign up with your mobile number. No credit card. Use ₹100 in free credits to upload your catalog and test the assistant before connecting live WhatsApp.',
+        },
+        {
+          question: 'Will my customers get messages during the trial?',
+          answer:
+            'No. The demo runs in a safe test environment. Live WhatsApp connects only after you\'re approved and ready.',
+        },
+        {
+          question: 'Who is ChatLogix for?',
+          answer:
+            'Home businesses, bakeries, tailors, kirana sellers, and any small shop that gets orders and questions on WhatsApp.',
+        },
+      ],
+    },
+  },
+  step1: {
+    headline: 'Your shop',
+    explainer: 'Add the shop details the assistant should use when customers ask about pickup or delivery.',
+    trustLine: 'You can change this later.',
+    whyWeAsk: 'The assistant uses your shop name and address when customers ask about pickup or delivery.',
+    addressLabel: 'Shop address',
+    deliveryNotesLabel: 'Delivery notes (optional)',
+    fieldNotes: {
+      businessName: 'Used in greetings and order confirmations.',
+      ownerName: 'If a customer asks who runs the shop.',
+      email: 'Account and approval updates only.',
+      city: 'Helps answer “do you deliver to my area?”',
+      address: 'Quoted for pickup and where orders ship from.',
+      deliveryNotes: 'Delivery areas, charges, and hours.',
+      category: 'So the assistant talks like your kind of shop.',
+    },
+  },
+  step2: {
+    headline: 'What you sell',
+    explainer: 'Upload a menu photo or spreadsheet first — we read your products and shop details from it.',
+    skipNote: 'You can add products later. Demo answers may be limited until then.',
+    uploading: 'Uploading…',
+    reading: 'Reading your menu…',
+    readingWait: 'This can take a minute.',
+    reviewHeadline: 'Check your products',
+    reviewExplainer: 'Fix names, descriptions, and prices before the assistant uses them.',
+    found: 'Check anything that looks wrong, then save. Demo catalogs are limited to 10 products.',
+    descriptionLabel: 'Description',
+    descriptionNote: 'We write a full listing from your catalog. Edit anything that is wrong.',
+    descriptionPlaceholder: 'What it is, pack size, when people order it…',
+    maxProducts: 'Demo is limited to 10 products. Remove one to add another.',
+    foundNone: 'We could not read products from that file. Try another photo below, or add items by hand.',
+    tryAnother: 'Upload a menu photo or spreadsheet',
+    continueUpload: 'Read this file',
+    addProduct: 'Add a product',
+    remove: 'Remove',
+    nameLabel: 'Name',
+    priceLabel: 'Price (₹)',
+    unitLabel: 'Unit',
+    qtyLabel: 'Qty',
+    missingPrice: 'Add a price so the assistant can quote this item.',
+    save: 'Save products & continue',
+    skip: 'Skip for now',
+    whyWeAsk: 'Your assistant can only quote prices and stock from products you add.',
+    guide: {
+      kicker: 'Catalog',
+      h1: 'Teach the assistant what you sell',
+      subhead: 'Upload a menu photo or spreadsheet. We read products and prices from it.',
+      actionTitle: 'Upload your menu',
+      howTo: [
+        { title: 'Clear photo', body: 'Menu, brochure, or price list. Avoid blur and glare.' },
+        { title: 'Or a spreadsheet', body: 'Name, price, and unit in columns works best.' },
+        { title: 'Check before you save', body: 'Fix names and prices. Demo is limited to 10 items.' },
+      ],
+      footnote: 'Nothing is sent to your customers. You can skip and add products later.',
+      preview: {
+        chatName: 'Your shop assistant',
+        status: 'Online',
+        customerText: 'Almond cookies, stock irukka?',
+        assistantText: 'Yes, ₹180 a box of 12. Fresh batch today.',
+      },
+    },
+    reviewGuide: {
+      kicker: 'Catalog',
+      h1: 'Check names and prices',
+      subhead: 'Fix anything that looks wrong before the assistant uses it in chat.',
+      actionTitle: 'Review your products',
+      howTo: [
+        { title: 'Names', body: 'Use the name a customer would type on WhatsApp.' },
+        { title: 'Prices', body: 'Add a price so the assistant can quote this item.' },
+        { title: 'Save when it looks right', body: 'You can edit products again from Confirm.' },
+      ],
+      footnote: 'Demo catalogs are limited to 10 products.',
+    },
+  },
+  step3: {
+    headline: 'How it sounds',
+    explainer: 'The first message a customer sees.',
+    whyWeAsk: 'This greeting is the first thing a customer sees. Keep it short and in their language.',
+  },
+  step4: {
+    headline: 'Try a customer chat',
+    explainer: 'Private demo. Nothing is sent to your real WhatsApp.',
+    trustBanner: 'Demo only — your customers are not messaged',
+    loading: 'Replying…',
+    emptyWallet:
+      'Trial credit is used up. You can still submit for approval.',
+    suggestedPrompts: ['What are your prices?', 'I want to order 2 kg', 'Do you deliver?'],
+    whyWeAsk: 'Demo chat spends trial credit so you can see reply quality and cost before going live.',
+    guide: {
+      kicker: 'Demo',
+      h1: 'Try a customer chat',
+      actionTitle: 'Chat with your assistant',
+      subhead: 'Private demo. Nothing is sent to your real WhatsApp.',
+      howTo: [
+        { title: 'Ask like a customer', body: 'Try prices, stock, or delivery.' },
+        { title: 'Text or voice', body: 'See how the assistant replies in both.' },
+        { title: 'Watch the trial rupees', body: 'Each reply spends a little of your ₹100 credit.' },
+      ],
+      footnote: 'This is the same AI that will reply on live WhatsApp after you go live.',
+    },
+  },
+  step5: {
+    headline: 'Submit for review',
+    explainer: 'We check shop details in 1–2 days. Then you can connect WhatsApp.',
+    submitCta: 'Submit for approval',
+    checkbox: 'I understand going live needs approval',
+    whyWeAsk: 'We review shops to keep WhatsApp quality high for real customers.',
+    guide: {
+      kicker: 'Submit',
+      h1: 'Ready for a human review',
+      actionTitle: 'Submit for review',
+      subhead: 'We check shop details in 1-2 days. Then you can connect WhatsApp.',
+      howTo: [
+        { title: 'We read your details', body: 'Name, catalog, and greeting get a quick check.' },
+        { title: 'You get a message', body: 'We notify you on your phone when you are approved.' },
+        { title: 'Then go live', body: 'Connect WhatsApp only after approval.' },
+      ],
+      footnote: 'Email is for approval updates. Live customers are not messaged until you connect.',
+    },
+  },
+  clarify: {
+    headline: 'A quick detail',
+    explainer: 'These answers help the assistant quote the right prices and delivery rules.',
+    progressBuilding: 'About {pct}% ready for demo — a few more details make replies accurate.',
+    progressReady: 'We know enough to try the demo — one more detail helps if you have time.',
+    continue: 'Continue',
+    enough: "That's enough — review my shop",
+    answerRequired: 'Pick or type an answer, or tap That\'s enough.',
+    textPlaceholder: 'Type your answer…',
+    guide: {
+      kicker: 'Details',
+      h1: 'A few answers make replies accurate',
+      actionTitle: 'A quick detail',
+      subhead: 'We ask one question at a time for anything the file did not cover.',
+      howTo: [
+        { title: 'Pick or type', body: 'Choose a chip or type a short answer.' },
+        { title: 'One at a time', body: 'Hours, delivery, or prices we could not read.' },
+        { title: "You can stop", body: "Tap That's enough when you want to review the shop." },
+      ],
+      footnote: 'These answers help quote the right prices and delivery rules.',
+    },
+  },
+  confirm: {
+    headline: 'Check your shop details',
+    explainer: 'We filled these from your catalog. Fix anything that looks wrong.',
+    shopName: 'Shop name',
+    emailOptional: 'Email (optional now)',
+    emailNote: 'Required when you submit for approval. We send updates here.',
+    city: 'City (optional)',
+    category: 'Category',
+    assistantName: 'Assistant name',
+    greeting: 'First message customers see',
+    personality: 'How the assistant should sound',
+    productSummary: '{count} products saved',
+    noProducts: 'No products yet — you can still try the demo',
+    editCatalog: 'Edit products',
+    save: 'Save & try demo chat',
+    guide: {
+      kicker: 'Confirm',
+      h1: 'Check the details customers will hear',
+      actionTitle: 'Your shop details',
+      subhead: 'We filled these from your catalog. Fix anything that looks wrong.',
+      howTo: [
+        { title: 'Shop name and address', body: 'Quoted for pickup and where orders ship from.' },
+        { title: 'Greeting', body: 'The first message a customer sees. Keep it short.' },
+        { title: 'Category', body: 'So the assistant talks like your kind of shop.' },
+      ],
+      footnote: 'You can change this later after approval.',
+    },
+  },
+  demoPhone: {
+    online: 'online',
+    typing: 'typing…',
+    today: 'Today',
+    composerPlaceholder: 'Type a message',
+    demoOnly: 'Demo only',
+    demoHonesty: 'Demo — not sent to customers',
+    recording: 'Recording {sec}s',
+    slideCancel: 'Slide to cancel',
+    releaseSend: 'Release to send',
+    micDenied: 'Microphone blocked. Choose a voice file instead.',
+    voiceFallback: 'Voice note',
+    lastReplyCost: 'Last reply {cost}',
+    continue: 'Continue to review',
+    attachLabel: 'Attach',
+    sendLabel: 'Send',
+    micLabel: 'Hold to record',
+    videoLabel: 'Video call',
+    callLabel: 'Voice call',
+    menuLabel: 'Menu',
+  },
+  review: {
+    emailRequired: 'Add your email so we can notify you when your shop is approved.',
+    emailMissing: 'Email not added yet',
+  },
+  submitted: {
+    headline: "We're reviewing your shop",
+    explainer:
+      'We will notify you on your phone when you are approved. You can still edit your details below.',
+    guide: {
+      kicker: 'Submitted',
+      h1: 'We are reviewing your shop',
+      actionTitle: 'What happens next',
+      subhead: 'A person checks your details. This usually takes 1-2 business days.',
+      howTo: [
+        { title: 'Review', body: 'Our team reads your shop details and catalog.' },
+        { title: 'Notify', body: 'We message you on your phone when you are approved.' },
+        { title: 'Go live', body: 'Then you can connect WhatsApp and load your wallet.' },
+      ],
+      footnote: 'You can still edit your application or try the demo while you wait.',
+    },
+  },
+  rejected: {
+    headline: 'We could not approve your shop yet',
+    explainer: 'Please contact us if you have questions about your application.',
+  },
+  wallet: {
+    lowBalance: 'Your trial balance is running low.',
+    expired: 'Your trial has expired. You can still submit for approval or contact support.',
+  },
+  help: {
+    prefix: 'Questions?',
+    suffix: '— we help shops set up every day.',
+    logout: 'Log out',
+  },
+} as const;

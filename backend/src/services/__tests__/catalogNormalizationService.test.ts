@@ -7,7 +7,9 @@ import {
   inBatchDedup,
   scoreRowConfidence,
   tabularRowToDraft,
-  visionRowToDraft
+  visionRowToDraft,
+  catalogPaiseLookInflated,
+  repairInflatedDraftPrices
 } from '../catalogNormalizationService.js';
 import type { NormalizedProductDraft } from '../../routes/schemas/catalogImport.js';
 import type { ExtractedProductRow } from '../../lib/visionClient.js';
@@ -84,9 +86,19 @@ describe('coercePricePaise', () => {
     expect(coercePricePaise('99.50')).toBe(9950);
   });
 
-  it('treats numbers as rupees', () => {
+  it('treats numbers as rupees by default', () => {
     expect(coercePricePaise(150)).toBe(15000);
     expect(coercePricePaise(99.5)).toBe(9950);
+  });
+
+  it('keeps vision integers that are already paise', () => {
+    expect(coercePricePaise(15000, { integerUnit: 'paise' })).toBe(15000);
+    expect(coercePricePaise(18000, { integerUnit: 'paise' })).toBe(18000);
+  });
+
+  it('promotes small vision integers as rupees when the model skipped paise', () => {
+    expect(coercePricePaise(150, { integerUnit: 'paise' })).toBe(15000);
+    expect(coercePricePaise(99.5, { integerUnit: 'paise' })).toBe(9950);
   });
 
   it('returns null for unusable values', () => {
@@ -131,12 +143,41 @@ describe('visionRowToDraft', () => {
     expect(draft.isActive).toBe(false);
   });
 
+  it('does not multiply vision paise a second time', () => {
+    const draft = visionRowToDraft(makeVisionRow({ basePrice: fc(18000) }));
+    expect(draft.basePrice).toBe(18000);
+  });
+
+  it('promotes small vision rupee amounts to paise', () => {
+    expect(visionRowToDraft(makeVisionRow()).basePrice).toBe(15000);
+  });
+
   it('penalizes unknown unit confidence', () => {
     const known = visionRowToDraft(makeVisionRow({ baseUnit: fc('kg', 0.9) }));
     const unknown = visionRowToDraft(makeVisionRow({ baseUnit: fc('bundle', 0.9) }));
     expect(unknown.sourceMeta.fieldConfidence.baseUnit).toBeLessThan(
       known.sourceMeta.fieldConfidence.baseUnit
     );
+  });
+});
+
+describe('catalogPaiseLookInflated / repairInflatedDraftPrices', () => {
+  it('detects a catalog that was multiplied by 100 twice', () => {
+    expect(catalogPaiseLookInflated([1_800_000, 2_300_000, 3_500_000])).toBe(true);
+  });
+
+  it('leaves ordinary paise catalogs alone', () => {
+    expect(catalogPaiseLookInflated([18000, 23000, 35000])).toBe(false);
+    expect(catalogPaiseLookInflated([15000])).toBe(false);
+  });
+
+  it('divides inflated draft prices by 100', () => {
+    const repaired = repairInflatedDraftPrices([
+      makeDraft({ basePrice: 1_800_000 }),
+      makeDraft({ name: 'Gummies', basePrice: 2_300_000 })
+    ]);
+    expect(repaired[0].basePrice).toBe(18000);
+    expect(repaired[1].basePrice).toBe(23000);
   });
 });
 

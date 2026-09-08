@@ -120,7 +120,9 @@ const EnvSchema = z.object({
   AUTH_TOKEN_EXPIRES_IN: z.string().default('1h'),
   AUTH_REFRESH_TOKEN_EXPIRES_IN: z.string().default('7d'),
   AUTH_COOKIE_SECURE: z.string().optional(),
-  CORS_ALLOWED_ORIGINS: z.string().default('http://127.0.0.1:3000'),
+  CORS_ALLOWED_ORIGINS: z
+    .string()
+    .default('http://localhost:3000,http://127.0.0.1:3000'),
   FIREBASE_PROJECT_ID: z.string().optional(),
   FIREBASE_CLIENT_EMAIL: z.string().optional(),
   FIREBASE_PRIVATE_KEY: z.string().optional(),
@@ -129,7 +131,11 @@ const EnvSchema = z.object({
   RECAPTCHA_SECRET_KEY: z.string().optional(),
   AUTH_ADMIN_PHONES: z.string().optional(),
   // When Firebase is not configured, allow the local 123456 OTP. Forced off in production.
-  AUTH_ALLOW_DEV_OTP: z.string().optional()
+  AUTH_ALLOW_DEV_OTP: z.string().optional(),
+
+  // Vendor onboarding trial wallet
+  TRIAL_GRANT_PAISE: z.string().default('10000'),
+  TRIAL_EXPIRY_DAYS: z.string().default('30')
 });
 
 export type Env = z.infer<typeof EnvSchema> & {
@@ -179,7 +185,9 @@ export const numericEnv = {
   reactionCreditsPerMessage: Number(env.BILLING_REACTION_CREDIT || '0'),
   mediaFetchMaxAttempts: Number(env.MEDIA_FETCH_MAX_ATTEMPTS || '5'),
   waMediaRetentionMonths: Number(env.WA_MEDIA_RETENTION_MONTHS || '12'),
-  templatedReplyDebounceMs: Number(env.TEMPLATED_REPLY_DEBOUNCE_MS || '30000')
+  templatedReplyDebounceMs: Number(env.TEMPLATED_REPLY_DEBOUNCE_MS || '30000'),
+  trialGrantPaise: Number(env.TRIAL_GRANT_PAISE || '10000'),
+  trialExpiryDays: Number(env.TRIAL_EXPIRY_DAYS || '30')
 };
 
 /**

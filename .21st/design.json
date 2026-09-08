@@ -1,0 +1,248 @@
+{
+  "version": 1,
+  "project": {
+    "name": "chatlogix",
+    "productType": "whatsapp-ecommerce-saas",
+    "stack": [
+      "React 18",
+      "TypeScript",
+      "Vite",
+      "Tailwind CSS 3",
+      "Turborepo",
+      "React Router 7",
+      "TanStack Query",
+      "Zustand",
+      "React Hook Form + Zod"
+    ]
+  },
+  "sources": {
+    "tokens": [
+      "frontend_v2/packages/design-tokens/src/index.ts",
+      "frontend_v2/packages/design-tokens/tailwind.config.js",
+      "frontend_v2/apps/web-vendor/tailwind.config.js",
+      "frontend_v2/apps/web-vendor/src/index.css",
+      ".21st/chatlogix-theme.css"
+    ],
+    "components": [
+      "frontend_v2/packages/ui/src",
+      "frontend_v2/apps/web-vendor/src/components",
+      "frontend_v2/apps/web-marketing/src/components"
+    ],
+    "assets": [],
+    "instructions": [
+      "CLAUDE.md",
+      ".cursorrules",
+      ".21st/DESIGN.md",
+      ".cursor/rules/21st-mcp-design.mdc"
+    ]
+  },
+  "design": {
+    "colorMode": "light",
+    "density": "comfortable",
+    "colors": {
+      "primary": "#072349",
+      "primaryForeground": "#ffffff",
+      "secondary": "#25D366",
+      "secondaryForeground": "#ffffff",
+      "success": "#25D366",
+      "error": "#ef4444",
+      "warning": "#f59e0b",
+      "background": "#ffffff",
+      "foreground": "#111827",
+      "muted": "#f3f4f6",
+      "mutedForeground": "#6b7280",
+      "border": "#e5e7eb",
+      "ring": "#072349",
+      "chatCanvas": "#ece5dd"
+    },
+    "typography": {
+      "fontFamily": {
+        "sans": "Inter, system-ui, sans-serif",
+        "mono": "Fira Code, monospace"
+      }
+    },
+    "spacing": {
+      "scale": "0.25rem"
+    },
+    "radius": {
+      "control": "0.5rem",
+      "card": "0.75rem",
+      "pill": "9999px"
+    },
+    "shadows": {
+      "card": "shadow-sm"
+    },
+    "motion": {
+      "default": "transition-colors"
+    },
+    "tailwindAliases": {
+      "bg-primary": "bg-primary-500",
+      "text-primary": "text-primary-500",
+      "text-primary-foreground": "text-white",
+      "bg-secondary": "bg-secondary-500",
+      "text-secondary-foreground": "text-white",
+      "bg-destructive": "bg-red-500",
+      "text-muted-foreground": "text-gray-500",
+      "bg-muted": "bg-gray-100",
+      "bg-background": "bg-white",
+      "text-foreground": "text-gray-900",
+      "bg-card": "bg-white",
+      "border-border": "border-gray-200",
+      "ring-ring": "ring-primary-500",
+      "rounded-md": "rounded-lg"
+    }
+  },
+  "components": {
+    "installed": [
+      "Button (primary | secondary | ghost)",
+      "Input",
+      "Card",
+      "Badge",
+      "Modal"
+    ],
+    "preferredPrimitives": [
+      "@chatlogix/ui Button, Input, Card, Badge, Modal",
+      "OnboardingLayout + OnboardingGuidePanel for /onboarding/*",
+      "SignupMarketingPanel for public signup split layout"
+    ],
+    "patterns": [
+      "Public signup: light marketing column + full-white form column",
+      "Onboarding: 60/40 light split like signup. Left column coaches (what the step is, how to fill it). Right column is the job. Compact how-to stacks above the form on mobile. Demo chat keeps the WhatsApp phone as the action column.",
+      "Inbox: WhatsApp-style chat canvas (#ece5dd) with green selection accent",
+      "Onboarding demo chat is a real customer WhatsApp phone (desktop bezel, mobile full-screen). Signup marketing preview stays a chat-app window, not a phone.",
+      "Dashboard: white cards, navy stat emphasis, green success badges"
+    ]
+  },
+  "constraints": {
+    "must": [
+      "Use @chatlogix/design-tokens Tailwind scales (primary-*, secondary-*, gray-*, red-*, yellow-*). Do not invent new brand hex values.",
+      "Primary actions and brand chrome use navy #072349 (bg-primary-500). Success, WhatsApp, and secondary CTAs use #25D366 (bg-secondary-500).",
+      "Body UI is light mode: white/gray-50 surfaces, gray-900 text, gray-500 secondary text.",
+      "Reuse @chatlogix/ui primitives before creating lookalike buttons, inputs, cards, or badges.",
+      "When adapting 21st/shadcn output, rewrite CSS-variable classes to the tailwindAliases map. ChatLogix does not use --primary CSS variables in the running app.",
+      "Pass this design.json as `context` to 21st MCP get_inspiration and generate.",
+      "Keep Inter as the UI font. Keep control radius at rounded-lg and cards at rounded-xl."
+    ],
+    "avoid": [
+      "Do not paste 21st :root/.dark CSS into frontend_v2/apps/web-vendor/src/index.css — Tailwind token classes would ignore it.",
+      "Do not treat shadcn `secondary` as muted gray. In ChatLogix, secondary is WhatsApp green.",
+      "Do not introduce dark mode, glassmorphism, purple-to-blue AI gradients, or a second primary hue unless the user asks.",
+      "Do not add shadcn/ui as a dependency unless the user explicitly requests it.",
+      "Do not call get_component (metered) until search/get_inspiration shows a clear fit.",
+      "Do not paste 21st sketch HTML into production React files — rebuild with existing components and tokens."
+    ]
+  },
+  "decisions": [
+    {
+      "id": "brand-navy-whatsapp-green",
+      "decision": "Brand pair is navy #072349 + WhatsApp green #25D366. Navy is identity; green is success/WhatsApp accent.",
+      "date": "2026-09-05"
+    },
+    {
+      "id": "tokens-via-tailwind-scales",
+      "decision": "Source of truth is frontend_v2/packages/design-tokens, consumed through Tailwind theme.extend.colors — not shadcn CSS variables.",
+      "date": "2026-09-05"
+    },
+    {
+      "id": "onboarding-one-job-per-screen",
+      "decision": "Each onboarding/signup screen states one job in a short headline. Signup product picture is a labeled demo preview (catalog, questions, text/voice) — not a decorative phone on a navy wall. Avoid stacked essays and sticky help chrome.",
+      "date": "2026-09-05"
+    },
+    {
+      "id": "signup-phone-conversion",
+      "decision": "Public /signup is trust-first: experience the AI with your own store; ₹100 free credits make that risk-free. Phone OTP form unchanged. Do not lead with ₹100 as the only headline.",
+      "date": "2026-09-05"
+    },
+    {
+      "id": "signup-light-split",
+      "decision": "Public /signup form column is full white with no card chrome, on desktop and mobile. Marketing column stays light gray.",
+      "date": "2026-09-05"
+    },
+    {
+      "id": "signup-demo-preview-window",
+      "decision": "Signup demo preview is a chat-app window (navy header, composer, stepper) plus a quality-test callout. Not a striped table card or a decorative phone bezel.",
+      "date": "2026-09-05"
+    },
+    {
+      "id": "onboarding-catalog-review",
+      "decision": "Onboarding Step 2 waits for catalog extraction, then shows stacked editable product cards (name, price, unit, qty) so vendors can correct AI output before commit. Missing price is highlighted. Skip remains available before products exist; after review it is demoted so save is the primary action. Extra uploads sit behind a collapsed control.",
+      "date": "2026-09-06"
+    },
+    {
+      "id": "onboarding-shop-sticky-cta",
+      "decision": "Shop onboarding keeps Save & continue sticky at the bottom of the scroll container so the primary action stays visible on a long form.",
+      "date": "2026-09-06"
+    },
+    {
+      "id": "onboarding-demo-real-phone",
+      "decision": "Onboarding /onboarding/demo-chat is a customer-facing WhatsApp phone (desktop ~390×844 bezel, mobile full-screen). Trial ₹ and Continue sit outside the device. Signup marketing preview stays the existing chat-app window, not a bezel.",
+      "date": "2026-09-06"
+    },
+    {
+      "id": "intake-first-catalog",
+      "decision": "After OTP, onboarding step 1 is catalog upload — not a blank shop form. Vendors upload first; shop and AI fields are pre-filled on confirm for correction.",
+      "date": "2026-09-06"
+    },
+    {
+      "id": "onboarding-clarify-chips",
+      "decision": "Step 2 clarify uses one structured question at a time (ChoiceChips + short text), progress copy tied to ≥80% completeness, and a ghost That's enough escape to confirm.",
+      "date": "2026-09-06"
+    },
+    {
+      "id": "whatsapp-demo-phone",
+      "decision": "Demo chat is a customer-facing WhatsApp mobile shell (WhatsAppDemoPhone): desktop ~390×844 bezel, mobile full-screen with stepper hidden. Trial cost and Continue sit outside the phone; no cost inside bubbles. Hold-to-record mic, typing indicator, outgoing ticks.",
+      "date": "2026-09-06"
+    },
+    {
+      "id": "onboarding-stepper-labels",
+      "decision": "Onboarding stepper labels: Catalog / Details / Confirm / Demo / Submit. Legacy /welcome and /ai-setup redirect into the new funnel.",
+      "date": "2026-09-06"
+    },
+    {
+      "id": "onboarding-setup-split",
+      "decision": "Authenticated setup pages use the same light 60/40 split as public /signup. Left (gray-50) is step coaching: kicker, navy H1, three numbered how-to rows, optional chat/phone preview. Right (white) is the form, upload, or demo phone. Catalog review may use 50/50 so product cards fit. Mobile stacks a compact how-to above the action column instead of hiding coaching.",
+      "date": "2026-09-06"
+    },
+    {
+      "id": "web-marketing-separate-app",
+      "decision": "Public marketing site is a separate Turborepo app at frontend_v2/apps/web-marketing (local :3002, prod chatlogix.in). Vendor portal stays web-vendor (local :3000, prod app.chatlogix.in). Marketing CTAs are absolute URLs to VITE_VENDOR_APP_ORIGIN /signup and /login. Do not add marketing routes inside web-vendor.",
+      "date": "2026-09-06"
+    },
+    {
+      "id": "marketing-section-type-scale",
+      "decision": "Hero, Problem, Solution, and How it Works share one type scale: eyebrow 10/11px, heading 1.45rem / 3xl / 4xl / 2.65rem / 3.1rem, body 13/14/16px. Defined in pageLayout.ts.",
+      "date": "2026-09-07"
+    },
+    {
+      "id": "marketing-how-it-works-desktop-rhythm",
+      "decision": "Marketing How it Works desktop: intro + trust column is full section width. Five step previews share one stretched row height with arrows centered on the mock cards.",
+      "date": "2026-09-07"
+    },
+    {
+      "id": "marketing-faq-overlay-footer",
+      "decision": "FAQ accordion answers are absolutely positioned overlays so opening a question does not change snap-section height. The marketing footer is a single black bar (socials, copyright, language) attached to the bottom of the FAQ section on the homepage.",
+      "date": "2026-09-08"
+    },
+    {
+      "id": "marketing-header-matches-page",
+      "decision": "Marketing header uses the same chrome as the rest of the site: #f8f9fa canvas, mint circular chat mark, Plus Jakarta wordmark (navy + teal), pill nav with teal hover, navy Try Free → CTA.",
+      "date": "2026-09-08"
+    }
+  ],
+  "evidence": [
+    {
+      "fact": "project.instructions",
+      "source": "CLAUDE.md"
+    },
+    {
+      "fact": "design.tokens",
+      "source": "frontend_v2/packages/design-tokens/src/index.ts"
+    },
+    {
+      "fact": "design.themeCss",
+      "source": ".21st/chatlogix-theme.css"
+    }
+  ],
+  "generatedAt": "2026-09-05T17:29:11.983Z",
+  "updatedAt": "2026-09-08T07:05:00.000Z"
+}

@@ -9,6 +9,7 @@ interface OtpVerificationFormProps {
   isLoading: boolean;
   onBack: () => void;
   onResend: () => Promise<void>;
+  submitLabel?: string;
 }
 
 export function OtpVerificationForm({
@@ -18,6 +19,7 @@ export function OtpVerificationForm({
   isLoading,
   onBack,
   onResend,
+  submitLabel = 'Verify Code',
 }: OtpVerificationFormProps) {
   const [otpValues, setOtpValues] = useState<string[]>(['', '', '', '', '', '']);
   const [resendTimer, setResendTimer] = useState(30);
@@ -178,7 +180,7 @@ export function OtpVerificationForm({
                     ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
                     : value
                     ? 'border-primary-500 bg-primary-50'
-                    : 'border-primary-500 hover:border-primary-500'
+                    : 'border-gray-300 hover:border-gray-400'
                 }
               `}
             />
@@ -197,7 +199,7 @@ export function OtpVerificationForm({
           isLoading={isLoading} 
           className="w-full"
         >
-          {isLoading ? 'Verifying...' : 'Verify Code'}
+          {isLoading ? 'Verifying...' : submitLabel}
         </Button>
         
         <div className="text-center">

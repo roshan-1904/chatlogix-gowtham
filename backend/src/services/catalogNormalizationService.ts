@@ -41,18 +41,23 @@ export function canonicalUnit(raw: string | undefined | null): { unit: string; k
 // Price coercion
 // ---------------------------------------------------------------------------
 
+export interface CoercePriceOptions {
+  /**
+   * How to read a bare integer. Tabular cells and printed rupees use `'rupees'`.
+   * Vision extraction is prompted to return integer paise (`"₹150"` → `15000`).
+   */
+  integerUnit?: 'rupees' | 'paise';
+}
+
 /**
  * Coerce a price value (which may arrive as "₹150", "150/-", "150.00", 150,
- * or null) into integer paise. Returns null if we can't be sure.
+ * or vision paise like 15000) into integer paise. Returns null if we can't be sure.
  */
-export function coercePricePaise(raw: unknown): number | null {
+export function coercePricePaise(raw: unknown, options: CoercePriceOptions = {}): number | null {
   if (raw == null) return null;
   if (typeof raw === 'number' && Number.isFinite(raw)) {
-    // If the model already returned paise (e.g. 15000), keep it. If it looks
-    // like rupees (< 100000 and integer-looking), promote ×100. We default to
-    // treating numbers as rupees because that's what most merchants print.
     if (raw <= 0) return 0;
-    return Math.round(raw * 100);
+    return numberToPaise(raw, options.integerUnit ?? 'rupees');
   }
   if (typeof raw !== 'string') return null;
   const cleaned = raw
@@ -66,6 +71,47 @@ export function coercePricePaise(raw: unknown): number | null {
   const n = Number(cleaned);
   if (!Number.isFinite(n) || n < 0) return null;
   return Math.round(n * 100);
+}
+
+function numberToPaise(raw: number, integerUnit: 'rupees' | 'paise'): number {
+  if (!Number.isInteger(raw)) {
+    return Math.round(raw * 100);
+  }
+  if (integerUnit === 'paise') {
+    // Prompt contract: 15000 = ₹150. Small integers (150) are treated as rupees
+    // in case the model ignored the paise instruction.
+    if (raw >= 1000) return raw;
+    return Math.round(raw * 100);
+  }
+  return Math.round(raw * 100);
+}
+
+/** Paise at or above this look like rupees that were multiplied by 100 twice (₹5,000+). */
+export const INFLATED_PAISE_FLOOR = 500_000;
+
+export function catalogPaiseLookInflated(prices: Array<number | null | undefined>): boolean {
+  const priced = prices.filter((p): p is number => typeof p === 'number' && p > 0);
+  if (priced.length === 0) return false;
+  return priced.every((p) => p >= INFLATED_PAISE_FLOOR && p % 10_000 === 0);
+}
+
+export function deflateDoubleConvertedPaise(paise: number): number {
+  return Math.round(paise / 100);
+}
+
+/**
+ * Brochure extraction sometimes returns paise, then coercion multiplies by 100 again.
+ * If every priced row looks like that, divide back before commit / chat.
+ */
+export function repairInflatedDraftPrices(
+  drafts: NormalizedProductDraft[]
+): NormalizedProductDraft[] {
+  if (!catalogPaiseLookInflated(drafts.map((d) => d.basePrice))) return drafts;
+  return drafts.map((d) =>
+    d.basePrice != null && d.basePrice > 0
+      ? { ...d, basePrice: deflateDoubleConvertedPaise(d.basePrice) }
+      : d
+  );
 }
 
 function titleCase(s: string): string {
@@ -109,7 +155,7 @@ export function visionRowToDraft(row: ExtractedProductRow): NormalizedProductDra
   const cleanedSku = sku.value ? String(sku.value).trim().toUpperCase() : undefined;
   const { unit, known: unitKnown } = canonicalUnit(unitFv.value);
   const qty = Number(qtyFv.value);
-  const basePrice = coercePricePaise(priceFv.value);
+  const basePrice = coercePricePaise(priceFv.value, { integerUnit: 'paise' });
 
   const fieldConfidence: FieldConfMap = {
     name: name.confidence,

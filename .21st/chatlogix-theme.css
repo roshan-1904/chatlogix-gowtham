@@ -1,0 +1,97 @@
+/* ChatLogix brand as shadcn/21st CSS variables.
+   Reference for 21st MCP generate/get_theme mapping — NOT imported by Vite.
+   Running app uses Tailwind scales from @chatlogix/design-tokens. */
+
+:root {
+  --background: #ffffff;
+  --foreground: #111827;
+  --card: #ffffff;
+  --card-foreground: #111827;
+  --popover: #ffffff;
+  --popover-foreground: #111827;
+  --primary: #072349;
+  --primary-foreground: #ffffff;
+  --secondary: #25d366;
+  --secondary-foreground: #ffffff;
+  --muted: #f3f4f6;
+  --muted-foreground: #6b7280;
+  --accent: #e8f8f0;
+  --accent-foreground: #072349;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #e5e7eb;
+  --input: #e5e7eb;
+  --ring: #072349;
+  --chart-1: #072349;
+  --chart-2: #25d366;
+  --chart-3: #3b82f6;
+  --chart-4: #f59e0b;
+  --chart-5: #ef4444;
+  --radius: 0.5rem;
+  --sidebar: #f8f9fb;
+  --sidebar-foreground: #111827;
+  --sidebar-primary: #072349;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e8eaed;
+  --sidebar-accent-foreground: #072349;
+  --sidebar-border: #e5e7eb;
+  --sidebar-ring: #072349;
+  --font-sans: Inter, system-ui, sans-serif;
+  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-mono: "Fira Code", ui-monospace, monospace;
+  --shadow-color: #072349;
+  --shadow-opacity: 0.08;
+  --shadow-blur: 8px;
+  --shadow-spread: 0px;
+  --shadow-offset-x: 0px;
+  --shadow-offset-y: 1px;
+  --letter-spacing: 0em;
+  --spacing: 0.25rem;
+}
+
+.dark {
+  --background: #0b1220;
+  --foreground: #f3f4f6;
+  --card: #111827;
+  --card-foreground: #f3f4f6;
+  --popover: #111827;
+  --popover-foreground: #f3f4f6;
+  --primary: #25d366;
+  --primary-foreground: #072349;
+  --secondary: #1a3a28;
+  --secondary-foreground: #25d366;
+  --muted: #1f2937;
+  --muted-foreground: #9ca3af;
+  --accent: #13263a;
+  --accent-foreground: #e8eaed;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --border: #1f2937;
+  --input: #1f2937;
+  --ring: #25d366;
+  --chart-1: #25d366;
+  --chart-2: #60a5fa;
+  --chart-3: #f59e0b;
+  --chart-4: #a78bfa;
+  --chart-5: #f87171;
+  --radius: 0.5rem;
+  --sidebar: #0b1220;
+  --sidebar-foreground: #e5e7eb;
+  --sidebar-primary: #25d366;
+  --sidebar-primary-foreground: #072349;
+  --sidebar-accent: #13263a;
+  --sidebar-accent-foreground: #e8eaed;
+  --sidebar-border: #1f2937;
+  --sidebar-ring: #25d366;
+  --font-sans: Inter, system-ui, sans-serif;
+  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-mono: "Fira Code", ui-monospace, monospace;
+  --shadow-color: #000000;
+  --shadow-opacity: 0.35;
+  --shadow-blur: 12px;
+  --shadow-spread: -1px;
+  --shadow-offset-x: 0px;
+  --shadow-offset-y: 4px;
+  --letter-spacing: 0em;
+  --spacing: 0.25rem;
+}

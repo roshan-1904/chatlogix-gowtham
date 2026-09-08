@@ -14,6 +14,9 @@ cache/
 # Generic build artifacts (monorepo-wide)
 dist/
 **/dist/
+
+# Production static roots on the Lightsail host (deploy tarball)
+www/
 build/
 **/build/
 

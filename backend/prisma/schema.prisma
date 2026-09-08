@@ -18,11 +18,17 @@ datasource db {
 model Vendor {
   id                             String                @id @default(uuid())
   businessName                   String
-  phone                          String
+  phone                          String                @unique
   email                          String
   subscriptionPlan               String
   subscriptionStatus             String                @default("active")
   walletBalance                  Int                   @default(0)
+  trialGrantedPaise              Int?
+  trialExpiresAt                 DateTime?
+  onboardingStep                 Int                   @default(1)
+  onboardingData                 Json?
+  submittedAt                    DateTime?
+  rejectionReason                String?
   createdAt                      DateTime              @default(now())
   updatedAt                      DateTime              @updatedAt
   aiBotName                      String?
@@ -37,7 +43,7 @@ model Vendor {
   aiContentConversationRules     String?
   aiContentImportantInstructions String?
   role                           String?
-  registrationStatus             String?
+  registrationStatus             String                @default("onboarding")
   firebaseUid                    String?
   registeredAt                   DateTime?
   approvedAt                     DateTime?
@@ -218,9 +224,11 @@ model WalletTransaction {
   amount          Int
   balanceBefore   Int
   balanceAfter    Int
+  metadata        Json?
   transactionDate DateTime              @default(now())
   vendor          Vendor                @relation(fields: [vendorId], references: [id], onDelete: Cascade)
 
+  @@index([vendorId, transactionDate(sort: Desc)])
   @@map("WalletTransaction")
 }
 

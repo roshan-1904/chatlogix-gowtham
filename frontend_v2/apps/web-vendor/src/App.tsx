@@ -17,6 +17,16 @@ import { CatalogImportTemplate } from './pages/CatalogImportTemplate';
 import { CatalogImportGoLive } from './pages/CatalogImportGoLive';
 import { Settings } from './pages/Settings';
 import { Login } from './pages/Login';
+import { Signup } from './pages/onboarding/Signup';
+import { OnboardingWelcome } from './pages/onboarding/OnboardingWelcome';
+import { OnboardingCatalog } from './pages/onboarding/OnboardingCatalog';
+import { OnboardingClarify } from './pages/onboarding/OnboardingClarify';
+import { OnboardingConfirm } from './pages/onboarding/OnboardingConfirm';
+import { OnboardingAiSetup } from './pages/onboarding/OnboardingAiSetup';
+import { OnboardingDemoChat } from './pages/onboarding/OnboardingDemoChat';
+import { OnboardingReview } from './pages/onboarding/OnboardingReview';
+import { OnboardingSubmitted } from './pages/onboarding/OnboardingSubmitted';
+import { OnboardingRejected } from './pages/onboarding/OnboardingRejected';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 
 function App() {
@@ -49,39 +59,58 @@ function App() {
         }}
       />
       <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route
-        path="/*"
-        element={
-          <ProtectedRoute requiredRole="vendor">
-            <Layout>
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/login" element={<Login />} />
+        <Route
+          path="/onboarding/*"
+          element={
+            <ProtectedRoute requiredRole="vendor" onboardingOnly>
               <Routes>
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/conversations" element={<Conversations />} />
-                <Route path="/orders" element={<Orders />} />
-                <Route path="/orders/:orderId" element={<OrderDetails />} />
-                <Route path="/catalog" element={<Products />} />
-                <Route path="/catalog/new" element={<ProductCreate />} />
-                <Route path="/catalog/import" element={<CatalogImport />} />
-                <Route path="/catalog/import/photo" element={<CatalogImportPhoto />} />
-                <Route path="/catalog/import/template" element={<CatalogImportTemplate />} />
-                <Route path="/catalog/import/:jobId/go-live" element={<CatalogImportGoLive />} />
-                <Route path="/catalog/:id/edit" element={<ProductEdit />} />
-                <Route path="/faqs" element={<Faqs />} />
-                <Route path="/faqs/new" element={<FaqCreate />} />
-                <Route path="/faqs/:id/edit" element={<FaqEdit />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="*" element={<div>404 - Page Not Found</div>} />
+                <Route path="/" element={<Navigate to="catalog" replace />} />
+                <Route path="welcome" element={<OnboardingWelcome />} />
+                <Route path="catalog" element={<OnboardingCatalog />} />
+                <Route path="clarify" element={<OnboardingClarify />} />
+                <Route path="confirm" element={<OnboardingConfirm />} />
+                <Route path="ai-setup" element={<OnboardingAiSetup />} />
+                <Route path="demo-chat" element={<OnboardingDemoChat />} />
+                <Route path="review" element={<OnboardingReview />} />
+                <Route path="submitted" element={<OnboardingSubmitted />} />
+                <Route path="rejected" element={<OnboardingRejected />} />
               </Routes>
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/*"
+          element={
+            <ProtectedRoute requiredRole="vendor" requireApproved>
+              <Layout>
+                <Routes>
+                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/conversations" element={<Conversations />} />
+                  <Route path="/orders" element={<Orders />} />
+                  <Route path="/orders/:orderId" element={<OrderDetails />} />
+                  <Route path="/catalog" element={<Products />} />
+                  <Route path="/catalog/new" element={<ProductCreate />} />
+                  <Route path="/catalog/import" element={<CatalogImport />} />
+                  <Route path="/catalog/import/photo" element={<CatalogImportPhoto />} />
+                  <Route path="/catalog/import/template" element={<CatalogImportTemplate />} />
+                  <Route path="/catalog/import/:jobId/go-live" element={<CatalogImportGoLive />} />
+                  <Route path="/catalog/:id/edit" element={<ProductEdit />} />
+                  <Route path="/faqs" element={<Faqs />} />
+                  <Route path="/faqs/new" element={<FaqCreate />} />
+                  <Route path="/faqs/:id/edit" element={<FaqEdit />} />
+                  <Route path="/settings" element={<Settings />} />
+                  <Route path="*" element={<div>404 - Page Not Found</div>} />
+                </Routes>
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
       </Routes>
     </>
   );
 }
 
 export default App;
-

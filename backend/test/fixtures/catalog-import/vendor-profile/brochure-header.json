@@ -1,0 +1,23 @@
+{
+  "products": [
+    {
+      "name": { "value": "Almond cookies", "confidence": 0.95 },
+      "sku": { "value": null, "confidence": 0.2 },
+      "description": { "value": "Box of 12", "confidence": 0.8 },
+      "basePrice": { "value": 25000, "confidence": 0.9 },
+      "baseUnit": { "value": "box", "confidence": 0.9 },
+      "baseQuantity": { "value": 1, "confidence": 0.9 },
+      "keywords": { "value": ["cookies", "almond"], "confidence": 0.7 }
+    }
+  ],
+  "vendorProfile": {
+    "businessName": { "value": "Priya Home Bakery", "confidence": 0.92 },
+    "category": { "value": "Food", "confidence": 0.86 },
+    "address": { "value": "12 Avinashi Road", "confidence": 0.81 },
+    "city": { "value": "Coimbatore", "confidence": 0.78 },
+    "hours": { "value": "10am–8pm", "confidence": 0.7 },
+    "deliveryNotes": { "value": "City-wide delivery", "confidence": 0.65 },
+    "languageHint": { "value": "en", "confidence": 0.8 },
+    "phone": { "value": "+91 98765 43210", "confidence": 0.99 }
+  }
+}

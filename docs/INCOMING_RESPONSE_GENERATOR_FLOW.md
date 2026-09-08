@@ -1,9 +1,9 @@
 # Incoming Response Generator — How We Prepare a WhatsApp Reply
 
 <!-- DOC_SYNC
-  last_verified_commit: 3367ddaf3bd3f41ef8a613ba04f1bfaec2e061e2
-  last_verified_at: 2026-09-05
-  scope: As-implemented incoming-response-generator pipeline (language, LLM-2 reply selection, contentEn, voice-note ASR)
+  last_verified_commit: b8a6efbff1933e4bc80efc03d2676d56dd6e8655
+  last_verified_at: 2026-09-06
+  scope: As-implemented incoming-response-generator pipeline (language, LLM-2 reply selection, contentEn, voice-note ASR, compact-catalog paise heal)
 -->
 
 **Living document.** This describes the **as-implemented** text path in `chatlogix-incoming-response-generator`, not the locked design spec. When the pipeline in `backend/src/conversation/` changes, update this file in the same change (see `.cursor/rules/incoming-response-generator-flow.mdc`).
@@ -210,6 +210,8 @@ If a second message arrives *during* LLM-1, the lock forces an SQS retry; the ne
 ## 6. Prefetch (hot set)
 
 Intent is unknown, so everything is loaded before LLM-1. Redis first, Postgres on miss. Redis outage here degrades to cache-miss (unlike the lock).
+
+Compact catalog is loaded by `loadCompactCatalog` (its own cache, not the generic `cacheAside` helper). Cached compact prices that look like a 100× double conversion — every priced item ≥ ₹5,000 and a round hundred rupees (`paise >= 500_000` and `paise % 10_000 === 0`) — are ignored. Matching Postgres `Product.basePrice` rows are divided by 100 and persisted before the cache is rewritten. Prompt-only repair is not enough: CartEngine re-resolves prices from Postgres.
 
 ```mermaid
 flowchart TD

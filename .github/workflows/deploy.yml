@@ -105,6 +105,7 @@ jobs:
       - name: Pack pre-built dist + node_modules into a tarball
         run: |
           mkdir -p stage/backend
+          mkdir -p stage/www/marketing stage/www/vendor stage/www/admin
           mkdir -p stage/frontend
 
           cp -a artifacts/backend-dist/backend/dist stage/backend/dist
@@ -115,12 +116,28 @@ jobs:
           fi
           cp artifacts/backend-dist/backend/node_modules.tar.gz stage/backend/node_modules.tar.gz
 
-          if [ -d artifacts/frontend-dist/frontend_v2/apps/web-vendor/dist ]; then
-            cp -a artifacts/frontend-dist/frontend_v2/apps/web-vendor/dist stage/frontend/dist
-          else
+          vendor_dist=artifacts/frontend-dist/frontend_v2/apps/web-vendor/dist
+          admin_dist=artifacts/frontend-dist/frontend_v2/apps/web-admin/dist
+          marketing_dist=artifacts/frontend-dist/frontend_v2/apps/web-marketing/dist
+
+          if [ ! -d "$vendor_dist" ]; then
             echo "ERROR: web-vendor dist not found in artifact" >&2
             exit 1
           fi
+          if [ ! -d "$admin_dist" ]; then
+            echo "ERROR: web-admin dist not found in artifact" >&2
+            exit 1
+          fi
+          if [ ! -d "$marketing_dist" ]; then
+            echo "ERROR: web-marketing dist not found in artifact" >&2
+            exit 1
+          fi
+
+          cp -a "$vendor_dist/." stage/www/vendor/
+          cp -a "$admin_dist/." stage/www/admin/
+          cp -a "$marketing_dist/." stage/www/marketing/
+          # Keep writing the legacy path until nginx is switched off frontend/dist.
+          cp -a "$vendor_dist/." stage/frontend/dist/
 
           tar -czf chatlogix-dist.tar.gz -C stage .
           ls -lh chatlogix-dist.tar.gz

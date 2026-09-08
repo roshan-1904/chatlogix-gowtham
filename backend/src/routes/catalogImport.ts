@@ -8,8 +8,14 @@ import { logger } from '../logger.js';
 import { env } from '../config/env.js';
 import {
   createPresignedUploadUrl,
-  ImportStorageError
+  ImportStorageError,
+  IMAGE_CONTENT_TYPES,
+  MAX_IMAGE_BYTES,
+  MAX_TABULAR_BYTES,
+  TABULAR_CONTENT_TYPES
 } from '../services/importStorageService.js';
+import { writeLocalImport } from '../services/catalogImportLocalStore.js';
+import { assertKeyBelongsToVendor, FileIntakeError } from '../services/fileIntakeService.js';
 import {
   AnalyzeRequestSchema,
   CommitRequestSchema,
@@ -106,6 +112,14 @@ catalogImportRouter.post(
         contentType: parsed.data.contentType,
         sizeBytes: parsed.data.sizeBytes
       });
+      if (result.storage === 'local') {
+        const headerToken = (req.get('authorization') || req.get('Authorization') || '')
+          .replace(/^Bearer\s+/i, '')
+          .trim();
+        const token = headerToken || (typeof req.query.token === 'string' ? req.query.token : '');
+        const origin = `${req.protocol}://${req.get('host')}`;
+        result.presignedUrl = `${origin}/api/catalog-import/direct-upload?key=${encodeURIComponent(result.s3Key)}&token=${encodeURIComponent(token)}`;
+      }
       return res.json({ jobId, ...result });
     } catch (err) {
       if (err instanceof ImportStorageError) {
@@ -113,6 +127,48 @@ catalogImportRouter.post(
       }
       logger.error({ err, vendorId }, 'presigned_upload_url_failed');
       return res.status(500).json({ error: 'upload_url_failed' });
+    }
+  }
+);
+
+catalogImportRouter.put(
+  '/direct-upload',
+  express.raw({ type: '*/*', limit: '10mb' }),
+  requireRole('vendor', 'admin'),
+  requireCatalogImportEnabled,
+  async (req, res) => {
+    if (env.NODE_ENV === 'production') {
+      return res.status(404).json({ error: 'not_found' });
+    }
+    const key = typeof req.query.key === 'string' ? req.query.key : '';
+    const vendorId = req.user!.vendorId!;
+    try {
+      assertKeyBelongsToVendor(key, vendorId);
+      const contentType = (req.get('content-type') || '').split(';')[0].trim();
+      const isImage = IMAGE_CONTENT_TYPES.has(contentType);
+      const isTabular = TABULAR_CONTENT_TYPES.has(contentType);
+      if (!isImage && !isTabular) {
+        return res.status(415).json({
+          error: 'UNSUPPORTED_MEDIA_TYPE',
+          message: `Content type ${contentType} is not allowed`
+        });
+      }
+      const body = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body ?? []);
+      const cap = isImage ? MAX_IMAGE_BYTES : MAX_TABULAR_BYTES;
+      if (body.length <= 0 || body.length > cap) {
+        return res.status(413).json({
+          error: 'PAYLOAD_TOO_LARGE',
+          message: `File size exceeds ${cap} bytes`
+        });
+      }
+      await writeLocalImport(key, body, contentType);
+      return res.status(200).end();
+    } catch (err) {
+      if (err instanceof ImportStorageError || err instanceof FileIntakeError) {
+        return res.status(err.statusCode).json({ error: err.code, message: err.message });
+      }
+      logger.error({ err, vendorId }, 'catalog_import_direct_upload_failed');
+      return res.status(500).json({ error: 'upload_failed' });
     }
   }
 );

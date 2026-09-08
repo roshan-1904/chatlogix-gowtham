@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../db/prisma.js';
 import { logger } from '../logger.js';
-import { classifyRow, inBatchDedup } from './catalogNormalizationService.js';
+import { classifyRow, inBatchDedup, repairInflatedDraftPrices } from './catalogNormalizationService.js';
 import type {
   AIConfigSections,
   CommitRequest,
@@ -34,7 +34,9 @@ function hashToInt32(input: string): number {
 
 async function acquireAdvisoryLock(tx: Prisma.TransactionClient, key: string): Promise<void> {
   const lockId = hashToInt32(key);
-  await tx.$queryRaw`SELECT pg_advisory_xact_lock(${lockId}::bigint)`;
+  // pg_advisory_xact_lock returns void. $queryRaw cannot deserialize that
+  // column; $executeRaw discards the result.
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(${lockId}::bigint)`;
 }
 
 function toProductUpsert(
@@ -94,7 +96,7 @@ export async function commit(
   req: CommitRequest,
   applyAIConfig?: AIConfigSections
 ): Promise<CommitSummary> {
-  const deduped = inBatchDedup(req.approvedProducts);
+  const deduped = inBatchDedup(repairInflatedDraftPrices(req.approvedProducts));
   const classified = deduped.map(classifyRow);
 
   const committable = classified.filter((c) => c.bucket !== 'blocked');

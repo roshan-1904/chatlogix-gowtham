@@ -4,6 +4,11 @@ import { toCartSnapshot } from './cart/snapshot.js';
 import { normalizeVariants } from './cart/variants.js';
 import { embedText, toVectorLiteral } from './faq/embedding.js';
 import { env } from '../config/env.js';
+import { logger } from '../logger.js';
+import {
+  catalogPaiseLookInflated,
+  deflateDoubleConvertedPaise
+} from '../services/catalogNormalizationService.js';
 import type { HotSet, VendorConfig, CompactCatalogEntry, ConvMemory, CartSnapshot, OrderHistoryEntry, FaqEntry } from './types.js';
 
 /**
@@ -120,6 +125,12 @@ async function loadVendorConfig(vendorId: string): Promise<VendorConfig> {
 }
 
 async function loadCompactCatalog(vendorId: string): Promise<CompactCatalogEntry[]> {
+  const key = catalogCompactKey(vendorId);
+  const cached = await getCached<CompactCatalogEntry[]>(key);
+  if (cached !== null && !catalogPaiseLookInflated(cached.map((c) => c.price))) {
+    return cached;
+  }
+
   const products = await prisma.product.findMany({
     where: { vendorId, isActive: true },
     select: {
@@ -139,7 +150,30 @@ async function loadCompactCatalog(vendorId: string): Promise<CompactCatalogEntry
     }
   });
 
-  return products.map((p) => ({
+  const inflated = catalogPaiseLookInflated(products.map((p) => p.basePrice));
+  const rows = inflated
+    ? products.map((p) =>
+        p.basePrice > 0 ? { ...p, basePrice: deflateDoubleConvertedPaise(p.basePrice) } : p
+      )
+    : products;
+
+  if (inflated) {
+    const changed = rows.filter((p, i) => p.basePrice !== products[i].basePrice);
+    if (changed.length > 0) {
+      await prisma.$transaction(
+        changed.map((p) =>
+          prisma.product.update({ where: { id: p.id }, data: { basePrice: p.basePrice } })
+        )
+      );
+      logger.info(
+        { vendorId, repairedCount: changed.length },
+        'repaired_double_converted_catalog_paise'
+      );
+    }
+    await deleteCached(key);
+  }
+
+  const value: CompactCatalogEntry[] = rows.map((p) => ({
     id: p.id,
     name: p.name,
     price: p.basePrice,
@@ -154,6 +188,8 @@ async function loadCompactCatalog(vendorId: string): Promise<CompactCatalogEntry
     description: p.description ?? '',
     isDivisible: p.isDivisible
   }));
+  await setCached(key, value, CATALOG_COMPACT_TTL);
+  return value;
 }
 
 async function loadConvMemory(conversationId: string): Promise<ConvMemory | null> {
@@ -318,7 +354,7 @@ export async function prefetchHotSet(
 ): Promise<HotSet> {
   const [vendorConfig, compactCatalog, memory, insights, recentMessages, orderHistory, faqs] = await Promise.all([
     cacheAside(vendorConfigKey(vendorId), VENDOR_CONFIG_TTL, () => loadVendorConfig(vendorId)),
-    cacheAside(catalogCompactKey(vendorId), CATALOG_COMPACT_TTL, () => loadCompactCatalog(vendorId)),
+    loadCompactCatalog(vendorId),
     cacheAside(convMemoryKey(conversationId), CONV_MEMORY_TTL, () => loadConvMemory(conversationId)),
     cacheAside(customerInsightsKey(customerId, vendorId), CUSTOMER_INSIGHTS_TTL, () => loadInsights(customerId, vendorId)),
     cacheAside(recentMessagesKey(conversationId), RECENT_MESSAGES_TTL, () => loadRecentMessages(conversationId)),

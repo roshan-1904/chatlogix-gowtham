@@ -6,6 +6,7 @@ import {
   MAX_TABULAR_BYTES,
   TABULAR_CONTENT_TYPES
 } from './importStorageService.js';
+import { fetchLocalImport, headLocalImport } from './catalogImportLocalStore.js';
 
 export class FileIntakeError extends Error {
   constructor(public statusCode: number, public code: string, message: string) {
@@ -48,14 +49,24 @@ export function assertKeyBelongsToVendor(key: string, vendorId: string): void {
 }
 
 export async function headAndValidate(key: string): Promise<{ contentType: string; sizeBytes: number }> {
-  const bucket = env.CATALOG_IMPORT_S3_BUCKET;
+  const local = await headLocalImport(key);
+  if (local) {
+    return validateMeta(key, local.contentType, local.sizeBytes);
+  }
+
+  const bucket = env.CATALOG_IMPORT_S3_BUCKET?.trim();
   if (!bucket) {
     throw new FileIntakeError(503, 'BUCKET_NOT_CONFIGURED', 'Catalog import bucket is not configured');
   }
   const res = await getClient().send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
-  const contentType = res.ContentType ?? '';
-  const sizeBytes = Number(res.ContentLength ?? 0);
+  return validateMeta(key, res.ContentType ?? '', Number(res.ContentLength ?? 0));
+}
 
+function validateMeta(
+  key: string,
+  contentType: string,
+  sizeBytes: number
+): { contentType: string; sizeBytes: number } {
   const isImage = IMAGE_CONTENT_TYPES.has(contentType);
   const isTabular = TABULAR_CONTENT_TYPES.has(contentType);
   if (!isImage && !isTabular) {
@@ -69,8 +80,14 @@ export async function headAndValidate(key: string): Promise<{ contentType: strin
 }
 
 export async function fetchAndValidate(key: string): Promise<FetchResult> {
+  const local = await fetchLocalImport(key);
+  if (local) {
+    validateMeta(key, local.contentType, local.sizeBytes);
+    return local;
+  }
+
   const meta = await headAndValidate(key);
-  const bucket = env.CATALOG_IMPORT_S3_BUCKET!;
+  const bucket = env.CATALOG_IMPORT_S3_BUCKET!.trim();
   const res = await getClient().send(new GetObjectCommand({ Bucket: bucket, Key: key }));
   const body = res.Body as { transformToByteArray?: () => Promise<Uint8Array> } | undefined;
   if (!body?.transformToByteArray) {

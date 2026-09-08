@@ -14,32 +14,63 @@ export type MessageKind =
   | 'interactive'
   | 'reaction';
 
+export interface CatalogImportSpend {
+  vendorId: string;
+  jobId: string;
+  paiseCost: number;
+}
+
+export type SandboxSpendSource = 'sandbox_chat' | 'sandbox_voice' | 'sandbox_transcribe';
+
+export interface SandboxSpendInput {
+  vendorId: string;
+  paiseCost: number;
+  source: SandboxSpendSource;
+  conversationId?: string;
+  externalId?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface TrialWalletBreakdownItem {
+  source: string;
+  label: string;
+  paise: number;
+  count?: number;
+  jobs?: number;
+}
+
 export async function canProcessMessage(vendorId: string, kind: MessageKind): Promise<{ allowed: boolean; reason?: string }> {
-  // Simplified: vendors with wallet balance > 0 allowed; else blocked
   try {
-    logger.info({ vendorId, kind }, '🔎 Checking credits for vendor');
-    const vendor = await prisma.vendor.findUnique({ 
+    logger.info({ vendorId, kind }, 'Checking credits for vendor');
+    const vendor = await prisma.vendor.findUnique({
       where: { id: vendorId },
       select: {
         id: true,
-        walletBalance: true
+        walletBalance: true,
+        trialExpiresAt: true,
+        registrationStatus: true
       }
     });
     if (!vendor) {
-      logger.warn({ vendorId }, '⚠️ Vendor not found during credit check');
+      logger.warn({ vendorId }, 'Vendor not found during credit check');
       return { allowed: false, reason: 'vendor_not_found' };
     }
+    if (vendor.trialExpiresAt && vendor.registrationStatus !== 'approved' && vendor.trialExpiresAt < new Date()) {
+      return { allowed: false, reason: 'trial_expired' };
+    }
     if (vendor.walletBalance <= 0) {
-      logger.warn({ vendorId, walletBalance: vendor.walletBalance }, '⚠️ Insufficient balance');
+      logger.warn({ vendorId, walletBalance: vendor.walletBalance }, 'Insufficient balance');
       return { allowed: false, reason: 'insufficient_balance' };
     }
-    logger.info({ vendorId, walletBalance: vendor.walletBalance }, '✅ Credit check passed');
+    logger.info({ vendorId, walletBalance: vendor.walletBalance }, 'Credit check passed');
     return { allowed: true };
   } catch (err: any) {
-    // Surface DB connectivity hints without leaking secrets
     const url = process.env.DATABASE_URL || '';
     let host: string | undefined;
-    try { const u = new URL(url); host = `${u.hostname}:${u.port || '5432'}`; } catch {}
+    try {
+      const u = new URL(url);
+      host = `${u.hostname}:${u.port || '5432'}`;
+    } catch {}
     logger.error({ name: err?.name, message: err?.message, host, vendorId }, '[billing.canProcessMessage] Prisma error');
     throw err;
   }
@@ -70,12 +101,6 @@ export function creditsForKind(kind: MessageKind): number {
   }
 }
 
-export interface CatalogImportSpend {
-  vendorId: string;
-  jobId: string;
-  paiseCost: number;
-}
-
 /**
  * Record a catalog-import AI spend. Deducts from wallet and writes a
  * WalletTransaction row; the per-call paise breakdown lives in
@@ -101,7 +126,8 @@ export async function recordCatalogImportSpend(input: CatalogImportSpend): Promi
         transactionType: 'deduction',
         amount: input.paiseCost,
         balanceBefore: before,
-        balanceAfter: after
+        balanceAfter: after,
+        metadata: { source: 'catalog_import', jobId: input.jobId }
       }
     });
   });
@@ -111,8 +137,134 @@ export async function recordCatalogImportSpend(input: CatalogImportSpend): Promi
   );
 }
 
+export async function recordSandboxSpend(input: SandboxSpendInput): Promise<number> {
+  if (input.paiseCost <= 0) return 0;
+
+  return prisma.$transaction(async (tx) => {
+    const vendor = await tx.vendor.findUnique({
+      where: { id: input.vendorId },
+      select: { walletBalance: true }
+    });
+    if (!vendor) throw new Error('Vendor not found');
+
+    const before = vendor.walletBalance;
+    const after = Math.max(0, before - input.paiseCost);
+    const actualDeducted = before - after;
+
+    await tx.vendor.update({
+      where: { id: input.vendorId },
+      data: { walletBalance: after }
+    });
+
+    await tx.walletTransaction.create({
+      data: {
+        vendorId: input.vendorId,
+        transactionType: 'deduction',
+        amount: actualDeducted,
+        balanceBefore: before,
+        balanceAfter: after,
+        metadata: {
+          source: input.source,
+          conversationId: input.conversationId,
+          externalId: input.externalId,
+          ...input.metadata
+        }
+      }
+    });
+
+    return actualDeducted;
+  });
+}
+
+function metadataSource(meta: unknown): string | null {
+  if (!meta || typeof meta !== 'object') return null;
+  const source = (meta as { source?: unknown }).source;
+  return typeof source === 'string' ? source : null;
+}
+
+export async function getTrialWalletSummary(vendorId: string): Promise<{
+  balancePaise: number;
+  grantedPaise: number;
+  expiresAt: string | null;
+  breakdown: TrialWalletBreakdownItem[];
+}> {
+  const vendor = await prisma.vendor.findUnique({
+    where: { id: vendorId },
+    select: {
+      walletBalance: true,
+      trialGrantedPaise: true,
+      trialExpiresAt: true
+    }
+  });
+  if (!vendor) {
+    throw new Error('Vendor not found');
+  }
+
+  const txs = await prisma.walletTransaction.findMany({
+    where: { vendorId, transactionType: 'deduction' },
+    select: { amount: true, metadata: true },
+    orderBy: { transactionDate: 'desc' },
+    take: 500
+  });
+
+  const buckets = new Map<string, TrialWalletBreakdownItem>();
+  for (const tx of txs) {
+    const source = metadataSource(tx.metadata) ?? 'other';
+    const existing = buckets.get(source) ?? {
+      source,
+      label: labelForSource(source),
+      paise: 0,
+      count: 0
+    };
+    existing.paise += tx.amount;
+    existing.count = (existing.count ?? 0) + 1;
+    buckets.set(source, existing);
+  }
+
+  if (!buckets.has('catalog_import')) {
+    const jobs = await prisma.catalogImportJob.findMany({
+      where: { vendorId },
+      select: { tokenUsage: true }
+    });
+    let catalogPaise = 0;
+    for (const job of jobs) {
+      const tu = job.tokenUsage as { totalPaise?: number } | null;
+      if (tu?.totalPaise) catalogPaise += tu.totalPaise;
+    }
+    if (catalogPaise > 0) {
+      buckets.set('catalog_import', {
+        source: 'catalog_import',
+        label: 'Catalog import',
+        paise: catalogPaise,
+        jobs: jobs.length
+      });
+    }
+  }
+
+  return {
+    balancePaise: vendor.walletBalance,
+    grantedPaise: vendor.trialGrantedPaise ?? numericEnv.trialGrantPaise,
+    expiresAt: vendor.trialExpiresAt?.toISOString() ?? null,
+    breakdown: Array.from(buckets.values()).filter((b) => b.paise > 0)
+  };
+}
+
+function labelForSource(source: string): string {
+  switch (source) {
+    case 'sandbox_chat':
+      return 'Sandbox replies';
+    case 'sandbox_voice':
+      return 'Sandbox voice';
+    case 'sandbox_transcribe':
+      return 'Voice transcription';
+    case 'catalog_import':
+      return 'Catalog import';
+    default:
+      return 'Other usage';
+  }
+}
+
 function startOfTodayIST(): Date {
-  // IST = UTC+5:30. Start-of-day IST in UTC terms is yesterday 18:30 UTC.
   const now = new Date();
   const istMs = now.getTime() + (5 * 60 + 30) * 60 * 1000;
   const istDate = new Date(istMs);
@@ -120,10 +272,6 @@ function startOfTodayIST(): Date {
   return new Date(istDate.getTime() - (5 * 60 + 30) * 60 * 1000);
 }
 
-/**
- * Sum the totalPaise spent on catalog-import jobs today (IST). Used by the
- * per-vendor daily cap (CATALOG_IMPORT_DAILY_PAISE_CAP) before /analyze runs.
- */
 export async function getTodaysCatalogImportPaiseSpent(vendorId: string): Promise<number> {
   const since = startOfTodayIST();
   const jobs = await prisma.catalogImportJob.findMany({
@@ -143,12 +291,11 @@ export async function deductCredits(vendorId: string, conversationId: string, ki
   await prisma.$transaction(async (tx) => {
     const vendor = await tx.vendor.findUnique({ where: { id: vendorId }, select: { walletBalance: true } });
     if (!vendor) throw new Error('Vendor not found');
-    // Treat 1 credit = ₹1 for now, using integer fields
     const amount = credits;
     const before = vendor.walletBalance;
     const after = before - amount;
-    await tx.vendor.update({ 
-      where: { id: vendorId }, 
+    await tx.vendor.update({
+      where: { id: vendorId },
       data: { walletBalance: after },
       select: { id: true, walletBalance: true }
     });
@@ -171,5 +318,3 @@ export async function deductCredits(vendorId: string, conversationId: string, ki
     });
   });
 }
-
-

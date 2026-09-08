@@ -9,7 +9,8 @@ import { env } from '../config/env.js';
 import { getTodaysCatalogImportPaiseSpent } from '../services/billingService.js';
 import { logger } from '../logger.js';
 
-const isCatalogImportRateLimitDisabled = env.CATALOG_IMPORT_DISABLE_RATE_LIMIT === 'true';
+const isCatalogImportRateLimitDisabled =
+  env.CATALOG_IMPORT_DISABLE_RATE_LIMIT === 'true' || env.NODE_ENV !== 'production';
 const passthroughRateLimit = Object.assign(
   (_req: Request, _res: Response, next: NextFunction) => next(),
   {
@@ -50,7 +51,8 @@ function rateLimitHandler(req: Request, res: Response) {
   });
 }
 
-// /analyze: 1 per hour per vendor. Paired with the daily limiter below.
+// /analyze: 1 per hour per vendor in production. Skipped in local/dev so
+// onboarding retries are not blocked. Daily paise cap still applies.
 export const analyzeHourlyRateLimit: RateLimitRequestHandler = isCatalogImportRateLimitDisabled
   ? passthroughRateLimit
   : rateLimit({

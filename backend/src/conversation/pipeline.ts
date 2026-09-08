@@ -20,6 +20,8 @@ import { notifyVendorOfPostSalesEvent } from './postSalesAlert.js';
 import { WALLET_EMPTY_TEMPLATE } from './templates.js';
 import { logStage, logLatency, logCount } from './metrics.js';
 import { ensureMessageContentEn, normalizeSetFieldOps } from '../utils/vendorEnglish.js';
+import { calculateCost } from '../utils/costCalculator.js';
+import { usdToPaise } from '../utils/billingPaise.js';
 import type { CartOp, CartSnapshot, PostSalesOutcome } from './types.js';
 
 /** Deterministic customer-facing copy for a refund/cancel outcome — never LLM-authored (same reasoning as the handoff short-circuit: money/eligibility facts must not go through a free-text model). */
@@ -47,6 +49,14 @@ export interface FinalizeTurnInput {
   finalText: string;
   language: string;
   intent: string;
+  tokenMeta: { model: string; promptTokens: number; completionTokens: number };
+  sandbox?: boolean;
+}
+
+export interface ProcessMessageResult {
+  finalText: string;
+  intent: string;
+  costPaise: number;
   tokenMeta: { model: string; promptTokens: number; completionTokens: number };
 }
 
@@ -81,7 +91,8 @@ export async function finalizeTurn(input: FinalizeTurnInput): Promise<FinalizeTu
     finalText,
     language,
     intent,
-    tokenMeta
+    tokenMeta,
+    sandbox = false
   } = input;
 
   const { assistantMessageId } = await persistTurn({
@@ -95,6 +106,16 @@ export async function finalizeTurn(input: FinalizeTurnInput): Promise<FinalizeTu
     tokenMeta,
     whatsappMessageId
   });
+
+  if (sandbox) {
+    await ensureMessageContentEn(assistantMessageId, finalText).catch((error) => {
+      logger.warn(
+        { err: error, traceId: whatsappMessageId, vendorId, conversationId, assistantMessageId },
+        'ensureMessageContentEn failed for sandbox assistant message'
+      );
+    });
+    return { publishedAt: Date.now() };
+  }
 
   // Corrected from spec §19's example JSON, which omits both fields:
   // - phoneNumberId: without it, chatlogix-response-processor falls back to
@@ -152,6 +173,8 @@ export interface ProcessMessageInput {
   whatsappMessageId: string;
   /** Voice-note transcript or image caption, when the TextMessage was handed off from media fetch. */
   sourceMessageType?: 'audio' | 'image';
+  /** Browser onboarding demo — skip WhatsApp/queue side effects; return reply synchronously. */
+  sandbox?: boolean;
 }
 
 const whatsappTemplateService = new WhatsAppTemplateService(); // no exported singleton on this service; matches every other call site's `new WhatsAppTemplateService()`
@@ -160,6 +183,19 @@ function classifyError(error: unknown): string {
   if (error instanceof LockContentionError) return 'lock_contention';
   if (error instanceof LockUnavailableError) return 'lock_unavailable';
   return 'unknown';
+}
+
+function estimatePipelineCostPaise(tokenMeta: {
+  model: string;
+  promptTokens: number;
+  completionTokens: number;
+}): number {
+  const cost = calculateCost(
+    tokenMeta.model,
+    tokenMeta.promptTokens,
+    tokenMeta.completionTokens
+  );
+  return usdToPaise(cost.costUsd);
 }
 
 /**
@@ -172,7 +208,10 @@ function classifyError(error: unknown): string {
  * `DLQDepth` is deliberately not emitted here — see this plan's Step 11
  * status note for why that one isn't a per-invocation code concern.
  */
-export async function processMessage(input: ProcessMessageInput): Promise<void> {
+export async function processMessage(
+  input: ProcessMessageInput
+): Promise<ProcessMessageResult | void> {
+  const sandbox = Boolean(input.sandbox);
   const traceId = input.whatsappMessageId;
   const startTime = Date.now();
   logStage('handler_start', { traceId }); // §23: "SQS receive / handler start" — the SQS-receive-to-here gap is negligible (a JSON.parse) and not separately instrumented
@@ -216,6 +255,14 @@ export async function processMessage(input: ProcessMessageInput): Promise<void> 
     });
     if (priorProcessing) {
       logger.info({ traceId, vendorId, conversationId }, 'Duplicate whatsappMessageId — already processed, ACK without reprocessing');
+      if (sandbox) {
+        return {
+          finalText: 'This message was already answered.',
+          intent: 'duplicate',
+          costPaise: 0,
+          tokenMeta: { model: 'none', promptTokens: 0, completionTokens: 0 }
+        };
+      }
       return;
     }
     // Still ensures the customer Message row exists -- a no-op when the
@@ -236,11 +283,30 @@ export async function processMessage(input: ProcessMessageInput): Promise<void> 
     const conversation = await prisma.conversation.findUnique({ where: { id: conversationId }, select: { aiPaused: true } });
     if (conversation?.aiPaused) {
       logger.info({ traceId, vendorId, conversationId }, 'aiPaused — inbound stored, no LLM, no debit, no reply (vendor replies via dashboard)');
+      if (sandbox) {
+        return {
+          finalText: 'Your assistant is paused in this demo.',
+          intent: 'ai_paused',
+          costPaise: 0,
+          tokenMeta: { model: 'none', promptTokens: 0, completionTokens: 0 }
+        };
+      }
       return;
     }
 
     const creditCheck = await canProcessMessage(vendorId, 'text');
     if (!creditCheck.allowed) {
+      if (sandbox) {
+        return {
+          finalText:
+            creditCheck.reason === 'trial_expired'
+              ? 'Your trial has expired. You can still submit for approval or contact support.'
+              : 'Your ₹100 trial is used up. You can still submit for approval — our team will review your shop.',
+          intent: 'guard_no_credit',
+          costPaise: 0,
+          tokenMeta: { model: 'none', promptTokens: 0, completionTokens: 0 }
+        };
+      }
       await publishToQueue(env.RESPONSE_QUEUE_URL, {
         type: 'text',
         to: input.customerPhone,
@@ -259,9 +325,11 @@ export async function processMessage(input: ProcessMessageInput): Promise<void> 
     // invocation's stashed content; proceeds immediately either way.
     const mergedContent = await mergeDebounced(conversationId, input.content);
 
-    void sendTypingIndicator(input.whatsappMessageId, input.phoneNumberId).catch((error) => {
-      logger.warn({ err: error, traceId, vendorId, conversationId }, 'Typing indicator failed');
-    });
+    if (!sandbox) {
+      void sendTypingIndicator(input.whatsappMessageId, input.phoneNumberId).catch((error) => {
+        logger.warn({ err: error, traceId, vendorId, conversationId }, 'Typing indicator failed');
+      });
+    }
 
     // Step 2: prefetch hot set in parallel.
     const hotSet = await prefetchHotSet(vendorId, conversationId, customerId, mergedContent);
@@ -329,7 +397,10 @@ export async function processMessage(input: ProcessMessageInput): Promise<void> 
       const outcome = applyResult.postSalesOutcome;
       finalText = renderPostSalesReply(outcome);
 
-      if (outcome.type === 'refund_denied' || outcome.type === 'not_cancellable_at_this_stage') {
+      if (
+        !sandbox &&
+        (outcome.type === 'refund_denied' || outcome.type === 'not_cancellable_at_this_stage')
+      ) {
         notifyVendorOfPostSalesEvent({
           vendorId,
           phoneNumberId: input.phoneNumberId,
@@ -393,6 +464,12 @@ export async function processMessage(input: ProcessMessageInput): Promise<void> 
       finalText = decision.finalReply;
     }
 
+    const tokenMeta = {
+      model: llm1Result.model,
+      promptTokens: llm1Result.promptTokens,
+      completionTokens: llm1Result.completionTokens
+    };
+
     // Steps 8-10: persist -> response queue -> debit.
     const { publishedAt } = await finalizeTurn({
       vendorId,
@@ -405,7 +482,8 @@ export async function processMessage(input: ProcessMessageInput): Promise<void> 
       finalText,
       language: llm1Result.language,
       intent: llm1Result.intent,
-      tokenMeta: { model: llm1Result.model, promptTokens: llm1Result.promptTokens, completionTokens: llm1Result.completionTokens }
+      tokenMeta,
+      sandbox
     });
     logLatency('LatencyMs', publishedAt - startTime, { vendorId }); // §8 SLA clock: start (handler_start) -> publish, excluding the debit attempt's own duration
 
@@ -416,7 +494,7 @@ export async function processMessage(input: ProcessMessageInput): Promise<void> 
     // above, so this only fires for a successful `confirm`.
     const confirmOp = llm1Result.ops.find((op) => op.type === 'confirm');
     const confirmSucceeded = confirmOp && !applyResult.rejectedOps.some((r) => r.op === confirmOp);
-    if (confirmSucceeded && applyResult.snapshot.orderId) {
+    if (!sandbox && confirmSucceeded && applyResult.snapshot.orderId) {
       const orderId = applyResult.snapshot.orderId;
       whatsappTemplateService.notifyVendorNewOrder(vendorId, orderId).catch((error) => {
         logger.error({ err: error, vendorId, orderId, traceId }, 'Vendor new-order notify failed');
@@ -424,6 +502,15 @@ export async function processMessage(input: ProcessMessageInput): Promise<void> 
     }
 
     logCount('ProcessorSuccess', { vendorId });
+
+    if (sandbox) {
+      return {
+        finalText,
+        intent: llm1Result.intent,
+        costPaise: estimatePipelineCostPaise(tokenMeta),
+        tokenMeta
+      };
+    }
   } catch (error) {
     logCount('ProcessorError', { vendorId, class: classifyError(error) });
     throw error;

@@ -242,7 +242,7 @@ Manual checks:
 
 2. With Firebase + site key: real SMS; `123456` fails.
 
-3. Unknown phone after OTP: still 403 until signup exists.
+3. Unknown phone on **login**: still 403 until public signup is implemented (see [Public Signup & Trial Onboarding](../../features/vendor-onboarding/guides/public-signup-onboarding.md)).
 
 4. Production without `FIREBASE_API_KEY`: send-code 503.
 

@@ -13,6 +13,7 @@ export interface AuthTokenPayload {
   phoneNumber: string;
   roles: UserRole[];
   vendorId?: string;
+  registrationStatus?: string;
 }
 
 const JWT_SECRET: Secret = env.AUTH_JWT_SECRET;
@@ -39,7 +40,7 @@ export function verifyAuthToken(token: string): AuthTokenPayload {
       );
     }
 
-    const { userId, phoneNumber, roles, vendorId } = decoded as AuthTokenPayload;
+    const { userId, phoneNumber, roles, vendorId, registrationStatus } = decoded as AuthTokenPayload;
 
     if (!userId || !phoneNumber || !Array.isArray(roles)) {
       throw new CustomError(
@@ -54,7 +55,8 @@ export function verifyAuthToken(token: string): AuthTokenPayload {
       userId,
       phoneNumber,
       roles,
-      vendorId
+      vendorId,
+      registrationStatus
     };
   } catch (error: any) {
     if (error instanceof CustomError) {

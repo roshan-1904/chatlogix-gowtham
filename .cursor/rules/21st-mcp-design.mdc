@@ -1,0 +1,36 @@
+---
+description: Use 21st.dev MCP for UI layout patterns and color-theme inspiration, mapped onto ChatLogix design tokens
+globs: frontend_v2/**/*.{tsx,css,ts},.21st/**
+alwaysApply: false
+---
+
+# 21st MCP for design patterns and color themes
+
+When building or restyling vendor UI, use the **21st.dev MCP** (`user-21st`) against `.21st/design.json`. Do not invent a new palette.
+
+## Before any UI change
+
+1. Read `.21st/design.json` and `.21st/DESIGN.md`.
+2. Inspect nearby components and `@chatlogix/design-tokens` (`primary-500` navy `#072349`, `secondary-500` WhatsApp green `#25D366`).
+
+## MCP loop
+
+| Need | Tool | Notes |
+| --- | --- | --- |
+| Layout / component ideas | `get_inspiration` | Pass `context` = the design.json object |
+| User picks a visual | `search_picker` | Prefer this over dumping a list |
+| Color themes | `search` `type: "theme"` then `get_theme` | Free. Inspiration only |
+| Existing component code | `get_component` | Metered. Reuse `@chatlogix/ui` first |
+| Nothing close enough | `generate` | Pass the same `context`. Rebuild from `copyPrompt` |
+
+## Color themes
+
+- `get_theme` CSS is a **reference**. Do not paste `:root` / `.dark` into `frontend_v2/apps/web-vendor/src/index.css`.
+- Map shadcn classes with `design.tailwindAliases` in design.json (`bg-primary` → `bg-primary-500`).
+- In ChatLogix, `secondary` is green, not muted gray.
+- Keep navy + green. Community themes may inform spacing/contrast, not a wholesale rebrand.
+- Canonical 21st-shaped tokens: `.21st/chatlogix-theme.css` (not loaded by Vite).
+
+## After a durable visual choice
+
+Append it to `design.json` `decisions` and mention it in `.21st/DESIGN.md`.

@@ -1,0 +1,21 @@
+{
+  "products": [
+    {
+      "name": { "value": "Butter cookies", "confidence": 0.9 },
+      "sku": { "value": null, "confidence": 0.1 },
+      "description": { "value": null, "confidence": 0.2 },
+      "basePrice": { "value": 18000, "confidence": 0.88 },
+      "baseUnit": { "value": "box", "confidence": 0.9 },
+      "baseQuantity": { "value": 1, "confidence": 0.9 }
+    }
+  ],
+  "vendorProfile": {
+    "businessName": { "value": "Priya Bakery", "confidence": 0.55 },
+    "category": { "value": "Bakery", "confidence": 0.7 },
+    "address": { "value": "12 Avinashi Road, RS Puram", "confidence": 0.9 },
+    "city": { "value": null, "confidence": 0 },
+    "hours": { "value": "Mon–Sat 10am–8pm", "confidence": 0.88 },
+    "deliveryNotes": { "value": null, "confidence": 0 },
+    "languageHint": { "value": "en", "confidence": 0.6 }
+  }
+}

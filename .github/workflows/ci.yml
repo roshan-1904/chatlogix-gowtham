@@ -73,12 +73,32 @@ jobs:
           cache-dependency-path: frontend_v2/package-lock.json
 
       - name: Write .env.production
-        working-directory: frontend_v2/apps/web-vendor
+        working-directory: frontend_v2
+        env:
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+          VITE_ENVIRONMENT: ${{ vars.VITE_ENVIRONMENT }}
+          VITE_VENDOR_APP_ORIGIN: ${{ vars.VITE_VENDOR_APP_ORIGIN }}
+          VITE_SITE_ORIGIN: ${{ vars.VITE_SITE_ORIGIN }}
         run: |
-          cat > .env.production <<EOF
-          VITE_API_URL=${{ vars.VITE_API_URL }}
-          VITE_ENVIRONMENT=${{ vars.VITE_ENVIRONMENT }}
-          EOF
+          : "${VITE_API_URL:?VITE_API_URL GitHub variable is required}"
+          : "${VITE_ENVIRONMENT:=production}"
+          : "${VITE_VENDOR_APP_ORIGIN:=https://app.chatlogix.in}"
+          : "${VITE_SITE_ORIGIN:=https://www.chatlogix.in}"
+
+          printf '%s\n' \
+            "VITE_API_URL=${VITE_API_URL}" \
+            "VITE_ENVIRONMENT=${VITE_ENVIRONMENT}" \
+            > apps/web-vendor/.env.production
+
+          printf '%s\n' \
+            "VITE_API_URL=${VITE_API_URL}" \
+            "VITE_ENVIRONMENT=${VITE_ENVIRONMENT}" \
+            > apps/web-admin/.env.production
+
+          printf '%s\n' \
+            "VITE_VENDOR_APP_ORIGIN=${VITE_VENDOR_APP_ORIGIN}" \
+            "VITE_SITE_ORIGIN=${VITE_SITE_ORIGIN}" \
+            > apps/web-marketing/.env.production
 
       - name: Install dependencies
         working-directory: frontend_v2
@@ -92,12 +112,15 @@ jobs:
         run: |
           mkdir -p _artifact/frontend_v2/apps/web-vendor
           mkdir -p _artifact/frontend_v2/apps/web-admin
-          if [ -d frontend_v2/apps/web-vendor/dist ]; then
-            cp -r frontend_v2/apps/web-vendor/dist _artifact/frontend_v2/apps/web-vendor/dist
-          fi
-          if [ -d frontend_v2/apps/web-admin/dist ]; then
-            cp -r frontend_v2/apps/web-admin/dist _artifact/frontend_v2/apps/web-admin/dist
-          fi
+          mkdir -p _artifact/frontend_v2/apps/web-marketing
+
+          for app in web-vendor web-admin web-marketing; do
+            if [ ! -d "frontend_v2/apps/${app}/dist" ]; then
+              echo "ERROR: ${app} dist not found after build" >&2
+              exit 1
+            fi
+            cp -a "frontend_v2/apps/${app}/dist" "_artifact/frontend_v2/apps/${app}/dist"
+          done
 
       - name: Upload frontend artifact
         uses: actions/upload-artifact@v4

@@ -15,17 +15,29 @@ export function useAuthState() {
   };
 }
 
+export function useSignup() {
+  const { signup, sendCode } = useAuth();
+  return { signup, sendCode };
+}
+
 /**
  * Hook for login functionality
  */
 export function useLogin() {
-  const { login, sendCode } = useAuth();
+  const { login, signup, sendCode } = useAuth();
 
   const handleLogin = useCallback(
     async (phoneNumber: string, sessionInfo: string, code: string) => {
       await login(phoneNumber, sessionInfo, code);
     },
     [login]
+  );
+
+  const handleSignup = useCallback(
+    async (phoneNumber: string, sessionInfo: string, code: string) => {
+      return await signup(phoneNumber, sessionInfo, code);
+    },
+    [signup]
   );
 
   const handleSendCode = useCallback(
@@ -37,6 +49,7 @@ export function useLogin() {
 
   return {
     login: handleLogin,
+    signup: handleSignup,
     sendCode: handleSendCode,
   };
 }

@@ -1,0 +1,674 @@
+[
+  {
+    "viewport": {
+      "name": "mobile-375",
+      "width": 375,
+      "height": 812
+    },
+    "metrics": {
+      "section": {
+        "top": 65,
+        "bottom": 741,
+        "left": 0,
+        "right": 375,
+        "width": 375,
+        "height": 676
+      },
+      "h1": {
+        "top": 108,
+        "bottom": 234.9375,
+        "left": 20,
+        "right": 355,
+        "width": 335,
+        "height": 126.9375
+      },
+      "scroll": {
+        "top": 65,
+        "bottom": 812,
+        "left": 0,
+        "right": 375,
+        "width": 375,
+        "height": 747
+      },
+      "header": {
+        "top": 0,
+        "bottom": 65,
+        "left": 0,
+        "right": 375,
+        "width": 375,
+        "height": 65
+      },
+      "sectionScrollHeight": 676,
+      "sectionClientHeight": 676,
+      "sectionOverflows": false,
+      "h1ClippedTop": false,
+      "h1ClippedBottom": false,
+      "horizontalOverflow": false,
+      "docScrollWidth": 375,
+      "docClientWidth": 375,
+      "phones": [
+        {
+          "index": 0,
+          "top": 415.5625,
+          "bottom": 583.5625,
+          "left": 39.34375,
+          "right": 164.140625,
+          "width": 124.796875,
+          "height": 168
+        },
+        {
+          "index": 1,
+          "top": 415.5625,
+          "bottom": 583.5625,
+          "left": 210.84375,
+          "right": 335.640625,
+          "width": 124.796875,
+          "height": 168
+        },
+        {
+          "index": 2,
+          "top": 1742.25,
+          "bottom": 2281.75,
+          "left": 27.5,
+          "right": 347.5,
+          "width": 320,
+          "height": 539.5
+        },
+        {
+          "index": 3,
+          "top": 3053.75,
+          "bottom": 3324.25,
+          "left": 20,
+          "right": 355,
+          "width": 335,
+          "height": 270.5
+        },
+        {
+          "index": 4,
+          "top": 4474.625,
+          "bottom": 4655.625,
+          "left": 20,
+          "right": 355,
+          "width": 335,
+          "height": 181
+        }
+      ]
+    }
+  },
+  {
+    "viewport": {
+      "name": "mobile-390",
+      "width": 390,
+      "height": 844
+    },
+    "metrics": {
+      "section": {
+        "top": 65,
+        "bottom": 773,
+        "left": 0,
+        "right": 390,
+        "width": 390,
+        "height": 708
+      },
+      "h1": {
+        "top": 108,
+        "bottom": 234.9375,
+        "left": 20,
+        "right": 370,
+        "width": 350,
+        "height": 126.9375
+      },
+      "scroll": {
+        "top": 65,
+        "bottom": 844,
+        "left": 0,
+        "right": 390,
+        "width": 390,
+        "height": 779
+      },
+      "header": {
+        "top": 0,
+        "bottom": 65,
+        "left": 0,
+        "right": 390,
+        "width": 390,
+        "height": 65
+      },
+      "sectionScrollHeight": 708,
+      "sectionClientHeight": 708,
+      "sectionOverflows": false,
+      "h1ClippedTop": false,
+      "h1ClippedBottom": false,
+      "horizontalOverflow": false,
+      "docScrollWidth": 390,
+      "docClientWidth": 390,
+      "phones": [
+        {
+          "index": 0,
+          "top": 415.5625,
+          "bottom": 583.5625,
+          "left": 40.140625,
+          "right": 170.84375,
+          "width": 130.703125,
+          "height": 168
+        },
+        {
+          "index": 1,
+          "top": 415.5625,
+          "bottom": 583.5625,
+          "left": 219.140625,
+          "right": 349.84375,
+          "width": 130.703125,
+          "height": 168
+        },
+        {
+          "index": 2,
+          "top": 1822.25,
+          "bottom": 2361.75,
+          "left": 35,
+          "right": 355,
+          "width": 320,
+          "height": 539.5
+        },
+        {
+          "index": 3,
+          "top": 3187.75,
+          "bottom": 3458.25,
+          "left": 20,
+          "right": 370,
+          "width": 350,
+          "height": 270.5
+        },
+        {
+          "index": 4,
+          "top": 4682.625,
+          "bottom": 4863.625,
+          "left": 20,
+          "right": 370,
+          "width": 350,
+          "height": 181
+        }
+      ]
+    }
+  },
+  {
+    "viewport": {
+      "name": "tablet-768",
+      "width": 768,
+      "height": 1024
+    },
+    "metrics": {
+      "section": {
+        "top": 65,
+        "bottom": 953,
+        "left": 0,
+        "right": 768,
+        "width": 768,
+        "height": 888
+      },
+      "h1": {
+        "top": 121.5,
+        "bottom": 322.8125,
+        "left": 32,
+        "right": 736,
+        "width": 704,
+        "height": 201.3125
+      },
+      "scroll": {
+        "top": 65,
+        "bottom": 1024,
+        "left": 0,
+        "right": 768,
+        "width": 768,
+        "height": 959
+      },
+      "header": {
+        "top": 0,
+        "bottom": 65,
+        "left": 0,
+        "right": 768,
+        "width": 768,
+        "height": 65
+      },
+      "sectionScrollHeight": 888,
+      "sectionClientHeight": 888,
+      "sectionOverflows": false,
+      "h1ClippedTop": false,
+      "h1ClippedBottom": false,
+      "horizontalOverflow": false,
+      "docScrollWidth": 768,
+      "docClientWidth": 768,
+      "phones": [
+        {
+          "index": 0,
+          "top": 515.8125,
+          "bottom": 739.8125,
+          "left": 101.171875,
+          "right": 308.8125,
+          "width": 207.640625,
+          "height": 224
+        },
+        {
+          "index": 1,
+          "top": 515.8125,
+          "bottom": 739.8125,
+          "left": 459.171875,
+          "right": 666.8125,
+          "width": 207.640625,
+          "height": 224
+        },
+        {
+          "index": 2,
+          "top": 2220,
+          "bottom": 2759.5,
+          "left": 224,
+          "right": 544,
+          "width": 320,
+          "height": 539.5
+        },
+        {
+          "index": 3,
+          "top": 3987.75,
+          "bottom": 4258.25,
+          "left": 160,
+          "right": 608,
+          "width": 448,
+          "height": 270.5
+        },
+        {
+          "index": 4,
+          "top": 5838.25,
+          "bottom": 5999.75,
+          "left": 32,
+          "right": 736,
+          "width": 704,
+          "height": 161.5
+        }
+      ]
+    }
+  },
+  {
+    "viewport": {
+      "name": "tablet-1024",
+      "width": 1024,
+      "height": 768
+    },
+    "metrics": {
+      "section": {
+        "top": 65,
+        "bottom": 769,
+        "left": 0,
+        "right": 1024,
+        "width": 1024,
+        "height": 704
+      },
+      "h1": {
+        "top": 133,
+        "bottom": 303.375,
+        "left": 48,
+        "right": 456.3125,
+        "width": 408.3125,
+        "height": 170.375
+      },
+      "scroll": {
+        "top": 65,
+        "bottom": 768,
+        "left": 0,
+        "right": 1024,
+        "width": 1024,
+        "height": 703
+      },
+      "header": {
+        "top": 0,
+        "bottom": 65,
+        "left": 0,
+        "right": 1024,
+        "width": 1024,
+        "height": 65
+      },
+      "sectionScrollHeight": 704,
+      "sectionClientHeight": 704,
+      "sectionOverflows": false,
+      "h1ClippedTop": false,
+      "h1ClippedBottom": false,
+      "horizontalOverflow": false,
+      "docScrollWidth": 1024,
+      "docClientWidth": 1024,
+      "phones": [
+        {
+          "index": 0,
+          "top": 125.5,
+          "bottom": 463.40625,
+          "left": 496.3125,
+          "right": 704.25,
+          "width": 207.9375,
+          "height": 337.90625
+        },
+        {
+          "index": 1,
+          "top": 125.5,
+          "bottom": 463.40625,
+          "left": 746.15625,
+          "right": 954.09375,
+          "width": 207.9375,
+          "height": 337.90625
+        },
+        {
+          "index": 2,
+          "top": 1555.25,
+          "bottom": 2094.75,
+          "left": 656,
+          "right": 976,
+          "width": 320,
+          "height": 539.5
+        },
+        {
+          "index": 3,
+          "top": 3097.75,
+          "bottom": 3368.25,
+          "left": 483.1875,
+          "right": 976,
+          "width": 492.8125,
+          "height": 270.5
+        },
+        {
+          "index": 4,
+          "top": 4650.25,
+          "bottom": 4811.75,
+          "left": 48,
+          "right": 976,
+          "width": 928,
+          "height": 161.5
+        }
+      ]
+    }
+  },
+  {
+    "viewport": {
+      "name": "laptop-1280",
+      "width": 1280,
+      "height": 800
+    },
+    "metrics": {
+      "section": {
+        "top": 65,
+        "bottom": 801,
+        "left": 0,
+        "right": 1280,
+        "width": 1280,
+        "height": 736
+      },
+      "h1": {
+        "top": 141,
+        "bottom": 311.375,
+        "left": 64,
+        "right": 538.875,
+        "width": 474.875,
+        "height": 170.375
+      },
+      "scroll": {
+        "top": 65,
+        "bottom": 800,
+        "left": 0,
+        "right": 1280,
+        "width": 1280,
+        "height": 735
+      },
+      "header": {
+        "top": 0,
+        "bottom": 65,
+        "left": 0,
+        "right": 1280,
+        "width": 1280,
+        "height": 65
+      },
+      "sectionScrollHeight": 736,
+      "sectionClientHeight": 736,
+      "sectionOverflows": false,
+      "h1ClippedTop": false,
+      "h1ClippedBottom": false,
+      "horizontalOverflow": false,
+      "docScrollWidth": 1280,
+      "docClientWidth": 1280,
+      "phones": [
+        {
+          "index": 0,
+          "top": 133.5,
+          "bottom": 485.5,
+          "left": 658.875,
+          "right": 875.484375,
+          "width": 216.609375,
+          "height": 352
+        },
+        {
+          "index": 1,
+          "top": 133.5,
+          "bottom": 485.5,
+          "left": 953.4375,
+          "right": 1170.046875,
+          "width": 216.609375,
+          "height": 352
+        },
+        {
+          "index": 2,
+          "top": 1635.25,
+          "bottom": 2174.75,
+          "left": 896,
+          "right": 1216,
+          "width": 320,
+          "height": 539.5
+        },
+        {
+          "index": 3,
+          "top": 3241.75,
+          "bottom": 3512.25,
+          "left": 600,
+          "right": 1216,
+          "width": 616,
+          "height": 270.5
+        },
+        {
+          "index": 4,
+          "top": 4858.25,
+          "bottom": 5019.75,
+          "left": 64,
+          "right": 1216,
+          "width": 1152,
+          "height": 161.5
+        }
+      ]
+    }
+  },
+  {
+    "viewport": {
+      "name": "desktop-1440",
+      "width": 1440,
+      "height": 900
+    },
+    "metrics": {
+      "section": {
+        "top": 65,
+        "bottom": 901,
+        "left": 0,
+        "right": 1440,
+        "width": 1440,
+        "height": 836
+      },
+      "h1": {
+        "top": 141,
+        "bottom": 380.5,
+        "left": 64,
+        "right": 609.265625,
+        "width": 545.265625,
+        "height": 239.5
+      },
+      "scroll": {
+        "top": 65,
+        "bottom": 900,
+        "left": 0,
+        "right": 1440,
+        "width": 1440,
+        "height": 835
+      },
+      "header": {
+        "top": 0,
+        "bottom": 65,
+        "left": 0,
+        "right": 1440,
+        "width": 1440,
+        "height": 65
+      },
+      "sectionScrollHeight": 836,
+      "sectionClientHeight": 836,
+      "sectionOverflows": false,
+      "h1ClippedTop": false,
+      "h1ClippedBottom": false,
+      "horizontalOverflow": false,
+      "docScrollWidth": 1440,
+      "docClientWidth": 1440,
+      "phones": [
+        {
+          "index": 0,
+          "top": 205.5,
+          "bottom": 740.53125,
+          "left": 729.265625,
+          "right": 1036.625,
+          "width": 307.359375,
+          "height": 535.03125
+        },
+        {
+          "index": 1,
+          "top": 205.5,
+          "bottom": 740.53125,
+          "left": 1068.625,
+          "right": 1376,
+          "width": 307.375,
+          "height": 535.03125
+        },
+        {
+          "index": 2,
+          "top": 1885.25,
+          "bottom": 2424.75,
+          "left": 1056,
+          "right": 1376,
+          "width": 320,
+          "height": 539.5
+        },
+        {
+          "index": 3,
+          "top": 3691.75,
+          "bottom": 3962.25,
+          "left": 672,
+          "right": 1376,
+          "width": 704,
+          "height": 270.5
+        },
+        {
+          "index": 4,
+          "top": 5508.25,
+          "bottom": 5669.75,
+          "left": 64,
+          "right": 1376,
+          "width": 1312,
+          "height": 161.5
+        }
+      ]
+    }
+  },
+  {
+    "viewport": {
+      "name": "desktop-1920",
+      "width": 1920,
+      "height": 1080
+    },
+    "metrics": {
+      "section": {
+        "top": 65,
+        "bottom": 1081,
+        "left": 0,
+        "right": 1920,
+        "width": 1920,
+        "height": 1016
+      },
+      "h1": {
+        "top": 141,
+        "bottom": 415.0625,
+        "left": 96,
+        "right": 789.75,
+        "width": 693.75,
+        "height": 274.0625
+      },
+      "scroll": {
+        "top": 65,
+        "bottom": 1080,
+        "left": 0,
+        "right": 1920,
+        "width": 1920,
+        "height": 1015
+      },
+      "header": {
+        "top": 0,
+        "bottom": 65,
+        "left": 0,
+        "right": 1920,
+        "width": 1920,
+        "height": 65
+      },
+      "sectionScrollHeight": 1016,
+      "sectionClientHeight": 1016,
+      "sectionOverflows": false,
+      "h1ClippedTop": false,
+      "h1ClippedBottom": false,
+      "horizontalOverflow": false,
+      "docScrollWidth": 1920,
+      "docClientWidth": 1920,
+      "phones": [
+        {
+          "index": 0,
+          "top": 205.5,
+          "bottom": 937.015625,
+          "left": 909.75,
+          "right": 1346.875,
+          "width": 437.125,
+          "height": 731.515625
+        },
+        {
+          "index": 1,
+          "top": 205.5,
+          "bottom": 937.015625,
+          "left": 1386.875,
+          "right": 1824,
+          "width": 437.125,
+          "height": 731.515625
+        },
+        {
+          "index": 2,
+          "top": 2335.25,
+          "bottom": 2874.75,
+          "left": 1504,
+          "right": 1824,
+          "width": 320,
+          "height": 539.5
+        },
+        {
+          "index": 3,
+          "top": 4501.75,
+          "bottom": 4772.25,
+          "left": 891.1875,
+          "right": 1824,
+          "width": 932.8125,
+          "height": 270.5
+        },
+        {
+          "index": 4,
+          "top": 6678.25,
+          "bottom": 6839.75,
+          "left": 96,
+          "right": 1824,
+          "width": 1728,
+          "height": 161.5
+        }
+      ]
+    }
+  }
+]

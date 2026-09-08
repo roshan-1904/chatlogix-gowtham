@@ -45,6 +45,7 @@ export interface ImportOptions {
   allowUpdateExisting?: boolean;
   autoGenerateAIConfig?: boolean;
   category?: string;
+  maxProducts?: number;
 }
 
 export interface AnalyzeRequest {
@@ -79,6 +80,15 @@ export interface CatalogImportJob {
   inputManifest: unknown;
   result: {
     normalizedProducts?: NormalizedProductDraft[];
+    vendorProfile?: {
+      businessName: { value: string | null; confidence: number };
+      category: { value: string | null; confidence: number };
+      address: { value: string | null; confidence: number };
+      city: { value: string | null; confidence: number };
+      hours: { value: string | null; confidence: number };
+      deliveryNotes: { value: string | null; confidence: number };
+      languageHint: { value: string | null; confidence: number };
+    };
     warnings?: string[];
     pageProgress?: PageProgress[];
     draftEdits?: NormalizedProductDraft[];

@@ -57,6 +57,12 @@ vi.mock('../billingService.js', () => ({ recordCatalogImportSpend: vi.fn() }));
 vi.mock('../catalogImportEventBus.js', () => ({
   catalogImportEventBus: { emit: vi.fn() }
 }));
+vi.mock('../vendorAIConfigService.js', () => ({
+  applyExtractedCatalogProfile: vi.fn().mockResolvedValue(undefined),
+  applyGeneratedOnboardingAiConfigIfEmpty: vi.fn().mockResolvedValue(undefined),
+  onboardingAiConfigFromProfile: () => ({}),
+  hasOnboardingProfileFacts: () => false
+}));
 
 import { commit } from '../catalogImportService.js';
 

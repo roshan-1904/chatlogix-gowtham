@@ -1,4 +1,4 @@
-import type { AuthResponse, RefreshResponse, SendCodeResponse } from './types';
+import type { AuthResponse, RefreshResponse, SendCodeResponse, SignupResponse } from './types';
 
 export interface AuthApiConfig {
   baseURL: string;
@@ -15,23 +15,18 @@ export class AuthApi {
   }
 
   async sendCode(phoneNumber: string, recaptchaToken?: string): Promise<SendCodeResponse> {
-    // Get reCAPTCHA token if not provided
     let token = recaptchaToken;
     if (!token && this.getRecaptchaToken) {
       try {
         token = await this.getRecaptchaToken();
       } catch (error) {
-        // If reCAPTCHA fails but token is optional, continue without it
-        // Backend will handle the validation
         console.warn('reCAPTCHA token not available:', error);
       }
     }
 
     const response = await fetch(`${this.baseURL}/auth/send-code`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
       body: JSON.stringify({
         phoneNumber,
@@ -54,20 +49,34 @@ export class AuthApi {
   ): Promise<AuthResponse> {
     const response = await fetch(`${this.baseURL}/auth/verify-code`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({
-        phoneNumber,
-        sessionInfo,
-        code,
-      }),
+      body: JSON.stringify({ phoneNumber, sessionInfo, code }),
     });
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ message: 'Failed to verify code' }));
       throw new Error(error.message || `HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async signupVerify(
+    phoneNumber: string,
+    sessionInfo: string,
+    code: string
+  ): Promise<SignupResponse> {
+    const response = await fetch(`${this.baseURL}/auth/signup/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ phoneNumber, sessionInfo, code }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Failed to create account' }));
+      throw new Error(error.message || error.error || `HTTP ${response.status}: ${response.statusText}`);
     }
 
     return response.json();

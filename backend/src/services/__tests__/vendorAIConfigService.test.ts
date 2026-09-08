@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { buildAIPromptsUpdate } from '../vendorAIConfigService.js';
+import {
+  buildAIPromptsUpdate,
+  buildOnboardingShopBrief,
+  generateOnboardingAiConfig,
+  isPlaceholderShopName,
+  mergeHoursIntoDelivery
+} from '../vendorAIConfigService.js';
 
 // Phase 0.5.1 fix: PUT /api/vendors/:id/ai-prompts used to silently drop
 // `aiProducts`, `aiContentResponsibilities`, `aiContentConversationRules`,
@@ -80,5 +86,54 @@ describe('buildAIPromptsUpdate — round-trip allow-list', () => {
     expect(update.aiContentResponsibilities).toBe('r');
     expect(update.aiContentConversationRules).toBe('cr');
     expect(update.aiContentImportantInstructions).toBe('ii');
+  });
+});
+
+describe('generateOnboardingAiConfig', () => {
+  it('builds greeting from shop name and category', () => {
+    const cfg = generateOnboardingAiConfig({
+      businessName: 'Priya Home Bakery',
+      category: 'Food',
+      languageHint: 'en',
+      city: 'Coimbatore',
+      deliveryNotes: 'City-wide delivery'
+    });
+    expect(cfg.botName).toContain('Priya Home Bakery');
+    expect(cfg.greeting).toContain('Priya Home Bakery');
+    expect(cfg.personality).toMatch(/helpful/i);
+    expect(cfg.pickupDeliveryAddress).toBe('Coimbatore');
+    expect(cfg.contentImportantInstructions).toMatch(/Priya Home Bakery/i);
+    expect(cfg.contentImportantInstructions).toMatch(/Coimbatore/);
+    expect(cfg.contentImportantInstructions).toMatch(/City-wide delivery/);
+    expect(cfg.deliveryInstructions).toBe('City-wide delivery');
+  });
+
+  it('merges hours into delivery notes and writes a shop brief', () => {
+    expect(mergeHoursIntoDelivery('Pickup only', 'Mon–Sat 10am–8pm')).toBe(
+      'Pickup only. Hours: Mon–Sat 10am–8pm'
+    );
+    expect(mergeHoursIntoDelivery('Hours: 9am–5pm', 'Mon–Sat 10am–8pm')).toBe('Hours: 9am–5pm');
+    const brief = buildOnboardingShopBrief({
+      businessName: 'Priya Home Bakery',
+      category: 'Food',
+      city: 'Coimbatore',
+      hours: '10am–8pm',
+      address: '12 MG Road'
+    });
+    expect(brief).toMatch(/food shop/i);
+    expect(brief).toMatch(/12 MG Road/);
+    expect(brief).toMatch(/10am–8pm/);
+    const cfg = generateOnboardingAiConfig({
+      businessName: 'Priya Home Bakery',
+      hours: '10am–8pm',
+      deliveryNotes: 'Pickup only'
+    });
+    expect(cfg.deliveryInstructions).toBe('Pickup only. Hours: 10am–8pm');
+  });
+
+  it('treats empty and generic names as placeholders', () => {
+    expect(isPlaceholderShopName('')).toBe(true);
+    expect(isPlaceholderShopName('Shop')).toBe(true);
+    expect(isPlaceholderShopName('Priya Home Bakery')).toBe(false);
   });
 });

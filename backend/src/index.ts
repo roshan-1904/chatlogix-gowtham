@@ -19,6 +19,7 @@ import { catalogImportRouter } from './routes/catalogImport.js';
 import swaggerUi from 'swagger-ui-express';
 import { openApiSpec } from './docs/openapi.js';
 import { authRouter } from './routes/auth.js';
+import { vendorOnboardingRouter } from './routes/vendorOnboarding.js';
 import { 
   enhancedGlobalErrorHandler, 
   notFoundHandler, 
@@ -81,6 +82,7 @@ async function bootstrap() {
 
   app.use('/api/auth', authRouter);
   app.use('/api/vendors', authenticate, vendorsRouter);
+  app.use('/api/vendors', authenticate, vendorOnboardingRouter);
   app.use('/api/conversations', authenticate, conversationsRouter);
   app.use('/api/messages', authenticate, messagesRouter);
   app.use('/api/usage', authenticate, usageRouter);

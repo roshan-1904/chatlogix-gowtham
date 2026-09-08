@@ -146,17 +146,18 @@ export interface PresignedUploadResult {
   presignedUrl: string;
   expiresAt: string;
   kind: ImportUploadKind;
+  storage: 's3' | 'local';
 }
 
-export async function createPresignedUploadUrl(
-  input: PresignedUploadRequest
-): Promise<PresignedUploadResult> {
-  const bucket = env.CATALOG_IMPORT_S3_BUCKET;
-  if (!bucket) {
-    throw new ImportStorageError(503, 'BUCKET_NOT_CONFIGURED', 'Catalog import bucket is not configured');
-  }
-  validateBucketName(bucket);
+function catalogImportBucket(): string | undefined {
+  const bucket = env.CATALOG_IMPORT_S3_BUCKET?.trim();
+  return bucket || undefined;
+}
 
+function prepareUpload(input: PresignedUploadRequest): {
+  kind: ImportUploadKind;
+  s3Key: string;
+} {
   const kind = classify(input.contentType);
   if (!kind) {
     throw new ImportStorageError(415, 'UNSUPPORTED_MEDIA_TYPE', `Content type ${input.contentType} is not allowed`);
@@ -168,7 +169,26 @@ export async function createPresignedUploadUrl(
   }
 
   const safeName = sanitizeFilename(input.filename);
-  const s3Key = `imports/${input.vendorId}/${input.jobId}/${randomUUID()}-${safeName}`;
+  return {
+    kind,
+    s3Key: `imports/${input.vendorId}/${input.jobId}/${randomUUID()}-${safeName}`
+  };
+}
+
+export async function createPresignedUploadUrl(
+  input: PresignedUploadRequest
+): Promise<PresignedUploadResult> {
+  const { kind, s3Key } = prepareUpload(input);
+  const expiresAt = new Date(Date.now() + PRESIGNED_URL_EXPIRY_SECONDS * 1000).toISOString();
+  const bucket = catalogImportBucket();
+
+  if (!bucket) {
+    if (env.NODE_ENV === 'production') {
+      throw new ImportStorageError(503, 'BUCKET_NOT_CONFIGURED', 'Catalog import bucket is not configured');
+    }
+    return { s3Key, presignedUrl: '', expiresAt, kind, storage: 'local' };
+  }
+  validateBucketName(bucket);
 
   const command = new PutObjectCommand({
     Bucket: bucket,
@@ -210,7 +230,5 @@ export async function createPresignedUploadUrl(
     throw mapPresignError(err);
   }
 
-  const expiresAt = new Date(Date.now() + PRESIGNED_URL_EXPIRY_SECONDS * 1000).toISOString();
-
-  return { s3Key, presignedUrl, expiresAt, kind };
+  return { s3Key, presignedUrl, expiresAt, kind, storage: 's3' };
 }

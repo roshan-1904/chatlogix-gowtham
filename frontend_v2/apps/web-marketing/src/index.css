@@ -1,0 +1,298 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: Inter, system-ui, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #111827;
+  background-color: #ffffff;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 5rem;
+}
+
+.marketing-snap-scroll {
+  scroll-padding-top: 0;
+}
+
+html.marketing-snap-active,
+html.marketing-snap-active body {
+  overflow: hidden;
+  height: 100%;
+}
+
+html.marketing-snap-active #root {
+  height: 100%;
+}
+
+/** Shared letter-spacing / word-spacing for hero + all section titles. */
+.section-title {
+  letter-spacing: -0.02em;
+  word-spacing: 0.04em;
+}
+
+@media (min-width: 640px) {
+  .section-title {
+    letter-spacing: -0.015em;
+    word-spacing: 0.05em;
+  }
+}
+
+@media (min-width: 1024px) {
+  .section-title {
+    letter-spacing: -0.01em;
+    word-spacing: 0.06em;
+  }
+}
+
+@media (min-width: 1536px) {
+  .section-title {
+    letter-spacing: -0.005em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .marketing-snap-scroll {
+    scroll-snap-type: none;
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/** Short laptop/tablet landscape: shrink hero phones so headline + callouts fit one snap section. */
+@media (max-height: 860px) and (min-width: 1024px) {
+  .hero-phone-figure {
+    height: min(22rem, calc((100dvh - 4rem) * 0.48)) !important;
+    max-height: min(22rem, calc((100dvh - 4rem) * 0.48)) !important;
+    width: min(100%, calc(min(22rem, calc((100dvh - 4rem) * 0.48)) * 320 / 520)) !important;
+    max-width: min(100%, calc(min(22rem, calc((100dvh - 4rem) * 0.48)) * 320 / 520)) !important;
+  }
+
+  .hero-short-hide {
+    display: none !important;
+  }
+
+  .hero-snap-inner h1 {
+    font-size: 2.35rem;
+    line-height: 1.08;
+  }
+}
+
+/** Hero phone demos: never show scrollbars inside the shell. */
+.hero-phone-figure .phone-demo-scroll {
+  overflow: hidden;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.hero-phone-figure .phone-demo-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/** Mobile hero panel 2: taller phones in their own snap section. */
+@media (max-width: 1023px) {
+  .hero-mobile-preview-panel .hero-mobile-preview {
+    max-width: min(100%, 22rem);
+  }
+
+  .hero-mobile-preview-panel .hero-phone-figure {
+    height: min(21rem, calc((100dvh - 4rem - env(safe-area-inset-bottom) - 4.5rem) * 0.6)) !important;
+    max-height: min(21rem, calc((100dvh - 4rem - env(safe-area-inset-bottom) - 4.5rem) * 0.6)) !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
+
+@media (max-width: 1023px) and (min-width: 640px) {
+  .hero-mobile-preview-panel .hero-mobile-preview {
+    max-width: min(100%, 24rem);
+  }
+
+  .hero-mobile-preview-panel .hero-phone-figure {
+    height: min(23rem, calc((100dvh - 4rem - env(safe-area-inset-bottom) - 4.5rem) * 0.64)) !important;
+    max-height: min(23rem, calc((100dvh - 4rem - env(safe-area-inset-bottom) - 4.5rem) * 0.64)) !important;
+  }
+}
+
+/** Problem section: mini WhatsApp previews scale with viewport height. */
+.problem-card-preview-area {
+  --problem-area-h: min(14rem, calc((100dvh - 4rem - env(safe-area-inset-bottom) - 4.5rem) * 0.22));
+  height: var(--problem-area-h);
+  min-height: var(--problem-area-h);
+}
+
+.problem-preview-frame {
+  --problem-preview-h: min(11.5rem, calc((100dvh - 4rem - env(safe-area-inset-bottom) - 4.5rem) * 0.17));
+  height: var(--problem-preview-h);
+  max-height: var(--problem-preview-h);
+  width: min(100%, calc(var(--problem-preview-h) * 11.5 / 9.75));
+  max-width: min(14.5rem, calc(var(--problem-preview-h) * 11.5 / 9.75));
+}
+
+@media (min-width: 640px) {
+  .problem-card-preview-area {
+    --problem-area-h: min(16.5rem, calc((100dvh - 4rem) * 0.25));
+  }
+
+  .problem-preview-frame {
+    --problem-preview-h: min(13.5rem, calc((100dvh - 4rem) * 0.21));
+  }
+}
+
+@media (min-width: 768px) {
+  .problem-card-preview-area {
+    --problem-area-h: min(18.5rem, calc((100dvh - 4rem) * 0.28));
+  }
+
+  .problem-preview-frame {
+    --problem-preview-h: min(15rem, calc((100dvh - 4rem) * 0.24));
+  }
+}
+
+@media (min-width: 1024px) {
+  .problem-card-preview-area {
+    --problem-area-h: min(20.5rem, calc((100dvh - 4rem) * 0.32));
+  }
+
+  .problem-preview-frame {
+    --problem-preview-h: min(16.5rem, calc((100dvh - 4rem) * 0.28));
+  }
+}
+
+@media (min-width: 1280px) {
+  .problem-card-preview-area {
+    --problem-area-h: min(22rem, calc((100dvh - 4rem) * 0.34));
+  }
+
+  .problem-preview-frame {
+    --problem-preview-h: min(18rem, calc((100dvh - 4rem) * 0.3));
+  }
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+.chat-canvas {
+  background-color: #ece5dd;
+}
+
+/** Same popup card on both hero phones — size is locked, copy cannot grow it. */
+.hero-demo-stat-overlay {
+  container-type: size;
+}
+
+.hero-demo-stat-card {
+  box-sizing: border-box;
+  display: flex;
+  width: min(14.75rem, 86%);
+  height: min(13.5rem, 68%);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 0.75rem 0.85rem 0.85rem;
+  text-align: center;
+}
+
+.hero-demo-stat-emoji {
+  display: block;
+  font-size: clamp(2.35rem, 28cqmin, 3.65rem);
+  line-height: 1;
+}
+
+.hero-demo-stat-headline {
+  margin-top: 0.7rem;
+  min-height: 2.45em;
+  font-size: clamp(0.9375rem, 8.4cqmin, 1.125rem);
+  font-weight: 700;
+  line-height: 1.22;
+}
+
+.hero-demo-stat-body {
+  margin-top: 0.2rem;
+  min-height: 2.55em;
+  font-size: clamp(0.75rem, 6.2cqmin, 0.875rem);
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scrollUnroll {
+  from {
+    opacity: 0;
+    transform: scaleY(0.72) scaleX(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scaleY(1) scaleX(1);
+  }
+}
+
+@keyframes arrowBounceUp {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes arrowBounceRight {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(5px);
+  }
+}
+
+@keyframes statPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: inset 0 2px 8px rgba(7, 35, 73, 0.06), 0 0 0 0 rgba(245, 158, 11, 0);
+  }
+  50% {
+    transform: scale(1.03);
+    box-shadow: inset 0 2px 8px rgba(7, 35, 73, 0.06), 0 0 0 4px rgba(245, 158, 11, 0.2);
+  }
+}

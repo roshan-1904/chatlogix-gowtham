@@ -27,11 +27,108 @@ export const ExtractedProductRowSchema = z.object({
 
 export type ExtractedProductRow = z.infer<typeof ExtractedProductRowSchema>;
 
+export const VENDOR_PROFILE_CATEGORIES = [
+  'Food',
+  'Retail',
+  'Services',
+  'Healthcare',
+  'Education',
+  'Other'
+] as const;
+export type VendorProfileCategory = (typeof VENDOR_PROFILE_CATEGORIES)[number];
+
+export type VendorProfileLanguageHint = 'ta' | 'hi' | 'en';
+
+export type VendorProfileField<T = string> = { value: T | null; confidence: number };
+
+const CATEGORY_ALIASES: Record<string, VendorProfileCategory> = {
+  food: 'Food',
+  bakery: 'Food',
+  restaurant: 'Food',
+  cafe: 'Food',
+  café: 'Food',
+  grocery: 'Food',
+  sweets: 'Food',
+  retail: 'Retail',
+  garment: 'Retail',
+  apparel: 'Retail',
+  electronics: 'Retail',
+  services: 'Services',
+  healthcare: 'Healthcare',
+  clinic: 'Healthcare',
+  hospital: 'Healthcare',
+  education: 'Education',
+  school: 'Education',
+  other: 'Other'
+};
+
+const LANGUAGE_ALIASES: Record<string, VendorProfileLanguageHint> = {
+  ta: 'ta',
+  tamil: 'ta',
+  tamizh: 'ta',
+  hi: 'hi',
+  hindi: 'hi',
+  en: 'en',
+  eng: 'en',
+  english: 'en'
+};
+
+export function coerceVendorProfileCategory(raw: string | null | undefined): VendorProfileCategory | null {
+  if (raw == null) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const exact = VENDOR_PROFILE_CATEGORIES.find((c) => c.toLowerCase() === trimmed.toLowerCase());
+  if (exact) return exact;
+  return CATEGORY_ALIASES[trimmed.toLowerCase()] ?? null;
+}
+
+export function coerceLanguageHint(raw: string | null | undefined): VendorProfileLanguageHint | null {
+  if (raw == null) return null;
+  const trimmed = raw.trim().toLowerCase();
+  if (!trimmed) return null;
+  return LANGUAGE_ALIASES[trimmed] ?? null;
+}
+
+const VendorProfileFieldSchema = FieldValue(z.string().nullable());
+
+const CategoryFieldSchema = VendorProfileFieldSchema.transform((field) => ({
+  value: coerceVendorProfileCategory(field.value),
+  confidence: field.confidence
+}));
+
+const LanguageHintFieldSchema = VendorProfileFieldSchema.transform((field) => ({
+  value: coerceLanguageHint(field.value),
+  confidence: field.confidence
+}));
+
+export const ExtractedVendorProfileSchema = z.object({
+  businessName: VendorProfileFieldSchema.optional(),
+  category: CategoryFieldSchema.optional(),
+  address: VendorProfileFieldSchema.optional(),
+  city: VendorProfileFieldSchema.optional(),
+  hours: VendorProfileFieldSchema.optional(),
+  deliveryNotes: VendorProfileFieldSchema.optional(),
+  languageHint: LanguageHintFieldSchema.optional()
+});
+
+export type ExtractedVendorProfile = z.infer<typeof ExtractedVendorProfileSchema>;
+
 export const VisionResponseSchema = z.object({
-  products: z.array(ExtractedProductRowSchema).max(60)
+  products: z.array(ExtractedProductRowSchema).max(60),
+  vendorProfile: ExtractedVendorProfileSchema.optional()
 });
 
 export type VisionResponse = z.infer<typeof VisionResponseSchema>;
+
+export type MergedVendorProfile = {
+  businessName: VendorProfileField;
+  category: VendorProfileField<VendorProfileCategory>;
+  address: VendorProfileField;
+  city: VendorProfileField;
+  hours: VendorProfileField;
+  deliveryNotes: VendorProfileField;
+  languageHint: VendorProfileField<VendorProfileLanguageHint>;
+};
 
 export interface VisionCallInput {
   imageBuffer: Buffer;
@@ -39,10 +136,12 @@ export interface VisionCallInput {
   category?: string;
   languageHint?: 'ta' | 'hi' | 'en';
   pageIndex?: number;
+  maxProducts?: number;
 }
 
 export interface VisionCallResult {
   products: ExtractedProductRow[];
+  vendorProfile?: ExtractedVendorProfile;
   cost: CostResult;
 }
 
@@ -64,7 +163,7 @@ export async function callVisionExtraction(input: VisionCallInput): Promise<Visi
     throw new VisionClientError('OPENAI_NOT_CONFIGURED', 'OPENAI_API_KEY is not set');
   }
 
-  const systemPrompt = getExtractionPrompt(input.category, input.languageHint);
+  const systemPrompt = getExtractionPrompt(input.category, input.languageHint, input.maxProducts);
   const model = env.VISION_EXTRACTION_MODEL;
 
   const completion = await openai.chat.completions.create({
@@ -76,7 +175,7 @@ export async function callVisionExtraction(input: VisionCallInput): Promise<Visi
         content: [
           {
             type: 'text',
-            text: 'Extract products from this image. Return only the JSON object per the contract.'
+            text: 'Extract products and any printed shop details from this image. Return only the JSON object per the contract.'
           },
           {
             type: 'image_url',
@@ -103,16 +202,26 @@ export async function callVisionExtraction(input: VisionCallInput): Promise<Visi
     parsed = JSON.parse(raw);
   } catch (err) {
     logger.warn({ err, pageIndex: input.pageIndex, snippet: raw.slice(0, 200) }, 'vision_json_parse_failed');
-    return { products: [], cost };
+    return { products: [], vendorProfile: undefined, cost };
   }
 
-  const shaped = VisionResponseSchema.safeParse(parsed);
-  if (!shaped.success) {
+  const productsShape = z
+    .object({ products: z.array(ExtractedProductRowSchema).max(60).optional() })
+    .safeParse(parsed);
+  if (!productsShape.success) {
     logger.warn(
-      { pageIndex: input.pageIndex, issues: shaped.error.issues.slice(0, 5) },
+      { pageIndex: input.pageIndex, issues: productsShape.error.issues.slice(0, 5) },
       'vision_response_shape_invalid'
     );
-    return { products: [], cost };
   }
-  return { products: shaped.data.products, cost };
+
+  const profileShape = z
+    .object({ vendorProfile: ExtractedVendorProfileSchema.optional() })
+    .safeParse(parsed);
+
+  return {
+    products: productsShape.success ? (productsShape.data.products ?? []) : [],
+    vendorProfile: profileShape.success ? profileShape.data.vendorProfile : undefined,
+    cost
+  };
 }
