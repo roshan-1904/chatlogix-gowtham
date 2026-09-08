@@ -1,5 +1,13 @@
-const vendorOrigin = import.meta.env.VITE_VENDOR_APP_ORIGIN ?? 'http://127.0.0.1:3000';
-const siteOrigin = import.meta.env.VITE_SITE_ORIGIN ?? 'http://127.0.0.1:3002';
+const vendorOrigin = (
+  import.meta.env.VITE_VENDOR_APP_ORIGIN
+  ?? (import.meta.env.PROD ? 'https://app.chatlogix.in' : 'http://127.0.0.1:3000')
+).replace(/\/$/, '');
+
+const siteOrigin = (
+  import.meta.env.VITE_SITE_ORIGIN
+  ?? (import.meta.env.PROD ? 'https://www.chatlogix.in' : 'http://127.0.0.1:3002')
+).replace(/\/$/, '');
+
 const supportWhatsApp = import.meta.env.VITE_SUPPORT_WHATSAPP?.trim() ?? '';
 
 export const site = {
@@ -7,8 +15,12 @@ export const site = {
   siteOrigin,
   supportWhatsApp,
   urls: {
-    tryFree: `${vendorOrigin.replace(/\/$/, '')}/signup`,
-    login: `${vendorOrigin.replace(/\/$/, '')}/login`,
+    home: siteOrigin,
+    tryFree: `${vendorOrigin}/signup`,
+    login: `${vendorOrigin}/login`,
+    privacy: `${siteOrigin}/privacy`,
+    about: `${siteOrigin}/about`,
+    terms: `${siteOrigin}/terms`,
     talkToUs: supportWhatsApp
       ? `https://wa.me/${supportWhatsApp.replace(/\D/g, '')}`
       : null,

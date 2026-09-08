@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { MarketingLayout } from '../components/MarketingLayout';
 import { usePageMeta } from '../hooks/usePageMeta';
 import { privacyLastUpdated, privacyMeta } from '../copy';
+import { site } from '../lib/site';
 
 export function Privacy() {
   usePageMeta(privacyMeta);
@@ -123,7 +124,10 @@ export function Privacy() {
                 <strong>Email:</strong> privacy@chatlogix.in
               </p>
               <p className="mt-1">
-                <strong>Website:</strong> https://chatlogix.in
+                <strong>Website:</strong>{' '}
+                <a href={site.urls.home} className="text-primary-500 hover:opacity-80">
+                  {site.urls.home}
+                </a>
               </p>
             </div>
           </section>
