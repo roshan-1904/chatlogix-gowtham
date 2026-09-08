@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
 import { useLogin, useAuth } from '@chatlogix/auth';
-import { Badge } from '@chatlogix/ui';
+import { Badge, BrandLogo } from '@chatlogix/ui';
 import { normalizePhoneToE164 } from '@chatlogix/utils';
 import { PhoneLoginForm } from '../../components/auth/PhoneLoginForm';
 import { OtpVerificationForm } from '../../components/auth/OtpVerificationForm';
@@ -123,11 +123,8 @@ export function Signup() {
 
       <div className="flex flex-1 flex-col justify-center bg-white px-5 py-10 sm:px-10 lg:w-[40%] lg:px-16">
         <div className="mx-auto w-full max-w-md">
-          <div className="mb-6 flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-500">
-              <span className="text-lg font-bold text-white">C</span>
-            </div>
-            <span className="text-xl font-semibold text-gray-900">ChatLogix</span>
+          <div className="mb-6">
+            <BrandLogo className="h-9 w-auto" />
           </div>
 
           {step === 'phone' ? (

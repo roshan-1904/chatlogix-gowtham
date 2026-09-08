@@ -2,21 +2,17 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { navLinks, site } from '../lib/site';
 import { pageInnerClass } from '../lib/pageLayout';
+import { BrandLogo } from '@chatlogix/ui';
 import { PortalCta } from './PortalCta';
-import { TryChatIcon } from './try/TryIcons';
 
 function BrandMark() {
   return (
     <Link
       to="/"
-      className="flex min-h-[44px] shrink-0 items-center gap-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 lg:justify-self-start"
+      className="flex min-h-[48px] shrink-0 items-center rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 lg:justify-self-start"
     >
-      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e7f6f1] text-[#128C7E]">
-        <TryChatIcon className="h-[18px] w-[18px]" />
-      </span>
-      <span className="hidden font-display text-[17px] font-extrabold tracking-tight text-primary-500 min-[380px]:inline">
-        Chat<span className="text-[#128C7E]">Logix</span>
-      </span>
+      <BrandLogo variant="icon" className="h-11 w-11 min-[380px]:hidden" />
+      <BrandLogo className="hidden h-11 w-auto min-[380px]:block sm:h-12 lg:h-[3.25rem]" />
     </Link>
   );
 }
@@ -25,8 +21,8 @@ function HeaderTryFree({ className = '' }: { className?: string }) {
   return (
     <PortalCta
       href={site.urls.tryFree}
-      size="sm"
-      className={`!min-h-10 gap-1.5 px-4 text-[13px] font-semibold ${className}`}
+      size="md"
+      className={`!min-h-11 gap-1.5 rounded-full px-5 text-[15px] font-semibold ${className}`}
     >
       Try Free
       <span aria-hidden>→</span>
@@ -70,11 +66,11 @@ export function MarketingHeader({ pinned = false }: { pinned?: boolean }) {
       }`}
     >
       <div
-        className={`flex h-16 items-center justify-between gap-3 lg:grid lg:grid-cols-[1fr_auto_1fr] ${pageInnerClass}`}
+        className={`flex h-[var(--marketing-header-h)] items-center justify-between gap-4 lg:grid lg:grid-cols-[1fr_auto_1fr] ${pageInnerClass}`}
       >
         <BrandMark />
 
-        <nav className="hidden items-center justify-center gap-1 lg:flex" aria-label="Primary">
+        <nav className="hidden items-center justify-center gap-1.5 lg:flex" aria-label="Primary">
           {navLinks.map((link) => {
             const isActive = activeHref === link.href || activeHref === link.href.replace(/^\//, '');
             return (
@@ -82,10 +78,10 @@ export function MarketingHeader({ pinned = false }: { pinned?: boolean }) {
                 key={link.href}
                 href={link.href}
                 onClick={() => setActiveHref(link.href)}
-                className={`inline-flex h-9 items-center whitespace-nowrap rounded-full px-3.5 text-[13px] font-semibold tracking-tight transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${
+                className={`inline-flex h-11 items-center whitespace-nowrap rounded-full px-4 text-[15px] font-semibold tracking-tight transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 xl:px-5 xl:text-base ${
                   isActive
                     ? 'bg-[#e7f6f1] text-[#128C7E]'
-                    : 'text-primary-500/70 hover:bg-[#e7f6f1]/70 hover:text-[#128C7E]'
+                    : 'text-primary-500/80 hover:bg-[#e7f6f1]/70 hover:text-[#128C7E]'
                 }`}
               >
                 {link.label}
@@ -95,33 +91,33 @@ export function MarketingHeader({ pinned = false }: { pinned?: boolean }) {
         </nav>
 
         <div className="flex items-center justify-self-end gap-2">
-          <div className="hidden items-center gap-1 lg:flex">
+          <div className="hidden items-center gap-1.5 lg:flex">
             <PortalCta
               href={site.urls.login}
               variant="ghost"
-              size="sm"
-              className="!min-h-10 border-0 bg-transparent px-3.5 text-[13px] font-semibold text-primary-500 hover:bg-[#e7f6f1] hover:text-[#128C7E]"
+              size="md"
+              className="!min-h-11 border-0 bg-transparent px-4 text-[15px] font-semibold text-primary-500 hover:bg-[#e7f6f1] hover:text-[#128C7E]"
             >
               Login
             </PortalCta>
             <HeaderTryFree />
           </div>
           <div className="flex items-center gap-2 lg:hidden">
-            <HeaderTryFree className="!px-3" />
+            <HeaderTryFree className="!px-4" />
             <button
               type="button"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-primary-500 hover:bg-[#e7f6f1] focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full text-primary-500 hover:bg-[#e7f6f1] focus:outline-none focus:ring-2 focus:ring-primary-500"
               aria-expanded={menuOpen}
               aria-controls="mobile-nav"
               aria-label={menuOpen ? 'Close menu' : 'Open menu'}
               onClick={() => setMenuOpen((open) => !open)}
             >
               {menuOpen ? (
-                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
+                <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               ) : (
-                <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
+                <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M4 7h16M4 12h16M4 17h16" />
                 </svg>
               )}
@@ -141,7 +137,7 @@ export function MarketingHeader({ pinned = false }: { pinned?: boolean }) {
               <li key={link.href}>
                 <a
                   href={link.href}
-                  className="block rounded-xl px-3 py-3 text-[14px] font-semibold text-primary-500 hover:bg-[#e7f6f1] hover:text-[#128C7E]"
+                  className="block rounded-xl px-3 py-3.5 text-base font-semibold text-primary-500 hover:bg-[#e7f6f1] hover:text-[#128C7E]"
                   onClick={() => {
                     setActiveHref(link.href);
                     setMenuOpen(false);
@@ -154,7 +150,7 @@ export function MarketingHeader({ pinned = false }: { pinned?: boolean }) {
             <li className="pt-1">
               <a
                 href={site.urls.login}
-                className="block rounded-xl px-3 py-3 text-[14px] font-semibold text-primary-500 hover:bg-[#e7f6f1] hover:text-[#128C7E]"
+                className="block rounded-xl px-3 py-3.5 text-base font-semibold text-primary-500 hover:bg-[#e7f6f1] hover:text-[#128C7E]"
                 onClick={() => setMenuOpen(false)}
               >
                 Login

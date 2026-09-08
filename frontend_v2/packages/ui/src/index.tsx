@@ -8,6 +8,9 @@ import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from 'react
 export { Modal } from './Modal';
 export type { ModalProps } from './Modal';
 
+export { BrandLogo } from './BrandLogo';
+export type { BrandLogoProps, BrandLogoVariant } from './BrandLogo';
+
 // Button
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost';
 export type ButtonSize = 'sm' | 'md' | 'lg';

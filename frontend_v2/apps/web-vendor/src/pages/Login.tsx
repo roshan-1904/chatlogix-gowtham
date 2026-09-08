@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useLogin, useAuth } from '@chatlogix/auth';
+import { BrandLogo } from '@chatlogix/ui';
 import { z } from 'zod';
 import { normalizePhoneToE164 } from '@chatlogix/utils';
 import { PhoneLoginForm } from '../components/auth/PhoneLoginForm';
@@ -171,6 +172,7 @@ export function Login() {
       <div className="hidden lg:flex lg:flex-[0.65] lg:flex-col lg:justify-center lg:px-8 xl:px-12 bg-primary-500 text-white">
         <div className="max-w-xl mx-auto">
           <div className="mb-6">
+            <BrandLogo variant="icon" className="mb-6 h-12 w-12 rounded-lg" />
             <h1 className="text-3xl xl:text-4xl font-bold mb-3">Welcome to ChatLogix</h1>
             <p className="text-base xl:text-lg text-white/90">
               Streamline your customer conversations, orders, and business workflows <br className="hidden xl:block" />- all in one powerful platform.
@@ -233,11 +235,8 @@ export function Login() {
       <div className="flex-1 lg:flex-[0.35] flex flex-col justify-center py-8 sm:py-10 lg:py-12 px-4 sm:px-6 lg:px-12 xl:px-20 bg-gray-50">
         <div className="mx-auto w-full max-w-lg">
           <div className="mb-6 sm:mb-8">
-            <div className="flex items-center gap-2 mb-3 lg:hidden">
-              <div className="w-10 h-10 rounded-lg bg-primary-500 flex items-center justify-center">
-                <span className="text-white font-bold text-xl">C</span>
-              </div>
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">ChatLogix</h1>
+            <div className="mb-5">
+              <BrandLogo className="h-12 w-auto sm:h-14 lg:h-16" />
             </div>
             <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
               {step === 'phone' ? 'Welcome back' : 'Verify your phone'}

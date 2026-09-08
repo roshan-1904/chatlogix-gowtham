@@ -1,6 +1,6 @@
-/** Full-height snap target below the 4rem marketing header. */
+/** Full-height snap target below the marketing header (`--marketing-header-h`). */
 export const SNAP_SECTION_HEIGHT =
-  'h-[calc(100dvh-4rem)] max-lg:h-[calc(100dvh-4rem-env(safe-area-inset-bottom)-4.5rem)]';
+  'h-[calc(100dvh-var(--marketing-header-h))] max-lg:h-[calc(100dvh-var(--marketing-header-h)-env(safe-area-inset-bottom)-4.5rem)]';
 
 export const snapSectionClass = [
   SNAP_SECTION_HEIGHT,
@@ -34,28 +34,28 @@ export const heroPreviewSnapSectionClass = [
 /** Stacked mobile/tablet: shorter phones so copy + preview fit one viewport. Desktop: scale by breakpoint. */
 export const heroPhoneHeightClass = [
   'hero-phone-figure',
-  'h-[min(11rem,calc((100dvh-4rem-env(safe-area-inset-bottom)-4.5rem)*0.32))]',
-  'max-h-[min(11rem,calc((100dvh-4rem-env(safe-area-inset-bottom)-4.5rem)*0.32))]',
-  'sm:h-[min(12.5rem,calc((100dvh-4rem-env(safe-area-inset-bottom)-4.5rem)*0.36))]',
-  'sm:max-h-[min(12.5rem,calc((100dvh-4rem-env(safe-area-inset-bottom)-4.5rem)*0.36))]',
-  'md:h-[min(14rem,calc((100dvh-4rem-env(safe-area-inset-bottom)-4.5rem)*0.40))]',
-  'md:max-h-[min(14rem,calc((100dvh-4rem-env(safe-area-inset-bottom)-4.5rem)*0.40))]',
-  'lg:h-[calc((100dvh-4rem)*0.56)]',
-  'lg:max-h-[calc((100dvh-4rem)*0.56)]',
-  'xl:h-[calc((100dvh-4rem)*0.64)]',
-  'xl:max-h-[calc((100dvh-4rem)*0.64)]',
-  '2xl:h-[calc((100dvh-4rem)*0.72)]',
-  '2xl:max-h-[calc((100dvh-4rem)*0.72)]',
+  'h-[min(11rem,calc((100dvh-var(--marketing-header-h)-env(safe-area-inset-bottom)-4.5rem)*0.32))]',
+  'max-h-[min(11rem,calc((100dvh-var(--marketing-header-h)-env(safe-area-inset-bottom)-4.5rem)*0.32))]',
+  'sm:h-[min(12.5rem,calc((100dvh-var(--marketing-header-h)-env(safe-area-inset-bottom)-4.5rem)*0.36))]',
+  'sm:max-h-[min(12.5rem,calc((100dvh-var(--marketing-header-h)-env(safe-area-inset-bottom)-4.5rem)*0.36))]',
+  'md:h-[min(14rem,calc((100dvh-var(--marketing-header-h)-env(safe-area-inset-bottom)-4.5rem)*0.40))]',
+  'md:max-h-[min(14rem,calc((100dvh-var(--marketing-header-h)-env(safe-area-inset-bottom)-4.5rem)*0.40))]',
+  'lg:h-[calc((100dvh-var(--marketing-header-h))*0.56)]',
+  'lg:max-h-[calc((100dvh-var(--marketing-header-h))*0.56)]',
+  'xl:h-[calc((100dvh-var(--marketing-header-h))*0.64)]',
+  'xl:max-h-[calc((100dvh-var(--marketing-header-h))*0.64)]',
+  '2xl:h-[calc((100dvh-var(--marketing-header-h))*0.72)]',
+  '2xl:max-h-[calc((100dvh-var(--marketing-header-h))*0.72)]',
 ].join(' ');
 
 /** Width from height × 320:520 on desktop; fill grid cell on mobile. */
 export const heroPhoneWidthClass = [
   'w-full max-w-full',
-  'lg:mx-0 lg:w-[calc((100dvh-4rem)*0.56*320/520)]',
-  'lg:max-w-[min(100%,calc((100dvh-4rem)*0.56*320/520))]',
-  'xl:w-[calc((100dvh-4rem)*0.64*320/520)]',
-  'xl:max-w-[min(100%,calc((100dvh-4rem)*0.64*320/520))]',
-  '2xl:w-[calc((100dvh-4rem)*0.72*320/520)]',
-  '2xl:max-w-[min(100%,calc((100dvh-4rem)*0.72*320/520))]',
+  'lg:mx-0 lg:w-[calc((100dvh-var(--marketing-header-h))*0.56*320/520)]',
+  'lg:max-w-[min(100%,calc((100dvh-var(--marketing-header-h))*0.56*320/520))]',
+  'xl:w-[calc((100dvh-var(--marketing-header-h))*0.64*320/520)]',
+  'xl:max-w-[min(100%,calc((100dvh-var(--marketing-header-h))*0.64*320/520))]',
+  '2xl:w-[calc((100dvh-var(--marketing-header-h))*0.72*320/520)]',
+  '2xl:max-w-[min(100%,calc((100dvh-var(--marketing-header-h))*0.72*320/520))]',
   'shrink-0',
 ].join(' ');

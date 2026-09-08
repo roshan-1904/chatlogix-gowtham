@@ -12,11 +12,12 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  --marketing-header-h: 5rem;
 }
 
 html {
   scroll-behavior: smooth;
-  scroll-padding-top: 5rem;
+  scroll-padding-top: calc(var(--marketing-header-h) + 1rem);
 }
 
 .marketing-snap-scroll {
@@ -81,10 +82,10 @@ html.marketing-snap-active #root {
 /** Short laptop/tablet landscape: shrink hero phones so headline + callouts fit one snap section. */
 @media (max-height: 860px) and (min-width: 1024px) {
   .hero-phone-figure {
-    height: min(22rem, calc((100dvh - 4rem) * 0.48)) !important;
-    max-height: min(22rem, calc((100dvh - 4rem) * 0.48)) !important;
-    width: min(100%, calc(min(22rem, calc((100dvh - 4rem) * 0.48)) * 320 / 520)) !important;
-    max-width: min(100%, calc(min(22rem, calc((100dvh - 4rem) * 0.48)) * 320 / 520)) !important;
+    height: min(22rem, calc((100dvh - var(--marketing-header-h)) * 0.48)) !important;
+    max-height: min(22rem, calc((100dvh - var(--marketing-header-h)) * 0.48)) !important;
+    width: min(100%, calc(min(22rem, calc((100dvh - var(--marketing-header-h)) * 0.48)) * 320 / 520)) !important;
+    max-width: min(100%, calc(min(22rem, calc((100dvh - var(--marketing-header-h)) * 0.48)) * 320 / 520)) !important;
   }
 
   .hero-short-hide {
@@ -115,8 +116,8 @@ html.marketing-snap-active #root {
   }
 
   .hero-mobile-preview-panel .hero-phone-figure {
-    height: min(21rem, calc((100dvh - 4rem - env(safe-area-inset-bottom) - 4.5rem) * 0.6)) !important;
-    max-height: min(21rem, calc((100dvh - 4rem - env(safe-area-inset-bottom) - 4.5rem) * 0.6)) !important;
+    height: min(21rem, calc((100dvh - var(--marketing-header-h) - env(safe-area-inset-bottom) - 4.5rem) * 0.6)) !important;
+    max-height: min(21rem, calc((100dvh - var(--marketing-header-h) - env(safe-area-inset-bottom) - 4.5rem) * 0.6)) !important;
     width: 100% !important;
     max-width: 100% !important;
   }
@@ -128,20 +129,20 @@ html.marketing-snap-active #root {
   }
 
   .hero-mobile-preview-panel .hero-phone-figure {
-    height: min(23rem, calc((100dvh - 4rem - env(safe-area-inset-bottom) - 4.5rem) * 0.64)) !important;
-    max-height: min(23rem, calc((100dvh - 4rem - env(safe-area-inset-bottom) - 4.5rem) * 0.64)) !important;
+    height: min(23rem, calc((100dvh - var(--marketing-header-h) - env(safe-area-inset-bottom) - 4.5rem) * 0.64)) !important;
+    max-height: min(23rem, calc((100dvh - var(--marketing-header-h) - env(safe-area-inset-bottom) - 4.5rem) * 0.64)) !important;
   }
 }
 
 /** Problem section: mini WhatsApp previews scale with viewport height. */
 .problem-card-preview-area {
-  --problem-area-h: min(14rem, calc((100dvh - 4rem - env(safe-area-inset-bottom) - 4.5rem) * 0.22));
+  --problem-area-h: min(14rem, calc((100dvh - var(--marketing-header-h) - env(safe-area-inset-bottom) - 4.5rem) * 0.22));
   height: var(--problem-area-h);
   min-height: var(--problem-area-h);
 }
 
 .problem-preview-frame {
-  --problem-preview-h: min(11.5rem, calc((100dvh - 4rem - env(safe-area-inset-bottom) - 4.5rem) * 0.17));
+  --problem-preview-h: min(11.5rem, calc((100dvh - var(--marketing-header-h) - env(safe-area-inset-bottom) - 4.5rem) * 0.17));
   height: var(--problem-preview-h);
   max-height: var(--problem-preview-h);
   width: min(100%, calc(var(--problem-preview-h) * 11.5 / 9.75));
@@ -150,41 +151,41 @@ html.marketing-snap-active #root {
 
 @media (min-width: 640px) {
   .problem-card-preview-area {
-    --problem-area-h: min(16.5rem, calc((100dvh - 4rem) * 0.25));
+    --problem-area-h: min(16.5rem, calc((100dvh - var(--marketing-header-h)) * 0.25));
   }
 
   .problem-preview-frame {
-    --problem-preview-h: min(13.5rem, calc((100dvh - 4rem) * 0.21));
+    --problem-preview-h: min(13.5rem, calc((100dvh - var(--marketing-header-h)) * 0.21));
   }
 }
 
 @media (min-width: 768px) {
   .problem-card-preview-area {
-    --problem-area-h: min(18.5rem, calc((100dvh - 4rem) * 0.28));
+    --problem-area-h: min(18.5rem, calc((100dvh - var(--marketing-header-h)) * 0.28));
   }
 
   .problem-preview-frame {
-    --problem-preview-h: min(15rem, calc((100dvh - 4rem) * 0.24));
+    --problem-preview-h: min(15rem, calc((100dvh - var(--marketing-header-h)) * 0.24));
   }
 }
 
 @media (min-width: 1024px) {
   .problem-card-preview-area {
-    --problem-area-h: min(20.5rem, calc((100dvh - 4rem) * 0.32));
+    --problem-area-h: min(20.5rem, calc((100dvh - var(--marketing-header-h)) * 0.32));
   }
 
   .problem-preview-frame {
-    --problem-preview-h: min(16.5rem, calc((100dvh - 4rem) * 0.28));
+    --problem-preview-h: min(16.5rem, calc((100dvh - var(--marketing-header-h)) * 0.28));
   }
 }
 
 @media (min-width: 1280px) {
   .problem-card-preview-area {
-    --problem-area-h: min(22rem, calc((100dvh - 4rem) * 0.34));
+    --problem-area-h: min(22rem, calc((100dvh - var(--marketing-header-h)) * 0.34));
   }
 
   .problem-preview-frame {
-    --problem-preview-h: min(18rem, calc((100dvh - 4rem) * 0.3));
+    --problem-preview-h: min(18rem, calc((100dvh - var(--marketing-header-h)) * 0.3));
   }
 }
 

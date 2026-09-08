@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useLogout } from '@chatlogix/auth';
-import { Button } from '@chatlogix/ui';
+import { BrandLogo, Button } from '@chatlogix/ui';
 import { onboardingCopy } from '../../components/onboarding/onboardingCopy';
 import { fetchOnboardingProfile, redirectPathForStatus } from '../../lib/onboarding';
 import { NeedHelpFooter } from '../../components/onboarding/NeedHelpFooter';
@@ -41,11 +41,8 @@ export function OnboardingRejected() {
     <div className="flex min-h-screen flex-col bg-white">
       <header className="border-b border-gray-200 px-4 py-4">
         <div className="mx-auto flex max-w-lg items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-500">
-              <span className="text-sm font-bold text-white">C</span>
-            </div>
-            <span className="text-base font-semibold text-gray-900">ChatLogix</span>
+          <div className="flex items-center">
+            <BrandLogo className="h-8 w-auto" />
           </div>
           <Button type="button" variant="ghost" size="sm" onClick={handleLogout}>
             {onboardingCopy.help.logout}

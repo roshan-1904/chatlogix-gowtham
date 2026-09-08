@@ -2,7 +2,7 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useLogout } from '@chatlogix/auth';
-import { Button } from '@chatlogix/ui';
+import { BrandLogo, Button } from '@chatlogix/ui';
 import { formatRupee, fetchTrialWallet, ONBOARDING_STEP_LABELS } from '../../lib/onboarding';
 import { NeedHelpFooter } from './NeedHelpFooter';
 import { OnboardingGuidePanel, type OnboardingGuideCopy } from './OnboardingGuidePanel';
@@ -99,11 +99,8 @@ export function OnboardingLayout({
             demoMode ? 'px-3 py-2 md:px-4 md:py-4 lg:px-8' : 'px-4 py-4 lg:px-8'
           }`}
         >
-          <Link to="/onboarding/catalog" className="flex shrink-0 items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-500">
-              <span className="text-sm font-bold text-white">C</span>
-            </div>
-            <span className="text-base font-semibold text-gray-900">ChatLogix</span>
+          <Link to="/onboarding/catalog" className="flex shrink-0 items-center">
+            <BrandLogo className="h-8 w-auto" />
           </Link>
 
           {!hideStepper && (

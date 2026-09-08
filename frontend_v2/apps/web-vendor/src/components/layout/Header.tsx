@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, useLogout } from '@chatlogix/auth';
+import { BrandLogo } from '@chatlogix/ui';
 import { apiClient } from '../../lib/api';
 
 interface VendorInfo {
@@ -80,11 +81,8 @@ export function Header({ onMenuClick }: HeaderProps) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
-            <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
-              <h1 className="text-base sm:text-lg lg:text-xl font-semibold text-gray-900 whitespace-nowrap">
-                ChatLogix
-              </h1>
-              
+            <div className="flex min-w-0 items-center">
+              <BrandLogo className="h-10 w-auto sm:h-11 lg:h-12" />
             </div>
           </div>
 
