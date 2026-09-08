@@ -42,7 +42,7 @@ vi.mock('../../db/prisma.js', () => ({
       findMany: (...args: unknown[]) => productFindMany(...args),
       update: (...args: unknown[]) => productUpdate(...args)
     },
-    $transaction: (...args: unknown[]) => transactionMock(...args),
+    $transaction: (arg: unknown) => transactionMock(arg),
     conversationMemory: { findUnique: (...args: unknown[]) => conversationMemoryFindUnique(...args) },
     customerInsights: { findUnique: (...args: unknown[]) => customerInsightsFindUnique(...args) },
     message: { findMany: (...args: unknown[]) => messageFindMany(...args) },

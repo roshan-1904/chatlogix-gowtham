@@ -159,12 +159,33 @@ export async function patchOnboarding(
 
   const step3 = mergedData.step3 as OnboardingStep3Data | undefined;
   if (step3) {
-    Object.assign(vendorUpdate, buildAIPromptsUpdate(step3));
+    Object.assign(
+      vendorUpdate,
+      buildAIPromptsUpdate({
+        botName: step3.aiBotName,
+        greeting: step3.aiGreeting,
+        personality: step3.aiPersonality,
+        closing: step3.aiClosing,
+        deliveryInstructions: step3.aiDeliveryInstructions,
+        pickupDeliveryAddress: step3.aiPickupDeliveryAddress
+      })
+    );
   }
 
   if (payload.advance) {
     nextStep = Math.min(5, (payload.step ?? vendor.onboardingStep) + 1);
-    logOnboardingFunnelEvent(`step_${vendor.onboardingStep}_completed`, { vendorId });
+    const completedEvent = (
+      {
+        1: 'step_1_completed',
+        2: 'step_2_completed',
+        3: 'step_3_completed',
+        4: 'step_4_completed',
+        5: 'step_5_completed'
+      } as const
+    )[vendor.onboardingStep as 1 | 2 | 3 | 4 | 5];
+    if (completedEvent) {
+      logOnboardingFunnelEvent(completedEvent, { vendorId });
+    }
   }
 
   vendorUpdate.onboardingStep = nextStep;

@@ -107,7 +107,10 @@ export function mergeVendorProfiles(profiles: Array<LooseVendorProfile | undefin
       }
     }
     if (best) {
-      merged[field] = { value: best.value, confidence: best.confidence } as MergedVendorProfile[typeof field];
+      (merged as Record<(typeof PROFILE_FIELDS)[number], { value: string | null; confidence: number }>)[field] = {
+        value: best.value,
+        confidence: best.confidence
+      };
     }
   }
   return merged;

@@ -299,7 +299,13 @@ function sanitizeRequestBody(body: any): any {
   return sanitized;
 }
 
-export function asyncHandler(fn: Function) {
+type AsyncRequestHandler = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => unknown | Promise<unknown>;
+
+export function asyncHandler(fn: AsyncRequestHandler) {
   return (req: Request, res: Response, next: NextFunction) => {
     Promise.resolve(fn(req, res, next)).catch((error) => {
       // Enhance error with request context

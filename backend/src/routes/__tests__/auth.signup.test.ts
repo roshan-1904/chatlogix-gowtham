@@ -111,7 +111,11 @@ describe('POST /auth/signup/verify', () => {
     });
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as {
+      token: string;
+      user: { vendorId: string; registrationStatus: string };
+      trial: { grantedPaise: number; balancePaise: number };
+    };
     expect(body.token).toBe('jwt-token');
     expect(body.user.vendorId).toBe('vendor-1');
     expect(body.user.registrationStatus).toBe('onboarding');
@@ -166,7 +170,7 @@ describe('POST /auth/signup/check-phone', () => {
     });
 
     expect(res.status).toBe(200);
-    const body = await res.json();
+    const body = (await res.json()) as { registered: boolean };
     expect(body.registered).toBe(true);
   });
 });

@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../db/prisma.js';
 import type { MergedVendorProfile } from '../lib/visionClient.js';
 import type { NormalizedProductDraft } from '../routes/schemas/catalogImport.js';
@@ -180,7 +181,7 @@ function buildContext(input: {
     address: extracted?.address ?? answerValue(answers, 'address'),
     city: extracted?.city ?? answerValue(answers, 'city'),
     hours: extracted?.hours ?? answerValue(answers, 'hours'),
-    deliveryNotes: extracted?.deliveryNotes,
+    deliveryNotes: extracted?.deliveryNotes ?? undefined,
     language: extracted?.languageHint ?? answerValue(answers, 'language'),
     fulfillment,
     deliveryArea:
@@ -643,7 +644,7 @@ export async function applyIntakeAnswers(
       }),
       ...(asString(vendorUpdate.businessName) ? { businessName: vendorUpdate.businessName as string } : {}),
       ...(asString(vendorUpdate.category) ? { category: vendorUpdate.category as string } : {}),
-      onboardingData
+      onboardingData: onboardingData as unknown as Prisma.InputJsonValue
     }
   });
 
