@@ -27,6 +27,10 @@ build/
 .next/
 out/
 
+# Scratch verification output
+.tmp-verify/
+**/.tmp-verify/
+
 # Logs
 logs/
 **/logs/
