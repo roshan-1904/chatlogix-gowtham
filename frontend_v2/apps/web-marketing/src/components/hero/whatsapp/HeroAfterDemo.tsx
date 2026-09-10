@@ -33,12 +33,12 @@ function toListItem(row: HeroAfterChatRow, id: string): ChatListItemData {
   };
 }
 
-export function HeroAfterDemo({ size = 'default' }: { size?: 'default' | 'compact' | 'dual' }) {
+export function HeroAfterDemo() {
   const reduced = usePrefersReducedMotion();
   const popupSync = useHeroDemoPopupSync();
   const popupSyncRef = useRef(popupSync);
   popupSyncRef.current = popupSync;
-  const scrollClass = size === 'dual' ? 'phone-demo-scroll overflow-hidden' : 'overflow-y-auto';
+  const scrollClass = 'phone-demo-scroll overflow-hidden';
   const [chatState, setChatState] = useState(() => emptyHeroAfterChatState(heroPreviewAfter.chats));
   const [appearanceOrder, setAppearanceOrder] = useState<string[]>([]);
   const [allDone, setAllDone] = useState(false);
@@ -148,7 +148,7 @@ export function HeroAfterDemo({ size = 'default' }: { size?: 'default' | 'compac
         : heroPreviewAfter.replyBadge;
 
   return (
-    <WhatsAppPhoneShell size={size} aria-label="ChatLogix handling multiple WhatsApp chats in parallel">
+    <WhatsAppPhoneShell aria-label="ChatLogix handling multiple WhatsApp chats in parallel">
       <div className="relative flex h-full min-w-0 flex-col overflow-hidden">
         <WaListHeader />
         <div

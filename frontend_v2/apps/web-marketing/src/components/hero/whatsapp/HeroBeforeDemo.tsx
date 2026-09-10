@@ -19,11 +19,7 @@ type Phase = 'list' | 'open' | 'typing' | 'sent' | 'back';
 const THREAD_ORDER = ['priya', 'rahul'] as const;
 const { timing } = heroPreviewBefore;
 
-interface HeroBeforeDemoProps {
-  size?: 'default' | 'compact' | 'dual';
-}
-
-export function HeroBeforeDemo({ size = 'default' }: HeroBeforeDemoProps) {
+export function HeroBeforeDemo() {
   const reduced = usePrefersReducedMotion();
   const popupSync = useHeroDemoPopupSync();
   const popupSyncRef = useRef(popupSync);
@@ -171,11 +167,10 @@ export function HeroBeforeDemo({ size = 'default' }: HeroBeforeDemoProps) {
 
   const shownMessages = thread.messages.slice(0, visibleMessages);
   const inThread = slide === 'thread';
-  const scrollClass =
-    size === 'dual' ? 'phone-demo-scroll overflow-hidden' : 'overflow-y-auto';
+  const scrollClass = 'phone-demo-scroll overflow-hidden';
 
   return (
-    <WhatsAppPhoneShell size={size} aria-label="Busy vendor manually replying while unread messages pile up">
+    <WhatsAppPhoneShell aria-label="Busy vendor manually replying while unread messages pile up">
       <div className="relative h-full min-w-0 overflow-hidden">
         <div
           className={`absolute inset-0 flex flex-col transition-transform duration-500 ease-out motion-reduce:transition-none ${

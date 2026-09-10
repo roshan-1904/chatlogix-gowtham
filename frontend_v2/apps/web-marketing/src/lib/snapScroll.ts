@@ -10,8 +10,10 @@
  * `index.css` applies the same `height: auto` release via `.marketing-snap-section` on
  * short laptops (`max-height: 860px`) and across the whole `lg`–`xl` width band
  * (1024–1279) at any height, where the grids are narrow enough to outgrow even a tall
- * viewport. It drops the container to `snap-proximity` in both bands, so `lg:snap-always`
- * below only ever applies where a section really is one viewport tall.
+ * viewport. It also turns the container's snap **off** in those bands, because every snap
+ * point is a section top and a released section can be taller than the scroller — so the
+ * `snap-y` / `lg:snap-mandatory` and `lg:snap-always` below only ever take effect where a
+ * section really is one viewport tall.
  */
 export const SNAP_SECTION_HEIGHT = [
   'max-lg:h-auto max-lg:min-h-[calc(100dvh-var(--marketing-header-h))]',
@@ -54,33 +56,4 @@ export const heroPreviewSnapSectionClass = [
   'marketing-cta-safe-area',
   'flex min-w-0 flex-col justify-center overflow-hidden',
   'py-4 sm:py-5',
-].join(' ');
-
-/** Stacked mobile/tablet: shorter phones so copy + preview fit one viewport. Desktop: scale by breakpoint. */
-export const heroPhoneHeightClass = [
-  'hero-phone-figure',
-  'h-[min(11rem,calc((100dvh-var(--marketing-header-h)-var(--marketing-sticky-cta-h))*0.32))]',
-  'max-h-[min(11rem,calc((100dvh-var(--marketing-header-h)-var(--marketing-sticky-cta-h))*0.32))]',
-  'sm:h-[min(12.5rem,calc((100dvh-var(--marketing-header-h)-var(--marketing-sticky-cta-h))*0.36))]',
-  'sm:max-h-[min(12.5rem,calc((100dvh-var(--marketing-header-h)-var(--marketing-sticky-cta-h))*0.36))]',
-  'md:h-[min(14rem,calc((100dvh-var(--marketing-header-h)-var(--marketing-sticky-cta-h))*0.40))]',
-  'md:max-h-[min(14rem,calc((100dvh-var(--marketing-header-h)-var(--marketing-sticky-cta-h))*0.40))]',
-  'lg:h-[calc((100dvh-var(--marketing-header-h))*0.56)]',
-  'lg:max-h-[calc((100dvh-var(--marketing-header-h))*0.56)]',
-  'xl:h-[calc((100dvh-var(--marketing-header-h))*0.64)]',
-  'xl:max-h-[calc((100dvh-var(--marketing-header-h))*0.64)]',
-  '2xl:h-[calc((100dvh-var(--marketing-header-h))*0.72)]',
-  '2xl:max-h-[calc((100dvh-var(--marketing-header-h))*0.72)]',
-].join(' ');
-
-/** Width from height × 320:520 on desktop; fill grid cell on mobile. */
-export const heroPhoneWidthClass = [
-  'w-full max-w-full',
-  'lg:mx-0 lg:w-[calc((100dvh-var(--marketing-header-h))*0.56*320/520)]',
-  'lg:max-w-[min(100%,calc((100dvh-var(--marketing-header-h))*0.56*320/520))]',
-  'xl:w-[calc((100dvh-var(--marketing-header-h))*0.64*320/520)]',
-  'xl:max-w-[min(100%,calc((100dvh-var(--marketing-header-h))*0.64*320/520))]',
-  '2xl:w-[calc((100dvh-var(--marketing-header-h))*0.72*320/520)]',
-  '2xl:max-w-[min(100%,calc((100dvh-var(--marketing-header-h))*0.72*320/520))]',
-  'shrink-0',
 ].join(' ');

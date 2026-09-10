@@ -3,6 +3,7 @@ import { solution } from '../../copy';
 import { CartOrderIcon } from '../hero/HeroIcons';
 import { HandDrawnUnderline } from './HandDrawnUnderline';
 import { SolutionPhoneDemo } from './SolutionPhoneDemo';
+import { PhoneDemoFrame } from '../phone/PhoneDemoFrame';
 
 const NOTE_CLASS =
   'font-handwritten font-bold leading-[1.12] text-[#072349]/80 text-[1.05rem] sm:text-[1.2rem] lg:text-[1.45rem] xl:text-[1.65rem]';
@@ -12,7 +13,10 @@ const NOTE_CLASS =
  * the visual root and `9.75rem + 0.5rem` fills it exactly, so the absolutely-positioned
  * notes can never paint on the copy column or past the viewport. The widest note line
  * ("Helps turn chats") measures ~154px at `xl`, so 9.75rem holds every note on its
- * intended two lines. At 1440 this leaves the phone at its designed 23.5rem.
+ * intended two lines.
+ *
+ * The `top-[…%]` offsets on the notes are read against the phone, which is now a true
+ * 320:520 frame, so they sit lower than they did against the old content-height frame.
  */
 const NOTE_GUTTER_PX = 'xl:px-[10.25rem]';
 const NOTE_WIDTH = 'xl:w-[9.75rem]';
@@ -159,8 +163,10 @@ export function SolutionVisual() {
         aria-hidden
       />
 
-      <div className="relative mx-auto w-[min(100%,13.25rem)] sm:w-[min(100%,15.5rem)] lg:w-[min(100%,21rem)] xl:w-[min(100%,23.5rem)]">
-        <SolutionPhoneDemo />
+      <div className="relative mx-auto w-fit">
+        <PhoneDemoFrame className="phone-demo-section">
+          <SolutionPhoneDemo />
+        </PhoneDemoFrame>
 
         {/*
           Below `xl` there is no room beside the phone for handwriting, and the three
@@ -170,7 +176,7 @@ export function SolutionVisual() {
         */}
         <div
           data-solution-note="instant"
-          className={`pointer-events-none absolute top-[5%] hidden rotate-[-3deg] xl:block ${NOTE_OFFSET_LEFT} ${NOTE_WIDTH}`}
+          className={`pointer-events-none absolute top-[10%] hidden rotate-[-3deg] xl:block ${NOTE_OFFSET_LEFT} ${NOTE_WIDTH}`}
         >
           <p className={NOTE_CLASS}>
             {callouts.instantLine1}
@@ -197,7 +203,7 @@ export function SolutionVisual() {
 
         <div
           data-solution-note="stock"
-          className={`pointer-events-none absolute top-[7%] hidden flex-col items-end rotate-[4deg] text-right xl:flex ${NOTE_OFFSET_RIGHT} ${NOTE_WIDTH}`}
+          className={`pointer-events-none absolute top-[12%] hidden flex-col items-end rotate-[4deg] text-right xl:flex ${NOTE_OFFSET_RIGHT} ${NOTE_WIDTH}`}
         >
           <IconChip>
             <CubeIcon className="h-[26px] w-[26px]" />

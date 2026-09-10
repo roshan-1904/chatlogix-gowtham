@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { hero } from '../../copy';
+import { PhoneDemoFrame } from '../phone/PhoneDemoFrame';
 
 type PreviewVariant = 'before' | 'after';
 
@@ -22,7 +23,8 @@ export function HeroPhoneColumn({
       >
         {label}
       </p>
-      <div className="relative w-full min-w-0 overflow-visible">{children}</div>
+      {/* `--phone-demo-w` is set once on `.hero-mobile-preview` so both columns match. */}
+      <PhoneDemoFrame className="relative overflow-visible">{children}</PhoneDemoFrame>
     </div>
   );
 }

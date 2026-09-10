@@ -1,58 +1,33 @@
 import type { ReactNode } from 'react';
-import { heroPhoneHeightClass, heroPhoneWidthClass } from '../../../lib/snapScroll';
 import { wa } from './whatsappChrome';
 
 interface WhatsAppPhoneShellProps {
   children: ReactNode;
   className?: string;
-  size?: 'default' | 'compact' | 'section' | 'dual';
   'aria-label'?: string;
 }
 
-const sizeStyles = {
-  default: {
-    figure: 'w-full max-w-[320px]',
-    frame: 'overflow-hidden rounded-[2rem] border-[6px]',
-    screen: 'aspect-[320/520] w-full overflow-hidden',
-    status: 'px-5 py-1.5 text-[10px]',
-  },
-  compact: {
-    figure: 'w-full max-w-[260px]',
-    frame: 'overflow-hidden rounded-[1.75rem] border-[5px]',
-    screen: 'aspect-[260/460] w-full overflow-hidden',
-    status: 'px-4 py-1 text-[9px]',
-  },
-  section: {
-    figure: 'w-full max-w-[240px]',
-    frame: 'overflow-hidden rounded-[1.65rem] border-[4px]',
-    screen: 'aspect-[240/400] w-full overflow-hidden',
-    status: 'px-3 py-1 text-[8px]',
-  },
-  dual: {
-    figure: `lg:mx-0 ${heroPhoneHeightClass} ${heroPhoneWidthClass}`,
-    frame:
-      'flex h-full w-full min-w-0 max-w-full flex-col overflow-hidden rounded-[1.5rem] border-[4px] shadow-[0_10px_28px_rgba(7,35,73,0.10)] sm:rounded-[1.75rem] sm:border-[5px] lg:rounded-[2rem] lg:border-[6px]',
-    screen:
-      'relative min-h-0 min-w-0 flex-1 overflow-hidden bg-white rounded-b-[1.2rem] sm:rounded-b-[1.4rem] lg:rounded-b-[1.55rem]',
-    status: 'shrink-0 px-5 py-1.5 text-[10px]',
-  },
-} as const;
-
+/**
+ * WhatsApp phone chrome, sized to fill its parent exactly.
+ *
+ * The shell no longer carries any responsive sizing of its own: it is always rendered
+ * inside a `PhoneDemoFrame`, which lays it out at a fixed 320x520 and scales the result.
+ * Border radius, border width and the status-bar type are therefore fixed too — they used
+ * to step at `sm`/`lg` while the frame width moved continuously, which is one of the ways
+ * the same demo ended up reading differently in different sections.
+ */
 export function WhatsAppPhoneShell({
   children,
   className = '',
-  size = 'default',
   'aria-label': ariaLabel,
 }: WhatsAppPhoneShellProps) {
-  const styles = sizeStyles[size];
-
   return (
     <figure
-      className={`${size === 'dual' ? 'w-full' : 'mx-auto w-full'} ${styles.figure} ${className}`}
+      className={`h-full w-full ${className}`}
       aria-label={ariaLabel ?? 'WhatsApp mobile preview'}
     >
-      <div className={`bg-[#1a1a1a] ${size === 'dual' ? '' : 'shadow-xl'} ${styles.frame} border-[#1a1a1a]`}>
-        <div className={`flex items-center justify-between bg-[#008069] text-white/90 ${styles.status}`}>
+      <div className="flex h-full w-full min-w-0 flex-col overflow-hidden rounded-[2rem] border-[6px] border-[#1a1a1a] bg-[#1a1a1a] shadow-[0_10px_28px_rgba(7,35,73,0.10)]">
+        <div className="flex shrink-0 items-center justify-between bg-[#008069] px-5 py-1.5 text-[10px] text-white/90">
           <span>10:24</span>
           <div className="flex items-center gap-1" aria-hidden>
             <svg className="h-3 w-3" viewBox="0 0 24 24" fill="currentColor">
@@ -67,7 +42,9 @@ export function WhatsAppPhoneShell({
             </svg>
           </div>
         </div>
-        <div className={`relative overflow-hidden bg-white ${styles.screen}`}>{children}</div>
+        <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden rounded-b-[1.55rem] bg-white">
+          {children}
+        </div>
       </div>
     </figure>
   );

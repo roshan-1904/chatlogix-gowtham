@@ -117,13 +117,13 @@ export function HeroDualPreview() {
           <div className="relative z-10 order-2 min-w-0 overflow-visible">
             <LeftPhoneTopArrow />
             <HeroPhoneColumn variant="before">
-              <HeroBeforeDemo size="dual" />
+              <HeroBeforeDemo />
             </HeroPhoneColumn>
           </div>
 
           <div className="relative z-10 order-3 min-w-0 overflow-visible">
             <HeroPhoneColumn variant="after">
-              <HeroAfterDemo size="dual" />
+              <HeroAfterDemo />
             </HeroPhoneColumn>
             <RightPhoneBottomArrow />
           </div>
