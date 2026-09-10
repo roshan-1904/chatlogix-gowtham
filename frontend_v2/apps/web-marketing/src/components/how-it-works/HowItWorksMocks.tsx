@@ -124,7 +124,8 @@ export function OrdersDashboardMock() {
   const rows = dashboardCard.rows.slice(0, 3);
   return (
     <div className={`${cardClass} !flex-row`}>
-      <div className="flex w-[32%] shrink-0 flex-col gap-1.5 self-stretch bg-[#0b2b52] px-1.5 py-2">
+      {/* 34% keeps "Conversations" readable in the narrowest four-column step card (1280). */}
+      <div className="flex w-[34%] shrink-0 flex-col gap-1.5 self-stretch bg-[#0b2b52] px-1.5 py-2">
         {dashboardCard.nav.map((item) => (
           <p
             key={item}

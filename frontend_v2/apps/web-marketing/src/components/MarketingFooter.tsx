@@ -69,8 +69,12 @@ export function MarketingFooter() {
   ];
 
   return (
-    <footer className="relative shrink-0 bg-black text-white">
-      <div className={`relative grid min-h-12 grid-cols-[1fr_auto_1fr] items-center gap-3 py-2.5 ${pageInnerClass}`}>
+    // Below `lg` the fixed StickyCta sits on top of the page bottom; reserve its height
+    // so the footer is never covered.
+    <footer className="marketing-cta-safe-area relative shrink-0 bg-black text-white [--marketing-cta-safe-gap:0.625rem]">
+      <div
+        className={`relative flex min-h-12 flex-wrap items-center justify-center gap-x-3 gap-y-1.5 py-2.5 sm:grid sm:grid-cols-[1fr_auto_1fr] sm:gap-3 ${pageInnerClass}`}
+      >
         <ul className="flex items-center gap-3 sm:gap-3.5">
           {links.map((link) => {
             const Icon = socialIcons[link.id];
@@ -90,7 +94,7 @@ export function MarketingFooter() {
           })}
         </ul>
 
-        <p className="hidden text-center text-[12px] text-white sm:block">
+        <p className="text-center text-[12px] text-white">
           ChatLogix © {year}
           <Link
             to="/privacy"
@@ -100,7 +104,7 @@ export function MarketingFooter() {
           </Link>
         </p>
 
-        <span className="justify-self-end inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-[12px]">
+        <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-[12px] sm:justify-self-end">
           <svg className="h-3.5 w-3.5 text-white" viewBox="0 0 16 16" fill="none" aria-hidden>
             <circle cx="8" cy="8" r="6.2" stroke="currentColor" strokeWidth="1.3" />
             <path d="M8 1.8c1.7 1.8 2.7 4 2.7 6.2S9.7 12.4 8 14.2C6.3 12.4 5.3 10.2 5.3 8S6.3 3.6 8 1.8z" stroke="currentColor" strokeWidth="1.3" />

@@ -126,7 +126,9 @@ export function NaturalConversationDemo() {
   }, [visible, typing, reduced]);
 
   return (
-    <div className="mx-auto w-full max-w-[230px] sm:max-w-[250px] lg:max-w-[260px] xl:max-w-[290px]">
+    // The short-laptop cap keeps the stats row below the fold-free part of the section:
+    // at `lg` heights under 860px a 260px phone alone eats the vertical budget.
+    <div className="mx-auto w-full max-w-[230px] sm:max-w-[250px] lg:max-w-[260px] xl:max-w-[290px] [@media(min-width:1024px)_and_(max-height:860px)]:max-w-[210px]">
       <ol className="sr-only">
         {messages.map((line) => (
           <li key={`${line.lang}-${line.role}-${line.text}`}>
@@ -136,7 +138,11 @@ export function NaturalConversationDemo() {
       </ol>
       <WhatsAppPhoneShell className="!mx-auto !max-w-none" aria-label={customerExperience.exampleLabel}>
         <div className="flex h-full min-h-0 flex-col overflow-hidden" aria-hidden>
-          <WaChatHeader name={customerExperience.shopName} subtitle={customerExperience.shopSubtitle} />
+          {/* The shell truncates the contact name inside the phone chrome; the wrapper
+              carries the full name for hover, since the shell itself is shared. */}
+          <div className="shrink-0" title={customerExperience.shopName}>
+            <WaChatHeader name={customerExperience.shopName} subtitle={customerExperience.shopSubtitle} />
+          </div>
           <div
             ref={scrollerRef}
             className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-2 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"

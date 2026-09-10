@@ -29,16 +29,28 @@ export function ProblemSection() {
               {problem.intro}
             </p>
           </div>
-          <div className="hidden min-w-0 overflow-visible lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:block lg:justify-self-end">
+          {/*
+            `lg:pt-1 lg:pr-1` keeps the callout's -3deg rotation clear of the section's
+            `overflow-hidden` inner. Rotation grows the visual box beyond the laid-out
+            one, and on the short/narrow `lg` bands the header sits flush against the top
+            of that inner, so without the inset the note lost ~3px off its top edge.
+          */}
+          <div className="hidden min-w-0 overflow-visible lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:block lg:justify-self-end lg:pr-1 lg:pt-1">
             <ProblemBusyDayCallout />
           </div>
         </header>
 
-        <div className="mt-4 grid min-w-0 grid-cols-1 items-stretch gap-3 sm:mt-5 md:grid-cols-3 md:gap-3 lg:mt-6 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto_minmax(0,1fr)] lg:gap-2 xl:gap-3">
+        {/*
+          Three cards only from `lg`; at `md` two columns keep each card wide enough for its
+          mini WhatsApp frame. The connector arrows cost ~96px of card width, which is what
+          pushes card titles onto a second line, so they wait until 1360px — below that the
+          three cards take the full row.
+        */}
+        <div className="mt-4 grid min-w-0 grid-cols-1 items-stretch gap-3 sm:mt-5 md:grid-cols-2 lg:mt-6 lg:grid-cols-3 min-[1360px]:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto_minmax(0,1fr)]">
           {problem.items.map((item, index) => (
             <Fragment key={item.id}>
               {index > 0 ? (
-                <div className="hidden items-center justify-center text-slate-300 lg:flex" aria-hidden>
+                <div className="hidden items-center justify-center text-slate-300 min-[1360px]:flex" aria-hidden>
                   <MarketingArrow className="h-5 w-8" />
                 </div>
               ) : null}

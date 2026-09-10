@@ -9,10 +9,10 @@ function BrandMark() {
   return (
     <Link
       to="/"
-      className="flex min-h-[48px] shrink-0 items-center rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 lg:justify-self-start"
+      className="flex min-h-[44px] min-w-0 items-center rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 lg:justify-self-start"
     >
-      <BrandLogo variant="icon" className="h-11 w-11 min-[380px]:hidden" />
-      <BrandLogo className="hidden h-11 w-auto min-[380px]:block sm:h-12 lg:h-[3.25rem]" />
+      <BrandLogo variant="icon" className="h-10 w-10 shrink-0 min-[380px]:hidden sm:h-11 sm:w-11" />
+      <BrandLogo className="hidden h-10 w-auto max-w-full min-[380px]:block sm:h-12 lg:h-[3.25rem]" />
     </Link>
   );
 }
@@ -66,7 +66,7 @@ export function MarketingHeader({ pinned = false }: { pinned?: boolean }) {
       }`}
     >
       <div
-        className={`flex h-[var(--marketing-header-h)] items-center justify-between gap-4 lg:grid lg:grid-cols-[1fr_auto_1fr] ${pageInnerClass}`}
+        className={`flex h-[var(--marketing-header-h)] min-w-0 items-center justify-between gap-3 sm:gap-4 lg:grid lg:grid-cols-[1fr_auto_1fr] ${pageInnerClass}`}
       >
         <BrandMark />
 
@@ -90,7 +90,8 @@ export function MarketingHeader({ pinned = false }: { pinned?: boolean }) {
           })}
         </nav>
 
-        <div className="flex items-center justify-self-end gap-2">
+        {/* `shrink-0` so the wordmark, not the menu button, absorbs any width pressure. */}
+        <div className="flex shrink-0 items-center justify-self-end gap-2">
           <div className="hidden items-center gap-1.5 lg:flex">
             <PortalCta
               href={site.urls.login}
@@ -106,7 +107,7 @@ export function MarketingHeader({ pinned = false }: { pinned?: boolean }) {
             <HeaderTryFree className="!px-4" />
             <button
               type="button"
-              className="inline-flex h-11 w-11 items-center justify-center rounded-full text-primary-500 hover:bg-[#e7f6f1] focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-primary-500 hover:bg-[#e7f6f1] focus:outline-none focus:ring-2 focus:ring-primary-500"
               aria-expanded={menuOpen}
               aria-controls="mobile-nav"
               aria-label={menuOpen ? 'Close menu' : 'Open menu'}

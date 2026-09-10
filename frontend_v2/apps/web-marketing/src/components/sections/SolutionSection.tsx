@@ -72,9 +72,14 @@ export function SolutionSection() {
       id="product"
       viewport
       className="bg-white !py-3 sm:!py-4 lg:!py-5"
-      innerClassName="max-lg:!justify-start max-lg:overflow-y-auto max-lg:[scrollbar-width:none] max-lg:[-ms-overflow-style:none] max-lg:[&::-webkit-scrollbar]:hidden"
+      innerClassName="max-lg:!justify-start"
     >
-      <div className="flex min-h-0 w-full flex-col gap-5 overflow-visible lg:grid lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center lg:gap-6 xl:gap-8">
+      {/*
+        Column ratio is load-bearing: the headline needs >=560px at `xl` to keep its
+        designed three-line wrap at 1440, which is exactly what 0.9fr gives. The
+        handwriting gutters come out of the visual column instead (see `SolutionVisual`).
+      */}
+      <div className="flex min-h-0 w-full flex-col gap-5 lg:grid lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center lg:gap-6 xl:gap-8">
         <div className="min-w-0 shrink-0 lg:shrink">
           <p className={`mb-2 sm:mb-3 ${sectionEyebrowClass}`}>
             {solution.eyebrow}
@@ -108,7 +113,7 @@ export function SolutionSection() {
           <TrustChip />
         </div>
 
-        <div className="relative flex shrink-0 items-center justify-center overflow-visible lg:min-w-0 lg:justify-center">
+        <div className="relative flex min-w-0 shrink-0 items-center justify-center">
           <SolutionVisual />
         </div>
       </div>

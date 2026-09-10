@@ -25,9 +25,13 @@ function FaqEyebrow() {
 
 function FaqCtaBanner() {
   return (
-    <div className="relative overflow-hidden rounded-2xl bg-[#e7f6f1] p-5 sm:p-6">
+    // `shrink-0`: the stack is a fixed-height flex column at `lg+`, so without it the
+    // banner is the item that gives ground and its own `overflow-hidden` eats the CTA.
+    <div className="relative shrink-0 overflow-hidden rounded-2xl bg-[#e7f6f1] p-5 sm:p-6 xl:p-5">
+      {/* Kept inside the banner's own box. The blur already reads as a soft corner wash,
+          and a right-negative offset only showed up as phantom overflow in audit scans. */}
       <div
-        className="pointer-events-none absolute -bottom-16 -right-10 h-44 w-56 rounded-full bg-[#128C7E]/15 blur-2xl"
+        className="pointer-events-none absolute -bottom-16 right-0 h-44 w-56 max-w-full rounded-full bg-[#128C7E]/15 blur-2xl"
         aria-hidden
       />
       <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -66,20 +70,24 @@ export function FaqCtaSection() {
       id="faq"
       viewport
       className="bg-gray-50 !py-0"
-      innerClassName="max-lg:!justify-start overflow-x-hidden overflow-y-auto py-3 sm:py-4 lg:overflow-hidden lg:py-5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+      // No `lg:overflow-hidden`: the accordion now grows the column in flow, and a
+      // clipping inner would cut the answer (and the CTA banner under it) off.
+      innerClassName="max-lg:!justify-start overflow-x-hidden overflow-y-auto py-3 sm:py-4 lg:py-5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
       footer={<MarketingFooter />}
     >
-      <div className="flex w-full flex-col gap-5 lg:h-full lg:min-h-0 lg:justify-center lg:gap-6">
-        <header className="mx-auto w-full max-w-4xl text-center lg:max-w-5xl">
+      <div className="flex w-full flex-col gap-4 sm:gap-5 lg:h-full lg:min-h-0 lg:justify-center lg:gap-6 xl:gap-5">
+        <header className="mx-auto w-full max-w-4xl shrink-0 text-center lg:max-w-5xl">
           <FaqEyebrow />
           <h2 className={`mt-3 ${sectionHeadingClass}`}>
-            <span className="lg:whitespace-nowrap">{faq.headlineBefore}</span>
+            <span>{faq.headlineBefore}</span>
             <span className="mt-1 block text-[#128C7E]">{faq.headlineHighlight}</span>
           </h2>
           <p className={`mx-auto mt-2.5 max-w-xl ${sectionBodyClass}`}>{faq.subtext}</p>
         </header>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:gap-5">
+        {/* Three columns only from `xl`: at `lg` the questions are long enough that a
+            third of the row truncates them onto four lines each. */}
+        <div className="grid shrink-0 grid-cols-1 gap-4 xl:grid-cols-3 xl:gap-5">
           {faq.categories.map((category, categoryIndex) => {
             const { Icon, accent } = categoryConfig[categoryIndex];
             return (

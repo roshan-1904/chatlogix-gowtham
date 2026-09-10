@@ -29,7 +29,7 @@ export function FaqCategoryColumn({
   const { wrap, active } = accentClasses[accent];
 
   return (
-    <div className="flex h-full min-w-0 flex-col overflow-visible rounded-2xl border border-gray-200 bg-white p-4 sm:p-4.5">
+    <div className="flex h-full min-w-0 flex-col rounded-2xl border border-gray-200 bg-white p-4 sm:p-4.5">
       <div className="flex items-center gap-3">
         <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full sm:h-12 sm:w-12 ${wrap}`}>
           <Icon className="h-5 w-5" />
@@ -40,19 +40,19 @@ export function FaqCategoryColumn({
         </div>
       </div>
 
-      <div className="relative mt-4 flex flex-col gap-2">
+      <div className="mt-4 flex flex-col gap-2">
         {category.items.map((item, itemIndex) => {
           const isOpen = isItemOpen(itemIndex);
           const panelId = `faq-${category.id}-panel-${itemIndex}`;
           const buttonId = `faq-${category.id}-button-${itemIndex}`;
           return (
-            <div key={item.question} className={`relative ${isOpen ? 'z-20' : 'z-0'}`}>
+            <div key={item.question}>
               <button
                 type="button"
                 id={buttonId}
                 onClick={() => onToggleItem(itemIndex)}
                 className={`flex min-h-[40px] w-full items-center justify-between gap-3 border px-3.5 py-2.5 text-left text-[12px] font-semibold text-primary-500 transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500 sm:text-[13px] ${
-                  isOpen ? `${active} relative z-10 rounded-t-xl rounded-b-none` : 'rounded-xl border-gray-200 bg-white'
+                  isOpen ? `${active} rounded-b-none rounded-t-xl` : 'rounded-xl border-gray-200 bg-white'
                 }`}
                 aria-expanded={isOpen}
                 aria-controls={panelId}
@@ -67,9 +67,12 @@ export function FaqCategoryColumn({
                 role="region"
                 aria-labelledby={buttonId}
                 hidden={!isOpen}
+                // In document flow, so an open answer pushes the questions below it down
+                // instead of drawing on top of them. It used to be `position: absolute`
+                // inside an `lg:overflow-hidden` section, which clipped and overlaid.
                 className={
                   isOpen
-                    ? `absolute inset-x-0 top-full z-20 rounded-b-xl border border-t-0 px-3.5 pb-3 pt-1 text-[11px] leading-5 text-slate-600 shadow-[0_16px_28px_-16px_rgba(15,23,42,0.4)] sm:text-[12px] ${active}`
+                    ? `rounded-b-xl border border-t-0 px-3.5 pb-3 pt-1 text-[11px] leading-5 text-slate-600 sm:text-[12px] ${active}`
                     : 'hidden'
                 }
               >

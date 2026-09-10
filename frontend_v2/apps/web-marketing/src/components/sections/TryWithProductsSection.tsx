@@ -31,12 +31,15 @@ function TryEyebrow() {
 
 function JourneySteps() {
   return (
-    <ol className="mt-5 flex flex-wrap items-start gap-x-1 gap-y-4 sm:gap-x-2">
+    // 2x2 up to the tablet band: four `w-[7rem]` columns wrapped into 3 + 1 with the
+    // chevron of the wrapped item pointing at nothing. Four across returns at `lg`,
+    // where the copy column is wide enough to hold them.
+    <ol className="mt-5 grid grid-cols-2 items-start gap-x-2 gap-y-4 lg:grid-cols-4 lg:gap-x-1">
       {tryWithProducts.journey.map((step, index) => {
         const Icon = stepIcons[index];
         return (
-          <li key={step.title} className="flex items-start">
-            <div className="flex w-[7rem] flex-col items-center gap-2 text-center sm:w-[8rem]">
+          <li key={step.title} className="flex min-w-0 items-start">
+            <div className="mx-auto flex min-w-0 flex-1 flex-col items-center gap-2 text-center max-lg:max-w-[11rem]">
               <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#e7f6f1] text-[#128C7E] sm:h-12 sm:w-12">
                 <Icon className="h-5 w-5" />
               </span>
@@ -46,7 +49,7 @@ function JourneySteps() {
               <p className="text-[10.5px] leading-4 text-slate-600 sm:text-[11.5px]">{step.body}</p>
             </div>
             {index < tryWithProducts.journey.length - 1 ? (
-              <span className="mt-4 hidden px-1 text-gray-300 sm:mt-5 sm:block" aria-hidden>
+              <span className="mt-5 hidden shrink-0 px-1 text-gray-300 lg:block" aria-hidden>
                 <TryChevronIcon className="h-4 w-4" />
               </span>
             ) : null}
@@ -59,7 +62,10 @@ function JourneySteps() {
 
 function TryNote() {
   return (
-    <p className={`relative mt-6 inline-block text-primary-500 ${handwrittenCalloutClass}`}>
+    // The underline is absolute at `1.2em` with a `0.7em` height, so it ends ~0.7em
+    // below a `leading-[1.18]` line box. Reserving that as padding keeps it inside the
+    // paragraph instead of leaking ~20px of scroll overflow into the section inner.
+    <p className={`relative mt-6 inline-block text-primary-500 lg:pb-[0.85em] ${handwrittenCalloutClass}`}>
       {tryWithProducts.note}
       <HandDrawnUnderline className="top-[1.2em]" />
     </p>
@@ -69,8 +75,10 @@ function TryNote() {
 function OfferCard() {
   return (
     <div className="relative">
+      {/* The glow used to be `w-[130%]`, which pushed 33px past the viewport at 390.
+          Layout width now stops at the card; the blur still spreads past it visually. */}
       <div
-        className="pointer-events-none absolute -top-10 left-1/2 h-40 w-[130%] -translate-x-1/2 rounded-full bg-[#128C7E]/10 blur-2xl"
+        className="pointer-events-none absolute -top-10 left-1/2 h-40 w-full -translate-x-1/2 rounded-full bg-[#128C7E]/10 blur-2xl"
         aria-hidden
       />
       <span className="pointer-events-none absolute -right-1 -top-4 text-[#128C7E]/70" aria-hidden>
@@ -104,15 +112,18 @@ function OfferCard() {
 
 function TrustRow() {
   return (
-    <ul className="mt-4 flex flex-wrap items-center justify-center gap-y-2 lg:justify-start">
+    // Dividers only exist where the row is guaranteed to stay on one line. Below `xl`
+    // the row wraps, and a `border-l` on the first item of a wrapped line reads as a
+    // stray rule; `xl:flex-nowrap` keeps that case from ever arising above it.
+    <ul className="mt-4 flex flex-wrap items-center justify-center gap-y-2 lg:justify-start xl:flex-nowrap">
       {tryWithProducts.trustRow.map((label, index) => {
         const Icon = trustRowIcons[index];
         return (
           <li
             key={label}
-            className="flex items-center gap-1.5 border-gray-200 px-3 text-[11px] font-medium text-slate-600 first:pl-0 last:pr-0 sm:px-4 sm:text-[12px] [&:not(:first-child)]:border-l"
+            className="flex min-w-0 items-center gap-1.5 border-gray-200 px-3 text-[11px] font-medium text-slate-600 first:pl-0 last:pr-0 sm:px-4 sm:text-[12px] xl:[&:not(:first-child)]:border-l"
           >
-            <Icon className="h-4 w-4 text-primary-500/70" />
+            <Icon className="h-4 w-4 shrink-0 text-primary-500/70" />
             {label}
           </li>
         );

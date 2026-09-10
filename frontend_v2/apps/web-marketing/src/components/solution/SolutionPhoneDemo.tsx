@@ -40,6 +40,7 @@ function SolutionBubble({
 export function SolutionPhoneDemo() {
   return (
     <div
+      data-solution-phone
       className="overflow-hidden rounded-[1.35rem] border-[5px] border-[#1a1a1a] bg-white shadow-[0_12px_32px_rgba(7,35,73,0.14)] sm:rounded-[1.6rem] sm:border-[6px] lg:rounded-[1.85rem] lg:border-[7px]"
       aria-label="ChatLogix catalog-backed reply example"
     >
@@ -53,7 +54,9 @@ export function SolutionPhoneDemo() {
           {solutionDemo.avatar}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[12px] font-medium leading-tight sm:text-[14px] lg:text-[15px]">{solutionDemo.shopName}</p>
+          <p className="truncate text-[12px] font-medium leading-tight sm:text-[14px] lg:text-[15px]" title={solutionDemo.shopName}>
+            {solutionDemo.shopName}
+          </p>
           <p className="text-[9px] leading-tight text-white/80 sm:text-[11px] lg:text-[12px]">{solutionDemo.subtitle}</p>
         </div>
         <span className="flex shrink-0 items-center gap-2 pr-1 text-white/95 sm:gap-2.5" aria-hidden>

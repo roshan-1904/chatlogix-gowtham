@@ -30,7 +30,14 @@ export function SectionShell({
     >
       <div
         className={`${pageInnerClass} ${
-          viewport ? 'flex min-h-0 w-full flex-1 flex-col justify-center' : ''
+          viewport
+            ? // Below `lg` the inner is auto-height so the section grows with its content
+              // instead of the inner becoming a nested scroller. `lg+` keeps the fixed
+              // one-viewport box the design relies on.
+              `marketing-section-inner flex w-full min-w-0 flex-col justify-center lg:min-h-0 lg:flex-1 ${
+                footer ? '' : 'marketing-cta-safe-area'
+              }`
+            : ''
         } ${innerClassName}`}
       >
         {children}

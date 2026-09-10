@@ -12,12 +12,50 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  --marketing-header-h: 5rem;
+
+  /* Header row height. Trimmed below `lg` so every snap section gets ~16px more content budget. */
+  --marketing-header-h: 4rem;
+
+  /**
+   * Rendered height of the fixed `StickyCta`, which only exists below `lg`.
+   * 1px top border + 0.75rem top padding + 48px button + bottom padding
+   * (`max(0.75rem, safe-area)`). Measured at 73px on 390x844 with no inset.
+   * `StickyCta` sets its own height from this var, so the two cannot drift.
+   */
+  --marketing-sticky-cta-h: 0px;
+}
+
+@media (max-width: 1023.98px) {
+  :root {
+    --marketing-sticky-cta-h: calc(1px + 0.75rem + 48px + max(0.75rem, env(safe-area-inset-bottom)));
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --marketing-header-h: 5rem;
+  }
 }
 
 html {
   scroll-behavior: smooth;
   scroll-padding-top: calc(var(--marketing-header-h) + 1rem);
+}
+
+/**
+ * Below `lg` the fixed `StickyCta` overlays the bottom of the scroller, so anything
+ * that ends a section has to reserve its height or the last line sits under the bar.
+ * Set `--marketing-cta-safe-gap` to change the breathing room above the bar.
+ *
+ * The doubled selectors here and below (`.x.x`) are deliberate: Tailwind emits its
+ * utilities layer after this file's own rules, so a single-class rule loses to any
+ * equal-specificity utility (`py-4`, `lg:h-[...]`, `snap-y`). Repeating the class wins
+ * without resorting to `!important`.
+ */
+@media (max-width: 1023.98px) {
+  .marketing-cta-safe-area.marketing-cta-safe-area {
+    padding-bottom: calc(var(--marketing-cta-safe-gap, 1.25rem) + var(--marketing-sticky-cta-h));
+  }
 }
 
 .marketing-snap-scroll {
@@ -38,6 +76,8 @@ html.marketing-snap-active #root {
 .section-title {
   letter-spacing: -0.02em;
   word-spacing: 0.04em;
+  /* A single long word must wrap rather than push the section into horizontal overflow. */
+  overflow-wrap: break-word;
 }
 
 @media (min-width: 640px) {
@@ -65,7 +105,7 @@ html.marketing-snap-active #root {
     scroll-behavior: auto;
   }
 
-  .marketing-snap-scroll {
+  .marketing-snap-scroll.marketing-snap-scroll {
     scroll-snap-type: none;
     scroll-behavior: auto;
   }
@@ -79,7 +119,88 @@ html.marketing-snap-active #root {
   }
 }
 
-/** Short laptop/tablet landscape: shrink hero phones so headline + callouts fit one snap section. */
+/**
+ * Short laptops still overflow a one-viewport snap target. Let those sections grow past
+ * the viewport and scroll `#main-content` instead of clipping, and relax the snap so the
+ * gesture is not fought while reading a taller-than-viewport section.
+ *
+ * Two bands need the release, for different reasons:
+ *
+ * - Any `lg+` viewport under 861px tall — there is simply not enough height.
+ * - The whole `lg`–`xl` width band (1024–1279), at *any* height. Between those widths the
+ *   grids are still narrow enough that a section can outgrow even a tall viewport, so
+ *   height alone does not predict the overflow: `how-it-works` needs ~1027px, which clips
+ *   at 1100x1000 and 1200x950 but fits at 1440x900. From `xl` up the columns widen and the
+ *   designed one-viewport composition holds again.
+ */
+@media (min-width: 1024px) and (max-height: 860px),
+  (min-width: 1024px) and (max-width: 1279.98px) {
+  .marketing-snap-section.marketing-snap-section {
+    height: auto;
+    min-height: calc(100dvh - var(--marketing-header-h));
+  }
+
+  /**
+   * Release the `lg:flex-1` inner too. Left flexing it would be pinned to the section's
+   * min-height and turn its own `overflow-y-auto` back into a hidden inner scroller,
+   * which is the thing the height release exists to avoid.
+   */
+  .marketing-snap-section > .marketing-section-inner,
+  .marketing-snap-section > .hero-snap-inner {
+    flex: 0 0 auto;
+    min-height: 0;
+  }
+
+  .marketing-snap-scroll.marketing-snap-scroll {
+    scroll-snap-type: y proximity;
+  }
+}
+
+/**
+ * Hero before/after annotations.
+ *
+ * The two handwritten callouts sit in reserved rows above and below the phone pair, and
+ * both arrows are positioned off those rows. `--hero-callout-h` keeps the row height and
+ * the arrow geometry in step, so the short-laptop rule below can scale the whole
+ * annotation layer at once. At `lg` it resolves to the 6.25rem the design was drawn at.
+ */
+.hero-mobile-preview {
+  --hero-callout-h: 4.75rem;
+}
+
+@media (min-width: 640px) {
+  .hero-mobile-preview {
+    --hero-callout-h: 5.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .hero-mobile-preview {
+    --hero-callout-h: 6.25rem;
+  }
+}
+
+.hero-callout-row.hero-callout-row {
+  height: var(--hero-callout-h);
+}
+
+.hero-callout-arrow-top.hero-callout-arrow-top {
+  top: calc(-1 * (var(--hero-callout-h) + 0.25rem));
+  height: calc(var(--hero-callout-h) * 1.32);
+}
+
+.hero-callout-arrow-bottom.hero-callout-arrow-bottom {
+  bottom: calc(var(--hero-callout-h) * -1.08);
+  height: calc(var(--hero-callout-h) * 1.2);
+}
+
+/**
+ * Short laptop / tablet landscape: scale the hero rather than deleting parts of it. This
+ * block used to `display: none` everything marked `hero-short-hide`, which left
+ * 1024x768 through 1366x768 with no bullets, callouts or arrows — a hero that told none
+ * of the before/after story 1440x900 is designed around. Phones, the annotation layer and
+ * the bullet icons now shrink with the available height instead.
+ */
 @media (max-height: 860px) and (min-width: 1024px) {
   .hero-phone-figure {
     height: min(22rem, calc((100dvh - var(--marketing-header-h)) * 0.48)) !important;
@@ -88,8 +209,30 @@ html.marketing-snap-active #root {
     max-width: min(100%, calc(min(22rem, calc((100dvh - var(--marketing-header-h)) * 0.48)) * 320 / 520)) !important;
   }
 
-  .hero-short-hide {
-    display: none !important;
+  .hero-mobile-preview {
+    --hero-callout-h: clamp(3.5rem, calc((100dvh - var(--marketing-header-h)) * 0.105), 6.25rem);
+  }
+
+  .hero-callout-text.hero-callout-text {
+    font-size: clamp(1.1rem, calc((100dvh - var(--marketing-header-h)) * 0.032), 1.65rem);
+    line-height: 1.15;
+  }
+
+  /* Bullet type stays at its normal size; the icon boxes and leading margin give ground. */
+  .hero-short-bullets.hero-short-bullets > div {
+    margin-top: 0.5rem;
+  }
+
+  .hero-short-bullets.hero-short-bullets li > span:first-child {
+    height: 1.75rem;
+    width: 1.75rem;
+  }
+
+  /* At 1024 the chip wraps to three lines, which is what makes that height the tightest. */
+  .hero-short-trust.hero-short-trust {
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
   }
 
   .hero-snap-inner h1 {
@@ -116,8 +259,8 @@ html.marketing-snap-active #root {
   }
 
   .hero-mobile-preview-panel .hero-phone-figure {
-    height: min(21rem, calc((100dvh - var(--marketing-header-h) - env(safe-area-inset-bottom) - 4.5rem) * 0.6)) !important;
-    max-height: min(21rem, calc((100dvh - var(--marketing-header-h) - env(safe-area-inset-bottom) - 4.5rem) * 0.6)) !important;
+    height: min(21rem, calc((100dvh - var(--marketing-header-h) - var(--marketing-sticky-cta-h)) * 0.6)) !important;
+    max-height: min(21rem, calc((100dvh - var(--marketing-header-h) - var(--marketing-sticky-cta-h)) * 0.6)) !important;
     width: 100% !important;
     max-width: 100% !important;
   }
@@ -129,63 +272,8 @@ html.marketing-snap-active #root {
   }
 
   .hero-mobile-preview-panel .hero-phone-figure {
-    height: min(23rem, calc((100dvh - var(--marketing-header-h) - env(safe-area-inset-bottom) - 4.5rem) * 0.64)) !important;
-    max-height: min(23rem, calc((100dvh - var(--marketing-header-h) - env(safe-area-inset-bottom) - 4.5rem) * 0.64)) !important;
-  }
-}
-
-/** Problem section: mini WhatsApp previews scale with viewport height. */
-.problem-card-preview-area {
-  --problem-area-h: min(14rem, calc((100dvh - var(--marketing-header-h) - env(safe-area-inset-bottom) - 4.5rem) * 0.22));
-  height: var(--problem-area-h);
-  min-height: var(--problem-area-h);
-}
-
-.problem-preview-frame {
-  --problem-preview-h: min(11.5rem, calc((100dvh - var(--marketing-header-h) - env(safe-area-inset-bottom) - 4.5rem) * 0.17));
-  height: var(--problem-preview-h);
-  max-height: var(--problem-preview-h);
-  width: min(100%, calc(var(--problem-preview-h) * 11.5 / 9.75));
-  max-width: min(14.5rem, calc(var(--problem-preview-h) * 11.5 / 9.75));
-}
-
-@media (min-width: 640px) {
-  .problem-card-preview-area {
-    --problem-area-h: min(16.5rem, calc((100dvh - var(--marketing-header-h)) * 0.25));
-  }
-
-  .problem-preview-frame {
-    --problem-preview-h: min(13.5rem, calc((100dvh - var(--marketing-header-h)) * 0.21));
-  }
-}
-
-@media (min-width: 768px) {
-  .problem-card-preview-area {
-    --problem-area-h: min(18.5rem, calc((100dvh - var(--marketing-header-h)) * 0.28));
-  }
-
-  .problem-preview-frame {
-    --problem-preview-h: min(15rem, calc((100dvh - var(--marketing-header-h)) * 0.24));
-  }
-}
-
-@media (min-width: 1024px) {
-  .problem-card-preview-area {
-    --problem-area-h: min(20.5rem, calc((100dvh - var(--marketing-header-h)) * 0.32));
-  }
-
-  .problem-preview-frame {
-    --problem-preview-h: min(16.5rem, calc((100dvh - var(--marketing-header-h)) * 0.28));
-  }
-}
-
-@media (min-width: 1280px) {
-  .problem-card-preview-area {
-    --problem-area-h: min(22rem, calc((100dvh - var(--marketing-header-h)) * 0.34));
-  }
-
-  .problem-preview-frame {
-    --problem-preview-h: min(18rem, calc((100dvh - var(--marketing-header-h)) * 0.3));
+    height: min(23rem, calc((100dvh - var(--marketing-header-h) - var(--marketing-sticky-cta-h)) * 0.64)) !important;
+    max-height: min(23rem, calc((100dvh - var(--marketing-header-h) - var(--marketing-sticky-cta-h)) * 0.64)) !important;
   }
 }
 

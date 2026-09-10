@@ -12,8 +12,10 @@ function HeroTopCallout() {
   const { line1, line2 } = hero.previewAnnotations.before;
 
   return (
-    <div className="relative z-20 h-[4.75rem] w-full overflow-visible sm:h-[5.5rem] lg:h-[6.25rem]" aria-hidden>
-      <p className={`absolute right-[38%] top-0 rotate-1 text-right ${handwrittenCalloutClass} text-[#072349]/80 lg:right-[40%]`}>
+    <div className="hero-callout-row relative z-20 w-full overflow-visible" aria-hidden>
+      <p
+        className={`hero-callout-text absolute right-[38%] top-0 rotate-1 text-right ${handwrittenCalloutClass} text-[#072349]/80 lg:right-[40%]`}
+      >
         {line1}
         <br />
         {line2}
@@ -26,8 +28,10 @@ function HeroBottomCallout() {
   const { line1, line2 } = hero.previewAnnotations.after;
 
   return (
-    <div className="relative z-20 h-[4.75rem] w-full overflow-visible sm:h-[5.5rem] lg:mt-1 lg:h-[6.25rem]" aria-hidden>
-      <p className={`absolute bottom-0 right-[28%] rotate-1 text-right ${handwrittenCalloutClass} text-[#128C7E] lg:right-[30%]`}>
+    <div className="hero-callout-row relative z-20 w-full overflow-visible lg:mt-1" aria-hidden>
+      <p
+        className={`hero-callout-text absolute bottom-0 right-[28%] rotate-1 text-right ${handwrittenCalloutClass} text-[#128C7E] lg:right-[30%]`}
+      >
         {line1}
         <br />
         {line2}
@@ -40,7 +44,7 @@ function HeroBottomCallout() {
 function LeftPhoneTopArrow() {
   return (
     <svg
-      className="hero-short-hide pointer-events-none absolute -top-[6.5rem] left-0 z-30 hidden h-[8.25rem] w-[72%] overflow-visible lg:block"
+      className="hero-callout-arrow-top pointer-events-none absolute left-0 z-30 hidden w-[72%] overflow-visible lg:block"
       viewBox="0 0 120 52"
       fill="none"
       preserveAspectRatio="none"
@@ -71,7 +75,7 @@ function LeftPhoneTopArrow() {
 function RightPhoneBottomArrow() {
   return (
     <svg
-      className="hero-short-hide pointer-events-none absolute -bottom-[6.75rem] left-0 z-30 hidden h-[7.5rem] w-full overflow-visible lg:block"
+      className="hero-callout-arrow-bottom pointer-events-none absolute left-0 z-30 hidden w-full overflow-visible lg:block"
       viewBox="0 0 120 52"
       fill="none"
       preserveAspectRatio="none"
@@ -106,7 +110,7 @@ export function HeroDualPreview() {
     >
       <HeroDemoPopupSyncProvider>
         <div className="relative z-0 grid w-full grid-cols-2 gap-x-3 sm:gap-x-4 lg:gap-x-5 xl:gap-x-8 2xl:gap-x-10">
-          <div className="hero-short-hide relative z-20 order-1 col-span-2 hidden overflow-visible lg:block">
+          <div className="relative z-20 order-1 col-span-2 hidden overflow-visible lg:block">
             <HeroTopCallout />
           </div>
 
@@ -124,7 +128,7 @@ export function HeroDualPreview() {
             <RightPhoneBottomArrow />
           </div>
 
-          <div className="hero-short-hide relative z-20 order-4 col-span-2 hidden overflow-visible lg:block">
+          <div className="relative z-20 order-4 col-span-2 hidden overflow-visible lg:block">
             <HeroBottomCallout />
           </div>
         </div>

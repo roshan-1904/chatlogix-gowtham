@@ -37,10 +37,15 @@ export function ProblemCard({
       >
         {String(index + 1).padStart(2, '0')}
       </div>
-      <div className="relative z-10 flex items-center justify-center px-2 pb-2 pt-10 sm:px-3 sm:pt-11">
+      {/*
+        The preview absorbs the leftover height of the stretched card, so every card in a
+        row hands its copy block the same start position even though the three mini frames
+        have different intrinsic heights.
+      */}
+      <div className="relative z-10 flex min-w-0 flex-1 items-center justify-center px-2 pb-2 pt-10 sm:px-3 sm:pt-11">
         {preview}
       </div>
-      <div className={`relative z-10 px-4 pb-4 pt-1 sm:px-5 sm:pb-5`}>
+      <div className={`relative z-10 shrink-0 px-4 pb-4 pt-1 sm:px-5 sm:pb-5`}>
         <h3 className="text-[15px] font-semibold leading-snug text-[#0b2b52] sm:text-[17px]">{item.title}</h3>
         <p className="mt-1.5 text-[12px] leading-5 text-slate-600 sm:text-[13px]">{item.body}</p>
       </div>

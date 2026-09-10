@@ -7,9 +7,21 @@ import { SolutionPhoneDemo } from './SolutionPhoneDemo';
 const NOTE_CLASS =
   'font-handwritten font-bold leading-[1.12] text-[#072349]/80 text-[1.05rem] sm:text-[1.2rem] lg:text-[1.45rem] xl:text-[1.65rem]';
 
+/**
+ * One handwriting gutter beside the phone at `xl+`. 10.25rem is reserved as padding on
+ * the visual root and `9.75rem + 0.5rem` fills it exactly, so the absolutely-positioned
+ * notes can never paint on the copy column or past the viewport. The widest note line
+ * ("Helps turn chats") measures ~154px at `xl`, so 9.75rem holds every note on its
+ * intended two lines. At 1440 this leaves the phone at its designed 23.5rem.
+ */
+const NOTE_GUTTER_PX = 'xl:px-[10.25rem]';
+const NOTE_WIDTH = 'xl:w-[9.75rem]';
+const NOTE_OFFSET_LEFT = 'xl:right-[calc(100%+0.5rem)]';
+const NOTE_OFFSET_RIGHT = 'xl:left-[calc(100%+0.5rem)]';
+
 function IconChip({ children }: { children: ReactNode }) {
   return (
-    <span className="mb-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-[#e7f6f1] text-[#128C7E] sm:mb-1 sm:h-8 sm:w-8 lg:h-9 lg:w-9">
+    <span className="mb-1 flex h-9 w-9 items-center justify-center rounded-full bg-[#e7f6f1] text-[#128C7E]">
       {children}
     </span>
   );
@@ -42,7 +54,7 @@ function SparkMarks() {
 function ArrowInstant() {
   return (
     <svg
-      className="pointer-events-none absolute left-[78%] top-4 h-14 w-[4.25rem] overflow-visible text-[#128C7E] sm:h-16 sm:w-20 lg:left-[82%] lg:h-[4.75rem] lg:w-[6.5rem]"
+      className="pointer-events-none absolute left-[68%] top-3 h-[4.25rem] w-[4.5rem] overflow-visible text-[#128C7E]"
       viewBox="0 0 100 72"
       fill="none"
       aria-hidden
@@ -71,7 +83,7 @@ function ArrowInstant() {
 function ArrowOrders() {
   return (
     <svg
-      className="pointer-events-none absolute left-[76%] top-8 h-12 w-[4.5rem] overflow-visible text-[#128C7E] sm:h-14 sm:w-[5.5rem] lg:left-[80%] lg:h-16 lg:w-[6.75rem]"
+      className="pointer-events-none absolute left-[66%] top-6 h-[3.75rem] w-[4.75rem] overflow-visible text-[#128C7E]"
       viewBox="0 0 100 64"
       fill="none"
       aria-hidden
@@ -100,7 +112,7 @@ function ArrowOrders() {
 function ArrowStock() {
   return (
     <svg
-      className="pointer-events-none absolute right-[78%] top-7 h-14 w-[4.25rem] overflow-visible text-[#128C7E] sm:h-16 sm:w-20 lg:right-[82%] lg:h-[4.75rem] lg:w-[6.5rem]"
+      className="pointer-events-none absolute right-[68%] top-6 h-[4.25rem] w-[4.5rem] overflow-visible text-[#128C7E]"
       viewBox="0 0 100 72"
       fill="none"
       aria-hidden
@@ -130,7 +142,10 @@ export function SolutionVisual() {
   const { callouts } = solution;
 
   return (
-    <div className="relative mx-auto w-full overflow-visible">
+    // The horizontal padding reserves a handwriting gutter on each side of the phone.
+    // The flanking notes are positioned against the phone and sized to that gutter, so
+    // they stay inside this column instead of painting on the copy or off the right edge.
+    <div className={`relative mx-auto w-full min-w-0 ${NOTE_GUTTER_PX}`}>
       <div
         className="pointer-events-none absolute left-[12%] top-[22%] h-36 w-36 rounded-full bg-[#d7f4ec]/90 blur-2xl sm:h-44 sm:w-44"
         aria-hidden
@@ -144,10 +159,19 @@ export function SolutionVisual() {
         aria-hidden
       />
 
-      <div className="relative mx-auto w-[min(100%,13.25rem)] pb-16 sm:w-[min(100%,15.5rem)] sm:pb-[4.5rem] lg:w-[min(100%,21rem)] lg:pb-20 xl:w-[min(100%,23.5rem)]">
+      <div className="relative mx-auto w-[min(100%,13.25rem)] sm:w-[min(100%,15.5rem)] lg:w-[min(100%,21rem)] xl:w-[min(100%,23.5rem)]">
         <SolutionPhoneDemo />
 
-        <div className="pointer-events-none absolute right-[calc(100%+0.7rem)] top-[5%] w-[7.75rem] rotate-[-3deg] sm:right-[calc(100%+1.1rem)] sm:w-[9.5rem] lg:right-[calc(100%+2.25rem)] lg:w-[11.5rem] xl:right-[calc(100%+2.75rem)]">
+        {/*
+          Below `xl` there is no room beside the phone for handwriting, and the three
+          flanking notes repeat what the benefit list already says, so they only render
+          from `xl` up. The "Happy customers. More orders." payoff has no bullet
+          equivalent, so it stays at every width — in normal flow under the phone.
+        */}
+        <div
+          data-solution-note="instant"
+          className={`pointer-events-none absolute top-[5%] hidden rotate-[-3deg] xl:block ${NOTE_OFFSET_LEFT} ${NOTE_WIDTH}`}
+        >
           <p className={NOTE_CLASS}>
             {callouts.instantLine1}
             <br />
@@ -156,9 +180,12 @@ export function SolutionVisual() {
           <ArrowInstant />
         </div>
 
-        <div className="pointer-events-none absolute right-[calc(100%+0.7rem)] top-[50%] w-[10.25rem] rotate-[-2deg] sm:right-[calc(100%+1.1rem)] sm:w-[10rem] lg:right-[calc(100%+2.25rem)] lg:w-[12rem] xl:right-[calc(100%+2.75rem)]">
+        <div
+          data-solution-note="orders"
+          className={`pointer-events-none absolute top-[52%] hidden rotate-[-2deg] xl:block ${NOTE_OFFSET_LEFT} ${NOTE_WIDTH}`}
+        >
           <IconChip>
-            <CartOrderIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-[28px] lg:w-[28px]" />
+            <CartOrderIcon className="h-[26px] w-[26px]" />
           </IconChip>
           <p className={NOTE_CLASS}>
             {callouts.ordersLine1}
@@ -168,9 +195,12 @@ export function SolutionVisual() {
           <ArrowOrders />
         </div>
 
-        <div className="pointer-events-none absolute left-[calc(100%+0.7rem)] top-[7%] flex w-[12rem] flex-col items-end rotate-[4deg] text-right sm:left-[calc(100%+1.1rem)] sm:w-[12rem] lg:left-[calc(100%+2.25rem)] lg:w-[12rem] xl:left-[calc(100%+2.75rem)]">
+        <div
+          data-solution-note="stock"
+          className={`pointer-events-none absolute top-[7%] hidden flex-col items-end rotate-[4deg] text-right xl:flex ${NOTE_OFFSET_RIGHT} ${NOTE_WIDTH}`}
+        >
           <IconChip>
-            <CubeIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-[28px] lg:w-[28px]" />
+            <CubeIcon className="h-[26px] w-[26px]" />
           </IconChip>
           <p className={NOTE_CLASS}>
             {callouts.stockLine1}
@@ -180,7 +210,10 @@ export function SolutionVisual() {
           <ArrowStock />
         </div>
 
-        <div className="pointer-events-none absolute left-[58%] top-full mt-2 w-[10.5rem] rotate-[-3deg] sm:mt-3 sm:w-[12.5rem] lg:left-[62%] lg:mt-4 lg:w-[14.5rem]">
+        <div
+          data-solution-note="result"
+          className="pointer-events-none mt-3 w-[10.5rem] rotate-[-3deg] sm:mt-4 sm:w-[12.5rem] lg:ml-auto lg:w-[14.5rem]"
+        >
           <p className={`${NOTE_CLASS} relative`}>
             <span className="relative inline-block">
               <SparkMarks />

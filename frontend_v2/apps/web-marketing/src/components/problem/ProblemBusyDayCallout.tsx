@@ -42,9 +42,13 @@ export function ProblemBusyDayCallout({ compact = false }: { compact?: boolean }
         </span>
       </p>
 
+      {/*
+        Curved arrow back to the headline. Hidden below `xl`: the copy column is too narrow
+        there for the curve, so it lands in the empty space beside the intro paragraph.
+      */}
       {!compact ? (
         <svg
-          className="pointer-events-none absolute right-full top-1 hidden h-[16rem] w-[13rem] overflow-visible text-[#072349]/50 lg:block"
+          className="pointer-events-none absolute right-full top-1 hidden h-[16rem] w-[13rem] overflow-visible text-[#072349]/50 xl:block"
           viewBox="0 0 160 210"
           fill="none"
           aria-hidden

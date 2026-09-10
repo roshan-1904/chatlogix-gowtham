@@ -71,7 +71,7 @@ export function HeroBeforeDemo({ size = 'default' }: HeroBeforeDemoProps) {
 
   useEffect(() => {
     if (reduced) {
-      if (popupSync) {
+      if (popupSyncRef.current) {
         setThreadId('priya');
         setPhase('back');
         setSlide('list');

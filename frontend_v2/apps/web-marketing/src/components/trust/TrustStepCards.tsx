@@ -81,7 +81,7 @@ function AnalyseVisual() {
   const stubClass = 'absolute left-0 top-0 border-dashed border-emerald-200';
 
   return (
-    <div className="relative mx-auto h-[9.75rem] w-full max-w-[13rem] sm:h-[10.5rem]">
+    <div className="relative mx-auto h-[9.25rem] w-full min-w-0 max-w-[13rem] sm:h-[10.5rem]">
       <div className={`${chipClass} left-1/2 top-0 w-[6.4rem] -translate-x-1/2`}>{top.label}</div>
       <div className={`${chipClass} bottom-0 left-1/2 w-[6.4rem] -translate-x-1/2`}>{bottom.label}</div>
       <div className={`${chipClass} left-0 top-1/2 w-[4.4rem] -translate-y-1/2`}>{left.label}</div>
@@ -170,7 +170,10 @@ const visualById = {
 
 export function TrustStepCards() {
   return (
-    <ol className="grid grid-cols-1 items-stretch gap-5 pt-5 sm:grid-cols-2 sm:gap-6 xl:grid-cols-4 xl:gap-10">
+    // Four across needs both width and height: at `xl` there is room by width alone,
+    // and on a short laptop (<=860px tall) four across is also the *shortest* layout,
+    // so it is the one that keeps the section inside one viewport at 1024-1279.
+    <ol className="grid grid-cols-1 items-stretch gap-4 pt-5 sm:grid-cols-2 sm:gap-6 xl:grid-cols-4 xl:gap-10 [@media(min-width:1024px)_and_(max-height:860px)]:grid-cols-4">
       {trust.steps.map((step, index) => {
         const Visual = visualById[step.id];
         return (
@@ -188,9 +191,15 @@ export function TrustStepCards() {
                 <Visual />
               </StepCard>
             </div>
-            <div className="mt-3 min-h-[3.25rem] sm:min-h-[3.75rem] lg:min-h-[4.25rem]">
+            {/* Single column has no neighbour to line up with, so the empty note slot
+                only reserves height from `sm`, where the cards sit in a row. */}
+            <div
+              className={`mt-2.5 sm:mt-3 sm:min-h-[3.75rem] lg:min-h-[4.25rem] ${
+                step.note ? '' : 'hidden sm:block'
+              }`}
+            >
               {step.note ? (
-                <p className="origin-left -rotate-[6deg] whitespace-pre-line px-1 font-handwritten text-[1.05rem] font-bold leading-snug text-[#0f6b5c] sm:text-[1.2rem] lg:text-[1.35rem]">
+                <p className="max-w-full origin-left -rotate-[4deg] whitespace-pre-line px-1 font-handwritten text-[1rem] font-bold leading-snug text-[#0f6b5c] sm:text-[1.2rem] lg:text-[1.35rem]">
                   {step.note}
                 </p>
               ) : null}

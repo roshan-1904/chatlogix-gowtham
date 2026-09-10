@@ -53,10 +53,11 @@ export function HowItWorksSection() {
       id="how-it-works"
       viewport
       className="bg-white !py-3 sm:!py-4 lg:!py-5"
-      innerClassName="max-lg:!justify-start max-lg:overflow-y-auto max-lg:[scrollbar-width:none] max-lg:[-ms-overflow-style:none] max-lg:[&::-webkit-scrollbar]:hidden"
+      innerClassName="max-lg:!justify-start"
     >
       <div className="flex w-full flex-col justify-start gap-5 sm:gap-6 lg:h-full lg:min-h-0 lg:flex-1 lg:justify-center lg:gap-8 xl:gap-9">
-        <div className="mb-4 grid w-full shrink-0 items-start gap-4 sm:mb-5 lg:mb-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:gap-x-10 xl:mb-8 xl:gap-x-12">
+        {/* Trust + highlights stack under the headline until `xl`; the two-column header is too cramped at 1024–1279. */}
+        <div className="mb-4 grid w-full shrink-0 items-start gap-4 sm:mb-5 lg:mb-6 xl:mb-8 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] xl:gap-x-12">
           <header className="min-w-0 text-left" data-hiw="copy">
             <p className={`mb-1.5 ${sectionEyebrowClass}`}>
               {howItWorks.eyebrow}
@@ -87,7 +88,7 @@ export function HowItWorksSection() {
               </div>
             </div>
 
-            <div className="grid gap-2.5 sm:grid-cols-3 lg:grid-cols-1 lg:gap-2" data-hiw="highlights">
+            <div className="grid gap-2.5 sm:grid-cols-3 xl:grid-cols-1 xl:gap-2" data-hiw="highlights">
               {howItWorks.highlights.map((item) => {
                 const config = highlightIconById[item.id];
                 if (!config) return null;
@@ -108,25 +109,31 @@ export function HowItWorksSection() {
           </div>
         </div>
 
+        {/* 2x2 from `sm` through `lg`; four columns only from `xl`, where a step is wide enough to read unclamped. */}
         <ol
-          className="grid min-h-0 grid-cols-1 items-stretch gap-5 sm:grid-cols-2 lg:grid-cols-4 lg:gap-x-4 lg:gap-y-0 xl:gap-x-5"
+          className="grid min-h-0 grid-cols-1 items-stretch gap-5 sm:grid-cols-2 xl:grid-cols-4 xl:gap-x-5 xl:gap-y-0"
           data-hiw="steps"
         >
           {howItWorks.steps.map((step, index) => (
             <li key={step.id} className="relative flex min-h-0 min-w-0 flex-col">
-              <div className="mb-2.5 flex shrink-0 items-start gap-1.5 lg:h-[5.25rem]">
+              {/*
+                `min-h` (not a fixed height) keeps the four mocks on one line at `xl`
+                while letting a title or body wrap to its full length — the previous
+                `lg:truncate` / `lg:line-clamp-3` pair dropped a line of step copy.
+              */}
+              <div className="mb-2.5 flex shrink-0 items-start gap-1.5 xl:min-h-[6.75rem]">
                 <span className="mt-px flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#128C7E] text-[11px] font-bold text-white">
                   {index + 1}
                 </span>
                 <div className="min-w-0">
-                  <h3 className="text-[13px] font-semibold leading-snug text-primary-500 sm:text-[14px] lg:truncate">{step.title}</h3>
-                  <p className="mt-0.5 text-[12px] leading-5 text-slate-600 sm:text-[13px] lg:line-clamp-3">{step.body}</p>
+                  <h3 className="text-[13px] font-semibold leading-snug text-primary-500 sm:text-[14px]">{step.title}</h3>
+                  <p className="mt-0.5 text-[12px] leading-5 text-slate-600 sm:text-[13px]">{step.body}</p>
                 </div>
               </div>
-              <div className="relative flex min-h-[10.5rem] flex-1 flex-col lg:min-h-[12.5rem]">
+              <div className="relative flex min-h-[10.5rem] flex-1 flex-col xl:min-h-[12.5rem]">
                 {index > 0 ? (
                   <div
-                    className="pointer-events-none absolute -left-2 top-1/2 z-10 hidden -translate-x-1/2 -translate-y-1/2 text-slate-300 lg:flex xl:-left-2.5"
+                    className="pointer-events-none absolute -left-2.5 top-1/2 z-10 hidden -translate-x-1/2 -translate-y-1/2 text-slate-300 xl:flex"
                     aria-hidden
                   >
                     <DashedStepArrow />

@@ -52,9 +52,8 @@ export function MarketingLayout({ children, snapScroll = false }: MarketingLayou
         Skip to content
       </a>
       <MarketingHeader />
-      <main id="main-content" className="pb-24 lg:pb-0">
-        {children}
-      </main>
+      {/* Clearance for the fixed StickyCta lives on the footer, which is what it overlays. */}
+      <main id="main-content">{children}</main>
       <MarketingFooter />
       <StickyCta />
     </div>
