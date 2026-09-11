@@ -2,8 +2,12 @@ import fetch from 'node-fetch';
 import { env } from '../config/env.js';
 import { logger } from '../logger.js';
 
-const BASE_URL = 'https://graph.facebook.com/v18.0';
-const TYPING_GRAPH_BASE = 'https://graph.facebook.com/v21.0';
+// Overridable so load tests can point both at a mock Graph API
+// (docs/LOAD_TESTING.md §5). config/env.ts supplies these same literals as Zod
+// defaults; the `??` keeps the real endpoint visible at the point of use and
+// keeps partial `env` test doubles working.
+const BASE_URL = env.WHATSAPP_GRAPH_BASE_URL ?? 'https://graph.facebook.com/v18.0';
+const TYPING_GRAPH_BASE = env.WHATSAPP_TYPING_GRAPH_BASE_URL ?? 'https://graph.facebook.com/v21.0';
 const TYPING_TIMEOUT_MS = 800;
 
 export interface WhatsAppSendResult {

@@ -70,6 +70,13 @@ const EnvSchema = z.object({
   WHATSAPP_ACCESS_TOKEN: z.string().optional(),
   WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
   DISABLE_WEBHOOK_SIGNATURE: z.string().optional(),
+  // Graph API base URLs. Defaults are the real Meta endpoints, so leaving these
+  // unset is the production path. Overridden only to point the send and typing
+  // calls at the load-test mock (docs/LOAD_TESTING.md §5). Both must be set
+  // together — the typing indicator runs on the processor hot path, so leaving
+  // it on real Meta adds a failing round trip to every message.
+  WHATSAPP_GRAPH_BASE_URL: z.string().default('https://graph.facebook.com/v18.0'),
+  WHATSAPP_TYPING_GRAPH_BASE_URL: z.string().default('https://graph.facebook.com/v21.0'),
 
   // AI
   OPENAI_API_KEY: z.string().optional(),
