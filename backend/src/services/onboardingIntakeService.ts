@@ -694,6 +694,7 @@ export async function persistThinProductsForDemo(vendorId: string): Promise<{ up
       baseUnit: true,
       baseQuantity: true,
       basePrice: true,
+      isDivisible: true,
       isActive: true
     }
   });
@@ -709,6 +710,7 @@ export async function persistThinProductsForDemo(vendorId: string): Promise<{ up
     basePrice: p.basePrice,
     baseUnit: p.baseUnit,
     baseQuantity: Number(p.baseQuantity) || 1,
+    isDivisible: p.isDivisible,
     isActive: p.isActive,
     keywords: p.keywords ?? [],
     overrideProtected: true,

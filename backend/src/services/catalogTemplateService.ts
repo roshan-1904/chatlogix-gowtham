@@ -38,6 +38,7 @@ function toDraft(row: TemplateRow, idx: number): NormalizedProductDraft {
     name: row.name.trim(),
     baseUnit: unit,
     baseQuantity: row.baseQuantity,
+    isDivisible: false,
     basePrice: null,
     description: row.description,
     keywords: (row.keywords ?? []).slice(0, 50),

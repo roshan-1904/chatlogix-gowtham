@@ -388,6 +388,7 @@ function mergePreferConfident(
     basePrice: pick('basePrice', 'basePrice') as number | null,
     baseUnit: pick('baseUnit', 'baseUnit') as string,
     baseQuantity: pick('baseQuantity', 'baseQuantity') as number,
+    isDivisible: (pick('isDivisible', 'isDivisible') as boolean | undefined) ?? a.isDivisible ?? b.isDivisible ?? false,
     isActive: (pick('basePrice', 'basePrice') as number | null) != null,
     keywords: Array.from(new Set([...(a.keywords ?? []), ...(b.keywords ?? [])])).slice(0, 50),
     overrideProtected: false,

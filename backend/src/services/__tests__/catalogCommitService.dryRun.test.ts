@@ -55,6 +55,7 @@ function makeDraft(over: Partial<NormalizedProductDraft> = {}): NormalizedProduc
     basePrice: 15000,
     baseUnit: 'kg',
     baseQuantity: 1,
+    isDivisible: false,
     isActive: true,
     keywords: ['rice'],
     overrideProtected: false,
