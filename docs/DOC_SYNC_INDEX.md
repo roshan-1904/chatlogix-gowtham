@@ -28,5 +28,6 @@ When you change `backend/src/conversation/` behavior documented in the files abo
 | `docs/API_LAMBDA_CLOUDFRONT_MIGRATION_PLAN.md` | Dashboard API + SPA hosting plan; not pipeline logic |
 | `docs/API_LAMBDA_CLOUDFRONT_IMPLEMENTATION.md` | Step-by-step runbook for the plan above |
 | `docs/DEPLOYMENT.md` | Deploy topology only |
+| `docs/LOAD_TESTING.md` | Test methodology and harness; cites pipeline facts but does not document pipeline behavior |
 | `docs/troubleshooting/*` | Case studies; not pipeline reference docs |
 | `CLAUDE.md` / `.cursorrules` | No materially wrong language restrictions (points to flow doc for pipeline details) |

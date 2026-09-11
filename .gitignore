@@ -31,6 +31,12 @@ out/
 .tmp-verify/
 **/.tmp-verify/
 
+# Load-test run artifacts (docs/LOAD_TESTING.md): recorded LLM cassettes, the
+# generator's sent log, mock Graph API sends, pool samples and reports. These
+# contain real model output and customer-shaped payloads — never commit them.
+.loadtest/
+**/.loadtest/
+
 # Logs
 logs/
 **/logs/
