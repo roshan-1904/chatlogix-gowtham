@@ -5,7 +5,7 @@ vi.mock('../../utils/redis.js', () => ({
   getRedisClient: () => getRedisClientMock()
 }));
 
-import { mergeSameBatch, mergeDebounced, stashForBurstMerge } from '../burstMerge.js';
+import { mergeSameBatch, mergeDebounced, stashForBurstMerge, drainBurstStash } from '../burstMerge.js';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -38,20 +38,22 @@ describe('mergeSameBatch', () => {
   });
 });
 
-describe('stashForBurstMerge + mergeDebounced', () => {
+describe('stashForBurstMerge + drainBurstStash', () => {
   it('mergeDebounced returns the content unchanged when nothing is pending (rule 3: never waits)', async () => {
-    const get = vi.fn().mockResolvedValue(null);
-    getRedisClientMock.mockReturnValue({ get, set: vi.fn(), del: vi.fn() });
+    const lrange = vi.fn().mockResolvedValue([]);
+    getRedisClientMock.mockReturnValue({ lrange, del: vi.fn() });
 
     const result = await mergeDebounced('conv-1', 'hi');
 
     expect(result).toBe('hi');
   });
 
-  it('mergeDebounced merges and clears a sibling invocation\'s stashed content when present', async () => {
-    const get = vi.fn().mockResolvedValue('2 brownies');
+  it('mergeDebounced merges drained sibling content when present', async () => {
+    const lrange = vi.fn().mockResolvedValue([
+      JSON.stringify({ whatsappMessageId: 'wamid.2', content: '2 brownies' })
+    ]);
     const del = vi.fn().mockResolvedValue(1);
-    getRedisClientMock.mockReturnValue({ get, del, set: vi.fn() });
+    getRedisClientMock.mockReturnValue({ lrange, del });
 
     const result = await mergeDebounced('conv-1', 'hi');
 
@@ -59,19 +61,42 @@ describe('stashForBurstMerge + mergeDebounced', () => {
     expect(del).toHaveBeenCalledWith('burst:conv-1');
   });
 
-  it('stashForBurstMerge writes with a short TTL (the 400ms debounce cap)', async () => {
-    const set = vi.fn().mockResolvedValue('OK');
-    getRedisClientMock.mockReturnValue({ set });
+  it('stashForBurstMerge RPUSHes JSON with a lock-aligned TTL', async () => {
+    const rpush = vi.fn().mockResolvedValue(1);
+    const pexpire = vi.fn().mockResolvedValue(1);
+    getRedisClientMock.mockReturnValue({ rpush, pexpire });
 
-    await stashForBurstMerge('conv-1', '2 brownies');
+    const ok = await stashForBurstMerge('conv-1', 'wamid.1', '2 brownies');
 
-    expect(set).toHaveBeenCalledWith('burst:conv-1', '2 brownies', 'PX', 400);
+    expect(ok).toBe(true);
+    expect(rpush).toHaveBeenCalledWith(
+      'burst:conv-1',
+      JSON.stringify({ whatsappMessageId: 'wamid.1', content: '2 brownies' })
+    );
+    expect(pexpire).toHaveBeenCalledWith('burst:conv-1', 300_000);
   });
 
-  it('both are best-effort no-ops when Redis is unavailable (do not throw, do not block a normal SQS retry)', async () => {
+  it('drainBurstStash parses and clears the list', async () => {
+    const lrange = vi.fn().mockResolvedValue([
+      JSON.stringify({ whatsappMessageId: 'wamid.1', content: 'a' }),
+      JSON.stringify({ whatsappMessageId: 'wamid.2', content: 'b' })
+    ]);
+    const del = vi.fn().mockResolvedValue(1);
+    getRedisClientMock.mockReturnValue({ lrange, del });
+
+    const entries = await drainBurstStash('conv-1');
+
+    expect(entries).toEqual([
+      { whatsappMessageId: 'wamid.1', content: 'a' },
+      { whatsappMessageId: 'wamid.2', content: 'b' }
+    ]);
+    expect(del).toHaveBeenCalledWith('burst:conv-1');
+  });
+
+  it('stashForBurstMerge returns false when Redis is unavailable', async () => {
     getRedisClientMock.mockReturnValue(null);
 
-    await expect(stashForBurstMerge('conv-1', 'x')).resolves.toBeUndefined();
+    await expect(stashForBurstMerge('conv-1', 'wamid.1', 'x')).resolves.toBe(false);
     await expect(mergeDebounced('conv-1', 'x')).resolves.toBe('x');
   });
 });

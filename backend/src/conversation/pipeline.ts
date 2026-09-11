@@ -5,12 +5,13 @@ import { publishToQueue } from '../queue/sqsClient.js';
 import { canProcessMessage } from '../services/billingService.js';
 import { sendTypingIndicator } from '../services/whatsappClient.js';
 import { WhatsAppTemplateService } from '../services/whatsappTemplateService.js';
-import { persistTurn } from './persist.js';
+import { persistTurn, markCoalescedSiblings } from './persist.js';
 import { debitAfterEnqueue } from './billing.js';
 import { resolveIdentity } from './identity.js';
 import { acquireLock, releaseLock, LockContentionError, LockUnavailableError } from './lock.js';
 import { upsertInboundMessage } from './idempotency.js';
-import { stashForBurstMerge, mergeDebounced } from './burstMerge.js';
+import { stashForBurstMerge } from './burstMerge.js';
+import { collectCoalescedInbound } from './coalesceInbound.js';
 import { prefetchHotSet } from './prefetch.js';
 import { runLlm1 } from './llm/llm1.js';
 import { apply } from './cart/engine.js';
@@ -45,6 +46,7 @@ export interface FinalizeTurnInput {
   customerPhone: string;
   phoneNumberId: string;
   whatsappMessageId: string;
+  coalescedWhatsappMessageIds?: string[];
   snapshot: CartSnapshot;
   finalText: string;
   language: string;
@@ -87,6 +89,7 @@ export async function finalizeTurn(input: FinalizeTurnInput): Promise<FinalizeTu
     customerPhone,
     phoneNumberId,
     whatsappMessageId,
+    coalescedWhatsappMessageIds = [whatsappMessageId],
     snapshot,
     finalText,
     language,
@@ -105,6 +108,14 @@ export async function finalizeTurn(input: FinalizeTurnInput): Promise<FinalizeTu
     intent,
     tokenMeta,
     whatsappMessageId
+  });
+
+  await markCoalescedSiblings({
+    vendorId,
+    conversationId,
+    primaryWhatsappMessageId: whatsappMessageId,
+    coalescedWhatsappMessageIds,
+    tokenMeta
   });
 
   if (sandbox) {
@@ -148,7 +159,7 @@ export async function finalizeTurn(input: FinalizeTurnInput): Promise<FinalizeTu
   // §19.1 sweep's query relies on this being set the moment the customer's
   // reply is actually on its way, not on whether the debit succeeds.
   await prisma.messageProcessing.updateMany({
-    where: { whatsappMessageId },
+    where: { whatsappMessageId: { in: coalescedWhatsappMessageIds } },
     data: { status: 'queued', queuedAt: new Date() }
   });
 
@@ -234,7 +245,14 @@ export async function processMessage(
   } catch (error) {
     if (error instanceof LockContentionError) {
       logCount('LockContention', { vendorId });
-      await stashForBurstMerge(conversationId, input.content);
+      const stashed = await stashForBurstMerge(conversationId, input.whatsappMessageId, input.content);
+      if (stashed) {
+        logger.info(
+          { traceId, vendorId, conversationId, whatsappMessageId: input.whatsappMessageId },
+          'Lock contention — stashed for coalesce, ACK without retry'
+        );
+        return;
+      }
     } else if (error instanceof LockUnavailableError) {
       logCount('LockUnavailable', { vendorId });
     }
@@ -321,9 +339,24 @@ export async function processMessage(
       return;
     }
 
-    // Burst merge (§12 rule 2/3): non-blocking check for a sibling
-    // invocation's stashed content; proceeds immediately either way.
-    const mergedContent = await mergeDebounced(conversationId, input.content);
+    // Coalesce every unprocessed customer inbound for this turn (§12 rule 2/3):
+    // the trigger message, siblings stashed during lock contention, and any
+    // rows the webhook already persisted before this job acquired the lock.
+    const coalesced = await collectCoalescedInbound(conversationId, input.whatsappMessageId, input.content);
+    const mergedContent = coalesced.mergedContent;
+    if (coalesced.whatsappMessageIds.length > 1) {
+      logger.info(
+        {
+          traceId,
+          vendorId,
+          conversationId,
+          primaryWhatsappMessageId: input.whatsappMessageId,
+          coalescedCount: coalesced.whatsappMessageIds.length,
+          coalescedWhatsappMessageIds: coalesced.whatsappMessageIds
+        },
+        'Coalesced multiple inbound messages into one turn'
+      );
+    }
 
     if (!sandbox) {
       void sendTypingIndicator(input.whatsappMessageId, input.phoneNumberId).catch((error) => {
@@ -478,6 +511,7 @@ export async function processMessage(
       customerPhone: input.customerPhone,
       phoneNumberId: input.phoneNumberId,
       whatsappMessageId: input.whatsappMessageId,
+      coalescedWhatsappMessageIds: coalesced.whatsappMessageIds,
       snapshot: applyResult.snapshot,
       finalText,
       language: llm1Result.language,

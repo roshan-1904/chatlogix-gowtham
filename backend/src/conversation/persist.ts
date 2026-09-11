@@ -21,6 +21,36 @@ export interface PersistResult {
 }
 
 /**
+ * Records MessageProcessing for inbound siblings merged into one AI reply so
+ * their SQS jobs ACK without sending duplicate WhatsApp messages.
+ */
+export async function markCoalescedSiblings(input: {
+  vendorId: string;
+  conversationId: string;
+  primaryWhatsappMessageId: string;
+  coalescedWhatsappMessageIds: string[];
+  tokenMeta: { model: string };
+}): Promise<void> {
+  const siblings = input.coalescedWhatsappMessageIds.filter(
+    (id) => id !== input.primaryWhatsappMessageId
+  );
+  if (siblings.length === 0) return;
+
+  await prisma.messageProcessing.createMany({
+    data: siblings.map((whatsappMessageId) => ({
+      whatsappMessageId,
+      vendorId: input.vendorId,
+      conversationId: input.conversationId,
+      status: 'applied',
+      promptTokens: 0,
+      completionTokens: 0,
+      model: input.tokenMeta.model
+    })),
+    skipDuplicates: true
+  });
+}
+
+/**
  * Advisory conversation-stage label (not used for any write-path decision —
  * CartEngine.apply already owns the actual Order.status transitions). Kept
  * intentionally simple; the old pipeline's AI-driven stage/key-fact

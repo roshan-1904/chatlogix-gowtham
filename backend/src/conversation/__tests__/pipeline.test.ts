@@ -22,7 +22,8 @@ const {
   upsertInboundMessageMock,
   canProcessMessageMock,
   stashForBurstMergeMock,
-  mergeDebouncedMock,
+  collectCoalescedInboundMock,
+  markCoalescedSiblingsMock,
   prefetchHotSetMock,
   runLlm1Mock,
   applyMock,
@@ -56,7 +57,8 @@ const {
     upsertInboundMessageMock: vi.fn(),
     canProcessMessageMock: vi.fn(),
     stashForBurstMergeMock: vi.fn(),
-    mergeDebouncedMock: vi.fn(),
+    collectCoalescedInboundMock: vi.fn(),
+    markCoalescedSiblingsMock: vi.fn(),
     prefetchHotSetMock: vi.fn(),
     runLlm1Mock: vi.fn(),
     applyMock: vi.fn(),
@@ -72,7 +74,10 @@ const {
   };
 });
 
-vi.mock('../persist.js', () => ({ persistTurn: (...args: unknown[]) => persistTurnMock(...args) }));
+vi.mock('../persist.js', () => ({
+  persistTurn: (...args: unknown[]) => persistTurnMock(...args),
+  markCoalescedSiblings: (...args: unknown[]) => markCoalescedSiblingsMock(...args)
+}));
 vi.mock('../billing.js', () => ({ debitAfterEnqueue: (...args: unknown[]) => debitAfterEnqueueMock(...args) }));
 vi.mock('../../queue/sqsClient.js', () => ({ publishToQueue: (...args: unknown[]) => publishToQueueMock(...args) }));
 vi.mock('../../config/env.js', () => ({ env: { RESPONSE_QUEUE_URL: 'https://sqs.example/response-queue' } }));
@@ -101,8 +106,10 @@ vi.mock('../lock.js', () => ({
 vi.mock('../idempotency.js', () => ({ upsertInboundMessage: (...args: unknown[]) => upsertInboundMessageMock(...args) }));
 vi.mock('../../services/billingService.js', () => ({ canProcessMessage: (...args: unknown[]) => canProcessMessageMock(...args) }));
 vi.mock('../burstMerge.js', () => ({
-  stashForBurstMerge: (...args: unknown[]) => stashForBurstMergeMock(...args),
-  mergeDebounced: (...args: unknown[]) => mergeDebouncedMock(...args)
+  stashForBurstMerge: (...args: unknown[]) => stashForBurstMergeMock(...args)
+}));
+vi.mock('../coalesceInbound.js', () => ({
+  collectCoalescedInbound: (...args: unknown[]) => collectCoalescedInboundMock(...args)
 }));
 vi.mock('../prefetch.js', () => ({ prefetchHotSet: (...args: unknown[]) => prefetchHotSetMock(...args) }));
 vi.mock('../llm/llm1.js', () => ({ runLlm1: (...args: unknown[]) => runLlm1Mock(...args) }));
@@ -204,7 +211,7 @@ describe('finalizeTurn', () => {
     await finalizeTurn(baseInput);
 
     const call = messageProcessingUpdateMany.mock.calls[0][0];
-    expect(call.where).toEqual({ whatsappMessageId: 'wamid.1' });
+    expect(call.where).toEqual({ whatsappMessageId: { in: ['wamid.1'] } });
     expect(call.data.status).toBe('queued');
     expect(call.data.queuedAt).toBeInstanceOf(Date);
   });
@@ -274,7 +281,11 @@ describe('processMessage', () => {
     upsertInboundMessageMock.mockResolvedValue({ messageId: 'inbound-msg-1', alreadyProcessed: false });
     conversationFindUnique.mockResolvedValue({ aiPaused: false });
     canProcessMessageMock.mockResolvedValue({ allowed: true });
-    mergeDebouncedMock.mockImplementation(async (_id: string, content: string) => content);
+    collectCoalescedInboundMock.mockImplementation(async (_id: string, _wamid: string, content: string) => ({
+      mergedContent: content,
+      whatsappMessageIds: ['wamid.1'],
+      primaryWhatsappMessageId: 'wamid.1'
+    }));
     prefetchHotSetMock.mockResolvedValue(hotSet);
     runLlm1Mock.mockResolvedValue(llm1Result);
     applyMock.mockResolvedValue(applyResult);
@@ -384,7 +395,11 @@ describe('processMessage', () => {
     upsertInboundMessageMock.mockResolvedValue({ messageId: 'inbound-msg-1', alreadyProcessed: false });
     conversationFindUnique.mockResolvedValue({ aiPaused: false });
     canProcessMessageMock.mockResolvedValue({ allowed: true });
-    mergeDebouncedMock.mockImplementation(async (_id: string, content: string) => content);
+    collectCoalescedInboundMock.mockImplementation(async (_id: string, _wamid: string, content: string) => ({
+      mergedContent: content,
+      whatsappMessageIds: ['wamid.1'],
+      primaryWhatsappMessageId: 'wamid.1'
+    }));
     prefetchHotSetMock.mockResolvedValue(hotSet);
     runLlm1Mock.mockResolvedValue(llm1Result);
     applyMock.mockResolvedValue(applyResult);
@@ -403,15 +418,23 @@ describe('processMessage', () => {
     expect(logLatencyMock).toHaveBeenCalledWith('LatencyMs', expect.any(Number), { vendorId: 'vendor-1' });
   });
 
-  it('lock contention: logs LockContention, stashes the content for the lock-holder, then rethrows so SQS retries', async () => {
+  it('lock contention: logs LockContention, stashes for coalesce, and ACKs without retry when stash succeeds', async () => {
     acquireLockMock.mockRejectedValue(new MockLockContentionError('locked'));
+    stashForBurstMergeMock.mockResolvedValue(true);
 
-    await expect(processMessage(rawInput)).rejects.toThrow(MockLockContentionError);
+    await expect(processMessage(rawInput)).resolves.toBeUndefined();
 
     expect(logCountMock).toHaveBeenCalledWith('LockContention', { vendorId: 'vendor-1' });
-    expect(stashForBurstMergeMock).toHaveBeenCalledWith('conv-1', '2 brownies please');
+    expect(stashForBurstMergeMock).toHaveBeenCalledWith('conv-1', 'wamid.1', '2 brownies please');
     expect(runLlm1Mock).not.toHaveBeenCalled();
     expect(sendTypingIndicatorMock).not.toHaveBeenCalled();
+  });
+
+  it('lock contention: rethrows when Redis stash fails so SQS can retry', async () => {
+    acquireLockMock.mockRejectedValue(new MockLockContentionError('locked'));
+    stashForBurstMergeMock.mockResolvedValue(false);
+
+    await expect(processMessage(rawInput)).rejects.toThrow(MockLockContentionError);
   });
 
   it('lock unavailable (Redis down): logs LockUnavailable, does NOT stash, still rethrows', async () => {

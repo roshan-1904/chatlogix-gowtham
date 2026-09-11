@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { getRedisClient } from '../utils/redis.js';
 import { logger } from '../logger.js';
 
-const DEFAULT_LOCK_TTL_MS = 60_000; // matches the Lambda timeout (spec §7 step 0, §21)
+/** Matches deployed `chatlogix-incoming-response-generator` Lambda timeout (300s). */
+export const DEFAULT_LOCK_TTL_MS = 300_000;
 
 // Only delete if the value still matches our token -- without this, a slow
 // invocation could delete a *different* invocation's lock after its own TTL

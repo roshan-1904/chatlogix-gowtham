@@ -4,21 +4,21 @@ How we generate synthetic WhatsApp traffic against the real production stack to 
 the throughput ceiling of the inbound message pipeline, measure real per-message cost
 and latency, and identify the first component to fail under load.
 
-**Status:** harness ready (2026-09-11, `backend/scripts/loadtest/`). Phase 0 mostly done
-(quota raised; PgBouncer cutover on all five Lambdas; processor reserved at 80). Phase 1
+**Status:** harness ready (2026-09-11, `backend/scripts/loadtest/`). Phase 0 done
+(quota 1000; PgBouncer 6432; all five Lambdas reserved — 132 total). Phase 1
 (calibration) not yet run.
 **Target environment:** production. It currently has no real vendors or customers, so
 it is effectively a staging environment with production topology — real API Gateway,
 real Lambda, real Postgres, real ElastiCache, real OpenAI.
 
-> ## ⚠ Remaining risk: unreserved ingress + PgBouncer pool size
+> ## ⚠ Remaining risk: PgBouncer pool size under load
 >
 > Measured 2026-09-11 in account `987272474004` / `ap-south-1` (PgBouncer cutover
 > confirmed same day on all five Lambdas):
 >
 > ```
 > Lambda concurrent executions : 1000   (raised from 10 on 2026-09-11)
-> Reserved concurrency         : 80 on processor only; none on the other four
+> Reserved concurrency (total)   : 132 across all five functions (see table below)
 > Prisma connection_limit      : 1 per container
 > PgBouncer                    : in the Lambda path (DATABASE_URL → port 6432) ✓
 > Postgres max_connections     : 100
@@ -31,39 +31,26 @@ real Lambda, real Postgres, real ElastiCache, real OpenAI.
 >
 > 1. **Confirm PgBouncer `default_pool_size`** via `SHOW CONFIG` / `SHOW POOLS` under load —
 >    `setup-pgbouncer.sh` suggested 15; that becomes the new knee, not `max_connections`.
-> 2. **Reserve the webhook handler (~30)** — it is still unreserved and is the first thing
->    to scale on an ingress spike; even through PgBouncer, a flood of short transactions
->    can queue at `cl_waiting`.
-> 3. **Processor cap at 80** — already set; keeps the AI path bounded.
 >
 > Phase 1 at 1.5–2 msg/s stays safe regardless (~9–18 concurrent containers).
 >
-> ### Reservation audit (2026-09-11)
+> ### Reservation audit (2026-09-11, all five set same day)
 >
-> All five functions correctly set `connection_limit=1` / `pool_timeout=3`, so each
-> container holds at most one connection. But only the processor is reserved:
+> All five functions set `connection_limit=1` / `pool_timeout=3`. Re-apply reserved
+> concurrency manually in AWS (`put-function-concurrency` per function).
 >
 > | Function | Reserved | Max DB connections it can open |
-> |---|---|---|
-> | `chatlogix-incoming-response-generator` | **80** | 80 — bounded |
-> | `chatlogix-webhook-handler` | none | up to 920 |
-> | `chatlogix-whatsapp-response-dispatcher` | none | up to 920 |
-> | `chatlogix-media-fetcher` | none | up to 920 |
-> | `chatlogix-order-recovery` | none | up to 920 |
+> |---|---:|---:|
+> | `chatlogix-incoming-response-generator` | **80** | 80 |
+> | `chatlogix-webhook-handler` | **30** | 30 |
+> | `chatlogix-whatsapp-response-dispatcher` | **15** | 15 |
+> | `chatlogix-media-fetcher` | **5** | 5 |
+> | `chatlogix-order-recovery` | **2** | 2 |
+> | **Total** | **132** | 132 (868 left in unreserved pool at quota 1000) |
 >
-> **Reserving only the processor is not enough.** The webhook handler runs 4–6 queries
-> per message and is the *first* thing to scale under an ingress spike — at 1000 msg/s
-> and ~200ms per invocation it alone needs ~200 containers, double what Postgres accepts.
-> A load test could therefore take the database down through ingress without the
-> processor ever exceeding its 80.
->
-> A sum-bounded allocation for raw Postgres (97 usable after
-> `superuser_reserved_connections`) would be roughly: processor 40, webhook 30,
-> dispatcher 15, media-fetcher 5, order-recovery 2 — total 92.
->
-> With PgBouncer in the path (cutover done 2026-09-11), the ceiling is governed by pool
-> size and transaction hold time, not raw `max_connections`. §9's bottleneck ranking and
-> §8's extrapolation should be re-measured under load.
+> With PgBouncer in the path, the ceiling is governed by pool size and transaction hold
+> time, not raw `max_connections`. §9's bottleneck ranking and §8's extrapolation should be
+> re-measured under load.
 
 ---
 
@@ -75,7 +62,7 @@ Measured from AWS on 2026-09-11. **Several values drift from the spec and from
 | Setting | Spec / code says | Actually deployed |
 |---|---|---|
 | Lambda account concurrency | 1000 (AWS default) | 1000 ✓ (raised from 10 on 2026-09-11) |
-| Reserved concurrency | — | **80 on processor only**; none on webhook, dispatcher, media-fetcher, order-recovery |
+| Reserved concurrency | — | **132 total** — webhook 30, processor 80, dispatcher 15, media-fetcher 5, order-recovery 2 |
 | Postgres `max_connections` | — | **100** |
 | Processor timeout | 60s | **300s** |
 | Processor memory | 1536 MB | 2048 MB |
@@ -136,19 +123,11 @@ fields @timestamp, traceId, msg
 | stats earliest(@timestamp) as t0, latest(@timestamp) as t1, count(*) as n by traceId
 ```
 
-### Latent bug: lock TTL no longer matches the Lambda timeout
+### Lock TTL aligned with Lambda timeout (fixed 2026-09-12)
 
-`conversation/lock.ts:5` sets a 60s TTL with the comment "matches the Lambda timeout."
-The deployed timeout is **300s**.
-
-Any invocation running longer than 60 seconds **loses its conversation lock while still
-processing**. A redelivery or a concurrent message on the same conversation can then
-acquire that lock and process in parallel — exactly what the lock exists to prevent. The
-compare-and-delete release is token-guarded, so it won't delete another holder's lock,
-but that does not prevent the concurrent processing itself.
-
-Reachable under load whenever OpenAI is slow. Either raise the TTL to match 300s or lower
-the timeout to 60s.
+`conversation/lock.ts` now sets **300s** (`DEFAULT_LOCK_TTL_MS`), matching the deployed
+processor Lambda timeout. Previously 60s allowed concurrent processing of one
+conversation when an invocation outlived its lock.
 
 ### Whole-batch redelivery on three event source mappings
 
@@ -201,14 +180,13 @@ Phase 1 still records every LLM exchange so later phases can replay them for fre
 
 | Phase | Rate | Volume | Purpose | Blocked on quota? | Approx OpenAI cost |
 |---|---|---|---|---|---|
-| **0. Quota request** | — | — | Raise Lambda concurrent executions from 10 toward 1000; PgBouncer cutover; processor reserved | **Done** (quota 1000 + PgBouncer 6432 + processor 80, 2026-09-11); webhook still unreserved (§13) | $0 |
+| **0. Quota request** | — | — | Raise Lambda concurrent executions from 10 toward 1000; PgBouncer cutover; reserve all five Lambdas | **Done** (quota 1000 + PgBouncer 6432 + reserved 132, 2026-09-11) | $0 |
 | **1. Calibration** | **1.5–2 msg/s × ~10–13 min** | 1,200 | Real cost/message **per language**, latency percentiles, LLM-2 trigger rate, translation duplication | **No** — runs today | $10–25 (see §4.4) |
 | **2. Concurrency ramp** | Pre-seeded queue, stepped reserved concurrency | ~15,000 | Throughput-vs-concurrency curve; locate the knee | **Yes** | ~$150 real, $0 on replay |
 | **3. Ceiling / cascade** | 1000 msg/s ingress, unthrottled | up to 60,000 | Confirm the failure mode and the order of collapse | **Yes** | ~$600 real, $0 on replay |
 
-Phase 0 is **mostly done** (quota 1000, PgBouncer cutover on all five Lambdas, processor
-reserved at 80 — all 2026-09-11). Webhook/dispatcher/media-fetcher/order-recovery are
-still unreserved (§13).
+Phase 0 is **done** (quota 1000, PgBouncer cutover, all five Lambdas reserved at 132
+total — all 2026-09-11).
 
 Phase 1 is otherwise independent of quota. Its cost, latency, and language findings need
 1,200 messages under clean conditions, not high throughput, so it runs today at a reduced
@@ -262,8 +240,8 @@ translation on non-English traffic (§4.2).
 Each conversation gets a start offset and a fixed inter-turn gap sized to the run
 duration — roughly 90–120s at the revised rate, versus the ~17s a 120s run would have
 used. That places turn N+1 well after turn N's reply, and comfortably clear of both the
-400ms burst-merge window (`burstMerge.ts:49`) and the 60s conversation lock TTL
-(`conversation/lock.ts:5`). No coordination between generator workers is needed.
+400ms burst-merge window (`burstMerge.ts:49`) and the 300s conversation lock TTL
+(`conversation/lock.ts`). No coordination between generator workers is needed.
 
 The longer gap has a useful side effect: prefetch cache entries will expire between
 turns, so more turns hit Postgres instead of Redis. That is closer to real traffic than a
@@ -797,8 +775,8 @@ cutover landed (all five Lambdas on 6432).
 | 2 | Per-message `Duration` | Sets how many containers a given rate needs: containers ≈ rate × duration | §4.2 |
 | 3 | OpenAI org rate limit | 1–6 calls/message multilingual, **no retry, no backoff** | `llm1.ts:11,48`, `llm2.ts:10`, `vendorEnglish.ts:78` |
 | 4 | Product matcher AI rate limit | **10 calls/min/vendor**, in-memory — non-English only | `productMatcher.ts:102-104` |
-| 5 | Redis conversation lock | 60s TTL vs. **300s** Lambda timeout — see the §0 bug | `conversation/lock.ts:5,57-70` |
-| 6 | Lambda account concurrency | 1000; processor reserved at 80, others unreserved | §0 |
+| 5 | Redis conversation lock | **300s** TTL matches Lambda timeout ✓ (2026-09-12) | `conversation/lock.ts` |
+| 6 | Lambda account concurrency | 1000; all five reserved (132 total) | §0 |
 | 7 | SQS batch size | 1 on text; **10** on audio/image/response | §0 |
 | 8 | Meta send throughput | 80 msg/s per number by default; no app-side limiter | `whatsappClient.ts:13-27` |
 
@@ -934,6 +912,8 @@ message**; Phase 1 measures the actual, per language.
 | 2026-09-11 | Processor reserved concurrency set to 80 |
 | 2026-09-11 | PgBouncer cutover **done** — all five Lambdas' `DATABASE_URL` on port 6432 (AWS CLI verified) |
 | 2026-09-11 | Webhook handler reserved concurrency set to **30** |
+| 2026-09-11 | Dispatcher (15), media-fetcher (5), order-recovery (2) reserved — **132 total** |
+| 2026-09-12 | Conversation lock TTL raised 60s → **300s** (`DEFAULT_LOCK_TTL_MS`) |
 | 2026-09-11 | `chatlogix-lambda-role` granted `cloudwatch:PutMetricData` for `ChatLogix/ConversationParity` |
 | 2026-09-11 | `npm run loadtest:probe-pgbouncer` + `samplePools` SHOW POOLS sampling added |
 | 2026-09-11 | `CLOUDWATCH_METRICS_ENABLED=true` on processor; IAM `cloudwatch:PutMetricData` still missing |
@@ -951,9 +931,9 @@ the stack is comfortably oversized. The load-test plan targets the **1,000-vendo
 
 - [x] ~~File the Lambda concurrency quota increase~~ — **done 2026-09-11**, `L-B99A9384`
       raised from 10 to 1000
-- [ ] **Protect the database before Phase 2.** PgBouncer cutover done; webhook reserved at
-      **30** (2026-09-11). Still open: reserve dispatcher (~15) + media-fetcher (~5) +
-      order-recovery (~2), and confirm `default_pool_size` under load (§0)
+- [x] ~~Protect the database before Phase 2 — reserve all five Lambdas~~ — **done 2026-09-11**
+      (132 total, set manually in AWS). Still open:
+      confirm PgBouncer `default_pool_size` under load (§0)
 - [x] ~~Set `CLOUDWATCH_METRICS_ENABLED=true` on the processor~~ — **env var set
       2026-09-11**
 - [x] ~~Grant `cloudwatch:PutMetricData` on `chatlogix-lambda-role`~~ — **done 2026-09-11**
@@ -976,8 +956,7 @@ the stack is comfortably oversized. The load-test plan targets the **1,000-vendo
 
 ### Correctness fixes surfaced by this work
 
-- [ ] **Lock TTL vs. Lambda timeout**: 60s TTL against a 300s timeout allows concurrent
-      processing of one conversation (§0). Raise the TTL or lower the timeout
+- [x] ~~Lock TTL vs. Lambda timeout~~ — **fixed 2026-09-12**, `DEFAULT_LOCK_TTL_MS` = 300s
 - [ ] **Add `ReportBatchItemFailures`** to the audio-queue, image-queue, and
       response-queue event source mappings. At batch size 10 without it, one failure
       redelivers all 10 — on the dispatcher that means duplicate customer sends (§0)

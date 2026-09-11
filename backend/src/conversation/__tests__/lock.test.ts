@@ -9,7 +9,13 @@ vi.mock('../../logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
 }));
 
-import { acquireLock, releaseLock, LockUnavailableError, LockContentionError } from '../lock.js';
+import {
+  acquireLock,
+  releaseLock,
+  LockUnavailableError,
+  LockContentionError,
+  DEFAULT_LOCK_TTL_MS
+} from '../lock.js';
 
 const CONVERSATION_ID = 'conv-1';
 
@@ -34,6 +40,16 @@ describe('acquireLock', () => {
     getRedisClientMock.mockReturnValue({ set: vi.fn().mockResolvedValue(null) }); // SET NX returns null when the key exists
 
     await expect(acquireLock(CONVERSATION_ID)).rejects.toThrow(LockContentionError);
+  });
+
+  it('uses DEFAULT_LOCK_TTL_MS (300s) when ttlMs is omitted', async () => {
+    const set = vi.fn().mockResolvedValue('OK');
+    getRedisClientMock.mockReturnValue({ set });
+
+    await acquireLock(CONVERSATION_ID);
+
+    expect(DEFAULT_LOCK_TTL_MS).toBe(300_000);
+    expect(set).toHaveBeenCalledWith('lock:conv:conv-1', expect.any(String), 'PX', 300_000, 'NX');
   });
 
   it('returns a token and calls SET with NX+PX when the lock is free', async () => {

@@ -104,10 +104,11 @@ Actual code order (identity **before** lock — the spec’s “step 0 lock firs
 ```mermaid
 flowchart TD
   START([SQS TextMessage]) --> ID[1. resolveIdentity<br/>vendor + customer + open conversation]
-  ID --> LOCK{2. acquire Redis lock<br/>lock:conv:conversationId TTL 60s}
+  ID --> LOCK{2. acquire Redis lock<br/>lock:conv:conversationId TTL 300s}
 
-  LOCK -->|LockContention| STASH[stashForBurstMerge<br/>Redis burst:convId 400ms]
-  STASH --> RETRY[throw → SQS retry]
+  LOCK -->|LockContention| STASH[stashForBurstMerge<br/>Redis list TTL 300s]
+  STASH -->|stash ok| ACK[ACK SQS — lock-holder will coalesce]
+  STASH -->|Redis down| RETRY[throw → SQS retry]
   LOCK -->|LockUnavailable Redis down| RETRY
   LOCK -->|OK| INB[3. upsertInboundMessage<br/>unique whatsappMessageId]
   INB --> EN[3b. ensureMessageContentEn<br/>fire-and-forget → Message.contentEn]
@@ -119,7 +120,7 @@ flowchart TD
   PAUSED -->|no| CREDIT{5. canProcessMessage wallet?}
 
   CREDIT -->|blocked| EMPTY[Publish WALLET_EMPTY_TEMPLATE<br/>no LLM, no debit]
-  CREDIT -->|allowed| BURST[6. mergeDebounced<br/>append any stashed sibling text]
+  CREDIT -->|allowed| BURST[6. collectCoalescedInbound<br/>merge unprocessed customer inbounds since last assistant reply]
 
   BURST --> TYPING[7. sendTypingIndicator fire-and-forget]
   TYPING --> PRE[8. prefetchHotSet in parallel]
@@ -148,7 +149,7 @@ flowchart TD
   EMPTY --> UNLOCK
 ```
 
-Lock is always released in `finally`. TTL (60s) is only a backstop.
+Lock is always released in `finally`. TTL (300s, matches processor Lambda timeout) is only a backstop.
 
 ---
 
