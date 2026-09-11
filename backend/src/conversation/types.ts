@@ -151,8 +151,10 @@ export interface VendorConfig {
 export interface CompactCatalogEntry {
   id: string;
   name: string;
-  price: number; // paise
+  price: number; // paise — total for `baseQuantity` of `unit`, not per single unit
   unit: string;
+  /** Amount of `unit` covered by `price` (e.g. 350 when price is for a 350g pack). */
+  baseQuantity: number;
   minQty: number | null;
   maxQty: number | null;
   keywords: string[];

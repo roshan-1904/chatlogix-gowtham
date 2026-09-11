@@ -128,7 +128,11 @@ async function loadCompactCatalog(vendorId: string): Promise<CompactCatalogEntry
   const key = catalogCompactKey(vendorId);
   const cached = await getCached<CompactCatalogEntry[]>(key);
   if (cached !== null && !catalogPaiseLookInflated(cached.map((c) => c.price))) {
-    return cached;
+    // Heal pre-baseQty cache rows (compact catalog schema added baseQuantity 2026-09-11).
+    return cached.map((c) => ({
+      ...c,
+      baseQuantity: Number(c.baseQuantity) > 0 ? Number(c.baseQuantity) : 1
+    }));
   }
 
   const products = await prisma.product.findMany({
@@ -138,6 +142,7 @@ async function loadCompactCatalog(vendorId: string): Promise<CompactCatalogEntry
       name: true,
       basePrice: true,
       baseUnit: true,
+      baseQuantity: true,
       minOrderQuantity: true,
       maxOrderQuantity: true,
       keywords: true,
@@ -178,6 +183,7 @@ async function loadCompactCatalog(vendorId: string): Promise<CompactCatalogEntry
     name: p.name,
     price: p.basePrice,
     unit: p.baseUnit,
+    baseQuantity: Number(p.baseQuantity) > 0 ? Number(p.baseQuantity) : 1,
     minQty: p.minOrderQuantity !== null ? Number(p.minOrderQuantity) : null,
     maxQty: p.maxOrderQuantity !== null ? Number(p.maxOrderQuantity) : null,
     keywords: p.keywords,

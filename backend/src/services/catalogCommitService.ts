@@ -55,6 +55,11 @@ function toProductUpsert(
     baseUnit: draft.baseUnit,
     baseQuantity: new Prisma.Decimal(draft.baseQuantity),
     basePrice,
+    isDivisible: draft.isDivisible ?? false,
+    minOrderQuantity:
+      draft.minOrderQuantity != null ? new Prisma.Decimal(draft.minOrderQuantity) : null,
+    maxOrderQuantity:
+      draft.maxOrderQuantity != null ? new Prisma.Decimal(draft.maxOrderQuantity) : null,
     imageUrl: draft.imageUrl ?? null,
     isActive
   };
@@ -65,6 +70,11 @@ function toProductUpsert(
     baseUnit: draft.baseUnit,
     baseQuantity: new Prisma.Decimal(draft.baseQuantity),
     basePrice,
+    isDivisible: draft.isDivisible ?? false,
+    minOrderQuantity:
+      draft.minOrderQuantity != null ? new Prisma.Decimal(draft.minOrderQuantity) : undefined,
+    maxOrderQuantity:
+      draft.maxOrderQuantity != null ? new Prisma.Decimal(draft.maxOrderQuantity) : undefined,
     imageUrl: draft.imageUrl ?? undefined,
     isActive
   };

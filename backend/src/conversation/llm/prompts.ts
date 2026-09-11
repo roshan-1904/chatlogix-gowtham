@@ -45,6 +45,7 @@ export function buildCatalogTable(catalog: CompactCatalogEntry[]): string {
     name: p.name,
     price: (p.price / 100).toFixed(2),
     unit: p.unit,
+    baseQty: String(p.baseQuantity),
     minQty: p.minQty !== null ? String(p.minQty) : '',
     maxQty: p.maxQty !== null ? String(p.maxQty) : '',
     // "yes" = this base id/price/unit row is itself directly orderable (e.g.
@@ -148,8 +149,11 @@ function buildStaticBlock(hotSet: HotSet): string {
   if (v.aiContentImportantInstructions) parts.push(`Important: ${v.aiContentImportantInstructions}`);
 
   parts.push('');
-  parts.push('PRODUCT CATALOG (id,name,price,unit,minQty,maxQty,baseOrderable,keywords,fulfillment,inStock,stockQty,desc):');
+  parts.push('PRODUCT CATALOG (id,name,price,unit,baseQty,minQty,maxQty,baseOrderable,keywords,fulfillment,inStock,stockQty,desc):');
   parts.push(buildCatalogTable(hotSet.compactCatalog));
+  parts.push(
+    '- "price" is the total for "baseQty" of "unit" on that row — NOT the per-unit price when baseQty is greater than 1. Example: price=550, unit=g, baseQty=350 means Rs 550 for a 350g pack, not Rs 550 per gram. When quoting or comparing sizes (e.g. "is this 1kg?"), use this — never divide price by 1 and call it the per-gram/per-ml rate unless baseQty is exactly 1.'
+  );
   parts.push(
     "- A product's \"desc\" may contain compatibility/eligibility notes or vendor instructions (e.g. an accessory that only fits one size, or a step to confirm before an order is valid). Read it and apply it, not just recite it — e.g. warn the customer or ask the confirming question yourself before adding the item, don't wait for them to ask."
   );

@@ -5,15 +5,17 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import toast from 'react-hot-toast';
 import { useLogin, useAuth } from '@chatlogix/auth';
-import { Badge, BrandLogo } from '@chatlogix/ui';
+import { BrandLogo } from '@chatlogix/ui';
 import { normalizePhoneToE164 } from '@chatlogix/utils';
 import { PhoneLoginForm } from '../../components/auth/PhoneLoginForm';
 import { OtpVerificationForm } from '../../components/auth/OtpVerificationForm';
 import { executeFirebaseRecaptcha } from '../../lib/firebaseRecaptcha';
 import { onboardingCopy } from '../../components/onboarding/onboardingCopy';
+import { PublicAuthLegalNote, PublicAuthSplit } from '../../components/onboarding/PublicAuthSplit';
 import { SignupMarketingPanel } from '../../components/onboarding/SignupMarketingPanel';
 import { SignupDemoPreview } from '../../components/onboarding/SignupDemoPreview';
 import { SignupFaq } from '../../components/onboarding/SignupFaq';
+import { SignupTrustLines } from '../../components/onboarding/SignupTrustLines';
 import { mapOnboardingError } from '../../components/onboarding/mapOnboardingError';
 import { redirectPathForStatus, fetchOnboardingProfile } from '../../lib/onboarding';
 
@@ -115,107 +117,95 @@ export function Signup() {
   const otpSubtext = formCopy.otp.subtext.replace('{phone}', otpPhoneLabel || 'your phone');
 
   return (
-    <div className="flex min-h-screen flex-col lg:flex-row">
-      <SignupMarketingPanel />
-
-      <div className="flex flex-1 flex-col justify-center bg-white px-5 py-10 sm:px-10 lg:w-[40%] lg:px-16">
-        <div className="mx-auto w-full max-w-md">
-          <div className="mb-6">
-            <BrandLogo className="h-12 w-auto sm:h-14 lg:h-16" />
-          </div>
-
-          {step === 'phone' ? (
-            <>
-              <div className="mb-6 lg:hidden">
-                <p className="text-sm font-medium uppercase tracking-wide text-secondary-600">
-                  {marketing.hero.kicker}
-                </p>
-                <h1 className="mt-2 text-4xl font-semibold tracking-tight text-balance text-gray-900">
-                  {marketing.hero.h1}
-                </h1>
-                <SignupDemoPreview compact />
-              </div>
-              <Badge variant="success" className="mb-4 rounded-full px-3 py-1 !text-sm">
-                {formCopy.badge}
-              </Badge>
-              <h2 className="text-4xl font-semibold leading-tight tracking-tight text-gray-900 xl:text-[2.6rem]">
-                {formCopy.phone.title}
-              </h2>
-              <p className="mt-4 mb-6 text-base leading-relaxed text-gray-600">{formCopy.phone.subtext}</p>
-            </>
-          ) : (
-            <div className="mb-6">
-              <h2 className="text-4xl font-semibold leading-tight tracking-tight text-gray-900 xl:text-[2.6rem]">
-                {formCopy.otp.title}
-              </h2>
-              <p className="mt-4 text-base leading-relaxed text-gray-600">{otpSubtext}</p>
-            </div>
-          )}
-
-          {error && (
-            <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              <p>{error}</p>
-              {error.includes('log in') && (
-                <Link to="/login" className="mt-1 inline-block font-medium text-primary-600">
-                  Log in instead
-                </Link>
-              )}
-            </div>
-          )}
-
-          {step === 'phone' ? (
-            <PhoneLoginForm
-              form={phoneForm}
-              onSubmit={handleSendCode}
-              isLoading={isLoading}
-              phoneLabel={formCopy.phone.fieldLabel}
-              helperText={formCopy.phone.helper}
-              submitLabel={formCopy.phone.cta}
-              footnote={formCopy.phone.footnote}
-              autoFocus
-              labelClassName="block text-base font-medium text-gray-700 mb-2"
-              helperClassName="mt-2 text-sm text-gray-600"
-              footnoteClassName="mt-3 text-center text-sm text-gray-600"
-            />
-          ) : (
-            <>
-              {devOtpHint && (
-                <p className="mb-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">
-                  Dev OTP: <strong>123456</strong>
-                </p>
-              )}
-              <OtpVerificationForm
-                form={otpForm}
-                onSubmit={handleVerify}
-                phoneNumber={otpPhoneLabel}
-                isLoading={isLoading}
-                onBack={() => setStep('phone')}
-                onResend={async () => {
-                  await handleSendCode(phoneForm.getValues());
-                }}
-                submitLabel={formCopy.otp.cta}
-              />
-            </>
-          )}
-
-          <p className="mt-8 text-center text-base text-gray-600">
-            {formCopy.footerLogin}{' '}
-            <Link to="/login" className="font-medium text-primary-500 hover:opacity-80">
-              {formCopy.footerLoginLink}
-            </Link>
-          </p>
-
-          <details className="mt-10 group">
-            <summary className="cursor-pointer list-none text-center text-base font-medium text-gray-600 hover:text-gray-800 [&::-webkit-details-marker]:hidden">
-              <span className="group-open:hidden">Questions?</span>
-              <span className="hidden group-open:inline">Hide questions</span>
-            </summary>
-            <div className="text-left">
-              <SignupFaq variant="light" />
-            </div>
-          </details>
-        </div>
+    <PublicAuthSplit marketing={<SignupMarketingPanel />}>
+      <div className="mb-6">
+        <BrandLogo className="h-12 w-auto sm:h-14 lg:h-16" />
       </div>
-    </div>
+
+      {step === 'phone' ? (
+        <>
+          <div className="mb-6 lg:hidden">
+            <p className="text-sm font-medium uppercase tracking-wide text-secondary-600">
+              {marketing.hero.kicker}
+            </p>
+            <SignupDemoPreview compact />
+            <SignupTrustLines className="mt-4" />
+          </div>
+          <h1 className="text-4xl font-semibold leading-tight tracking-tight text-gray-900 lg:hidden">
+            {formCopy.phone.title}
+          </h1>
+          <h2 className="hidden text-4xl font-semibold leading-tight tracking-tight text-gray-900 lg:block xl:text-[2.6rem]">
+            {formCopy.phone.title}
+          </h2>
+          <p className="mt-4 mb-6 text-base leading-relaxed text-gray-600">{formCopy.phone.subtext}</p>
+        </>
+      ) : (
+        <div className="mb-6">
+          <h2 className="text-4xl font-semibold leading-tight tracking-tight text-gray-900 xl:text-[2.6rem]">
+            {formCopy.otp.title}
+          </h2>
+          <p className="mt-4 text-base leading-relaxed text-gray-600">{otpSubtext}</p>
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <p>{error}</p>
+          {error.includes('log in') && (
+            <Link to="/login" className="mt-1 inline-block font-medium text-primary-600">
+              Log in instead
+            </Link>
+          )}
+        </div>
+      )}
+
+      {step === 'phone' ? (
+        <PhoneLoginForm
+          form={phoneForm}
+          onSubmit={handleSendCode}
+          isLoading={isLoading}
+          phoneLabel={formCopy.phone.fieldLabel}
+          helperText={formCopy.phone.helper}
+          submitLabel={formCopy.phone.cta}
+          footnote={formCopy.phone.footnote}
+          autoFocus
+          labelClassName="block text-base font-medium text-gray-700 mb-2"
+          helperClassName="mt-2 text-sm text-gray-600"
+          footnoteClassName="mt-3 text-center text-sm text-gray-600"
+        />
+      ) : (
+        <>
+          {devOtpHint && (
+            <p className="mb-3 rounded-lg bg-amber-50 p-2 text-xs text-amber-900">
+              Dev OTP: <strong>123456</strong>
+            </p>
+          )}
+          <OtpVerificationForm
+            form={otpForm}
+            onSubmit={handleVerify}
+            phoneNumber={otpPhoneLabel}
+            isLoading={isLoading}
+            onBack={() => setStep('phone')}
+            onResend={async () => {
+              await handleSendCode(phoneForm.getValues());
+            }}
+            submitLabel={formCopy.otp.cta}
+          />
+        </>
+      )}
+
+      <PublicAuthLegalNote />
+
+      <p className="mt-8 text-center text-base text-gray-600">
+        {formCopy.footerLogin}{' '}
+        <Link to="/login" className="font-medium text-primary-500 hover:opacity-80">
+          {formCopy.footerLoginLink}
+        </Link>
+      </p>
+
+      <div className="mt-10 text-left">
+        <SignupFaq variant="light" />
+      </div>
+    </PublicAuthSplit>
   );
 }

@@ -35,6 +35,9 @@ export const NormalizedProductDraftSchema = z.object({
   basePrice: z.number().int().nonnegative().nullable().optional(), // paise; null when missing
   baseUnit: z.string().min(1).max(32),
   baseQuantity: z.number().positive(),
+  isDivisible: z.boolean().default(false),
+  minOrderQuantity: z.number().positive().optional(),
+  maxOrderQuantity: z.number().positive().optional(),
   isActive: z.boolean().default(true),
   imageUrl: z.string().url().optional(),
   keywords: z.array(z.string().min(1).max(64)).max(50).default([]),

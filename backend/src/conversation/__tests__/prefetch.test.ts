@@ -137,12 +137,16 @@ describe('prefetchHotSet', () => {
         name: 'Brownie',
         basePrice: 10000,
         baseUnit: 'box',
+        baseQuantity: 1,
         minOrderQuantity: { toString: () => '2' }, // Decimal-like stub
         maxOrderQuantity: null,
         keywords: ['brownie'],
         fulfillmentType: 'made_to_order',
         inStock: true,
-        stockQuantity: null
+        stockQuantity: null,
+        variants: [],
+        description: '',
+        isDivisible: false
       }
     ]);
 
@@ -154,6 +158,7 @@ describe('prefetchHotSet', () => {
         name: 'Brownie',
         price: 10000,
         unit: 'box',
+        baseQuantity: 1,
         minQty: 2,
         maxQty: null,
         keywords: ['brownie'],
@@ -161,7 +166,8 @@ describe('prefetchHotSet', () => {
         inStock: true,
         stockQuantity: null,
         variants: [],
-        description: ''
+        description: '',
+        isDivisible: false
       }
     ]);
   });
@@ -173,6 +179,7 @@ describe('prefetchHotSet', () => {
         name: 'Plain Bar',
         price: 1_800_000,
         unit: 'piece',
+        baseQuantity: 1,
         minQty: null,
         maxQty: null,
         keywords: ['plain'],
@@ -190,6 +197,7 @@ describe('prefetchHotSet', () => {
         name: 'Plain Bar',
         basePrice: 1_800_000,
         baseUnit: 'piece',
+        baseQuantity: 1,
         minOrderQuantity: null,
         maxOrderQuantity: null,
         keywords: ['plain'],
@@ -225,6 +233,7 @@ describe('prefetchHotSet', () => {
         name: 'Plain Bar',
         price: 1_800_000,
         unit: 'piece',
+        baseQuantity: 1,
         minQty: null,
         maxQty: null,
         keywords: ['plain'],
@@ -242,6 +251,7 @@ describe('prefetchHotSet', () => {
         name: 'Plain Bar',
         basePrice: 18000,
         baseUnit: 'piece',
+        baseQuantity: 1,
         minOrderQuantity: null,
         maxOrderQuantity: null,
         keywords: ['plain'],

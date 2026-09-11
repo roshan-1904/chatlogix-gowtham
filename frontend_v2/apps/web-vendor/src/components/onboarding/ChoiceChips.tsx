@@ -1,8 +1,9 @@
 interface ChoiceChipsProps<T extends string> {
-  value: T;
+  value: T | '';
   options: readonly T[];
-  onChange: (value: T) => void;
+  onChange: (value: T | '') => void;
   ariaLabel: string;
+  allowEmpty?: boolean;
 }
 
 export function ChoiceChips<T extends string>({
@@ -10,6 +11,7 @@ export function ChoiceChips<T extends string>({
   options,
   onChange,
   ariaLabel,
+  allowEmpty = true,
 }: ChoiceChipsProps<T>) {
   return (
     <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={ariaLabel}>
@@ -21,7 +23,13 @@ export function ChoiceChips<T extends string>({
             type="button"
             role="radio"
             aria-checked={selected}
-            onClick={() => onChange(option)}
+            onClick={() => {
+              if (selected && allowEmpty) {
+                onChange('');
+                return;
+              }
+              onChange(option);
+            }}
             className={`rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors ${
               selected
                 ? 'border-primary-500 bg-primary-50 text-primary-800'

@@ -3,7 +3,7 @@
 <!-- DOC_SYNC
   last_verified_commit: b8a6efbff1933e4bc80efc03d2676d56dd6e8655
   last_verified_at: 2026-09-06
-  scope: As-implemented incoming-response-generator pipeline (language, LLM-2 reply selection, contentEn, voice-note ASR, compact-catalog paise heal)
+  scope: As-implemented incoming-response-generator pipeline (language, LLM-2 reply selection, contentEn, voice-note ASR, compact-catalog paise heal, catalog baseQty pack pricing)
 -->
 
 **Living document.** This describes the **as-implemented** text path in `chatlogix-incoming-response-generator`, not the locked design spec. When the pipeline in `backend/src/conversation/` changes, update this file in the same change (see `.cursor/rules/incoming-response-generator-flow.mdc`).
@@ -248,7 +248,7 @@ One OpenAI call with strict structured output (`llm1JsonSchema`). Model = `Vendo
 
 System prompt (`buildLlm1SystemPrompt`):
 
-- **Static** (prompt-cache prefix): bot identity, vendor rules, compact catalog table, variant SKU table, op rules.
+- **Static** (prompt-cache prefix): bot identity, vendor rules, compact catalog table (`id,name,price,unit,baseQty,…` — `price` is for `baseQty` of `unit`, not per gram when `baseQty` > 1), variant SKU table, op rules.
 - **Dynamic**: current cart, customer name/address, recent orders, matched FAQs, last 6 turns. When `sourceMessageType` is `audio`, a **VOICE NOTE** block is appended: treat the user text as ASR, ask a clarifying question if it is garbled or off-catalog, and prefer CURRENT CART / RECENT ORDERS when the transcript is close (cake, brownie, kg).
 
 User message: merged customer text.

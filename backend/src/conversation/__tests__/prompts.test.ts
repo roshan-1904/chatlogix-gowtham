@@ -7,6 +7,7 @@ const brownie: CompactCatalogEntry = {
   name: 'Brownie',
   price: 10000,
   unit: 'box',
+  baseQuantity: 1,
   minQty: 1,
   maxQty: 10,
   keywords: ['choco', 'dessert'],
@@ -68,6 +69,15 @@ describe('buildCatalogTable', () => {
     expect(table).toContain('100.00');
   });
 
+  it('includes baseQty so pack-size pricing is visible to LLM-1', () => {
+    const header = buildCatalogTable([brownie]).split('\n')[0].trim();
+    expect(header).toContain('baseQty');
+    const pack = buildCatalogTable([
+      { ...brownie, price: 55000, unit: 'g', baseQuantity: 350, isDivisible: false }
+    ]);
+    expect(pack).toContain('350');
+  });
+
   it('includes the description, flattened to one line', () => {
     const table = buildCatalogTable([{ ...brownie, description: 'Fits only\nan 8x8 tin.\n\nConfirm size before ordering.' }]);
     expect(table).toContain('Fits only an 8x8 tin. Confirm size before ordering.');
@@ -104,6 +114,12 @@ describe('buildLlm1SystemPrompt', () => {
     expect(voice).toContain('speech-to-text transcript');
     expect(voice).toContain('Do not invent a medical issue');
     expect(voice).toContain('CURRENT CART or RECENT ORDERS');
+  });
+
+  it('includes a baseQty price grounding rule in the static block', () => {
+    const prompt = buildLlm1SystemPrompt(makeHotSet());
+    expect(prompt).toContain('baseQty');
+    expect(prompt).toContain('NOT the per-unit price when baseQty is greater than 1');
   });
 
   it('reflects an empty cart when there is no pending order', () => {

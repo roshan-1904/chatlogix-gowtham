@@ -2,8 +2,8 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useLogout } from '@chatlogix/auth';
-import { BrandLogo, Button } from '@chatlogix/ui';
-import { formatRupee, fetchTrialWallet, ONBOARDING_STEP_LABELS } from '../../lib/onboarding';
+import { Badge, BrandLogo, Button } from '@chatlogix/ui';
+import { formatTrialLeft, fetchTrialWallet, ONBOARDING_STEP_LABELS } from '../../lib/onboarding';
 import { NeedHelpFooter } from './NeedHelpFooter';
 import { OnboardingGuidePanel, type OnboardingGuideCopy } from './OnboardingGuidePanel';
 import { onboardingCopy } from './onboardingCopy';
@@ -16,6 +16,19 @@ const ONBOARDING_STEPS = [
   { id: 5, label: ONBOARDING_STEP_LABELS[4], href: '/onboarding/review' },
 ] as const;
 
+function StepCheck() {
+  return (
+    <svg viewBox="0 0 12 12" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+      <path d="M2.5 6.5 5 9l4.5-5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** The right column repeats the left H1 on some steps; only show it when it adds something. */
+function normalizeTitle(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
 interface OnboardingLayoutProps {
   step: number;
   children: ReactNode;
@@ -24,6 +37,8 @@ interface OnboardingLayoutProps {
   allComplete?: boolean;
   hideWallet?: boolean;
   hideStepper?: boolean;
+  /** Force-drop the right-column h2 even when it differs from the guide H1. */
+  hideActionTitle?: boolean;
   /** Catalog review: 50/50 instead of 60/40 so product cards have room */
   splitEven?: boolean;
   /** Demo chat: minimal chrome, no footer help, hide mobile guide */
@@ -38,6 +53,7 @@ export function OnboardingLayout({
   allComplete = false,
   hideWallet = false,
   hideStepper = false,
+  hideActionTitle = false,
   splitEven = false,
   demoMode = false,
 }: OnboardingLayoutProps) {
@@ -83,6 +99,12 @@ export function OnboardingLayout({
     };
   }, [demoMode]);
 
+  const actionTitle = guide?.actionTitle?.trim() ?? '';
+  const showActionTitle =
+    !hideActionTitle &&
+    actionTitle.length > 0 &&
+    normalizeTitle(actionTitle) !== normalizeTitle(guide?.h1 ?? '');
+
   const guideWidth = splitEven ? 'lg:w-1/2' : 'lg:w-1/2 xl:w-[60%]';
   const actionWidth = splitEven ? 'lg:w-1/2' : 'lg:w-1/2 xl:w-[40%]';
 
@@ -105,28 +127,56 @@ export function OnboardingLayout({
 
           {!hideStepper && (
             <nav className="hidden min-w-0 flex-1 justify-center md:flex" aria-label="Setup steps">
-              <ol className="flex items-center gap-1">
+              <ol className="flex items-center">
                 {ONBOARDING_STEPS.map((item, i) => {
                   const done = allComplete || item.id < step;
                   const active = !allComplete && item.id === step;
                   const canLink = done || active;
-                  const label = (
-                    <span
-                      className={`px-2.5 py-1 text-sm ${
-                        active
-                          ? 'font-semibold text-primary-500'
-                          : done
-                            ? 'text-gray-700'
-                            : 'text-gray-400'
-                      }`}
-                    >
-                      {item.label}
+                  const content = (
+                    <span className="flex items-center gap-2">
+                      <span
+                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
+                          active
+                            ? 'bg-primary-500 text-white'
+                            : done
+                              ? 'border border-primary-500 bg-white text-primary-500'
+                              : 'bg-gray-100 text-gray-400'
+                        }`}
+                      >
+                        {done ? <StepCheck /> : item.id}
+                      </span>
+                      <span
+                        className={`hidden text-sm lg:inline ${
+                          active
+                            ? 'font-semibold text-primary-500'
+                            : done
+                              ? 'text-gray-700'
+                              : 'text-gray-400'
+                        }`}
+                      >
+                        {item.label}
+                      </span>
                     </span>
                   );
                   return (
-                    <li key={item.id} className="flex items-center">
-                      {i > 0 && <span className="mx-0.5 text-gray-300">/</span>}
-                      {canLink ? <Link to={item.href}>{label}</Link> : label}
+                    <li
+                      key={item.id}
+                      className="flex items-center"
+                      aria-current={active ? 'step' : undefined}
+                    >
+                      {i > 0 && (
+                        <span
+                          aria-hidden
+                          className={`mx-2 h-px w-4 lg:w-6 ${done ? 'bg-primary-500' : 'bg-gray-200'}`}
+                        />
+                      )}
+                      {canLink ? (
+                        <Link to={item.href} className="rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2">
+                          {content}
+                        </Link>
+                      ) : (
+                        content
+                      )}
                     </li>
                   );
                 })}
@@ -136,9 +186,9 @@ export function OnboardingLayout({
 
           <div className="flex shrink-0 items-center gap-3">
             {!hideWallet && (
-              <p className="text-xs text-gray-500">
-                {isLoading ? '…' : `${formatRupee(wallet?.balancePaise ?? 0)} trial`}
-              </p>
+              <Badge variant="info" className="rounded-full px-2.5 py-1">
+                {isLoading ? '…' : formatTrialLeft(wallet?.balancePaise ?? 0)}
+              </Badge>
             )}
             <Button type="button" variant="ghost" size="sm" onClick={handleLogout}>
               {onboardingCopy.help.logout}
@@ -178,7 +228,7 @@ export function OnboardingLayout({
             }`}
           >
             {!demoMode && (
-              <div className="px-5 pt-8 lg:hidden sm:px-10">
+              <div className="px-5 pb-1 pt-6 sm:px-10 lg:hidden">
                 <OnboardingGuidePanel copy={guide} compact />
               </div>
             )}
@@ -196,8 +246,8 @@ export function OnboardingLayout({
                     : `mx-auto w-full ${splitEven ? 'max-w-xl' : 'max-w-md'}`
                 }
               >
-                {!demoMode && (
-                  <h2 className="mb-6 hidden text-3xl font-semibold leading-tight tracking-tight text-gray-900 lg:block">
+                {!demoMode && showActionTitle && (
+                  <h2 className="mb-5 hidden text-xl font-semibold leading-snug tracking-tight text-gray-900 lg:block">
                     {guide.actionTitle}
                   </h2>
                 )}
@@ -210,11 +260,11 @@ export function OnboardingLayout({
         <main className="mx-auto w-full max-w-lg flex-1 px-4 py-8">{children}</main>
       )}
 
-      {!demoMode && (
-        <div className="shrink-0">
-          <NeedHelpFooter />
-        </div>
-      )}
+      {/* Help stays reachable on every step, including the demo chat, where it
+          shrinks to a single tight line so the full-height phone keeps its room. */}
+      <div className="shrink-0">
+        <NeedHelpFooter className={demoMode ? 'px-3 py-1.5 text-xs' : undefined} />
+      </div>
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth, type RegistrationStatus } from '@chatlogix/auth';
 import { redirectPathForStatus } from '../../lib/onboarding';
+import { OnboardingPageSkeleton } from '../onboarding/OnboardingSkeleton';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -22,6 +23,9 @@ export function ProtectedRoute({
   const location = useLocation();
 
   if (isLoading) {
+    if (onboardingOnly) {
+      return <OnboardingPageSkeleton />;
+    }
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-gray-600">Loading...</div>

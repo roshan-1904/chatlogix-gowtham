@@ -51,6 +51,10 @@ const confirmSchema = z.object({
   aiClosing: z.string().max(500).optional()
 });
 
+const reviewSchema = z.object({
+  email: z.string().email().optional()
+});
+
 const patchOnboardingSchema = z.object({
   step: z.number().int().min(1).max(5),
   data: z.record(z.unknown()).optional(),
@@ -63,6 +67,16 @@ function requireVendorId(req: Request): string {
     throw createValidationError('Vendor context is required', 'vendorId');
   }
   return vendorId;
+}
+
+async function assertEmailAvailable(vendorId: string, email: string): Promise<void> {
+  const emailOwner = await prisma.vendor.findFirst({
+    where: { email, NOT: { id: vendorId } },
+    select: { id: true }
+  });
+  if (emailOwner) {
+    throw createValidationError('That email is already used by another shop', 'email');
+  }
 }
 
 function stepPath(step: number): string {
@@ -203,13 +217,7 @@ vendorOnboardingRouter.patch(
         throw createValidationError('Please check your shop details', 'data', confirm.error.flatten());
       }
       if (confirm.data.email && confirm.data.email !== vendor.email) {
-        const emailOwner = await prisma.vendor.findFirst({
-          where: { email: confirm.data.email, NOT: { id: vendorId } },
-          select: { id: true }
-        });
-        if (emailOwner) {
-          throw createValidationError('That email is already used by another shop', 'email');
-        }
+        await assertEmailAvailable(vendorId, confirm.data.email);
       }
       const snapshot = await getIntakeSnapshot(vendorId);
       const extracted = {
@@ -257,6 +265,20 @@ vendorOnboardingRouter.patch(
 
     if (step === 4) {
       logOnboardingFunnelEvent('step_4_completed', { vendorId });
+    }
+
+    if (step === 5) {
+      const review = reviewSchema.safeParse(data);
+      if (!review.success) {
+        throw createValidationError('Please check your email', 'data', review.error.flatten());
+      }
+      if (review.data.email && review.data.email !== vendor.email) {
+        await assertEmailAvailable(vendorId, review.data.email);
+      }
+      updateData = {
+        ...updateData,
+        ...(review.data.email ? { email: review.data.email } : {})
+      };
     }
 
     if (advance) {

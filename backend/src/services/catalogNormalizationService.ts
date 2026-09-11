@@ -37,6 +37,40 @@ export function canonicalUnit(raw: string | undefined | null): { unit: string; k
   return { unit: key, known: false };
 }
 
+/** Weight/volume units that usually denote a fixed pre-pack, not loose sale by gram/ml. */
+const FIXED_PACK_UNITS = new Set(['g', 'ml']);
+
+/**
+ * Pre-packed goods (e.g. 350g cake box) are often extracted as unit=g, qty=350.
+ * Model as piece/1 for ordering when not sold loose by weight.
+ */
+export function normalizeFixedPackDraft(draft: NormalizedProductDraft): NormalizedProductDraft {
+  if (draft.isDivisible) return draft;
+  if (!FIXED_PACK_UNITS.has(draft.baseUnit) || draft.baseQuantity <= 1) return draft;
+
+  const packLabel = `${draft.baseQuantity}${draft.baseUnit}`;
+  const packNote = `${packLabel} pack`;
+  const desc = draft.description?.trim() ?? '';
+  const lowerName = draft.name.toLowerCase();
+  const lowerDesc = desc.toLowerCase();
+  const alreadyMentioned =
+    lowerName.includes(packLabel.toLowerCase()) ||
+    lowerDesc.includes(packLabel.toLowerCase()) ||
+    lowerDesc.includes(packNote.toLowerCase());
+
+  return {
+    ...draft,
+    baseUnit: 'piece',
+    baseQuantity: 1,
+    isDivisible: false,
+    description: alreadyMentioned ? draft.description : desc ? `${desc} (${packNote})` : packNote,
+    sourceMeta: {
+      ...draft.sourceMeta,
+      warnings: [...(draft.sourceMeta.warnings ?? []), 'fixed_pack_normalized']
+    }
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Price coercion
 // ---------------------------------------------------------------------------
@@ -169,7 +203,7 @@ export function visionRowToDraft(row: ExtractedProductRow): NormalizedProductDra
 
   const rowConfidence = scoreRowConfidence(fieldConfidence, { hasPrice: basePrice != null, unitKnown });
 
-  return {
+  return normalizeFixedPackDraft({
     rowId: deterministicRowId(cleanedName, cleanedSku),
     name: cleanedName,
     sku: cleanedSku,
@@ -177,6 +211,7 @@ export function visionRowToDraft(row: ExtractedProductRow): NormalizedProductDra
     basePrice,
     baseUnit: unit,
     baseQuantity: Number.isFinite(qty) && qty > 0 ? qty : 1,
+    isDivisible: false,
     isActive: basePrice != null,
     imageUrl: undefined,
     keywords: Array.isArray(keywordsFv.value) ? keywordsFv.value.slice(0, 50) : [],
@@ -187,7 +222,7 @@ export function visionRowToDraft(row: ExtractedProductRow): NormalizedProductDra
       fieldConfidence,
       warnings: []
     }
-  };
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -239,7 +274,7 @@ export function tabularRowToDraft(tr: TabularRow): NormalizedProductDraft | null
     unitKnown
   });
 
-  return {
+  return normalizeFixedPackDraft({
     rowId: deterministicRowId(cleanedName, cleanedSku),
     name: cleanedName,
     sku: cleanedSku,
@@ -247,6 +282,7 @@ export function tabularRowToDraft(tr: TabularRow): NormalizedProductDraft | null
     basePrice,
     baseUnit: unit,
     baseQuantity: Number.isFinite(qty) && qty > 0 ? qty : 1,
+    isDivisible: false,
     isActive: basePrice != null,
     keywords,
     overrideProtected: false,
@@ -256,7 +292,7 @@ export function tabularRowToDraft(tr: TabularRow): NormalizedProductDraft | null
       fieldConfidence,
       warnings: []
     }
-  };
+  });
 }
 
 // ---------------------------------------------------------------------------

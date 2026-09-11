@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { useAuth } from '@chatlogix/auth';
 import { Button } from '@chatlogix/ui';
 import { OnboardingLayout } from '../../components/onboarding/OnboardingLayout';
+import { OnboardingActionSkeleton } from '../../components/onboarding/OnboardingSkeleton';
 import { OnboardingGuideChatPreview } from '../../components/onboarding/OnboardingGuidePanel';
 import { OnboardingExtractProgress } from '../../components/onboarding/OnboardingExtractProgress';
 import { OnboardingProductEditor } from '../../components/onboarding/OnboardingProductEditor';
@@ -13,7 +14,13 @@ import { UploadDropzone, type UploadedKey } from '../../components/catalogImport
 import { useCatalogImportAutosave } from '../../hooks/useCatalogImportAutosave';
 import { fetchOnboardingProfile, fetchTrialWallet, patchOnboarding, pathAfterCatalog } from '../../lib/onboarding';
 import { analyze, commit, getJob, streamJob } from '../../lib/catalogImport';
-import { committableProducts, limitDemoProducts, ONBOARDING_DEMO_PRODUCT_LIMIT, repairInflatedCatalogPrices } from '../../lib/productDraft';
+import {
+  committableProducts,
+  createManualProductDraft,
+  limitDemoProducts,
+  ONBOARDING_DEMO_PRODUCT_LIMIT,
+  repairInflatedCatalogPrices,
+} from '../../lib/productDraft';
 import type { CatalogImportJob, NormalizedProductDraft, PageProgress } from '../../types/catalogImport';
 
 type ExtractedShopFacts = NonNullable<CatalogImportJob['result']>['vendorProfile'];
@@ -63,16 +70,11 @@ function CatalogUploadFields({
         maxImages={ONBOARDING_DEMO_PRODUCT_LIMIT}
         disabled={disabled}
         onUploaded={onUploaded}
+        variant="split"
+        takePhotoLabel={onboardingCopy.step2.takePhoto}
+        uploadFileLabel={onboardingCopy.step2.uploadFile}
+        exampleHint={onboardingCopy.step2.uploadExample}
       />
-      {uploads.length > 0 && (
-        <ul className="mt-3 flex flex-wrap gap-2">
-          {uploads.map((u) => (
-            <li key={u.key} className="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-700">
-              {u.file.name}
-            </li>
-          ))}
-        </ul>
-      )}
       {uploads.length > 0 && (
         <Button
           onClick={onAnalyze}
@@ -118,6 +120,7 @@ export function OnboardingCatalog() {
   const [alreadyCommitted, setAlreadyCommitted] = useState(false);
   const [hydrating, setHydrating] = useState(true);
   const [shopFacts, setShopFacts] = useState<ExtractedShopFacts>();
+  const [sourceUploads, setSourceUploads] = useState<UploadedKey[]>([]);
 
   const vendorId = user?.vendorId;
   const imageKeys = useMemo(
@@ -216,6 +219,7 @@ export function OnboardingCatalog() {
       });
       setImportJobId(started.jobId);
       setProgress([]);
+      setSourceUploads(uploads);
       setUploads([]);
       await patchOnboarding({
         step: 1,
@@ -228,6 +232,16 @@ export function OnboardingCatalog() {
     } finally {
       setBusy(false);
     }
+  };
+
+  const handleAddByHand = () => {
+    const next = [
+      createManualProductDraft(),
+      createManualProductDraft(),
+      createManualProductDraft(),
+    ];
+    setDrafts(next);
+    setPhase('review');
   };
 
   const handleSkip = async () => {
@@ -307,7 +321,7 @@ export function OnboardingCatalog() {
   if (hydrating) {
     return (
       <OnboardingLayout step={1} guide={copy.guide} guideVisual={catalogPreview}>
-        <p className="text-sm text-gray-500">Loading…</p>
+        <OnboardingActionSkeleton rows={2} />
       </OnboardingLayout>
     );
   }
@@ -380,19 +394,40 @@ export function OnboardingCatalog() {
         <div className="space-y-6">
           {hasProducts ? (
             <>
+              {sourceUploads.length > 0 ? (
+                <ul className="flex flex-wrap gap-2">
+                  {sourceUploads.map((u) => (
+                    <li
+                      key={u.key}
+                      className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white p-1.5"
+                    >
+                      {u.kind === 'image' && u.previewUrl ? (
+                        <img src={u.previewUrl} alt="" className="h-12 w-12 rounded-md object-cover" />
+                      ) : (
+                        <div className="flex h-12 w-12 items-center justify-center rounded-md bg-gray-100 text-[10px] font-medium text-gray-600">
+                          {u.file.name.split('.').pop()?.toUpperCase() ?? 'FILE'}
+                        </div>
+                      )}
+                      <span className="max-w-[8rem] truncate pr-2 text-xs text-gray-600">{u.file.name}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
               <ShopFactsBanner profile={shopFacts} />
               <p className="text-sm text-gray-500">
                 {drafts.length} items · {copy.found}
               </p>
-            </>
-          ) : null}
-          <OnboardingProductEditor drafts={drafts} onChange={setDrafts} disabled={busy} />
-          <div className="space-y-3">
-            {hasProducts ? (
+              <OnboardingProductEditor drafts={drafts} onChange={setDrafts} disabled={busy} />
               <Button className="w-full" onClick={() => void handleSave()} isLoading={busy} disabled={busy}>
                 {copy.save}
               </Button>
-            ) : (
+            </>
+          ) : phase === 'review' ? (
+            <div className="space-y-3">
+              <Button className="w-full" onClick={handleAddByHand} disabled={busy}>
+                {copy.addByHand}
+              </Button>
+              <p className="text-center text-sm text-amber-800">{copy.skipWarning}</p>
               <button
                 type="button"
                 onClick={() => void handleSkip()}
@@ -401,8 +436,17 @@ export function OnboardingCatalog() {
               >
                 {copy.skip}
               </button>
-            )}
-          </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void handleSkip()}
+              disabled={busy}
+              className="w-full text-center text-sm text-gray-500 hover:text-gray-800 disabled:opacity-50"
+            >
+              {copy.skip}
+            </button>
+          )}
         </div>
       )}
     </OnboardingLayout>

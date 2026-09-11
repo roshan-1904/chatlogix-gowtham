@@ -12,6 +12,9 @@ export interface NormalizedProductDraft {
   basePrice: number | null;
   baseUnit: string;
   baseQuantity: number;
+  isDivisible?: boolean;
+  minOrderQuantity?: number;
+  maxOrderQuantity?: number;
   isActive: boolean;
   imageUrl?: string;
   keywords: string[];

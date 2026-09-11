@@ -227,6 +227,66 @@
       "id": "marketing-header-matches-page",
       "decision": "Marketing header uses the same chrome as the rest of the site: #f8f9fa canvas, mint circular chat mark, Plus Jakarta wordmark (navy + teal), pill nav with teal hover, navy Try Free → CTA.",
       "date": "2026-09-08"
+    },
+    {
+      "id": "signup-job-first-copy",
+      "decision": "Public /signup leads with the job — 'Try it on your catalog' + 'Send code'. ₹100 is helper text under the field, never the H1, the badge, or the only CTA. Trust lines (no card, customers not messaged, review in 1–2 days), a visible FAQ heading with the first items open, and Terms/Privacy links sit under the CTA instead of being sr-only.",
+      "date": "2026-09-11"
+    },
+    {
+      "id": "public-auth-split-shared",
+      "decision": "/signup and /login share one PublicAuthSplit layout: light gray marketing column + full-white form column, reusing SignupDemoPreview. The dark navy feature-icon login wall is gone. Login form is 'Welcome back'. OTP boxes are thumb-sized and auto-submit on the sixth digit.",
+      "date": "2026-09-11"
+    },
+    {
+      "id": "onboarding-catalog-one-line-rows",
+      "decision": "Catalog review lists products as one-line rows (name, ₹ price, unit/qty, Edit/Remove) with a single row expanded at a time for description; description is collapsed by default. Missing price keeps the yellow treatment and the 10-item demo cap stays. Upload offers two equal actions — Take photo (capture=environment) and Upload file. A zero-product extract offers 'Add 3 items by hand' as the primary recovery; Skip stays but warns that the assistant cannot quote prices.",
+      "date": "2026-09-11"
+    },
+    {
+      "id": "onboarding-clarify-empty-default",
+      "decision": "Clarify chips start with nothing selected and Continue is disabled until a chip or non-empty text is set, so no answer is submitted by accident. Progress reads as a short meter ('Detail N of 5') plus one line on why the detail matters, replacing the percent-complete sentence.",
+      "date": "2026-09-11"
+    },
+    {
+      "id": "onboarding-confirm-grouped-fields",
+      "decision": "Confirm groups the same fields into Shop facts and How it sounds (assistant name, greeting, live phone mock) with personality as chips writing aiPersonality. The approval email is collected here as 'Where should we send approval?' rather than surfacing as an amber block on Review.",
+      "date": "2026-09-11"
+    },
+    {
+      "id": "onboarding-demo-soft-gate",
+      "decision": "Demo chat soft-gates progress: chat is the primary action and 'Continue to review' stays a ghost button until the vendor hears one assistant reply, the wallet is empty, or they skipped catalog. It never hard-blocks. Catalog-derived prompt chips are built client-side when the backend returns none.",
+      "date": "2026-09-11"
+    },
+    {
+      "id": "onboarding-submitted-timeline",
+      "decision": "Submitted shows a four-stop timeline (Submitted → In review → Approved → Connect WhatsApp) plus a 'While you wait' list. Edit application points at /onboarding/confirm, not /onboarding/welcome. Rejected shows the reason, a support link, and a path back to confirm/catalog.",
+      "date": "2026-09-11"
+    },
+    {
+      "id": "onboarding-numbered-stepper",
+      "decision": "Onboarding header stepper is numbered circles instead of slash-separated words: done = navy-outlined check on white, current = filled primary-500, ahead = gray-100/gray-400, joined by short rules that turn navy once passed. Labels appear from lg up; md shows circles only. Mobile keeps the five-segment progress bars.",
+      "date": "2026-09-11"
+    },
+    {
+      "id": "onboarding-one-title-per-viewport",
+      "decision": "Only one title per viewport. Mobile compact guide is kicker + H1 (no how-to rows) so the control stays above the fold. On desktop the right-column actionTitle renders as a text-xl h2 and is skipped entirely when it restates the left H1.",
+      "date": "2026-09-11"
+    },
+    {
+      "id": "onboarding-wallet-chip",
+      "decision": "Trial wallet is a navy Badge pill reading '₹N trial left' in whole rupees (formatTrialLeft), not '₹100.00 trial'. Per-reply cost keeps the two-decimal formatRupee.",
+      "date": "2026-09-11"
+    },
+    {
+      "id": "onboarding-split-skeletons",
+      "decision": "Loading states use shaped skeletons, never a bare 'Loading…'. OnboardingActionSkeleton fills the right column of the 60/40 split; OnboardingPageSkeleton reproduces the whole split for pre-layout states (ProtectedRoute with onboardingOnly). Pulse is motion-safe.",
+      "date": "2026-09-11"
+    },
+    {
+      "id": "onboarding-help-always-visible",
+      "decision": "NeedHelpFooter never returns null. It always shows 'Questions?' and resolves a link in order: VITE_SUPPORT_WHATSAPP (wa.me) → VITE_SUPPORT_EMAIL (mailto) → https://chatlogix.in. Both vars are documented in frontend_v2/apps/web-vendor/.env.example.",
+      "date": "2026-09-11"
     }
   ],
   "evidence": [
@@ -244,5 +304,5 @@
     }
   ],
   "generatedAt": "2026-09-05T17:29:11.983Z",
-  "updatedAt": "2026-09-08T07:05:00.000Z"
+  "updatedAt": "2026-09-11T07:05:00.000Z"
 }

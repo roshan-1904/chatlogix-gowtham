@@ -8,6 +8,7 @@ import {
   scoreRowConfidence,
   tabularRowToDraft,
   visionRowToDraft,
+  normalizeFixedPackDraft,
   catalogPaiseLookInflated,
   repairInflatedDraftPrices
 } from '../catalogNormalizationService.js';
@@ -125,7 +126,55 @@ describe('scoreRowConfidence', () => {
   });
 });
 
+describe('normalizeFixedPackDraft', () => {
+  it('converts a fixed g/ml pack to piece/1 and notes pack size in description', () => {
+    const normalized = normalizeFixedPackDraft({
+      rowId: 'r_1',
+      name: 'Chocolate Truffle',
+      basePrice: 55000,
+      baseUnit: 'g',
+      baseQuantity: 350,
+      isDivisible: false,
+      isActive: true,
+      keywords: [],
+      overrideProtected: false,
+      sourceMeta: { source: 'vision', confidence: 0.9, fieldConfidence: {}, warnings: [] }
+    });
+    expect(normalized.baseUnit).toBe('piece');
+    expect(normalized.baseQuantity).toBe(1);
+    expect(normalized.description).toContain('350g pack');
+    expect(normalized.sourceMeta.warnings).toContain('fixed_pack_normalized');
+  });
+
+  it('leaves loose-by-weight kg rows unchanged', () => {
+    const draft: NormalizedProductDraft = {
+      rowId: 'r_2',
+      name: 'Cake',
+      basePrice: 60000,
+      baseUnit: 'kg',
+      baseQuantity: 1,
+      isDivisible: true,
+      isActive: true,
+      keywords: [],
+      overrideProtected: false,
+      sourceMeta: { source: 'vision', confidence: 0.9, fieldConfidence: {}, warnings: [] }
+    };
+    expect(normalizeFixedPackDraft(draft)).toEqual(draft);
+  });
+});
+
 describe('visionRowToDraft', () => {
+  it('normalizes fixed g packs from vision extraction', () => {
+    const draft = visionRowToDraft(
+      makeVisionRow({
+        baseUnit: fc('g', 0.9),
+        baseQuantity: fc(350, 0.9)
+      })
+    );
+    expect(draft.baseUnit).toBe('piece');
+    expect(draft.baseQuantity).toBe(1);
+  });
+
   it('produces deterministic rowIds for the same name+sku', () => {
     const a = visionRowToDraft(makeVisionRow());
     const b = visionRowToDraft(makeVisionRow());

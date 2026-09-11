@@ -5,6 +5,11 @@ export function formatRupee(paise: number): string {
   return `₹${(paise / 100).toFixed(2)}`;
 }
 
+/** Wallet chrome shows whole rupees: "₹87 trial left", never "₹87.00 trial". */
+export function formatTrialLeft(paise: number): string {
+  return `₹${Math.max(0, Math.round(paise / 100))} trial left`;
+}
+
 export interface ExtractedField<T = string> {
   value: T | null;
   confidence: number;

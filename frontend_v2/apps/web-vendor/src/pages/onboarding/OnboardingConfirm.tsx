@@ -13,6 +13,14 @@ import { mapOnboardingError } from '../../components/onboarding/mapOnboardingErr
 import { fetchOnboardingProfile, patchOnboarding, type ExtractedProfile } from '../../lib/onboarding';
 
 const CATEGORIES = ['Food', 'Retail', 'Services', 'Healthcare', 'Education', 'Other'] as const;
+const GENERIC_GREETING = 'Hello! Welcome to our shop. How can I help you today?';
+
+const PERSONALITY_PRESETS = [
+  { label: 'Friendly', text: 'Friendly, helpful, and clear about prices and delivery.' },
+  { label: 'Formal', text: 'Polite and formal. Clear about prices and delivery.' },
+  { label: 'Short replies', text: 'Brief and to the point. Clear about prices and delivery.' },
+  { label: 'Warm', text: 'Warm and welcoming. Clear about prices and delivery.' },
+] as const;
 
 const schema = z.object({
   businessName: z.string().min(3, 'Enter your shop name (at least 3 letters)'),
@@ -53,8 +61,29 @@ function mergePrefill(existing: string | null | undefined, extracted: string, fa
   return extracted || fallback;
 }
 
+function isGenericGreeting(text: string): boolean {
+  const t = text.trim();
+  if (!t || t === GENERIC_GREETING) return true;
+  return /^hello!\s+welcome to .+\.\s+how can i help you today\?$/i.test(t);
+}
+
+function greetingForShop(shopName: string, current: string): string {
+  const name = shopName.trim();
+  if (!name || !isGenericGreeting(current)) return current;
+  return `Hello! Welcome to ${name}. How can I help you today?`;
+}
+
+function personalityChip(text: string): string {
+  const match = PERSONALITY_PRESETS.find((p) => p.text === text);
+  return match?.label ?? '';
+}
+
 function FieldNote({ text }: { text: string }) {
   return <p className="mt-1 text-xs leading-snug text-gray-500">{text}</p>;
+}
+
+function SectionTitle({ children }: { children: string }) {
+  return <h3 className="text-sm font-semibold text-primary-500">{children}</h3>;
 }
 
 export function OnboardingConfirm() {
@@ -66,8 +95,8 @@ export function OnboardingConfirm() {
     defaultValues: {
       category: 'Food',
       aiBotName: 'Shop Assistant',
-      aiGreeting: 'Hello! Welcome to our shop. How can I help you today?',
-      aiPersonality: 'Friendly, helpful, and clear about prices and delivery.',
+      aiGreeting: GENERIC_GREETING,
+      aiPersonality: PERSONALITY_PRESETS[0].text,
       aiPickupDeliveryAddress: '',
       aiDeliveryInstructions: '',
       email: '',
@@ -77,6 +106,17 @@ export function OnboardingConfirm() {
   const category = form.watch('category') ?? 'Food';
   const greeting = form.watch('aiGreeting');
   const botName = form.watch('aiBotName');
+  const businessName = form.watch('businessName');
+  const personality = form.watch('aiPersonality');
+  const selectedPersonality = personalityChip(personality ?? '');
+
+  useEffect(() => {
+    const current = form.getValues('aiGreeting');
+    const next = greetingForShop(businessName ?? '', current);
+    if (next !== current) {
+      form.setValue('aiGreeting', next);
+    }
+  }, [businessName, form]);
 
   useEffect(() => {
     void fetchOnboardingProfile().then((p) => {
@@ -91,7 +131,7 @@ export function OnboardingConfirm() {
       const extractedHours = pickExtracted(extracted, 'hours');
       const extractedDelivery = pickExtracted(extracted, 'deliveryNotes');
 
-      const businessName = mergePrefill(p.businessName, extractedName, step1.businessName || '');
+      const shopName = mergePrefill(p.businessName, extractedName, step1.businessName || '');
       const addr = mergePrefill(
         p.aiPickupDeliveryAddress,
         [extractedAddr, extractedCity].filter(Boolean).join(', '),
@@ -117,16 +157,19 @@ export function OnboardingConfirm() {
         ? (catRaw as FormData['category'])
         : 'Food';
 
+      const loadedGreeting = p.aiGreeting ?? form.getValues('aiGreeting');
+      const loadedPersonality = p.aiPersonality ?? form.getValues('aiPersonality');
+
       form.reset({
-        businessName,
+        businessName: shopName,
         category: categoryValue,
         city,
         email: p.email || step1.email || '',
         aiPickupDeliveryAddress: addr,
         aiDeliveryInstructions: delivery,
-        aiBotName: p.aiBotName ?? `${businessName || 'Shop'} assistant`.slice(0, 80),
-        aiGreeting: p.aiGreeting ?? form.getValues('aiGreeting'),
-        aiPersonality: p.aiPersonality ?? form.getValues('aiPersonality'),
+        aiBotName: p.aiBotName ?? `${shopName || 'Shop'} assistant`.slice(0, 80),
+        aiGreeting: greetingForShop(shopName, loadedGreeting),
+        aiPersonality: loadedPersonality,
       });
     });
   }, [form]);
@@ -145,20 +188,18 @@ export function OnboardingConfirm() {
     }
   };
 
+  const phoneMock = (
+    <WhatsAppPhoneMock
+      botName={botName || 'Shop Assistant'}
+      messages={[
+        { from: 'assistant', text: greeting || '…' },
+        { from: 'customer', text: 'Do you deliver today?' },
+      ]}
+    />
+  );
+
   return (
-    <OnboardingLayout
-      step={3}
-      guide={copy.guide}
-      guideVisual={
-        <WhatsAppPhoneMock
-          botName={botName || 'Shop Assistant'}
-          messages={[
-            { from: 'assistant', text: greeting || '…' },
-            { from: 'customer', text: 'Do you deliver today?' },
-          ]}
-        />
-      }
-    >
+    <OnboardingLayout step={3} guide={copy.guide} guideVisual={phoneMock}>
       <div className="mb-4 flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm">
         <span className="text-gray-700">
           {savedProductCount
@@ -170,31 +211,13 @@ export function OnboardingConfirm() {
         </Link>
       </div>
 
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+        <section className="space-y-4">
+          <SectionTitle>{copy.shopFacts}</SectionTitle>
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">{copy.shopName}</label>
             <Input {...form.register('businessName')} error={form.formState.errors.businessName?.message} />
             <FieldNote text={onboardingCopy.step1.fieldNotes.businessName} />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">{copy.emailOptional}</label>
-            <Input type="email" {...form.register('email')} error={form.formState.errors.email?.message} />
-            <FieldNote text={copy.emailNote} />
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">{copy.city}</label>
-              <Input {...form.register('city')} />
-            </div>
-            <div>
-              <p className="mb-2 text-sm font-medium text-gray-700">{copy.category}</p>
-              <ChoiceChips
-                ariaLabel="Business category"
-                value={category}
-                options={CATEGORIES}
-                onChange={(v) => form.setValue('category', v, { shouldValidate: true })}
-              />
-            </div>
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">
@@ -209,6 +232,24 @@ export function OnboardingConfirm() {
               <p className="mt-1 text-sm text-red-600">{form.formState.errors.aiPickupDeliveryAddress.message}</p>
             ) : null}
           </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">{copy.city}</label>
+              <Input {...form.register('city')} />
+            </div>
+            <div>
+              <p className="mb-2 text-sm font-medium text-gray-700">{copy.category}</p>
+              <ChoiceChips
+                ariaLabel="Business category"
+                value={category}
+                options={CATEGORIES}
+                allowEmpty={false}
+                onChange={(v) => {
+                  if (v) form.setValue('category', v, { shouldValidate: true });
+                }}
+              />
+            </div>
+          </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">
               {onboardingCopy.step1.deliveryNotesLabel}
@@ -219,6 +260,11 @@ export function OnboardingConfirm() {
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
             />
           </div>
+        </section>
+
+        <section className="space-y-4">
+          <SectionTitle>{copy.howItSounds}</SectionTitle>
+          <div className="lg:hidden">{phoneMock}</div>
           <div>
             <label className="mb-1 block text-sm font-medium text-gray-700">{copy.assistantName}</label>
             <Input {...form.register('aiBotName')} error={form.formState.errors.aiBotName?.message} />
@@ -231,20 +277,41 @@ export function OnboardingConfirm() {
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
             />
           </div>
+        </section>
+
+        <section className="space-y-4">
+          <SectionTitle>{copy.personality}</SectionTitle>
+          <ChoiceChips
+            ariaLabel={copy.personality}
+            value={selectedPersonality}
+            options={copy.personalityChips}
+            onChange={(label) => {
+              const preset = PERSONALITY_PRESETS.find((p) => p.label === label);
+              form.setValue('aiPersonality', preset?.text ?? '', { shouldValidate: true });
+            }}
+          />
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">{copy.personality}</label>
+            <label className="mb-1 block text-sm font-medium text-gray-700">{copy.personalityOverride}</label>
             <textarea
               {...form.register('aiPersonality')}
               rows={2}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
             />
           </div>
-          <div className="sticky bottom-0 z-10 -mx-5 mt-2 border-t border-gray-200 bg-white px-5 py-3 shadow-[0_-6px_16px_rgba(7,35,73,0.06)] sm:-mx-10 sm:px-10 lg:-mx-12 lg:px-12">
-            <Button type="submit" className="w-full" isLoading={form.formState.isSubmitting}>
-              {copy.save}
-            </Button>
-          </div>
-        </form>
+        </section>
+
+        <section className="space-y-2">
+          <label className="mb-1 block text-sm font-medium text-gray-700">{copy.emailOptional}</label>
+          <Input type="email" {...form.register('email')} error={form.formState.errors.email?.message} />
+          <FieldNote text={copy.emailNote} />
+        </section>
+
+        <div className="sticky bottom-0 z-10 -mx-5 mt-2 border-t border-gray-200 bg-white px-5 py-3 shadow-[0_-6px_16px_rgba(7,35,73,0.06)] sm:-mx-10 sm:px-10 lg:-mx-12 lg:px-12">
+          <Button type="submit" className="w-full" isLoading={form.formState.isSubmitting}>
+            {copy.save}
+          </Button>
+        </div>
+      </form>
     </OnboardingLayout>
   );
 }

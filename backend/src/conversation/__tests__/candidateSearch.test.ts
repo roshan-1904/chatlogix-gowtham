@@ -19,6 +19,7 @@ const catalog: CompactCatalogEntry[] = [
     name: 'Brownie',
     price: 10000,
     unit: 'box',
+    baseQuantity: 1,
     minQty: null,
     maxQty: null,
     keywords: ['brownie'],

@@ -44,6 +44,7 @@ interface WhatsAppDemoPhoneProps {
   walletEmpty: boolean;
   onWalletRefresh?: () => void;
   onLastCost?: (costPaise: number) => void;
+  onAssistantReply?: () => void;
   framed?: boolean;
 }
 
@@ -173,6 +174,7 @@ export function WhatsAppDemoPhone({
   walletEmpty,
   onWalletRefresh,
   onLastCost,
+  onAssistantReply,
   framed = true,
 }: WhatsAppDemoPhoneProps) {
   const copy = onboardingCopy.demoPhone;
@@ -296,6 +298,7 @@ export function WhatsAppDemoPhone({
         ]);
         onLastCost?.(result.costPaise);
         onWalletRefresh?.();
+        onAssistantReply?.();
       } catch (err) {
         window.clearTimeout(typingTimer);
         toast.error(mapOnboardingError(err));
@@ -309,7 +312,7 @@ export function WhatsAppDemoPhone({
         }
       }
     },
-    [onLastCost, onWalletRefresh, patchOutgoing]
+    [onLastCost, onWalletRefresh, onAssistantReply, patchOutgoing]
   );
 
   const sendText = useCallback(

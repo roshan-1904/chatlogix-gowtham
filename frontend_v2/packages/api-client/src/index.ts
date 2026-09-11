@@ -67,11 +67,21 @@ export class ApiClient {
       }
 
       if (!response.ok) {
-        // Try to parse error message from response
+        // The API nests errors as `{ error: { message } }`, so `body.message`
+        // alone is undefined and every failure collapses into the generic
+        // status text. Callers map on the message, so unwrap both shapes.
         let errorMessage = `API Error: ${response.status} ${response.statusText}`;
         try {
           const errorData = await response.json();
-          errorMessage = errorData.message || errorMessage;
+          const nested =
+            errorData?.error && typeof errorData.error === 'object'
+              ? errorData.error.message
+              : undefined;
+          errorMessage =
+            errorData?.message ||
+            nested ||
+            (typeof errorData?.error === 'string' ? errorData.error : undefined) ||
+            errorMessage;
         } catch {
           // If JSON parsing fails, use default message
         }

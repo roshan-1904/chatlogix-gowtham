@@ -26,6 +26,7 @@ export function OtpVerificationForm({
   const [isResending, setIsResending] = useState(false);
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const autoSubmittedOtp = useRef<string | null>(null);
 
   useEffect(() => {
     // Focus first input on mount
@@ -53,13 +54,15 @@ export function OtpVerificationForm({
     e.preventDefault();
     setHasSubmitted(true);
     const otpString = otpValues.join('');
-    
+
     // Validate before submitting
     if (otpString.length !== 6) {
       form.setValue('otp', otpString, { shouldValidate: true });
       return;
     }
-    
+
+    if (isLoading && autoSubmittedOtp.current === otpString) return;
+    autoSubmittedOtp.current = otpString;
     form.handleSubmit(onSubmit)(e);
   };
 
@@ -73,6 +76,7 @@ export function OtpVerificationForm({
       setOtpValues(['', '', '', '', '', '']); // Clear OTP inputs
       form.reset();
       setHasSubmitted(false);
+      autoSubmittedOtp.current = null;
       inputRefs.current[0]?.focus(); // Focus first input
     } catch (error) {
       // Error handling is done in parent component
@@ -81,18 +85,38 @@ export function OtpVerificationForm({
     }
   };
 
-  const handleChange = (index: number, value: string) => {
-    // Only allow digits
-    if (value && !/^\d$/.test(value)) return;
+  const tryAutoSubmit = (values: string[]) => {
+    const otp = values.join('');
+    if (otp.length !== 6 || isLoading || autoSubmittedOtp.current === otp) return;
+    autoSubmittedOtp.current = otp;
+    setHasSubmitted(true);
+    form.setValue('otp', otp, { shouldValidate: true });
+    onSubmit({ otp });
+  };
 
+  const applyDigits = (index: number, raw: string) => {
+    const digits = raw.replace(/\D/g, '');
     const newOtpValues = [...otpValues];
-    newOtpValues[index] = value;
+
+    if (!digits) {
+      newOtpValues[index] = '';
+      setOtpValues(newOtpValues);
+      return;
+    }
+
+    digits.slice(0, 6 - index).split('').forEach((digit, offset) => {
+      newOtpValues[index + offset] = digit;
+    });
     setOtpValues(newOtpValues);
 
-    // Move to next input if value entered
-    if (value && index < 5) {
-      inputRefs.current[index + 1]?.focus();
-    }
+    const nextEmptyIndex = newOtpValues.findIndex((val) => val === '');
+    const focusIndex = nextEmptyIndex === -1 ? 5 : Math.min(nextEmptyIndex, 5);
+    inputRefs.current[focusIndex]?.focus();
+    tryAutoSubmit(newOtpValues);
+  };
+
+  const handleChange = (index: number, value: string) => {
+    applyDigits(index, value);
   };
 
   const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -106,24 +130,10 @@ export function OtpVerificationForm({
     }
   };
 
-  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+  const handlePaste = (index: number, e: React.ClipboardEvent<HTMLInputElement>) => {
     e.preventDefault();
-    const pastedData = e.clipboardData.getData('text').slice(0, 6).split('');
-    
-    if (pastedData.every(char => /^\d$/.test(char))) {
-      const newOtpValues = [...otpValues];
-      pastedData.forEach((char, index) => {
-        if (index < 6) {
-          newOtpValues[index] = char;
-        }
-      });
-      setOtpValues(newOtpValues);
-      
-      // Focus the next empty input or the last one
-      const nextEmptyIndex = newOtpValues.findIndex(val => val === '');
-      const focusIndex = nextEmptyIndex === -1 ? 5 : Math.min(nextEmptyIndex, 5);
-      inputRefs.current[focusIndex]?.focus();
-    }
+    const digits = e.clipboardData.getData('text').replace(/\D/g, '');
+    applyDigits(digits.length === 6 ? 0 : index, digits);
   };
 
   const handleFocus = (index: number) => {
@@ -156,7 +166,7 @@ export function OtpVerificationForm({
           Verification Code
         </label>
         
-        <div className="flex gap-3 justify-center">
+        <div className="flex justify-center gap-2 sm:gap-3">
           {otpValues.map((value, index) => (
             <input
               key={index}
@@ -164,14 +174,15 @@ export function OtpVerificationForm({
               type="text"
               inputMode="numeric"
               maxLength={1}
+              autoComplete={index === 0 ? 'one-time-code' : 'off'}
               value={value}
               onChange={(e) => handleChange(index, e.target.value)}
               onKeyDown={(e) => handleKeyDown(index, e)}
-              onPaste={index === 0 ? handlePaste : undefined}
+              onPaste={(e) => handlePaste(index, e)}
               onFocus={() => handleFocus(index)}
               disabled={isLoading}
               className={`
-                w-10 h-11 text-center text-lg font-semibold text-gray-900
+                min-h-12 min-w-11 h-12 w-11 sm:h-14 sm:w-12 text-center text-xl font-semibold text-gray-900
                 border-2 rounded-lg transition-all
                 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1
                 disabled:opacity-50 disabled:cursor-not-allowed

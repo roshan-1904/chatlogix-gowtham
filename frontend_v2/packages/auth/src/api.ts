@@ -5,6 +5,25 @@ export interface AuthApiConfig {
   getRecaptchaToken?: () => Promise<string>;
 }
 
+/**
+ * The API returns errors as `{ error: { message } }`, so reading `body.message`
+ * alone yields undefined and `body.error` stringifies to "[object Object]".
+ * Callers map on the message text, so the real one has to be pulled out.
+ */
+async function errorMessageFrom(response: Response, fallback: string): Promise<string> {
+  const body: unknown = await response.json().catch(() => null);
+  if (body && typeof body === 'object') {
+    const { error, message } = body as { error?: unknown; message?: unknown };
+    if (typeof message === 'string' && message) return message;
+    if (typeof error === 'string' && error) return error;
+    if (error && typeof error === 'object') {
+      const nested = (error as { message?: unknown }).message;
+      if (typeof nested === 'string' && nested) return nested;
+    }
+  }
+  return fallback;
+}
+
 export class AuthApi {
   private baseURL: string;
   private getRecaptchaToken?: () => Promise<string>;
@@ -35,8 +54,7 @@ export class AuthApi {
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Failed to send code' }));
-      throw new Error(error.message || `HTTP ${response.status}: ${response.statusText}`);
+      throw new Error(await errorMessageFrom(response, 'Failed to send code'));
     }
 
     return response.json();
@@ -55,8 +73,7 @@ export class AuthApi {
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Failed to verify code' }));
-      throw new Error(error.message || `HTTP ${response.status}: ${response.statusText}`);
+      throw new Error(await errorMessageFrom(response, 'Failed to verify code'));
     }
 
     return response.json();
@@ -75,8 +92,7 @@ export class AuthApi {
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Failed to create account' }));
-      throw new Error(error.message || error.error || `HTTP ${response.status}: ${response.statusText}`);
+      throw new Error(await errorMessageFrom(response, 'Failed to create account'));
     }
 
     return response.json();
@@ -93,8 +109,7 @@ export class AuthApi {
     }
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Failed to refresh session' }));
-      throw new Error(error.message || `HTTP ${response.status}: ${response.statusText}`);
+      throw new Error(await errorMessageFrom(response, 'Failed to refresh session'));
     }
 
     return response.json();

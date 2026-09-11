@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState, type DragEvent } from 'react';
 import toast from 'react-hot-toast';
 import { requestUploadUrl, uploadToS3 } from '../../lib/catalogImport';
 
@@ -23,14 +23,31 @@ interface Props {
   readonly maxImages?: number;
   readonly onUploaded: (entry: UploadedKey) => void;
   readonly disabled?: boolean;
+  /** `split` is the onboarding Take photo + Upload file pair. Catalog import keeps `dropzone`. */
+  readonly variant?: 'dropzone' | 'split';
+  readonly takePhotoLabel?: string;
+  readonly uploadFileLabel?: string;
+  readonly exampleHint?: string;
+  readonly showThumbnails?: boolean;
 }
 
-export function UploadDropzone({ jobId, maxImages = 20, onUploaded, disabled }: Readonly<Props>) {
+export function UploadDropzone({
+  jobId,
+  maxImages = 20,
+  onUploaded,
+  disabled,
+  variant = 'dropzone',
+  takePhotoLabel = 'Take photo',
+  uploadFileLabel = 'Upload file',
+  exampleHint,
+  showThumbnails = true,
+}: Readonly<Props>) {
   const [progress, setProgress] = useState<Record<string, number>>({});
   const [imagesUploaded, setImagesUploaded] = useState(0);
   const [dragOver, setDragOver] = useState(false);
   const [thumbnails, setThumbnails] = useState<Array<{ name: string; url: string; kind: 'image' | 'tabular' }>>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
 
   const validate = useCallback((file: File): 'image' | 'tabular' | null => {
     if (IMAGE_TYPES.includes(file.type)) {
@@ -94,59 +111,142 @@ export function UploadDropzone({ jobId, maxImages = 20, onUploaded, disabled }: 
     [jobId, maxImages, imagesUploaded, onUploaded, validate]
   );
 
+  const fileAccept = [...IMAGE_TYPES, ...TABULAR_TYPES, '.csv', '.xlsx'].join(',');
+
+  const onDragOver = (e: DragEvent) => {
+    e.preventDefault();
+    if (!disabled) setDragOver(true);
+  };
+  const onDragLeave = () => setDragOver(false);
+  const onDrop = (e: DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    if (disabled) return;
+    if (e.dataTransfer.files.length > 0) void handleFiles(e.dataTransfer.files);
+  };
+
   return (
     <div>
-      <div
-        className={`rounded-xl border-2 border-dashed p-8 text-center transition-colors ${
-          disabled
-            ? 'cursor-not-allowed border-gray-200 bg-gray-50'
-            : dragOver
-              ? 'cursor-pointer border-secondary-500 bg-secondary-50/40'
-              : 'cursor-pointer border-gray-300 bg-gray-50/50 hover:border-primary-400 hover:bg-primary-50/30'
-        }`}
-        onClick={() => !disabled && inputRef.current?.click()}
-        onDragOver={(e) => {
-          e.preventDefault();
-          if (!disabled) setDragOver(true);
-        }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragOver(false);
-          if (disabled) return;
-          if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
-        }}
-      >
-        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary-50 text-primary-500">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden>
-            <path
-              d="M12 16V4m0 0L8 8m4-4l4 4M4 17v1a2 2 0 002 2h12a2 2 0 002-2v-1"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+      {variant === 'split' ? (
+        <div
+          className={`rounded-xl ${dragOver ? 'ring-2 ring-secondary-500' : ''}`}
+          onDragOver={onDragOver}
+          onDragLeave={onDragLeave}
+          onDrop={onDrop}
+        >
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => cameraRef.current?.click()}
+              className="flex min-h-[7.5rem] flex-col items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-5 text-sm font-medium text-gray-900 transition-colors hover:border-primary-400 hover:bg-primary-50/30 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-50 text-primary-500">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+                  <path
+                    d="M4 8h3l1.2-2h7.6L17 8h3a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2v-8a2 2 0 012-2z"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinejoin="round"
+                  />
+                  <circle cx="12" cy="14" r="3" stroke="currentColor" strokeWidth="2" />
+                </svg>
+              </span>
+              {takePhotoLabel}
+            </button>
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => inputRef.current?.click()}
+              className="flex min-h-[7.5rem] flex-col items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-5 text-sm font-medium text-gray-900 transition-colors hover:border-primary-400 hover:bg-primary-50/30 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-50 text-primary-500">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+                  <path
+                    d="M12 16V4m0 0L8 8m4-4l4 4M4 17v1a2 2 0 002 2h12a2 2 0 002-2v-1"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </span>
+              {uploadFileLabel}
+            </button>
+          </div>
+          {exampleHint ? (
+            <p className="mt-3 text-center text-sm text-gray-500">{exampleHint}</p>
+          ) : null}
+          <input
+            ref={cameraRef}
+            className="hidden"
+            type="file"
+            accept={IMAGE_TYPES.join(',')}
+            capture="environment"
+            onChange={(e) => {
+              if (e.target.files) void handleFiles(e.target.files);
+              e.currentTarget.value = '';
+            }}
+            disabled={disabled}
+          />
+          <input
+            ref={inputRef}
+            className="hidden"
+            type="file"
+            multiple
+            accept={fileAccept}
+            onChange={(e) => {
+              if (e.target.files) void handleFiles(e.target.files);
+              e.currentTarget.value = '';
+            }}
+            disabled={disabled}
+          />
         </div>
-        <p className="text-sm font-medium text-gray-800">Drop your menu or price list here</p>
-        <p className="mt-1 text-xs text-gray-500">
-          Photos (JPG, PNG, WebP) or spreadsheet (CSV, XLSX) · up to {maxImages} images
-        </p>
-        <input
-          ref={inputRef}
-          className="hidden"
-          type="file"
-          multiple
-          accept={[...IMAGE_TYPES, ...TABULAR_TYPES, '.csv', '.xlsx'].join(',')}
-          onChange={(e) => {
-            if (e.target.files) handleFiles(e.target.files);
-            e.currentTarget.value = '';
-          }}
-          disabled={disabled}
-        />
-      </div>
+      ) : (
+        <div
+          className={`rounded-xl border-2 border-dashed p-8 text-center transition-colors ${
+            disabled
+              ? 'cursor-not-allowed border-gray-200 bg-gray-50'
+              : dragOver
+                ? 'cursor-pointer border-secondary-500 bg-secondary-50/40'
+                : 'cursor-pointer border-gray-300 bg-gray-50/50 hover:border-primary-400 hover:bg-primary-50/30'
+          }`}
+          onClick={() => !disabled && inputRef.current?.click()}
+          onDragOver={onDragOver}
+          onDragLeave={onDragLeave}
+          onDrop={onDrop}
+        >
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-primary-50 text-primary-500">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path
+                d="M12 16V4m0 0L8 8m4-4l4 4M4 17v1a2 2 0 002 2h12a2 2 0 002-2v-1"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
+          <p className="text-sm font-medium text-gray-800">Drop your menu or price list here</p>
+          <p className="mt-1 text-xs text-gray-500">
+            Photos (JPG, PNG, WebP) or spreadsheet (CSV, XLSX) · up to {maxImages} images
+          </p>
+          <input
+            ref={inputRef}
+            className="hidden"
+            type="file"
+            multiple
+            accept={fileAccept}
+            onChange={(e) => {
+              if (e.target.files) void handleFiles(e.target.files);
+              e.currentTarget.value = '';
+            }}
+            disabled={disabled}
+          />
+        </div>
+      )}
 
-      {thumbnails.length > 0 && (
+      {showThumbnails && thumbnails.length > 0 && (
         <ul className="mt-4 flex flex-wrap gap-3">
           {thumbnails.map((t) => (
             <li

@@ -16,24 +16,15 @@ interface OnboardingGuidePanelProps {
 }
 
 export function OnboardingGuidePanel({ copy, visual, compact = false }: OnboardingGuidePanelProps) {
+  // Mobile: kicker + H1 only. The how-to rows push the control below the fold,
+  // and the desktop panel already carries them.
   if (compact) {
     return (
       <div>
-        <p className="text-sm font-medium uppercase tracking-wide text-secondary-600">{copy.kicker}</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-balance text-gray-900">{copy.h1}</h1>
-        <ol className="mt-4 space-y-3">
-          {copy.howTo.map((item, index) => (
-            <li key={item.title} className="flex gap-3">
-              <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary-500 text-[11px] font-semibold text-white">
-                {index + 1}
-              </span>
-              <div>
-                <p className="text-sm font-semibold text-gray-900">{item.title}</p>
-                <p className="mt-0.5 text-sm leading-snug text-gray-500">{item.body}</p>
-              </div>
-            </li>
-          ))}
-        </ol>
+        <p className="text-xs font-medium uppercase tracking-wide text-secondary-600">{copy.kicker}</p>
+        <h1 className="mt-1.5 text-2xl font-semibold leading-tight tracking-tight text-balance text-gray-900">
+          {copy.h1}
+        </h1>
       </div>
     );
   }
@@ -46,18 +37,20 @@ export function OnboardingGuidePanel({ copy, visual, compact = false }: Onboardi
       </h1>
       <p className="mt-4 max-w-[42rem] text-base leading-relaxed text-gray-600">{copy.subhead}</p>
 
-      <ol className="relative mt-8 grid grid-cols-3">
-        <span className="absolute left-[16.666%] right-[16.666%] top-3.5 h-px bg-gray-200" />
-        {copy.howTo.map((item, index) => (
-          <li key={item.title} className="relative z-10 flex flex-col items-center px-2 text-center">
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary-500 text-[11px] font-semibold text-white">
-              {index + 1}
-            </span>
-            <p className="mt-2 text-xs font-semibold text-gray-900">{item.title}</p>
-            <p className="mt-0.5 text-[11px] leading-snug text-gray-500">{item.body}</p>
-          </li>
-        ))}
-      </ol>
+      {copy.howTo.length > 0 ? (
+        <ol className="relative mt-8 grid grid-cols-3">
+          <span className="absolute left-[16.666%] right-[16.666%] top-3.5 h-px bg-gray-200" />
+          {copy.howTo.map((item, index) => (
+            <li key={item.title} className="relative z-10 flex flex-col items-center px-2 text-center">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary-500 text-[11px] font-semibold text-white">
+                {index + 1}
+              </span>
+              <p className="mt-2 text-xs font-semibold text-gray-900">{item.title}</p>
+              <p className="mt-0.5 text-[11px] leading-snug text-gray-500">{item.body}</p>
+            </li>
+          ))}
+        </ol>
+      ) : null}
 
       {visual ? <div className="mt-8">{visual}</div> : null}
 

@@ -85,4 +85,16 @@ Shadcn-shaped CSS for 21st previews lives in `.21st/chatlogix-theme.css`. It is 
 - **Marketing type scale:** Hero, Problem, Solution, and How it Works share eyebrow / heading / body sizes from `pageLayout.ts`.
 - **Marketing FAQ:** Accordion answers overlay in place (absolute) so the snap section height does not change. Homepage footer is a single black bar attached to the bottom of `#faq`.
 - **Marketing header:** Same canvas as the hero (`#f8f9fa`), mint circular chat mark, Plus Jakarta wordmark in navy + teal, pill nav, navy Try Free → CTA.
-- **Onboarding setup split:** Catalog / Details / Confirm / Demo / Submit use the signup 60/40 light split. Left is coaching (what this step is, how to use it). Right is the work. Mobile keeps a compact how-to above the form.
+- **Onboarding setup split:** Catalog / Details / Confirm / Demo / Submit use the signup 60/40 light split. Left is coaching (what this step is, how to use it). Right is the work.
+- **Signup copy is job-first:** `Try it on your catalog` + `Send code`. ₹100 is helper text under the field — never the H1, a green badge, or the only CTA. Trust lines, a visible FAQ heading, and Terms/Privacy are on the page, not `sr-only`.
+- **Shared public auth split:** `/signup` and `/login` both render `PublicAuthSplit` (light gray marketing column + full-white form column) with `SignupDemoPreview`. No dark navy login wall. OTP boxes are thumb-sized and auto-submit on the sixth digit.
+- **Catalog product rows:** one line per product (name, ₹ price, unit/qty, Edit / Remove), one row expanded at a time, description collapsed by default. Upload splits into equal **Take photo** and **Upload file** actions. A zero-product extract leads with *Add 3 items by hand*; Skip stays but warns the assistant cannot quote prices.
+- **Clarify starts empty:** no chip preselected, Continue disabled until answered, progress reads `Detail N of 5` plus one line on why it matters.
+- **Confirm grouping:** Shop facts / How it sounds (assistant name, greeting, live phone mock), personality as chips. Approval email is collected here, not as an amber surprise on Review.
+- **Demo soft gate:** chat is primary; `Continue to review` stays ghost until one assistant reply, an empty wallet, or a skipped catalog. Never a hard block.
+- **Submitted timeline:** Submitted → In review → Approved → Connect WhatsApp, plus a *While you wait* list. Edit application goes to `/onboarding/confirm`.
+- **Numbered stepper:** header steps are circles — done = navy-outlined check on white, current = filled `primary-500`, ahead = `gray-100` / `gray-400`, joined by short rules that turn navy once passed. Labels from `lg`; circles only at `md`. Mobile keeps the five-segment bars.
+- **One title per viewport:** mobile compact guide is kicker + H1 only so the control is above the fold. The desktop right-column `actionTitle` is a `text-xl` `h2` and is dropped when it restates the left H1.
+- **Wallet chip:** navy `Badge` pill reading `₹N trial left` (whole rupees, `formatTrialLeft`). Per-reply cost keeps two decimals.
+- **Skeletons, not "Loading…":** `OnboardingActionSkeleton` fills the right column of the 60/40 split; `OnboardingPageSkeleton` reproduces the whole split for `ProtectedRoute` (`onboardingOnly`). Pulse is `motion-safe`.
+- **Help never disappears:** `NeedHelpFooter` always shows "Questions?" and resolves `VITE_SUPPORT_WHATSAPP` → `VITE_SUPPORT_EMAIL` → `https://chatlogix.in`. Both vars live in `frontend_v2/apps/web-vendor/.env.example`.

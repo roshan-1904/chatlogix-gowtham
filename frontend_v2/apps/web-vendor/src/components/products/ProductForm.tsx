@@ -9,11 +9,7 @@ import { VariantManager } from './VariantManager';
 import { KeywordsInput } from './KeywordsInput';
 import { PriceCalculator } from './PriceCalculator';
 import type { Product, ProductFormData } from '../../types/product';
-
-const UNIT_OPTIONS = [
-  'piece', 'kg', 'g', 'ml', 'l', 'bottle', 'box', 'pack', 'hour', 'minute',
-  'meter', 'cm', 'dozen', 'set', 'pair', 'unit'
-];
+import { UNIT_OPTIONS } from '../../lib/productUnits';
 
 interface ProductFormProps {
   product?: Product;
