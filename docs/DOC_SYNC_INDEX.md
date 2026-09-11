@@ -2,13 +2,13 @@
 
 Tracks which docs were last verified against the codebase. Each synced doc has a `DOC_SYNC` HTML comment at the top with the same commit SHA.
 
-**Current HEAD:** `b8a6efbff1933e4bc80efc03d2676d56dd6e8655` (2026-09-06)
+**Current HEAD:** `d16210b3664a8211a9dd31421c8dceadf0ee4def` (2026-09-11)
 
 | Document | Scope | Last verified commit | Last verified at |
 |---|---|---|---|
-| [INCOMING_RESPONSE_GENERATOR_FLOW.md](./INCOMING_RESPONSE_GENERATOR_FLOW.md) | As-implemented pipeline walkthrough (language, LLM-2, contentEn, voice-note ASR, compact-catalog paise heal) | `b8a6efbff1933e4bc80efc03d2676d56dd6e8655` | 2026-09-06 |
+| [INCOMING_RESPONSE_GENERATOR_FLOW.md](./INCOMING_RESPONSE_GENERATOR_FLOW.md) | As-implemented pipeline walkthrough (language, LLM-2, contentEn, voice-note ASR, compact-catalog paise heal, catalog baseQty pack pricing) | `d16210b3664a8211a9dd31421c8dceadf0ee4def` | 2026-09-11 |
 | [CONVERSATION_PROCESSOR_LAMBDA.md](./CONVERSATION_PROCESSOR_LAMBDA.md) | Locked design spec + inline implementation drift notes | `547b10e7701dc88fd4f0463a37c009964dfea7f4` | 2026-09-05 |
-| [CONVERSATION_PROCESSOR_IMPLEMENTATION_PLAN.md](./CONVERSATION_PROCESSOR_IMPLEMENTATION_PLAN.md) | Build plan, progress, post-ship enhancements | `547b10e7701dc88fd4f0463a37c009964dfea7f4` | 2026-09-05 |
+| [CONVERSATION_PROCESSOR_IMPLEMENTATION_PLAN.md](./CONVERSATION_PROCESSOR_IMPLEMENTATION_PLAN.md) | Build plan, progress, post-ship enhancements (PgBouncer Lambda cutover done 2026-09-11) | `d16210b3664a8211a9dd31421c8dceadf0ee4def` | 2026-09-11 |
 
 ## How to update
 

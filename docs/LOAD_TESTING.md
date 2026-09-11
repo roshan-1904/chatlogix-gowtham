@@ -4,44 +4,39 @@ How we generate synthetic WhatsApp traffic against the real production stack to 
 the throughput ceiling of the inbound message pipeline, measure real per-message cost
 and latency, and identify the first component to fail under load.
 
-**Status:** planned. Phase 1 (calibration) not yet run.
+**Status:** harness ready (2026-09-11, `backend/scripts/loadtest/`). Phase 0 mostly done
+(quota raised; PgBouncer cutover on all five Lambdas; processor reserved at 80). Phase 1
+(calibration) not yet run.
 **Target environment:** production. It currently has no real vendors or customers, so
 it is effectively a staging environment with production topology — real API Gateway,
 real Lambda, real Postgres, real ElastiCache, real OpenAI.
 
-> ## ⚠ Blocking finding: 1000 Lambdas can reach a 100-connection database
+> ## ⚠ Remaining risk: unreserved ingress + PgBouncer pool size
 >
-> Measured 2026-09-11 in account `987272474004` / `ap-south-1`:
+> Measured 2026-09-11 in account `987272474004` / `ap-south-1` (PgBouncer cutover
+> confirmed same day on all five Lambdas):
 >
 > ```
 > Lambda concurrent executions : 1000   (raised from 10 on 2026-09-11)
-> Reserved concurrency         : none on any of the 5 functions
+> Reserved concurrency         : 80 on processor only; none on the other four
 > Prisma connection_limit      : 1 per container
-> PgBouncer                    : running on 6432, but NOT in the Lambda path
+> PgBouncer                    : in the Lambda path (DATABASE_URL → port 6432) ✓
 > Postgres max_connections     : 100
 > ```
 >
-> The quota increase removed the old ceiling and, in doing so, armed the failure this
-> document predicted. Nothing now stands between Lambda autoscaling and the database:
-> **1000 concurrent containers × 1 connection each against 100 available connections.**
+> The raw-Postgres failure mode (1000 containers × 1 connection = 100 `max_connections`)
+> is **closed** — transaction pooling multiplexes many Lambda clients onto fewer backends.
 >
-> Postgres starts refusing at roughly **100 concurrent containers**, which at 6s per
-> multilingual message is only about **16 msg/s**. Past that, connection failures become
-> `batchItemFailures`, SQS redelivers, the redeliveries add load to an already-saturated
-> database, and messages reach the DLQ after 5 attempts.
+> What remains before Phase 2:
 >
-> **The 1000 quota is more dangerous than the 10 quota was.** Before raising the offered
-> rate above a few msg/s, do at least one of:
+> 1. **Confirm PgBouncer `default_pool_size`** via `SHOW CONFIG` / `SHOW POOLS` under load —
+>    `setup-pgbouncer.sh` suggested 15; that becomes the new knee, not `max_connections`.
+> 2. **Reserve the webhook handler (~30)** — it is still unreserved and is the first thing
+>    to scale on an ingress spike; even through PgBouncer, a flood of short transactions
+>    can queue at `cl_waiting`.
+> 3. **Processor cap at 80** — already set; keeps the AI path bounded.
 >
-> 1. **Set reserved concurrency (~80) on `chatlogix-incoming-response-generator`.** One
->    CLI call, immediate, converts a database outage into harmless SQS queueing.
-> 2. **Cut `DATABASE_URL` over to PgBouncer on port 6432.** It is already running, so
->    this is a config change on five functions — and it is the actual fix, since
->    transaction pooling multiplexes many clients onto few backends.
->
-> Do both before Phase 2. Phase 1 at 1.5–2 msg/s stays safe regardless (~9–18 concurrent
-> containers), which is a further reason not to jump straight to 10 msg/s now that the
-> quota permits it.
+> Phase 1 at 1.5–2 msg/s stays safe regardless (~9–18 concurrent containers).
 >
 > ### Reservation audit (2026-09-11)
 >
@@ -66,9 +61,9 @@ real Lambda, real Postgres, real ElastiCache, real OpenAI.
 > `superuser_reserved_connections`) would be roughly: processor 40, webhook 30,
 > dispatcher 15, media-fetcher 5, order-recovery 2 — total 92.
 >
-> Note what that implies: **1000 msg/s is unreachable on raw Postgres regardless of
-> tuning**, because ingress alone exceeds the connection budget. PgBouncer is not an
-> optimisation for Phase 3, it is a prerequisite.
+> With PgBouncer in the path (cutover done 2026-09-11), the ceiling is governed by pool
+> size and transaction hold time, not raw `max_connections`. §9's bottleneck ranking and
+> §8's extrapolation should be re-measured under load.
 
 ---
 
@@ -80,7 +75,7 @@ Measured from AWS on 2026-09-11. **Several values drift from the spec and from
 | Setting | Spec / code says | Actually deployed |
 |---|---|---|
 | Lambda account concurrency | 1000 (AWS default) | 1000 ✓ (raised from 10 on 2026-09-11) |
-| Reserved concurrency | — | **none on any function** |
+| Reserved concurrency | — | **80 on processor only**; none on webhook, dispatcher, media-fetcher, order-recovery |
 | Postgres `max_connections` | — | **100** |
 | Processor timeout | 60s | **300s** |
 | Processor memory | 1536 MB | 2048 MB |
@@ -90,26 +85,22 @@ Measured from AWS on 2026-09-11. **Several values drift from the spec and from
 | Text queue `maxReceiveCount` | 3 | **5** |
 | `DATABASE_CONNECTION_LIMIT` | 1 | 1 ✓ |
 | `DATABASE_POOL_TIMEOUT` | 3 | 3 ✓ |
-| `DATABASE_URL` target | PgBouncer, port 6432 | **Postgres direct, port 5432** |
+| `DATABASE_URL` target | PgBouncer, port 6432 | **PgBouncer, port 6432** ✓ (cutover 2026-09-11) |
 | `CLOUDWATCH_METRICS_ENABLED` | — | `true` — but see the IAM note below |
 
-### PgBouncer is not in the Lambda path
+### PgBouncer is in the Lambda path
 
-The deployed `DATABASE_URL` is `…@172.26.12.247:5432/chatlogix?schema=public&pgbouncer=true`.
-Port 5432 is Postgres directly; PgBouncer listens on 6432 (`setup-pgbouncer.sh:12`). The
-`pgbouncer=true` flag is still meaningful to Prisma — it disables prepared statements —
-but no connection pooling is happening for Lambda traffic.
+All five functions' `DATABASE_URL` points at `…@172.26.12.247:6432/chatlogix?schema=public&pgbouncer=true`
+(verified via AWS CLI 2026-09-11 after cutover). Port 6432 is PgBouncer in transaction-pooling
+mode; Postgres still listens on 5432 for direct connections (migrations, PM2, admin).
 
-This matches the setup script's own disclaimer that it "does NOT touch port 5432,
-`DATABASE_URL`, or any Lambda config." PgBouncer was stood up but never cut over.
+The `pgbouncer=true` flag tells Prisma to disable prepared statements — required for
+transaction pooling.
 
-**PgBouncer is running, though** — verified 2026-09-11, port 6432 on the database host
-accepts TCP connections. So the cutover is a `DATABASE_URL` change, not an installation:
-point the Lambdas at 6432 and the pooling that already exists starts applying.
-
-So today the relevant limit is Postgres `max_connections`, not `default_pool_size`, and
-§8's extrapolation must be rewritten once either the concurrency quota is raised or the
-cutover happens.
+**Still to confirm under load:** PgBouncer's `default_pool_size` (setup script suggested
+15). That value — not `max_connections` — is now the primary database-side knee. Use
+`samplePools.ts` / `SHOW POOLS` during Phase 1 to measure `cl_active`, `sv_active`, and
+`cl_waiting`.
 
 > **Unrelated security finding:** both 5432 and 6432 on the database host answer from the
 > public internet. Production Postgres should not be publicly reachable — it wants a
@@ -210,15 +201,16 @@ Phase 1 still records every LLM exchange so later phases can replay them for fre
 
 | Phase | Rate | Volume | Purpose | Blocked on quota? | Approx OpenAI cost |
 |---|---|---|---|---|---|
-| **0. Quota request** | — | — | Raise Lambda concurrent executions from 10 toward 1000 | — | $0 |
+| **0. Quota request** | — | — | Raise Lambda concurrent executions from 10 toward 1000; PgBouncer cutover; processor reserved | **Done** (quota 1000 + PgBouncer 6432 + processor 80, 2026-09-11); webhook still unreserved (§13) | $0 |
 | **1. Calibration** | **1.5–2 msg/s × ~10–13 min** | 1,200 | Real cost/message **per language**, latency percentiles, LLM-2 trigger rate, translation duplication | **No** — runs today | $10–25 (see §4.4) |
 | **2. Concurrency ramp** | Pre-seeded queue, stepped reserved concurrency | ~15,000 | Throughput-vs-concurrency curve; locate the knee | **Yes** | ~$150 real, $0 on replay |
 | **3. Ceiling / cascade** | 1000 msg/s ingress, unthrottled | up to 60,000 | Confirm the failure mode and the order of collapse | **Yes** | ~$600 real, $0 on replay |
 
-Phase 0 is the long pole — a support ticket that can take hours to days — so file it
-first and let it run in the background.
+Phase 0 is **mostly done** (quota 1000, PgBouncer cutover on all five Lambdas, processor
+reserved at 80 — all 2026-09-11). Webhook/dispatcher/media-fetcher/order-recovery are
+still unreserved (§13).
 
-Phase 1 is otherwise independent of it. Its cost, latency, and language findings need
+Phase 1 is otherwise independent of quota. Its cost, latency, and language findings need
 1,200 messages under clean conditions, not high throughput, so it runs today at a reduced
 rate. What it loses at 1.5–2 msg/s is the connection-pool pressure measurement, which is
 meaningless at 10 concurrent executions anyway.
@@ -781,12 +773,10 @@ change: at a fixed quota, throughput is purely the inverse of duration. Removing
 duplicate translation call (§4.3) and moving the post-SLA translation off the critical
 path would cut duration materially, and therefore raise the ceiling proportionally.
 
-**Once the quota is raised**, the database becomes worth measuring and this section needs
-rewriting — but note that **PgBouncer is currently not in the Lambda path** (§0), so the
-relevant limit is Postgres `max_connections`, not `default_pool_size`. Either cut the
-Lambda `DATABASE_URL` over to port 6432 before Phase 2 so the pooling actually applies, or
-measure against raw Postgres and size `max_connections` accordingly. `samplePools.ts`
-should be pointed at whichever is genuinely in the path.
+**With the quota raised and PgBouncer in the path** (§0), the relevant limit is now
+PgBouncer's `default_pool_size` and transaction hold time, not raw Postgres
+`max_connections`. `samplePools.ts` should sample `SHOW POOLS` during Phase 1 to establish
+the multiplexing ratio before Phase 2.
 
 **Prediction to test in Phase 1:** English messages ~3s mean `Duration`, multilingual
 6–9s. Peak `ConcurrentExecutions` should sit below 10 at 1.5 msg/s; if it pins at 10 with
@@ -798,24 +788,23 @@ should be pointed at whichever is genuinely in the path.
 
 Ordered by expected point of failure. Every row is code or config in this repo.
 
-Re-ranked 2026-09-11 after the concurrency quota went from 10 to 1000.
+Re-ranked 2026-09-11 after the concurrency quota went from 10 to 1000 and PgBouncer
+cutover landed (all five Lambdas on 6432).
 
 | Rank | Component | Measured / configured limit | Evidence |
 |---|---|---|---|
-| **1** | **Postgres `max_connections`** | **100**, with up to 1000 Lambda containers at 1 connection each and no pooler in the path | §0 |
+| **1** | **PgBouncer pool** | `default_pool_size` TBD (setup suggested **15**); transaction hold time sets backend demand | §0 — confirm via `SHOW POOLS` in Phase 1 |
 | 2 | Per-message `Duration` | Sets how many containers a given rate needs: containers ≈ rate × duration | §4.2 |
 | 3 | OpenAI org rate limit | 1–6 calls/message multilingual, **no retry, no backoff** | `llm1.ts:11,48`, `llm2.ts:10`, `vendorEnglish.ts:78` |
 | 4 | Product matcher AI rate limit | **10 calls/min/vendor**, in-memory — non-English only | `productMatcher.ts:102-104` |
 | 5 | Redis conversation lock | 60s TTL vs. **300s** Lambda timeout — see the §0 bug | `conversation/lock.ts:5,57-70` |
-| 6 | Lambda account concurrency | 1000, unreserved — no longer binding, now the *amplifier* of rank 1 | §0 |
+| 6 | Lambda account concurrency | 1000; processor reserved at 80, others unreserved | §0 |
 | 7 | SQS batch size | 1 on text; **10** on audio/image/response | §0 |
 | 8 | Meta send throughput | 80 msg/s per number by default; no app-side limiter | `whatsappClient.ts:13-27` |
 
-The ranking has now inverted twice. PgBouncer was rank 1 on inspection, fell to rank 5
-once measurement showed it is not in the request path, and the limit it was meant to
-protect — raw Postgres `max_connections` — is now rank 1. Lambda concurrency went from
-rank 1 (when the quota was 10) to rank 6, where it no longer constrains throughput but
-instead determines how hard the database gets hit.
+Raw Postgres `max_connections` (100) is no longer rank 1 — PgBouncer multiplexes Lambda
+clients. The ranking should be re-validated empirically in Phase 1; ranks 2–8 are
+unchanged from the pre-cutover estimate.
 
 Multilingual traffic promotes ranks 2 and 3, because per-message call count roughly
 triples.
@@ -856,16 +845,12 @@ in SQS, `ApproximateAgeOfOldestMessage` climbs, and `Throttles` appears on the L
 Nothing fails; everything queues. With a 1800s visibility timeout and `maxReceiveCount=5`
 on the text queue, messages tolerate a long backlog before reaching the DLQ.
 
-**After the quota is raised**, the cascade predicted earlier becomes reachable: Lambda
-concurrency rises to meet demand → each container opens a database connection → Postgres
-`max_connections` is crossed (PgBouncer is not in the path to absorb it, §0) → Prisma
-hits `pool_timeout=3` and throws `P2024` → the record goes to `batchItemFailures` → SQS
-redelivers → additional load against an already-saturated database → DLQ after
-`maxReceiveCount=5`.
-
-This is the argument for cutting `DATABASE_URL` over to PgBouncer on 6432 **before**
-Phase 2 rather than after: without it, the first thing a raised quota does is point
-hundreds of Lambda containers straight at raw Postgres.
+**After the quota is raised and PgBouncer is in the path** (both done 2026-09-11), the
+predicted cascade is: Lambda concurrency rises → many PgBouncer clients queue (`cl_waiting`
+climbs) → backends saturate at `default_pool_size` → Prisma hits `pool_timeout=3` and
+throws `P2024` → `batchItemFailures` → SQS redelivers → additional load against an
+already-saturated pool → DLQ after `maxReceiveCount=5`. Phase 1 should confirm whether
+this knee appears and at what rate.
 
 **Where failures land matters for cost.** Identity resolution, the lock, the idempotency
 gate, and the credit guard all run *before* LLM-1, so a database collapse produces cheap
@@ -940,29 +925,52 @@ message**; Phase 1 measures the actual, per language.
 
 ---
 
-## 12. Open items
+## 12. Progress log
+
+| Date | Milestone |
+|---|---|
+| 2026-09-11 | Harness built (`backend/scripts/loadtest/`, `npm run loadtest:*`); AWS ground truth measured (§0) |
+| 2026-09-11 | Lambda account concurrency quota raised 10 → 1000 (`L-B99A9384`) |
+| 2026-09-11 | Processor reserved concurrency set to 80 |
+| 2026-09-11 | PgBouncer cutover **done** — all five Lambdas' `DATABASE_URL` on port 6432 (AWS CLI verified) |
+| 2026-09-11 | Webhook handler reserved concurrency set to **30** |
+| 2026-09-11 | `chatlogix-lambda-role` granted `cloudwatch:PutMetricData` for `ChatLogix/ConversationParity` |
+| 2026-09-11 | `npm run loadtest:probe-pgbouncer` + `samplePools` SHOW POOLS sampling added |
+| 2026-09-11 | `CLOUDWATCH_METRICS_ENABLED=true` on processor; IAM `cloudwatch:PutMetricData` still missing |
+| — | Phase 1 calibration run (1,200 messages) — **not started** |
+
+**Early-stage note (0–50 vendors):** At typical Starter/Pro usage (~0.002–0.5 msg/s peak),
+the stack is comfortably oversized. The load-test plan targets the **1,000-vendor /
+~40–60 msg/s** ceiling from `CONVERSATION_PROCESSOR_LAMBDA.md`, not day-one vendor count.
+
+---
+
+## 13. Open items
 
 ### Blocking
 
 - [x] ~~File the Lambda concurrency quota increase~~ — **done 2026-09-11**, `L-B99A9384`
       raised from 10 to 1000
-- [ ] **Protect the database before Phase 2.** With 1000 unreserved concurrency and no
-      pooler in the path, Lambda can open 10× more connections than Postgres accepts.
-      Set reserved concurrency (~80) on the processor, cut over to PgBouncer, or both (§0)
-- [ ] **Set `CLOUDWATCH_METRICS_ENABLED=true`** on the processor — currently absent, so
-      Phase 1 would produce no percentiles (§0)
+- [ ] **Protect the database before Phase 2.** PgBouncer cutover done; webhook reserved at
+      **30** (2026-09-11). Still open: reserve dispatcher (~15) + media-fetcher (~5) +
+      order-recovery (~2), and confirm `default_pool_size` under load (§0)
+- [x] ~~Set `CLOUDWATCH_METRICS_ENABLED=true` on the processor~~ — **env var set
+      2026-09-11**
+- [x] ~~Grant `cloudwatch:PutMetricData` on `chatlogix-lambda-role`~~ — **done 2026-09-11**
+      (`scripts/deployment/chatlogix-cloudwatch-custom-metrics.policy.json`). Metrics appear
+      after the next processor cold start + message.
 
 ### Config decisions before Phase 2
 
-- [ ] **Cut Lambda `DATABASE_URL` over to PgBouncer on port 6432**, or accept raw Postgres
-      and size `max_connections` for it. PgBouncer is already running on 6432 (§0), so
-      this is a config change on the five functions, not an install
-- [ ] Confirm Postgres `max_connections` — the host is reachable from the dev machine on
-      5432, so `SELECT setting FROM pg_settings WHERE name='max_connections'` will answer
-      it; `samplePools.ts` already reads and prints it at startup
-- [ ] Confirm the deployed PgBouncer `default_pool_size` via `SHOW CONFIG`, once it is
-      actually in the path — `setup-pgbouncer.sh:18` prompts interactively with 15 as a
-      suggestion, so the value cannot be assumed
+- [x] ~~Cut Lambda `DATABASE_URL` over to PgBouncer on port 6432~~ — **done 2026-09-11** on
+      all five functions (AWS CLI verified)
+- [ ] Confirm Postgres `max_connections` — `SELECT setting FROM pg_settings WHERE name='max_connections'`;
+      `samplePools.ts` already reads and prints it at startup
+- [ ] **Confirm the deployed PgBouncer `default_pool_size`** via `SHOW CONFIG` / `SHOW POOLS`
+      under Phase 1 load — run `npm run loadtest:probe-pgbouncer` (needs
+      `PGBOUNCER_ADMIN_URL` with **postgres** user) or on the DB host:
+      `bash scripts/deployment/probe-pgbouncer-on-host.sh`. `samplePools` records
+      `cl_waiting` / `sv_active` during Phase 1.
 - [ ] **Restrict public access to 5432/6432** on the database host (§0 security note) —
       separate from load testing, but found while verifying reachability
 

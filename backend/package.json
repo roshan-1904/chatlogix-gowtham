@@ -26,6 +26,7 @@
     "loadtest:cleanup": "tsx scripts/loadtest/cleanup.ts",
     "loadtest:generate": "tsx scripts/loadtest/generate.ts",
     "loadtest:sample": "tsx scripts/loadtest/samplePools.ts",
+    "loadtest:probe-pgbouncer": "tsx scripts/loadtest/probePgbouncer.ts",
     "loadtest:report": "tsx scripts/loadtest/report.ts",
     "loadtest:transcripts": "tsx scripts/loadtest/transcripts.ts",
     "test": "vitest run",

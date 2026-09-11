@@ -1,7 +1,7 @@
 # Public Signup & Trial Onboarding (Page-by-Page Spec)
 
-**Status:** Implemented (P2a–P2f, 2026-09-05); **intake-first funnel (P3b–P3e)** frontend shipped 2026-09-06  
-**Last updated:** 2026-09-07  
+**Status:** Implemented (P2a–P2f, 2026-09-05); **intake-first funnel (P3b–P3e)** frontend shipped 2026-09-06; **P4 conversion UX overhaul** shipped and browser-verified 2026-09-11  
+**Last updated:** 2026-09-11  
 **App:** `frontend_v2/apps/web-vendor` (vendor portal only)  
 **Related:** [Authentication](../../authentication/guides/authentication.md), [Vendor Onboarding Requirements](../requirements/VENDOR_ONBOARDING_REQUIREMENTS.md), [WhatsApp onboarding workflow](../../../whatsapp-integration/guides/vendor-onboarding-workflow.md)
 
@@ -32,6 +32,19 @@ After OTP, vendors **upload catalog first**. We extract products and shop facts,
 **Client API (GET `/api/vendors/me/onboarding`):** returns `completeness`, `nextQuestions`, `demoPrompts`, `extractedProfile` from the intake service. Clarify auto-skips to confirm when `nextQuestions` is empty.
 
 **Funnel events (client):** `intake_question_answered`, `intake_skipped` (dev console in `logClientFunnelEvent`).
+
+### P4 conversion UX overhaul (2026-09-11)
+
+Shipped in `d16210b` after a full browser verification pass (1280 desktop + 390 mobile):
+
+| Area | Change |
+| --- | --- |
+| **Signup / login** | Job-first headline ("Try it on your catalog"); ₹100 as helper line only; trust lines visible on mobile (`SignupTrustLines`); login split aligned with returning-user copy |
+| **OTP** | Autosubmit on sixth digit; specific error text for wrong codes (`@chatlogix/auth` now unwraps `{ error: { message } }`) |
+| **Catalog** | Equal "Take photo" / "Upload file" actions; one-line product rows; production-parity editor (unit dropdown, `isDivisible`, min/max qty, `PriceCalculator` preview) |
+| **Demo chat** | Catalog-aware suggested chips (`getProducts` allowed for unapproved vendors); pricing Q&A fixed via `baseQty` in compact catalog (see `docs/INCOMING_RESPONSE_GENERATOR_FLOW.md` §7) |
+| **Review / submitted** | Single submit, no legal-checkbox trap; approval timeline; "Edit application" routes to confirm/catalog, not welcome |
+| **Extraction** | Fixed `g`/`ml` packs (e.g. 350g truffle) normalize to `piece/1` with pack size in description (`normalizeFixedPackDraft`) |
 
 ---
 
@@ -936,5 +949,7 @@ Add to `backend/.env.example` when implemented.
 
 | Date | Change |
 | --- | --- |
+| 2026-09-11 | P4 conversion UX overhaul shipped; browser verification pass; demo catalog pricing (`baseQty`); production-parity product editor |
+| 2026-09-07 | Intake-first funnel (P3) documented |
 | 2026-09-05 | Trust, reliability & conversion expert plan; sandbox must use production pipeline |
 | 2026-09-05 | Initial spec from product planning session (competitor analysis, billing model, page-by-page flow) |

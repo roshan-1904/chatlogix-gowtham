@@ -8,11 +8,9 @@
  *   - Postgres connection counts from pg_stat_activity
  *   - PgBouncer SHOW POOLS, if PGBOUNCER_ADMIN_URL is set
  *
- * On PgBouncer: as of 2026-09-11 the Lambdas connect to Postgres directly on
- * port 5432, so PgBouncer is NOT in the request path and there is nothing for
- * it to report (docs/LOAD_TESTING.md §0). This sampler skips it unless you
- * explicitly point it at an admin connection, and warns so a run doesn't
- * silently record an empty pool table as though it were meaningful.
+ * PgBouncer: when PGBOUNCER_ADMIN_URL or DIRECT_DATABASE_URL is set, samples
+ * SHOW POOLS every tick (docs/LOAD_TESTING.md §6.6). Use `npm run loadtest:probe-pgbouncer`
+ * for a one-shot CONFIG/POOLS read before Phase 1.
  *
  * Run alongside the generator:
  *   npm run loadtest:sample
@@ -23,6 +21,7 @@ import { PrismaClient } from '@prisma/client';
 import { appendFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { LOADTEST_DIR, POOL_SAMPLES_PATH } from './config.js';
+import { fetchPgbouncerPools, resolvePgbouncerAdminUrl } from './pgbouncerAdmin.js';
 
 const INTERVAL_MS = Number(process.env.LOADTEST_SAMPLE_INTERVAL_MS || '1000');
 
@@ -119,24 +118,47 @@ function persist(sample: unknown): void {
     .catch((err) => console.error('[sample] write failed:', err));
 }
 
+const pgbouncerAdminUrl = resolvePgbouncerAdminUrl();
+let peakClWaiting = 0;
+let peakSvActive = 0;
+
 let stopped = false;
 let peakVisible = 0;
 let peakPgActive = 0;
 let samples = 0;
 
+async function pgbouncerPools(): Promise<unknown[] | null> {
+  if (!pgbouncerAdminUrl) return null;
+  try {
+    return await fetchPgbouncerPools(pgbouncerAdminUrl);
+  } catch {
+    return null;
+  }
+}
+
 async function tick(): Promise<void> {
-  const [queues, pg] = await Promise.all([queueDepths(), pgActivity()]);
+  const [queues, pg, pools] = await Promise.all([queueDepths(), pgActivity(), pgbouncerPools()]);
   const at = new Date().toISOString();
 
   if (queues.text) peakVisible = Math.max(peakVisible, queues.text.visible);
   if (pg) peakPgActive = Math.max(peakPgActive, pg.active);
+  if (pools) {
+    for (const p of pools) {
+      peakClWaiting = Math.max(peakClWaiting, p.clWaiting);
+      peakSvActive = Math.max(peakSvActive, p.svActive);
+    }
+  }
   samples += 1;
 
-  persist({ at, queues, pg });
+  persist({ at, queues, pg, pgbouncer: pools });
 
   const textDepth = queues.text ? `${queues.text.visible}/${queues.text.inFlight}` : 'n/a';
   const pgDesc = pg ? `${pg.active} active, ${pg.total} total` : 'n/a';
-  process.stdout.write(`\r[sample] ${samples}s  text q (visible/inflight) ${textDepth}  pg ${pgDesc}       `);
+  const pbDesc =
+    pools && pools.length
+      ? `pb cl_wait=${pools.reduce((m, p) => Math.max(m, p.clWaiting), 0)} sv_act=${pools.reduce((m, p) => Math.max(m, p.svActive), 0)}`
+      : 'pb n/a';
+  process.stdout.write(`\r[sample] ${samples}s  text ${textDepth}  pg ${pgDesc}  ${pbDesc}       `);
 }
 
 async function main(): Promise<void> {
@@ -145,9 +167,10 @@ async function main(): Promise<void> {
 
   console.log(`[sample] interval ${INTERVAL_MS}ms  output ${POOL_SAMPLES_PATH}`);
   console.log(`[sample] postgres max_connections: ${maxConnections ?? 'unreadable from here'}`);
-  if (!process.env.PGBOUNCER_ADMIN_URL) {
-    console.log('[sample] PgBouncer not sampled — it is not in the Lambda path today (see LOAD_TESTING.md §0).');
-    console.log('[sample] Set PGBOUNCER_ADMIN_URL only once DATABASE_URL is cut over to port 6432.');
+  if (pgbouncerAdminUrl) {
+    console.log('[sample] PgBouncer admin configured — SHOW POOLS included each tick.');
+  } else {
+    console.log('[sample] PgBouncer not sampled — set PGBOUNCER_ADMIN_URL or DIRECT_DATABASE_URL.');
   }
   for (const { label, url } of QUEUES) {
     if (!url) console.log(`[sample] queue '${label}' not configured — set its *_QUEUE_URL to sample it`);
@@ -166,6 +189,9 @@ async function main(): Promise<void> {
   console.log(`[sample] ${samples} samples over ${((Date.now() - startedAt) / 1000).toFixed(0)}s`);
   console.log(`[sample] peak text-queue backlog: ${peakVisible}`);
   console.log(`[sample] peak postgres active connections: ${peakPgActive}${maxConnections ? ` of ${maxConnections}` : ''}`);
+  if (pgbouncerAdminUrl) {
+    console.log(`[sample] peak pgbouncer cl_waiting: ${peakClWaiting}  peak sv_active: ${peakSvActive}`);
+  }
   if (peakVisible > 20) {
     console.log('[sample] NOTE: a persistent backlog means the offered rate exceeded what the');
     console.log('[sample] concurrency quota can absorb — latency numbers from this run include queue wait.');

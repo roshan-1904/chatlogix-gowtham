@@ -41,7 +41,7 @@ interface OnboardingLayoutProps {
   hideActionTitle?: boolean;
   /** Catalog review: 50/50 instead of 60/40 so product cards have room */
   splitEven?: boolean;
-  /** Demo chat: minimal chrome, no footer help, hide mobile guide */
+  /** Demo chat: minimal chrome, compact help footer, hide mobile guide */
   demoMode?: boolean;
 }
 

@@ -2,7 +2,7 @@
 
 **Route:** `/signup`  
 **App:** `frontend_v2/apps/web-vendor`  
-**Status:** **Implemented** (2026-09-05)  
+**Status:** **Implemented** (2026-09-05); **P4 copy lock** applied 2026-09-11 (job-first headline, ₹100 as helper only)  
 **Related:** [Public Signup & Trial Onboarding](./public-signup-onboarding.md) (flow, API, trial wallet)
 
 ---

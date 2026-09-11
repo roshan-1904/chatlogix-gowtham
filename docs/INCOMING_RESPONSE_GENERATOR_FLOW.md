@@ -1,8 +1,8 @@
 # Incoming Response Generator — How We Prepare a WhatsApp Reply
 
 <!-- DOC_SYNC
-  last_verified_commit: b8a6efbff1933e4bc80efc03d2676d56dd6e8655
-  last_verified_at: 2026-09-06
+  last_verified_commit: d16210b3664a8211a9dd31421c8dceadf0ee4def
+  last_verified_at: 2026-09-11
   scope: As-implemented incoming-response-generator pipeline (language, LLM-2 reply selection, contentEn, voice-note ASR, compact-catalog paise heal, catalog baseQty pack pricing)
 -->
 

@@ -1,8 +1,8 @@
 # Implementation Plan — `chatlogix-conversation-processor`
 
 <!-- DOC_SYNC
-  last_verified_commit: 547b10e7701dc88fd4f0463a37c009964dfea7f4
-  last_verified_at: 2026-09-05
+  last_verified_commit: d16210b3664a8211a9dd31421c8dceadf0ee4def
+  last_verified_at: 2026-09-11
   scope: Build plan and progress tracker for conversation processor; post-ship enhancements section tracks language/contentEn/LLM-2 updates
 -->
 
@@ -20,7 +20,7 @@ This plan translates that spec (plus the v1.1 scale-hardening addendum already a
 
 | Step | Status | Notes |
 |---|---|---|
-| 1 — PgBouncer | **Done** (2026-09-04) | Installed on the Lightsail box (transaction-pooling mode, port 6432, `default_pool_size=15` against `max_connections=100`). `directUrl` added to `schema.prisma` so `prisma migrate deploy` keeps using a direct connection; `DIRECT_DATABASE_URL` added to the box's `.env`. All 5 live Lambda functions (except the already-non-functional `chatlogix-media-fetcher`) and the PM2 `chatlogix-backend` process now connect via PgBouncer (`?pgbouncer=true`, `connection_limit=1` for Lambda / `8` for PM2). This closed out the connection exhaustion incident (93 idle `apiuser` connections hit `max_connections`) that prompted doing this ahead of schedule. |
+| 1 — PgBouncer | **Done** (2026-09-04 install; Lambda cutover 2026-09-11) | Installed on the Lightsail box (transaction-pooling mode, port 6432). All five Lambda functions' `DATABASE_URL` points at **6432** with `?pgbouncer=true` and `connection_limit=1` (AWS CLI verified 2026-09-11). PM2 `chatlogix-backend` also uses PgBouncer. Confirm `default_pool_size` under load before Phase 2 — see `docs/LOAD_TESTING.md` §0. |
 | 2 — Schema | **Code done, DB not migrated** | `schema.prisma` edited, `prisma validate` + `prisma:generate` both pass, new types confirmed in generated client. Migration SQL written but **not yet applied to any database** — deferred to deploy time per user decision, not blocking further implementation. |
 | 3 — CartEngine | **Done** | `cart/{engine,snapshot,availability,productResolve}.ts` + `types.ts` written. 16/16 tests passing (`availability.test.ts` 8, `cartEngine.test.ts` 8, covering §26 tests 1–7 plus two extra correctness checks). `tsc --noEmit` clean. |
 | 4 — Prefetch/compact catalog | **Done** | `prefetch.ts` + `cart/candidateSearch.ts` written. Cache invalidation wired into `routes/products.ts` (create/update/delete/bulk) and `catalogCommitService.ts` (bulk import commit). 28/28 tests passing across the whole `conversation/` module. `tsc --noEmit` clean. |

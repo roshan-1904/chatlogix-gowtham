@@ -23,8 +23,8 @@ vendor-onboarding/
 - **[Vendor Onboarding Requirements](./requirements/VENDOR_ONBOARDING_REQUIREMENTS.md)** - Complete requirements specification (long-term vision; partial overlap with public signup guide)
 
 ### Guides
-- **[Public Signup & Trial Onboarding (Page-by-Page)](./guides/public-signup-onboarding.md)** - **Approved v1 spec** for vendor portal signup, ₹100 trial wallet, admin approval gate, and onboarding UI flow (2026-09-05)
-- **[Signup Page — Marketing Copy & Layout](./guides/signup-page-marketing-copy.md)** - **Approved copy & SEO spec** for `/signup` 65%/35% layout (documented, pending UI implementation)
+- **[Public Signup & Trial Onboarding (Page-by-Page)](./guides/public-signup-onboarding.md)** - **Approved v1 spec** for vendor portal signup, ₹100 trial wallet, admin approval gate, and onboarding UI flow (P2–P3 shipped 2026-09-06; **P4 conversion UX overhaul** shipped and verified 2026-09-11)
+- **[Signup Page — Marketing Copy & Layout](./guides/signup-page-marketing-copy.md)** - Copy & layout spec for `/signup`; job-first headline and trust-line copy lock implemented in P4 (2026-09-11)
 - **[Approval Runbook](./guides/approval-runbook.md)** - Manual vendor approval ops
 
 ### Status
