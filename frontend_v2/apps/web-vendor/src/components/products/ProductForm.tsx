@@ -2,8 +2,11 @@
  * Product form component with all sections
  */
 
+import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { Button, Input } from '@chatlogix/ui';
+import { EnhanceModal } from '../catalogEnhance/EnhanceModal';
+import type { EnhancePreview } from '../../lib/catalogEnhance';
 import { useProductForm } from '../../hooks/products/useProductForm';
 import { VariantManager } from './VariantManager';
 import { KeywordsInput } from './KeywordsInput';
@@ -17,6 +20,8 @@ interface ProductFormProps {
   onCancel: () => void;
   mode: 'create' | 'edit';
   isLoading?: boolean;
+  /** Called after accept API persists; refresh parent state only (no second PUT). */
+  onEnhanceSaved?: () => void | Promise<void>;
 }
 
 function generateSuggestions(name: string, description?: string): string[] {
@@ -44,7 +49,9 @@ export function ProductForm({
   onCancel,
   mode,
   isLoading = false,
+  onEnhanceSaved,
 }: ProductFormProps) {
+  const [enhanceOpen, setEnhanceOpen] = useState(false);
   const {
     formData,
     updateField,
@@ -80,6 +87,19 @@ export function ProductForm({
 
   const suggestions = generateSuggestions(formData.name, formData.description);
 
+  const handleEnhanceAccepted = async (preview: EnhancePreview) => {
+    if (preview.description) {
+      updateField('description', preview.description);
+    }
+    if (preview.keywords?.length) {
+      const merged = Array.from(new Set([...(formData.keywords ?? []), ...preview.keywords]));
+      updateField('keywords', merged);
+    }
+    if (onEnhanceSaved) {
+      await onEnhanceSaved();
+    }
+  };
+
   return (
     <form onSubmit={handleSubmit} className="flex flex-col lg:flex-row gap-6">
       {/* Left Column - Main Form */}
@@ -112,7 +132,21 @@ export function ProductForm({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <label className="block text-sm font-medium text-gray-700">Description</label>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={mode === 'create' || !product?.id}
+                  onClick={() => setEnhanceOpen(true)}
+                >
+                  Enhance with AI
+                </Button>
+              </div>
+              {mode === 'create' || !product?.id ? (
+                <p className="text-xs text-gray-500 mb-2">Save the product first to use AI enhancement.</p>
+              ) : null}
               <textarea
                 value={formData.description || ''}
                 onChange={(e) => updateField('description', e.target.value)}
@@ -429,6 +463,19 @@ export function ProductForm({
           </div>
         </div>
       </div>
+
+      {product?.id ? (
+        <EnhanceModal
+          isOpen={enhanceOpen}
+          onClose={() => setEnhanceOpen(false)}
+          entityType="product"
+          entityId={product.id}
+          title={`Enhance — ${formData.name || product.name}`}
+          onAccepted={async (preview) => {
+            await handleEnhanceAccepted(preview);
+          }}
+        />
+      ) : null}
     </form>
   );
 }

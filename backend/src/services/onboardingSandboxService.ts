@@ -1,29 +1,19 @@
 import crypto from 'node:crypto';
-import OpenAI, { toFile } from 'openai';
 import { prisma } from '../db/prisma.js';
 import { env } from '../config/env.js';
 import { logger } from '../logger.js';
 import { processMessage, type ProcessMessageResult } from '../conversation/pipeline.js';
-import { calculateCost } from '../utils/costCalculator.js';
 import { usdToPaise } from '../utils/billingPaise.js';
 import {
   canProcessMessage,
   recordSandboxSpend
 } from './billingService.js';
-import {
-  TRANSCRIBE_MODEL,
-  VOICE_NOTE_TRANSCRIBE_PROMPT,
-  pickUsableTranscript,
-  isTranscriptTooThin
-} from './audioTranscription.js';
 import { logOnboardingFunnelEvent } from './onboardingFunnelService.js';
 
 const SANDBOX_PHONE_PREFIX = 'sandbox:';
 const SANDBOX_PHONE_NUMBER_ID = 'sandbox-onboarding';
 const SANDBOX_EMPTY_WALLET_REPLY =
   'Your ₹100 trial is used up. You can still submit for approval — our team will review your shop.';
-
-const openai = env.OPENAI_API_KEY ? new OpenAI({ apiKey: env.OPENAI_API_KEY }) : null;
 
 export interface SandboxChatResult extends ProcessMessageResult {
   transcript?: string;
@@ -62,34 +52,9 @@ async function transcribeAudioBuffer(bytes: Buffer, mimeType: string): Promise<{
   transcript: string;
   transcribePaise: number;
 }> {
-  if (!openai) {
-    throw new Error('Voice demo is not available right now. Please try typing your message.');
-  }
-
-  const ext = mimeType.includes('webm') ? 'webm' : mimeType.includes('mp4') ? 'mp4' : 'ogg';
-  const file = await toFile(bytes, `voice.${ext}`, { type: mimeType || 'audio/ogg' });
-  const first = await openai.audio.transcriptions.create({
-    file,
-    model: TRANSCRIBE_MODEL
-  });
-  let transcript = (first.text ?? '').trim();
-
-  if (isTranscriptTooThin(transcript, bytes.byteLength)) {
-    const retryFile = await toFile(bytes, `voice-retry.${ext}`, { type: mimeType || 'audio/ogg' });
-    const retry = await openai.audio.transcriptions.create({
-      file: retryFile,
-      model: TRANSCRIBE_MODEL,
-      prompt: VOICE_NOTE_TRANSCRIBE_PROMPT
-    });
-    transcript = pickUsableTranscript(transcript, retry.text ?? '', bytes.byteLength);
-  }
-
-  if (!transcript) {
-    throw new Error("We couldn't make out the voice note. Please type your question instead.");
-  }
-
-  const transcribeCost = calculateCost(TRANSCRIBE_MODEL, undefined, undefined, Math.max(transcript.length * 4, 120));
-  const transcribePaise = usdToPaise(transcribeCost.costUsd);
+  const { transcribeVendorAudioBuffer } = await import('./vendorAudioTranscriptionService.js');
+  const { transcript, costUsd } = await transcribeVendorAudioBuffer(bytes, mimeType);
+  const transcribePaise = usdToPaise(costUsd);
   return { transcript, transcribePaise };
 }
 

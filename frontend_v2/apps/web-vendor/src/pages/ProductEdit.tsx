@@ -39,37 +39,28 @@ export function ProductEdit() {
 
   const handleSubmit = async (data: ProductFormData) => {
     if (!id) return;
-    
+
     setIsSubmitting(true);
     const toastId = toast.loading('Saving product...');
-    
+
     try {
       await updateProduct(id, data);
       toast.success('Product updated successfully!', { id: toastId });
-      // Small delay to show success message before navigation
       setTimeout(() => {
         navigate('/catalog');
       }, 500);
-    } catch (err: any) {
+    } catch (err: unknown) {
       let message = 'Failed to update product. Please try again.';
-      
-      // Try to extract more detailed error message
-      if (err?.response?.data) {
-        const errorData = err.response.data;
-        if (errorData.error) {
+
+      if (err && typeof err === 'object' && 'response' in err) {
+        const errorData = (err as { response?: { data?: { error?: string } } }).response?.data;
+        if (errorData?.error) {
           message = errorData.error;
-        }
-        if (errorData.details && Array.isArray(errorData.details)) {
-          // Zod validation errors
-          const validationErrors = errorData.details
-            .map((detail: any) => `${detail.path.join('.')}: ${detail.message}`)
-            .join(', ');
-          message = `Validation failed: ${validationErrors}`;
         }
       } else if (err instanceof Error) {
         message = err.message;
       }
-      
+
       toast.error(message, { id: toastId });
       console.error('Failed to update product:', err);
       setIsSubmitting(false);
@@ -128,6 +119,7 @@ export function ProductEdit() {
         onSubmit={handleSubmit}
         onCancel={handleCancel}
         isLoading={isSubmitting}
+        onEnhanceSaved={loadProduct}
       />
     </div>
   );

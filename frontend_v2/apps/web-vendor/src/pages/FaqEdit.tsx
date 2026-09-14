@@ -103,7 +103,16 @@ export function FaqEdit() {
         <p className="text-xs sm:text-sm text-gray-500 mt-1">{faq.question}</p>
       </div>
 
-      <FaqForm faq={faq} mode="edit" onSubmit={handleSubmit} onCancel={handleCancel} isLoading={isSubmitting} />
+      <FaqForm
+        faq={faq}
+        mode="edit"
+        onSubmit={handleSubmit}
+        onCancel={handleCancel}
+        isLoading={isSubmitting}
+        onEnhanceSaved={async () => {
+          await loadFaq();
+        }}
+      />
     </div>
   );
 }

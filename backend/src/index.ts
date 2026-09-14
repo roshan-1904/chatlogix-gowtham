@@ -16,6 +16,7 @@ import { shippingRouter } from './routes/shipping.js';
 import { productsRouter } from './routes/products.js';
 import { faqsRouter } from './routes/faqs.js';
 import { catalogImportRouter } from './routes/catalogImport.js';
+import { catalogEnhanceRouter } from './routes/catalogEnhance.js';
 import swaggerUi from 'swagger-ui-express';
 import { openApiSpec } from './docs/openapi.js';
 import { authRouter } from './routes/auth.js';
@@ -93,6 +94,7 @@ async function bootstrap() {
   // EventSource cannot set Authorization headers. The router-level middleware
   // accepts header or query and falls through to the kill switch.
   app.use('/api/catalog-import', catalogImportRouter);
+  app.use('/api/catalog-enhance', authenticate, catalogEnhanceRouter);
   app.use('/api', authenticate, paymentsRouter);
   app.use('/api', authenticate, shippingRouter);
 

@@ -30,4 +30,5 @@ When you change `backend/src/conversation/` behavior documented in the files abo
 | `docs/DEPLOYMENT.md` | Deploy topology only |
 | `docs/LOAD_TESTING.md` | Test methodology and harness; cites pipeline facts but does not document pipeline behavior |
 | `docs/troubleshooting/*` | Case studies; not pipeline reference docs |
+| `docs/VENDOR_CATALOG_ENHANCER.md` | Vendor portal “Enhance with AI” design spec; implementation tracked in spec §22 |
 | `CLAUDE.md` / `.cursorrules` | No materially wrong language restrictions (points to flow doc for pipeline details) |

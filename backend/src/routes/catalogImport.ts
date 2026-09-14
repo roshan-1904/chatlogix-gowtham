@@ -33,6 +33,7 @@ import {
 import { startAnalyze, commit as commitCatalog } from '../services/catalogImportService.js';
 import { mergeJobResult } from '../services/catalogImportAuditService.js';
 import { catalogImportEventBus } from '../services/catalogImportEventBus.js';
+import { requireCatalogImportEnabled } from '../middleware/requireCatalogImportEnabled.js';
 
 export const catalogImportRouter = express.Router();
 
@@ -65,26 +66,6 @@ catalogImportRouter.use((req, res, next) => {
     return res.status(401).json({ error: 'invalid_token' });
   }
 });
-
-// Per-vendor feature-flag check. Mounts after authenticate + requireRole so req.user is populated.
-async function requireCatalogImportEnabled(
-  req: express.Request,
-  res: express.Response,
-  next: express.NextFunction
-) {
-  const vendorId = req.user?.vendorId;
-  if (!vendorId) {
-    return res.status(403).json({ error: 'vendor_context_missing' });
-  }
-  const vendor = await prisma.vendor.findUnique({
-    where: { id: vendorId },
-    select: { catalogImportEnabled: true }
-  });
-  if (!vendor?.catalogImportEnabled) {
-    return res.status(404).json({ error: 'not_found' });
-  }
-  next();
-}
 
 const UploadUrlSchema = z.object({
   filename: z.string().min(1).max(255),

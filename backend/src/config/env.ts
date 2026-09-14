@@ -89,6 +89,10 @@ const EnvSchema = z.object({
   CATALOG_IMPORT_GLOBAL_KILL: z.string().optional(),
   CATALOG_IMPORT_DISABLE_RATE_LIMIT: z.string().optional(),
 
+  CATALOG_ENHANCE_GLOBAL_KILL: z.string().optional(),
+  CATALOG_ENHANCE_DAILY_PAISE_CAP: z.string().default('3000'),
+  CATALOG_ENHANCE_DISABLE_RATE_LIMIT: z.string().optional(),
+
   // Product Matching Configuration
   PRODUCT_MATCHING_THRESHOLD: z.string().optional(), // Default: 0.7 (70% similarity)
   PRODUCT_MATCHING_ENABLE_FUZZY: z.string().optional(), // Default: 'true'

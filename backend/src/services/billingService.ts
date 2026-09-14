@@ -20,6 +20,18 @@ export interface CatalogImportSpend {
   paiseCost: number;
 }
 
+export type VendorAiSpendSource = 'catalog_enhance' | 'catalog_enhance_transcribe';
+
+export interface VendorAiSpendInput {
+  vendorId: string;
+  paiseCost: number;
+  source: VendorAiSpendSource;
+  sessionId: string;
+  entityType: 'product' | 'faq';
+  entityId: string;
+  metadata?: Record<string, unknown>;
+}
+
 export type SandboxSpendSource = 'sandbox_chat' | 'sandbox_voice' | 'sandbox_transcribe';
 
 export interface SandboxSpendInput {
@@ -106,6 +118,54 @@ export function creditsForKind(kind: MessageKind): number {
  * WalletTransaction row; the per-call paise breakdown lives in
  * CatalogImportJob.tokenUsage so we don't need a CreditUsage-alike table.
  */
+export async function assertVendorWalletForAi(
+  vendorId: string
+): Promise<{ allowed: boolean; reason?: string }> {
+  return canProcessMessage(vendorId, 'text');
+}
+
+export async function recordVendorAiSpend(input: VendorAiSpendInput): Promise<void> {
+  if (input.paiseCost <= 0) return;
+  await prisma.$transaction(async (tx) => {
+    const vendor = await tx.vendor.findUnique({
+      where: { id: input.vendorId },
+      select: { walletBalance: true }
+    });
+    if (!vendor) throw new Error('Vendor not found');
+    const before = vendor.walletBalance;
+    const after = before - input.paiseCost;
+    await tx.vendor.update({
+      where: { id: input.vendorId },
+      data: { walletBalance: after }
+    });
+    await tx.walletTransaction.create({
+      data: {
+        vendorId: input.vendorId,
+        transactionType: 'deduction',
+        amount: input.paiseCost,
+        balanceBefore: before,
+        balanceAfter: after,
+        metadata: {
+          source: input.source,
+          sessionId: input.sessionId,
+          entityType: input.entityType,
+          entityId: input.entityId,
+          ...input.metadata
+        }
+      }
+    });
+  });
+  logger.info(
+    {
+      vendorId: input.vendorId,
+      sessionId: input.sessionId,
+      source: input.source,
+      paiseCost: input.paiseCost
+    },
+    'catalog_enhance_spend_recorded'
+  );
+}
+
 export async function recordCatalogImportSpend(input: CatalogImportSpend): Promise<void> {
   if (input.paiseCost <= 0) return;
   await prisma.$transaction(async (tx) => {
@@ -259,6 +319,10 @@ function labelForSource(source: string): string {
       return 'Voice transcription';
     case 'catalog_import':
       return 'Catalog import';
+    case 'catalog_enhance':
+      return 'Catalog enhancer';
+    case 'catalog_enhance_transcribe':
+      return 'Catalog enhancer voice';
     default:
       return 'Other usage';
   }
@@ -270,6 +334,31 @@ function startOfTodayIST(): Date {
   const istDate = new Date(istMs);
   istDate.setUTCHours(0, 0, 0, 0);
   return new Date(istDate.getTime() - (5 * 60 + 30) * 60 * 1000);
+}
+
+const CATALOG_ENHANCE_SOURCES: VendorAiSpendSource[] = [
+  'catalog_enhance',
+  'catalog_enhance_transcribe'
+];
+
+export async function getTodaysCatalogEnhancePaiseSpent(vendorId: string): Promise<number> {
+  const since = startOfTodayIST();
+  const txs = await prisma.walletTransaction.findMany({
+    where: {
+      vendorId,
+      transactionType: 'deduction',
+      transactionDate: { gte: since }
+    },
+    select: { amount: true, metadata: true }
+  });
+  let total = 0;
+  for (const tx of txs) {
+    const source = metadataSource(tx.metadata);
+    if (source && CATALOG_ENHANCE_SOURCES.includes(source as VendorAiSpendSource)) {
+      total += tx.amount;
+    }
+  }
+  return total;
 }
 
 export async function getTodaysCatalogImportPaiseSpent(vendorId: string): Promise<number> {

@@ -5,6 +5,8 @@
 
 import { useState } from 'react';
 import { Button, Input } from '@chatlogix/ui';
+import { EnhanceModal } from '../catalogEnhance/EnhanceModal';
+import type { EnhancePreview } from '../../lib/catalogEnhance';
 import type { Faq, FaqFormData } from '../../types/faq';
 
 interface FaqFormProps {
@@ -13,13 +15,22 @@ interface FaqFormProps {
   onCancel: () => void;
   mode: 'create' | 'edit';
   isLoading?: boolean;
+  onEnhanceSaved?: () => void | Promise<void>;
 }
 
-export function FaqForm({ faq, onSubmit, onCancel, mode, isLoading = false }: FaqFormProps) {
+export function FaqForm({
+  faq,
+  onSubmit,
+  onCancel,
+  mode,
+  isLoading = false,
+  onEnhanceSaved,
+}: FaqFormProps) {
   const [question, setQuestion] = useState(faq?.question ?? '');
   const [answer, setAnswer] = useState(faq?.answer ?? '');
   const [isActive, setIsActive] = useState(faq?.isActive ?? true);
   const [errors, setErrors] = useState<{ question?: string; answer?: string }>({});
+  const [enhanceOpen, setEnhanceOpen] = useState(false);
 
   const validate = (): boolean => {
     const nextErrors: { question?: string; answer?: string } = {};
@@ -35,6 +46,11 @@ export function FaqForm({ faq, onSubmit, onCancel, mode, isLoading = false }: Fa
     e.preventDefault();
     if (!validate()) return;
     await onSubmit({ question: question.trim(), answer: answer.trim(), isActive });
+  };
+
+  const handleEnhanceAccepted = async (preview: EnhancePreview) => {
+    if (preview.answer) setAnswer(preview.answer);
+    await onEnhanceSaved?.();
   };
 
   return (
@@ -54,9 +70,23 @@ export function FaqForm({ faq, onSubmit, onCancel, mode, isLoading = false }: Fa
       </div>
 
       <div>
-        <label htmlFor="faq-answer" className="block text-sm font-medium text-gray-700 mb-1">
-          Answer
-        </label>
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <label htmlFor="faq-answer" className="block text-sm font-medium text-gray-700">
+            Answer
+          </label>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={mode === 'create' || !faq?.id}
+            onClick={() => setEnhanceOpen(true)}
+          >
+            Enhance with AI
+          </Button>
+        </div>
+        {mode === 'create' || !faq?.id ? (
+          <p className="text-xs text-gray-500 mb-2">Save the FAQ first to use AI enhancement.</p>
+        ) : null}
         <textarea
           id="faq-answer"
           value={answer}
@@ -92,6 +122,17 @@ export function FaqForm({ faq, onSubmit, onCancel, mode, isLoading = false }: Fa
           {mode === 'create' ? 'Add FAQ' : 'Save Changes'}
         </Button>
       </div>
+
+      {faq?.id ? (
+        <EnhanceModal
+          isOpen={enhanceOpen}
+          onClose={() => setEnhanceOpen(false)}
+          entityType="faq"
+          entityId={faq.id}
+          title={`Enhance — ${question || faq.question}`}
+          onAccepted={handleEnhanceAccepted}
+        />
+      ) : null}
     </form>
   );
 }
