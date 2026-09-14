@@ -44,7 +44,7 @@ export function EnhanceVoiceButton({ disabled, onRecorded }: Props) {
         if (blob.size > 0) await onRecorded(blob);
       };
       recorderRef.current = recorder;
-      recorder.start();
+      recorder.start(250);
       setRecording(true);
       window.setTimeout(() => {
         if (recorderRef.current?.state === 'recording') {

@@ -24,6 +24,7 @@ export function EnhanceModal({
 }: Props) {
   const [mobileTab, setMobileTab] = useState<'chat' | 'preview'>('chat');
   const [updateQuestion, setUpdateQuestion] = useState(false);
+  const [editedText, setEditedText] = useState('');
   const openedRef = useRef(false);
 
   const session = useEnhanceSession({
@@ -32,6 +33,15 @@ export function EnhanceModal({
     onAccepted,
     onClose,
   });
+
+  const aiPreviewText =
+    entityType === 'product'
+      ? session.preview.description ?? ''
+      : session.preview.answer ?? '';
+
+  useEffect(() => {
+    setEditedText(aiPreviewText);
+  }, [aiPreviewText]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -44,9 +54,17 @@ export function EnhanceModal({
     }
   }, [isOpen, entityId, session.openModal]);
 
-  const canAccept = Boolean(
-    entityType === 'product' ? session.preview.description?.trim() : session.preview.answer?.trim()
-  );
+  const canAccept = Boolean(editedText.trim());
+
+  const handleAccept = () => {
+    void session.accept({
+      applyKeywords: true,
+      updateQuestion,
+      ...(entityType === 'product'
+        ? { description: editedText.trim() }
+        : { answer: editedText.trim() }),
+    });
+  };
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={title} size="xl" closeOnClickOutside={false}>
@@ -65,6 +83,8 @@ export function EnhanceModal({
               entityType={entityType}
               preview={session.preview}
               generating={session.generating}
+              editedText={editedText}
+              onEditedTextChange={setEditedText}
             />
           </div>
           <div className="lg:hidden flex flex-col gap-2 h-[min(400px,calc(90vh-11rem))] min-h-[240px]">
@@ -97,6 +117,8 @@ export function EnhanceModal({
                   entityType={entityType}
                   preview={session.preview}
                   generating={session.generating}
+                  editedText={editedText}
+                  onEditedTextChange={setEditedText}
                 />
               )}
             </div>
@@ -124,12 +146,7 @@ export function EnhanceModal({
               </Button>
               <Button
                 disabled={!canAccept || session.loading}
-                onClick={() =>
-                  void session.accept({
-                    applyKeywords: true,
-                    updateQuestion,
-                  })
-                }
+                onClick={handleAccept}
               >
                 Use this
               </Button>

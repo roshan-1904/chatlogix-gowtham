@@ -53,7 +53,12 @@ export async function sendEnhanceMessage(
 
 export async function acceptEnhancePreview(
   sessionId: string,
-  body?: { applyKeywords?: boolean; updateQuestion?: boolean }
+  body?: {
+    applyKeywords?: boolean;
+    updateQuestion?: boolean;
+    description?: string;
+    answer?: string;
+  }
 ): Promise<unknown> {
   return apiClient.post(`/catalog-enhance/sessions/${sessionId}/accept`, body ?? {});
 }

@@ -400,14 +400,19 @@ async function findSessionByIdForVendor(vendorId: string, sessionId: string): Pr
 export async function acceptEnhancePreview(
   vendorId: string,
   sessionId: string,
-  options?: { applyKeywords?: boolean; updateQuestion?: boolean }
+  options?: {
+    applyKeywords?: boolean;
+    updateQuestion?: boolean;
+    description?: string;
+    answer?: string;
+  }
 ): Promise<{ entityType: EnhanceEntityType; product?: unknown; faq?: unknown }> {
   const session = await findSessionByIdForVendor(vendorId, sessionId);
 
   if (session.entityType === 'product') {
     const existing = await loadProductSnapshot(vendorId, session.entityId);
     if (!existing) throw new EntityNotFoundError();
-    const description = session.preview.description?.trim();
+    const description = (options?.description ?? session.preview.description)?.trim();
     if (!description) throw new Error('no_preview');
 
     const keywords =
@@ -429,7 +434,7 @@ export async function acceptEnhancePreview(
 
   const existing = await loadFaqSnapshot(vendorId, session.entityId);
   if (!existing) throw new EntityNotFoundError();
-  const answer = session.preview.answer?.trim();
+  const answer = (options?.answer ?? session.preview.answer)?.trim();
   if (!answer) throw new Error('no_preview');
 
   const data: { answer: string; question?: string } = {

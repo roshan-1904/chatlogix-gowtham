@@ -11,5 +11,7 @@ export const PostEnhanceMessageSchema = z.object({
 
 export const AcceptEnhanceSchema = z.object({
   applyKeywords: z.boolean().optional().default(true),
-  updateQuestion: z.boolean().optional().default(false)
+  updateQuestion: z.boolean().optional().default(false),
+  description: z.string().max(2000).optional(),
+  answer: z.string().max(1500).optional()
 });

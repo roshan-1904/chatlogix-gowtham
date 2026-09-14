@@ -23,6 +23,9 @@ export const VOICE_NOTE_TRANSCRIBE_PROMPT =
  */
 const WHATSAPP_OPUS_BITRATE = 16_000;
 
+/** Browser MediaRecorder (webm/opus) — typically tens–128 kbps, not WhatsApp Opus. */
+const WEB_RECORDING_BITRATE = 64_000;
+
 /** Do not apply the letters-per-second check below this; "ok"/"yes" is plausible. */
 const THIN_CHECK_MIN_DURATION_SEC = 6;
 
@@ -34,6 +37,23 @@ const LETTER = /\p{L}/u;
 export function estimateOpusDurationSec(fileSizeBytes: number): number {
   if (fileSizeBytes <= 0) return 0;
   return (fileSizeBytes * 8) / WHATSAPP_OPUS_BITRATE;
+}
+
+export function estimateWebRecordingDurationSec(fileSizeBytes: number): number {
+  if (fileSizeBytes <= 0) return 0;
+  return (fileSizeBytes * 8) / WEB_RECORDING_BITRATE;
+}
+
+function isTranscriptTooThinWithBitrate(
+  transcript: string,
+  audioBytes: number,
+  bitrate: number
+): boolean {
+  const trimmed = transcript.trim();
+  if (!trimmed) return true;
+  const durationSec = (audioBytes * 8) / bitrate;
+  if (durationSec < THIN_CHECK_MIN_DURATION_SEC) return false;
+  return letterCount(trimmed) < durationSec * MIN_LETTERS_PER_SEC;
 }
 
 export function letterCount(text: string): number {
@@ -49,11 +69,12 @@ export function letterCount(text: string): number {
  * Short notes (under ~6s) skip the density check so a spoken "ok" still goes through.
  */
 export function isTranscriptTooThin(transcript: string, audioBytes: number): boolean {
-  const trimmed = transcript.trim();
-  if (!trimmed) return true;
-  const durationSec = estimateOpusDurationSec(audioBytes);
-  if (durationSec < THIN_CHECK_MIN_DURATION_SEC) return false;
-  return letterCount(trimmed) < durationSec * MIN_LETTERS_PER_SEC;
+  return isTranscriptTooThinWithBitrate(transcript, audioBytes, WHATSAPP_OPUS_BITRATE);
+}
+
+/** Thinness gate for vendor-portal MediaRecorder uploads (webm), not WhatsApp Opus. */
+export function isTranscriptTooThinForWebRecording(transcript: string, audioBytes: number): boolean {
+  return isTranscriptTooThinWithBitrate(transcript, audioBytes, WEB_RECORDING_BITRATE);
 }
 
 /**
@@ -69,5 +90,22 @@ export function pickUsableTranscript(
   if (!isTranscriptTooThin(firstTrimmed, audioBytes)) return firstTrimmed;
   const retryTrimmed = (retry ?? '').trim();
   if (retryTrimmed && !isTranscriptTooThin(retryTrimmed, audioBytes)) return retryTrimmed;
+  return '';
+}
+
+export function pickUsableWebTranscript(
+  first: string,
+  retry: string | null,
+  audioBytes: number
+): string {
+  const firstTrimmed = first.trim();
+  if (!isTranscriptTooThinForWebRecording(firstTrimmed, audioBytes)) return firstTrimmed;
+  const retryTrimmed = (retry ?? '').trim();
+  if (retryTrimmed && !isTranscriptTooThinForWebRecording(retryTrimmed, audioBytes)) {
+    return retryTrimmed;
+  }
+  // Prefer any non-empty retry/first over hard failure — web ASR is usually usable even if short.
+  if (retryTrimmed.length >= 2) return retryTrimmed;
+  if (firstTrimmed.length >= 2) return firstTrimmed;
   return '';
 }

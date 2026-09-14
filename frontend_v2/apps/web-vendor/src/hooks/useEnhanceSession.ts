@@ -96,12 +96,22 @@ export function useEnhanceSession({
   );
 
   const accept = useCallback(
-    async (options?: { applyKeywords?: boolean; updateQuestion?: boolean }) => {
+    async (options?: {
+      applyKeywords?: boolean;
+      updateQuestion?: boolean;
+      description?: string;
+      answer?: string;
+    }) => {
       if (!sessionId) return;
       setLoading(true);
       try {
         await acceptEnhancePreview(sessionId, options);
-        await onAccepted?.(preview);
+        const merged: EnhancePreview = {
+          ...preview,
+          ...(options?.description !== undefined ? { description: options.description } : {}),
+          ...(options?.answer !== undefined ? { answer: options.answer } : {}),
+        };
+        await onAccepted?.(merged);
         toast.success('Saved enhanced content');
         onClose?.();
       } catch (err) {
