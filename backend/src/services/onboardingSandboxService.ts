@@ -9,6 +9,7 @@ import {
   recordSandboxSpend
 } from './billingService.js';
 import { logOnboardingFunnelEvent } from './onboardingFunnelService.js';
+import { TRANSCRIBE_MODEL } from './audioTranscription.js';
 
 const SANDBOX_PHONE_PREFIX = 'sandbox:';
 const SANDBOX_PHONE_NUMBER_ID = 'sandbox-onboarding';
