@@ -382,7 +382,7 @@ Default: use session’s latest preview.
 | Question editing | N/A | Default: enhance **answer** only; if model suggests question polish, show diff and only persist question if vendor checks “Update question” on accept |
 | Embedding | N/A | Re-embed when question changes on accept |
 
-Chat prompts for FAQ should emphasize: complete, polite, factual **answers** suitable for injection when a customer question matches via similarity.
+Chat prompts for FAQ should emphasize: complete, polite, factual **English** answers suitable for injection when a customer question matches via similarity. Preview Q+A is English even when the vendor chats in Tamil or Hindi (`catalogEnhancePrompts.ts`). Customer WhatsApp replies stay in the customer’s language.
 
 ---
 

@@ -92,6 +92,15 @@ export function validateProductIds(
   const invalid: CartOp[] = [];
 
   for (const op of ops) {
+    // knowledge_gap's productId is advisory — it only links the CustomerQuery
+    // row to a catalog item. Dropping the op over a bad id would lose the gap
+    // itself, so strip the id and keep the question. This is also what keeps a
+    // *real but other-vendor* id out of CustomerQuery.productId: the compact
+    // catalog is already vendor-scoped, whereas the FK alone is not.
+    if (op.type === 'knowledge_gap') {
+      valid.push(op.productId && !catalogById.has(op.productId) ? { ...op, productId: null } : op);
+      continue;
+    }
     const referencesProduct = op.type === 'add' || op.type === 'set_qty' || op.type === 'remove';
     if (!referencesProduct) {
       valid.push(op);

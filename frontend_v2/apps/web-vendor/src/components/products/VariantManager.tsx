@@ -98,6 +98,7 @@ export function VariantManager({ variants, onChange, error }: VariantManagerProp
           <p className="text-sm text-gray-500 mb-2">No variants added</p>
           <p className="text-xs text-gray-400">
             Add variants (e.g. 10x10 Kadai, 10x10 Stainless Steel) so the AI can quote exact prices.
+            Use English labels — stored in English so WhatsApp AI can reuse this for every language.
           </p>
         </div>
       ) : (
@@ -254,7 +255,8 @@ export function VariantManager({ variants, onChange, error }: VariantManagerProp
 
       <p className="text-xs text-gray-500">
         Each variant is an exact, priced SKU. Add one row per size/material combo so the AI can
-        answer "price for 10x10 Kadai?" without guessing.
+        answer &ldquo;price for 10x10 Kadai?&rdquo; without guessing. Labels stay English so WhatsApp AI can
+        reuse them for every language.
       </p>
     </div>
   );

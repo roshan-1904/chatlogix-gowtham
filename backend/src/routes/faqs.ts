@@ -5,6 +5,7 @@ import { logger } from '../logger.js';
 import { z } from 'zod';
 import { invalidateFaqs } from '../conversation/prefetch.js';
 import { embedText, toVectorLiteral, FAQ_EMBEDDING_MODEL } from '../conversation/faq/embedding.js';
+import { normalizeFaqEnglish } from '../utils/englishStorage.js';
 
 export const faqsRouter = express.Router();
 
@@ -87,12 +88,13 @@ faqsRouter.post('/', requireRole('vendor', 'admin'), async (req, res) => {
     }
 
     const validated = FaqCreateSchema.parse(req.body);
+    const english = await normalizeFaqEnglish(validated);
 
     const faq = await prisma.faq.create({
-      data: { ...validated, vendorId }
+      data: { ...validated, ...english, vendorId }
     });
 
-    const embedded = await embedAndStore(faq.id, validated.question);
+    const embedded = await embedAndStore(faq.id, english.question ?? validated.question);
 
     // FAQ retrieval's cheap existence gate (prefetch.ts's loadFaqs) must not
     // serve a stale "vendor has zero FAQs" count after a write.
@@ -129,15 +131,16 @@ faqsRouter.put('/:id', requireRole('vendor', 'admin'), async (req, res) => {
     }
 
     const validated = FaqCreateSchema.partial().parse(req.body);
+    const english = await normalizeFaqEnglish(validated);
 
     const faq = await prisma.faq.update({
       where: { id: req.params.id },
-      data: validated
+      data: { ...validated, ...english }
     });
 
     // Re-embed only on a question change — matching is question-to-question,
     // so an answer/isActive-only edit doesn't need a new OpenAI call.
-    const embedded = validated.question !== undefined ? await embedAndStore(faq.id, validated.question) : true;
+    const embedded = english.question !== undefined ? await embedAndStore(faq.id, english.question) : true;
 
     await invalidateFaqs(existing.vendorId);
 

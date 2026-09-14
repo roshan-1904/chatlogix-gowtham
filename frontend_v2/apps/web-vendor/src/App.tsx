@@ -9,6 +9,8 @@ import { Products } from './pages/Products';
 import { ProductCreate } from './pages/ProductCreate';
 import { ProductEdit } from './pages/ProductEdit';
 import { Faqs } from './pages/Faqs';
+import { Queries } from './pages/Queries';
+import { QueryDetail } from './pages/QueryDetail';
 import { FaqCreate } from './pages/FaqCreate';
 import { FaqEdit } from './pages/FaqEdit';
 import { CatalogImport } from './pages/CatalogImport';
@@ -91,6 +93,8 @@ function App() {
                   <Route path="/" element={<Navigate to="/dashboard" replace />} />
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/conversations" element={<Conversations />} />
+                  <Route path="/queries" element={<Queries />} />
+                  <Route path="/queries/:id" element={<QueryDetail />} />
                   <Route path="/orders" element={<Orders />} />
                   <Route path="/orders/:orderId" element={<OrderDetails />} />
                   <Route path="/catalog" element={<Products />} />

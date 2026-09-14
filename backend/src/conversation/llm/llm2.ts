@@ -11,6 +11,8 @@ const openai = env.OPENAI_API_KEY ? new OpenAI({ apiKey: env.OPENAI_API_KEY }) :
 
 const DEFAULT_VERIFY_THRESHOLD = Number(env.VERIFY_THRESHOLD || '0.75');
 
+// knowledge_gap / handoff / noop are intentionally excluded — a deferral does
+// not need a cart verifier (docs/CUSTOMER_QUERIES.md §21).
 const MUTATING_OP_TYPES = new Set<CartOp['type']>(['add', 'set_qty', 'remove', 'set_field', 'confirm', 'cancel']);
 
 /** English-only deterministic strings — non-English prose comes from LLM draftReply. */

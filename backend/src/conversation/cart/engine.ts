@@ -414,9 +414,10 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
             }
 
             case 'handoff':
+            case 'knowledge_gap':
             case 'noop':
               // Handled outside CartEngine — handoff.ts reacts to 'handoff';
-              // 'noop' is a no-op by definition.
+              // customerQuery.ts reacts to 'knowledge_gap'; 'noop' is a no-op.
               break;
           }
         }

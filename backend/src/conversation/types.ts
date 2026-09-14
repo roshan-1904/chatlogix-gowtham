@@ -31,6 +31,10 @@ export type CartOp =
   // vendor (a specific complaint/return/in-progress-order-cancel, not just
   // "check your dashboard") — see handoff.ts/postSalesAlert.ts.
   | { type: 'handoff'; category?: 'complaint' | 'return' | 'cancel_in_progress' | 'other' | null; details?: string | null; orderNumber?: string | null }
+  // Knowledge inbox (docs/CUSTOMER_QUERIES.md): pipeline persists a CustomerQuery
+  // after apply. CartEngine treats this as a no-op (same as handoff/noop). Does
+  // not pause AI. Never emitted for order-status turns (D6).
+  | { type: 'knowledge_gap'; question: string; category?: 'product' | 'policy' | 'other' | null; productId?: string | null }
   | { type: 'noop' };
 
 /**

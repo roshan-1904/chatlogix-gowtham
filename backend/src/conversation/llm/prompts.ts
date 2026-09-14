@@ -9,7 +9,7 @@ import { getPreparationTimeMessage, type OrderPreparationConfig } from '../../ty
  * method there, but a customer should see the same status language whether
  * it comes from a vendor-triggered notification or an AI answer here.
  */
-const ORDER_STATUS_LABELS: Record<string, string> = {
+export const ORDER_STATUS_LABELS: Record<string, string> = {
   pending: '⏳ Order Received',
   confirmed: '✅ Order Confirmed',
   preparing: '👨‍🍳 Order Being Prepared',
@@ -205,7 +205,7 @@ function buildStaticBlock(hotSet: HotSet): string {
     "- Reply in the same language/script as the customer's latest message — English, Tamil, Hindi, Malayalam, Kannada, Telugu, Bengali, other regional languages, or a natural mix (Tanglish/Hinglish/Manglish)."
   );
   parts.push(
-    '- If the customer asks about an order (status, "where is it", "did I already order"), answer directly from RECENT ORDERS below — state the exact order number and status. NEVER say "I\'m checking" or "I\'ll get back to you" — you already have the data, right now, in this prompt. If RECENT ORDERS is empty, say plainly that you don\'t see any order on file and ask if they\'d like to place one — don\'t ask for their name/address "to check the status" first.'
+    '- If the customer asks about an order (status, "where is it", "did I already order", "last order", "eappo kidaikum"), answer directly from RECENT ORDERS below — state the exact order number and status. NEVER say "I\'m checking", "I\'ll get back to you", or "still checking" — you already have the data, right now, in this prompt. NEVER ask for their name, address, or product "to check the status" or "to look up the order". If RECENT ORDERS is empty, say plainly that you don\'t see any order on file and ask if they\'d like to place one.'
   );
   parts.push(
     '- If the customer wants to repeat/reorder a past order ("same as last time"), emit "add" ops using that order\'s exact productId/variantSku from RECENT ORDERS at the same quantity, unless they say otherwise. Don\'t ask them to re-describe what they ordered.'
@@ -218,6 +218,18 @@ function buildStaticBlock(hotSet: HotSet): string {
   );
   parts.push(
     '- For a complaint (wrong/damaged/late item) or a return request, emit "handoff" with category "complaint" or "return", "orderNumber" from RECENT ORDERS if one applies, and a one-line factual "details" summary of what the customer said. Don\'t try to resolve it yourself (no discount, replacement, or apology promises) — that\'s the vendor\'s call.'
+  );
+  parts.push(
+    '- Emit "knowledge_gap" only when the customer asked for a product or policy fact that is NOT in PRODUCT CATALOG, PRODUCT VARIANTS, RELEVANT FAQs, or the vendor rules above as a concrete answer. Put a one-line English "question" (what is unknown), and category "product" or "policy". draftReply must be a short deferral in the customer\'s language — no invented sizes, prices, or ETAs. needsVerify: false. intent: "query".'
+  );
+  parts.push(
+    '- If the catalog says "multiple sizes" (or similar) but PRODUCT VARIANTS is empty for that product, that IS a knowledge_gap (category "product") — do not invent sizes or say they will be confirmed as if the order is valid.'
+  );
+  parts.push(
+    '- NEVER emit knowledge_gap for order status, last order, "did I already order", tracking, or "eappo kidaikum" in an order context — answer from RECENT ORDERS. NEVER say "I\'ll check / get back" on those turns.'
+  );
+  parts.push(
+    '- If PRODUCT VARIANTS already lists the asked size, answer from the table. If the asked size is missing but other rows exist, say so and list the real options (that is a grounded "no", not a gap). Prefer a clarifying question (noop) when a real variant pick would resolve it.'
   );
 
   if (v.aiDeliveryInstructions) parts.push(`Delivery info (advisory only, never a promised date): ${v.aiDeliveryInstructions}`);
@@ -375,6 +387,17 @@ const cartOpSchema = {
         orderNumber: { type: ['string', 'null'] }
       },
       required: ['type', 'category', 'details', 'orderNumber'],
+      additionalProperties: false
+    },
+    {
+      type: 'object',
+      properties: {
+        type: { type: 'string', enum: ['knowledge_gap'] },
+        question: { type: 'string' },
+        category: { type: ['string', 'null'], enum: ['product', 'policy', 'other', null] },
+        productId: { type: ['string', 'null'] }
+      },
+      required: ['type', 'question', 'category', 'productId'],
       additionalProperties: false
     },
     {

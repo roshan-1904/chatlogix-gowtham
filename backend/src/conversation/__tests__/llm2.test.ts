@@ -78,9 +78,16 @@ describe('shouldRunLlm2', () => {
     expect(shouldRunLlm2([{ type: 'cancel' }], false, 0.99)).toBe(true);
   });
 
-  it('does not run for noop/handoff alone with high confidence and no needsVerify', () => {
+  it('does not run for noop/handoff/knowledge_gap alone with high confidence and no needsVerify', () => {
     expect(shouldRunLlm2(noop, false, 0.99)).toBe(false);
     expect(shouldRunLlm2([{ type: 'handoff' }], false, 0.99)).toBe(false);
+    expect(
+      shouldRunLlm2(
+        [{ type: 'knowledge_gap', question: 'Does it include dividers?', category: 'product', productId: null }],
+        false,
+        0.99
+      )
+    ).toBe(false);
   });
 
   it('runs when needsVerify is true, even with only a noop', () => {

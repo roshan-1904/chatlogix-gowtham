@@ -63,6 +63,9 @@ const EnvSchema = z.object({
   FAQ_SIMILARITY_THRESHOLD: z.string().default('0.75'),
   FAQ_TOP_K: z.string().default('3'),
 
+  // Customer Query inbox: cosine ≥ this against open rows bumps hitCount (D9).
+  CUSTOMER_QUERY_DEDUP_THRESHOLD: z.string().default('0.85'),
+
   // WhatsApp
   WHATSAPP_VERIFY_TOKEN: z.string().optional(),
   WHATSAPP_WEBHOOK_VERIFY_TOKEN: z.string().optional(),

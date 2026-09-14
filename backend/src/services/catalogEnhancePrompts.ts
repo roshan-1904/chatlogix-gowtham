@@ -38,7 +38,8 @@ OUTPUT (strict JSON):
 RULES
 - Max 1500 characters for answer.
 - Do not invent policies, prices, or delivery promises beyond provided facts.
-- Match the language of the original question/answer.
+- Always write FAQ question and answer in English (Latin script). Transliterate names and places. Do not store Tamil, Hindi, or other native-script FAQ text.
+- assistantMessage may match the vendor's language.
 - Expand honestly; do not add marketing fluff.`;
 }
 

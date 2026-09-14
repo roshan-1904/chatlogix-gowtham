@@ -167,6 +167,7 @@ describe('buildLlm1SystemPrompt', () => {
   it('always includes the never-say-"checking" order-status rule, even with no order history', () => {
     const prompt = buildLlm1SystemPrompt(makeHotSet());
     expect(prompt).toMatch(/NEVER say "I'm checking"/);
+    expect(prompt).toMatch(/NEVER ask for their name, address, or product "to check the status"/);
     expect(prompt).toContain('(none)');
   });
 
@@ -249,6 +250,9 @@ describe('buildLlm1SystemPrompt', () => {
     expect(prompt).toMatch(/emit "cancel" with that order's "orderNumber"/);
     expect(prompt).toMatch(/emit "refund_request" with the order's "orderNumber"/);
     expect(prompt).toMatch(/emit "handoff" with category "complaint" or "return"/);
+    expect(prompt).toMatch(/Emit "knowledge_gap" only when/);
+    expect(prompt).toMatch(/NEVER emit knowledge_gap for order status/);
+    expect(prompt).toMatch(/PRODUCT VARIANTS is empty/);
   });
 
   it('includes the cancellation reason for a cancelled order', () => {
@@ -346,5 +350,13 @@ describe('llm1JsonSchema', () => {
     for (const schema of [cancel, refund, handoff]) {
       expect(schema.additionalProperties).toBe(false);
     }
+  });
+
+  it('knowledge_gap op schema is required-but-nullable (strict mode)', () => {
+    const opsSchema = (llm1JsonSchema.properties as any).ops.items.anyOf as any[];
+    const gap = opsSchema.find((s) => s.properties.type.enum[0] === 'knowledge_gap');
+    expect(gap.required).toEqual(['type', 'question', 'category', 'productId']);
+    expect(gap.properties.category.enum).toEqual(['product', 'policy', 'other', null]);
+    expect(gap.additionalProperties).toBe(false);
   });
 });

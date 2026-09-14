@@ -297,6 +297,25 @@ describe('CartEngine.apply', () => {
     expect(result.snapshot.address).toBe('123 Main St');
   });
 
+  it('treats knowledge_gap as a no-op — no cart mutation, no new order', async () => {
+    orderFindFirst.mockResolvedValue(null);
+
+    const result = await apply({
+      vendorId: VENDOR_ID,
+      conversationId: CONVERSATION_ID,
+      customerId: CUSTOMER_ID,
+      orderId: null,
+      ops: [{ type: 'knowledge_gap', question: 'Does the tin include dividers?', category: 'product', productId: 'prod-tin' }],
+      traceId: 'wamid.kg'
+    });
+
+    expect(orderCreate).not.toHaveBeenCalled();
+    expect(orderUpdate).not.toHaveBeenCalled();
+    expect(result.mutated).toBe(false);
+    expect(result.rejectedOps).toEqual([]);
+    expect(result.snapshot.orderId).toBeNull();
+  });
+
   it('does not create a phantom order for a set_field notes-only op with no items', async () => {
     orderFindFirst.mockResolvedValue(null);
 

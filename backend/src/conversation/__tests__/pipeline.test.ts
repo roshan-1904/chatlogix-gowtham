@@ -35,7 +35,8 @@ const {
   notifyVendorOfPostSalesEventMock,
   sendTypingIndicatorMock,
   ensureMessageContentEnMock,
-  normalizeSetFieldOpsMock
+  normalizeSetFieldOpsMock,
+  persistKnowledgeGapIfNeededMock
 } = vi.hoisted(() => {
   class MockLockContentionError extends Error {}
   class MockLockUnavailableError extends Error {}
@@ -70,7 +71,8 @@ const {
     notifyVendorOfPostSalesEventMock: vi.fn(),
     sendTypingIndicatorMock: vi.fn(),
     ensureMessageContentEnMock: vi.fn(),
-    normalizeSetFieldOpsMock: vi.fn()
+    normalizeSetFieldOpsMock: vi.fn(),
+    persistKnowledgeGapIfNeededMock: vi.fn()
   };
 });
 
@@ -120,6 +122,9 @@ vi.mock('../llm/llm2.js', () => ({
   renderRejectedOpsReply: (...args: unknown[]) => renderRejectedOpsReplyMock(...args)
 }));
 vi.mock('../handoff.js', () => ({ triggerHandoff: (...args: unknown[]) => triggerHandoffMock(...args) }));
+vi.mock('../customerQuery.js', () => ({
+  persistKnowledgeGapIfNeeded: (...args: unknown[]) => persistKnowledgeGapIfNeededMock(...args)
+}));
 vi.mock('../postSalesAlert.js', () => ({ notifyVendorOfPostSalesEvent: (...args: unknown[]) => notifyVendorOfPostSalesEventMock(...args) }));
 vi.mock('../../services/whatsappTemplateService.js', () => ({
   WhatsAppTemplateService: vi.fn().mockImplementation(() => ({
@@ -299,6 +304,7 @@ describe('processMessage', () => {
     notifyVendorOfPostSalesEventMock.mockResolvedValue(undefined);
     normalizeSetFieldOpsMock.mockImplementation(async (ops: unknown[]) => ops);
     ensureMessageContentEnMock.mockResolvedValue(undefined);
+    persistKnowledgeGapIfNeededMock.mockResolvedValue(null);
   });
 
   it('fires read+typing after guards pass, before prefetch/LLM-1', async () => {
@@ -658,5 +664,177 @@ describe('processMessage', () => {
     // confirm no ProcessorError is double-counted on top of LockContention.
     await expect(processMessage(rawInput)).rejects.toThrow(MockLockContentionError);
     expect(logCountMock).not.toHaveBeenCalledWith('ProcessorError', expect.anything());
+  });
+
+  const pendingOrderHistory = [
+    {
+      id: 'order-hist-9790',
+      orderNumber: 'ORD-IBELL-0042',
+      items: [{ productId: 'prod-tin', name: 'Premium Baking Tin', quantity: 1, unit: 'pc' }],
+      totalAmount: 129900,
+      status: 'pending',
+      createdAt: new Date('2026-09-02T07:48:07.000Z'),
+      estimatedDelivery: null,
+      confirmedAt: null,
+      preparedAt: null,
+      deliveredAt: null,
+      cancelledAt: null,
+      cancellationReason: null
+    }
+  ];
+
+  it('D6: 9790690170-style order deferral is rewritten from RECENT ORDERS and skips LLM-2', async () => {
+    prefetchHotSetMock.mockResolvedValue({ ...hotSet, orderHistory: pendingOrderHistory });
+    runLlm1Mock.mockResolvedValue({
+      ...llm1Result,
+      intent: 'query',
+      ops: [{ type: 'noop' }],
+      draftReply: 'I will check the current status and get back to you',
+      needsVerify: false,
+      confidence: 0.95
+    });
+    applyMock.mockResolvedValue({ snapshot, mutated: false, rejectedOps: [] });
+
+    await processMessage({
+      ...rawInput,
+      content: 'Na order pannen. Eappo kidaikum? Are you still checking my order status??'
+    });
+
+    expect(runLlm2Mock).not.toHaveBeenCalled();
+    expect(selectFinalReplyMock).not.toHaveBeenCalled();
+    expect(logCountMock).toHaveBeenCalledWith('CustomerQueryBlockedOrder', { vendorId: 'vendor-1' });
+    const persistCall = persistTurnMock.mock.calls[0][0];
+    expect(persistCall.finalText).toContain('ORD-IBELL-0042');
+    expect(persistCall.finalText).not.toMatch(/get back/i);
+    expect(persistCall.finalText).toContain('Premium Baking Tin');
+  });
+
+  it('D6: empty order history answers that nothing is on file and still skips LLM-2', async () => {
+    prefetchHotSetMock.mockResolvedValue({ ...hotSet, orderHistory: [] });
+    runLlm1Mock.mockResolvedValue({
+      ...llm1Result,
+      intent: 'query',
+      ops: [{ type: 'noop' }],
+      draftReply: "I'm still checking your order.",
+      needsVerify: false
+    });
+    applyMock.mockResolvedValue({ snapshot, mutated: false, rejectedOps: [] });
+
+    await processMessage({ ...rawInput, content: "where's my order" });
+
+    expect(runLlm2Mock).not.toHaveBeenCalled();
+    expect(logCountMock).toHaveBeenCalledWith('CustomerQueryBlockedOrder', { vendorId: 'vendor-1' });
+    expect(persistTurnMock.mock.calls[0][0].finalText).toMatch(/don'?t see an order on file/i);
+  });
+
+  it('D6: handoff still wins over an order-status deferral rewrite', async () => {
+    prefetchHotSetMock.mockResolvedValue({ ...hotSet, orderHistory: pendingOrderHistory });
+    runLlm1Mock.mockResolvedValue({
+      ...llm1Result,
+      intent: 'query',
+      ops: [{ type: 'handoff', category: 'complaint', details: 'wrong item', orderNumber: 'ORD-IBELL-0042' }],
+      draftReply: 'I will check and get back to you'
+    });
+    applyMock.mockResolvedValue({ snapshot, mutated: false, rejectedOps: [] });
+    triggerHandoffMock.mockResolvedValue({ customerMessage: "I've passed this to our team!" });
+
+    await processMessage({ ...rawInput, content: 'my last order arrived damaged' });
+
+    expect(triggerHandoffMock).toHaveBeenCalled();
+    expect(runLlm2Mock).not.toHaveBeenCalled();
+    expect(logCountMock).not.toHaveBeenCalledWith('CustomerQueryBlockedOrder', expect.anything());
+    expect(persistTurnMock.mock.calls[0][0].finalText).toBe("I've passed this to our team!");
+  });
+
+  it('D6: a draft that already cites the real order number is left on the LLM-2 path', async () => {
+    prefetchHotSetMock.mockResolvedValue({ ...hotSet, orderHistory: pendingOrderHistory });
+    runLlm1Mock.mockResolvedValue({
+      ...llm1Result,
+      intent: 'query',
+      ops: [{ type: 'noop' }],
+      draftReply: 'Your order ORD-IBELL-0042 is pending — Premium Baking Tin x1.',
+      needsVerify: false,
+      confidence: 0.99
+    });
+    applyMock.mockResolvedValue({ snapshot, mutated: false, rejectedOps: [] });
+
+    await processMessage({ ...rawInput, content: "where's my order" });
+
+    expect(runLlm2Mock).toHaveBeenCalled();
+    expect(selectFinalReplyMock).toHaveBeenCalled();
+    expect(logCountMock).not.toHaveBeenCalledWith('CustomerQueryBlockedOrder', expect.anything());
+  });
+
+  it('knowledge_gap: persists a CustomerQuery and does not pause AI', async () => {
+    persistKnowledgeGapIfNeededMock.mockResolvedValue({ id: 'query-1', deduped: false });
+    runLlm1Mock.mockResolvedValue({
+      ...llm1Result,
+      intent: 'query',
+      ops: [{ type: 'knowledge_gap', question: 'Does the baking tin include dividers?', category: 'product', productId: 'prod-tin' }],
+      draftReply: "I'll check with the team and get back to you shortly.",
+      needsVerify: false,
+      confidence: 0.95
+    });
+    applyMock.mockResolvedValue({ snapshot, mutated: false, rejectedOps: [] });
+
+    await processMessage({ ...rawInput, content: 'Ithuku dividers varuma??' });
+
+    expect(persistKnowledgeGapIfNeededMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        vendorId: 'vendor-1',
+        conversationId: 'conv-1',
+        customerId: 'customer-1',
+        sourceMessageId: 'inbound-msg-1',
+        customerText: 'Ithuku dividers varuma??',
+        orderStatusTurn: false,
+        hasHandoff: false,
+        sandbox: false
+      })
+    );
+    expect(triggerHandoffMock).not.toHaveBeenCalled();
+    expect(conversationFindUnique).toHaveBeenCalledWith({ where: { id: 'conv-1' }, select: { aiPaused: true } });
+    expect(persistTurnMock).toHaveBeenCalled();
+  });
+
+  it('handoff + knowledge_gap: persist is told handoff won, so no query is opened', async () => {
+    runLlm1Mock.mockResolvedValue({
+      ...llm1Result,
+      ops: [
+        { type: 'handoff', category: 'complaint', details: 'damaged', orderNumber: null },
+        { type: 'knowledge_gap', question: 'Is a replacement available?', category: 'other', productId: null }
+      ],
+      draftReply: "I'll check with the team."
+    });
+    applyMock.mockResolvedValue({ snapshot, mutated: false, rejectedOps: [] });
+    triggerHandoffMock.mockResolvedValue({ customerMessage: "I've passed this to our team!" });
+
+    await processMessage({ ...rawInput, content: 'item arrived damaged, do you have a spare?' });
+
+    expect(triggerHandoffMock).toHaveBeenCalled();
+    expect(persistKnowledgeGapIfNeededMock).toHaveBeenCalledWith(expect.objectContaining({ hasHandoff: true }));
+  });
+
+  it('D6: order-status turn does not open a CustomerQuery even when draft is a deferral', async () => {
+    prefetchHotSetMock.mockResolvedValue({ ...hotSet, orderHistory: pendingOrderHistory });
+    runLlm1Mock.mockResolvedValue({
+      ...llm1Result,
+      intent: 'query',
+      ops: [{ type: 'knowledge_gap', question: 'Where is the order?', category: 'other', productId: null }],
+      draftReply: 'I will check the current status and get back to you'
+    });
+    applyMock.mockResolvedValue({ snapshot, mutated: false, rejectedOps: [] });
+
+    await processMessage({ ...rawInput, content: 'Are you still checking my order status??' });
+
+    expect(persistKnowledgeGapIfNeededMock).toHaveBeenCalledWith(
+      expect.objectContaining({ orderStatusTurn: true, hasHandoff: false })
+    );
+    expect(logCountMock).toHaveBeenCalledWith('CustomerQueryBlockedOrder', { vendorId: 'vendor-1' });
+  });
+
+  it('sandbox: persist is invoked with sandbox true so it skips DB writes', async () => {
+    await processMessage({ ...rawInput, sandbox: true });
+
+    expect(persistKnowledgeGapIfNeededMock).toHaveBeenCalledWith(expect.objectContaining({ sandbox: true }));
   });
 });

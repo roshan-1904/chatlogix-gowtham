@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { useAuth } from '@chatlogix/auth';
 import { apiClient } from '../lib/api';
 import { ConversationList, type ConversationFilters } from '../components/conversations/ConversationList';
@@ -11,6 +12,7 @@ import { MediaGalleryProvider } from '../components/conversations/MediaGalleryCo
 import type { Conversation, CustomerInsights, Order } from '../components/conversations/types';
 import { useConversations } from '../components/conversations/hooks/useConversations';
 import { useMessages } from '../components/conversations/hooks/useMessages';
+import { notifyCustomerQueriesChanged } from '../hooks/queries/useCustomerQueries';
 
 export function Conversations() {
   const { user } = useAuth();
@@ -166,9 +168,14 @@ export function Conversations() {
     setError(null);
 
     try {
-      await apiClient.post(`/conversations/${selectedConversation.id}/messages`, {
-        content: messageToSend
-      });
+      const sent = await apiClient.post<{ markedOpenQueries?: number }>(
+        `/conversations/${selectedConversation.id}/messages`,
+        { content: messageToSend }
+      );
+      if (sent.markedOpenQueries && sent.markedOpenQueries > 0) {
+        toast.success('Save this as an FAQ from Queries');
+        notifyCustomerQueriesChanged();
+      }
       await refreshMessages();
       await refreshConversations(); // Refresh conversation list to update last message
     } catch (err: unknown) {

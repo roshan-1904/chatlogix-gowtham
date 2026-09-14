@@ -117,4 +117,23 @@ describe('validateProductIds — variantSku hallucination guard', () => {
     expect(valid).toHaveLength(1);
     expect(invalid).toHaveLength(0);
   });
+
+  it('keeps a knowledge_gap op but nulls a productId outside this vendor\u2019s catalog', () => {
+    const { valid, invalid } = validateProductIds(
+      [{ type: 'knowledge_gap', question: 'Is a divider included?', category: 'product', productId: 'prod-other-vendor' }],
+      catalog
+    );
+    expect(invalid).toHaveLength(0);
+    expect(valid).toEqual([
+      { type: 'knowledge_gap', question: 'Is a divider included?', category: 'product', productId: null }
+    ]);
+  });
+
+  it('keeps a knowledge_gap op\u2019s productId when it is in the catalog', () => {
+    const { valid } = validateProductIds(
+      [{ type: 'knowledge_gap', question: 'Is a divider included?', category: 'product', productId: 'prod-tin' }],
+      catalog
+    );
+    expect(valid[0]).toMatchObject({ productId: 'prod-tin' });
+  });
 });

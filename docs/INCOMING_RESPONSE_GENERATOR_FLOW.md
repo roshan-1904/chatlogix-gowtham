@@ -1,9 +1,9 @@
 # Incoming Response Generator — How We Prepare a WhatsApp Reply
 
 <!-- DOC_SYNC
-  last_verified_commit: d16210b3664a8211a9dd31421c8dceadf0ee4def
-  last_verified_at: 2026-09-11
-  scope: As-implemented incoming-response-generator pipeline (language, LLM-2 reply selection, contentEn, voice-note ASR, compact-catalog paise heal, catalog baseQty pack pricing)
+  last_verified_commit: 6797be1dcc141df16144a5ef8373e935ed14722a
+  last_verified_at: 2026-09-14
+  scope: As-implemented incoming-response-generator pipeline (language, LLM-2 reply selection, D6 order-status rewrite, knowledge_gap CustomerQuery persist, contentEn, voice-note ASR, compact-catalog paise heal, catalog baseQty pack pricing)
 -->
 
 **Living document.** This describes the **as-implemented** text path in `chatlogix-incoming-response-generator`, not the locked design spec. When the pipeline in `backend/src/conversation/` changes, update this file in the same change (see `.cursor/rules/incoming-response-generator-flow.mdc`).
@@ -40,6 +40,8 @@
 | Refund eligibility | `backend/src/conversation/cart/refund.ts` |
 | LLM-2 + final-text selection | `backend/src/conversation/llm/llm2.ts` |
 | Language helpers (English vs regional) | `backend/src/conversation/language.ts` |
+| D6 order-status rewrite | `backend/src/conversation/orderStatusGuard.ts` |
+| Knowledge-gap persist | `backend/src/conversation/customerQuery.ts` |
 | Handoff | `backend/src/conversation/handoff.ts` |
 | Post-sales vendor alert | `backend/src/conversation/postSalesAlert.ts` |
 | Persist turn | `backend/src/conversation/persist.ts` |
@@ -132,17 +134,20 @@ flowchart TD
   BRANCH -->|ops contains handoff| HO[triggerHandoff<br/>pause AI + canned customer copy]
   BRANCH -->|postSalesOutcome set| PS[renderPostSalesReply<br/>deterministic money copy]
   BRANCH -->|rejectedOps.length > 0| REJ[renderRejectedOpsReply<br/>skip LLM-2]
+  BRANCH -->|order-status + deferral or no order number| D6[renderOrderStatusReply<br/>skip LLM-2, no CustomerQuery]
   BRANCH -->|normal turn| LLM2[LLM-2 maybe, then selectFinalReply]
 
   HO --> FIN[12. finalizeTurn]
   PS --> FIN
   REJ --> FIN
+  D6 --> FIN
   LLM2 --> FIN
 
   FIN --> PERSIST[persistTurn: assistant Message,<br/>insights, memory, MessageProcessing]
   PERSIST --> PUB[publish RESPONSE_QUEUE ★ SLA stop]
   PUB --> DEBIT[debitAfterEnqueue<br/>fail here does NOT retry the LLM]
-  DEBIT --> NOTIFY[13. if confirm succeeded:<br/>notifyVendorNewOrder fire-and-forget]
+  DEBIT --> KG[12b. persistKnowledgeGapIfNeeded<br/>after publish; no aiPaused]
+  KG --> NOTIFY[13. if confirm succeeded:<br/>notifyVendorNewOrder fire-and-forget]
   NOTIFY --> UNLOCK[finally: releaseLock]
   DUP --> UNLOCK
   STORE --> UNLOCK
@@ -281,9 +286,12 @@ Ops:
 | `cancel` | Live cart, or a past order via `orderNumber` |
 | `refund_request` | Engine decides eligibility |
 | `handoff` | Escalate to vendor |
+| `knowledge_gap` | Ungrounded product/policy fact — persist `CustomerQuery`, do **not** pause AI |
 | `noop` | Question / greeting / unclear product match |
 
 After parse, ops whose `productId` is not in this turn’s compact catalog are **dropped** (`validateProductIds`). CartEngine still re-resolves every product from Postgres.
+
+`knowledge_gap` is the one exception: its `productId` is advisory (it only links the `CustomerQuery` row to a catalog item), so an unknown id nulls the field instead of dropping the op — dropping it would lose the gap itself. Because the compact catalog is vendor-scoped, this is also what keeps a *real but other-vendor* product id out of `CustomerQuery.productId`; the `Product` FK on that column would happily accept one.
 
 `validateProductIds` also drops an `add`/`set_qty` op for a product that has variants when `variantSku` is missing or names a variant not on that product — *unless* the compact catalog entry’s `isDivisible` is `true`, in which case a missing `variantSku` is a legitimate “add by base unit” op (e.g. a product sold both loose by weight and as fixed variants), not a hallucination. An explicitly wrong/invented `variantSku` is still always dropped regardless of `isDivisible`. (Fixed 2026-09-04: before this, `isDivisible` wasn’t in the compact catalog at all, so the prompt could never tell the model a divisible product’s base id was directly orderable, and this guard silently dropped every base-unit `add` for any variant-bearing product — see `prompts.ts`’s `baseOrderable` catalog column and its variant-table rules.)
 
@@ -326,7 +334,7 @@ flowchart TD
   CONF -->|ok| PEND[status stays pending<br/>awaiting vendor — no ETA]
   LOOP --> CAN[cancel live or historical order]
   LOOP --> REF[refund_request + 7-day eligibility]
-  LOOP --> SKIP[handoff / noop ignored here]
+  LOOP --> SKIP[handoff / knowledge_gap / noop ignored here]
 
   LINE & FIELD & PEND & CAN & REF --> SAVE{mutated?}
   SAVE -->|yes + has items| WRITE[create/update Order + audit log]
@@ -341,13 +349,13 @@ flowchart TD
 
 **Cancel / refund:** `orderNumber` is scoped to `customerId` + `vendorId`. Refund auto-approves only if status is `pending`/`confirmed` **and** placed within 7 days. Otherwise `postSalesOutcome: refund_denied`. CartEngine never sends messages; it only reports state.
 
-`handoff` / `noop` are no-ops inside the engine. Handoff is handled in `pipeline.ts` after apply.
+`handoff` / `knowledge_gap` / `noop` are no-ops inside the engine. Handoff and knowledge-gap persist are handled in `pipeline.ts` after apply.
 
 ---
 
 ## 9. Choosing the customer-facing text
 
-Four mutually exclusive paths after `CartEngine.apply`. Money, handoff, and rejection copy never go through a free-text rewriter.
+Five mutually exclusive paths after `CartEngine.apply`. Money, handoff, rejection copy, and D6 order-status rewrites never go through a free-text rewriter.
 
 ```mermaid
 flowchart TD
@@ -363,7 +371,11 @@ flowchart TD
   R -->|yes| RJ[renderRejectedOpsReply<br/>English opener or draftReply + cart block]
   RJ --> F
 
-  R -->|no| L2[runLlm2 — may skip internally]
+  R -->|no| D6{order-status turn and<br/>draft is deferral or omits order number?}
+  D6 -->|yes| D6R[renderOrderStatusReply from RECENT ORDERS<br/>log CustomerQueryBlockedOrder]
+  D6R --> F
+
+  D6 -->|no| L2[runLlm2 — may skip internally]
   L2 --> SEL[selectFinalReply]
 
   SEL --> S1{LLM-2 skipped?}
@@ -414,6 +426,26 @@ LLM-2 (when it runs): same vendor model, temperature 0.2, ~300 tokens. Rewrites 
 `renderSnapshotReply`, rejection openers, and phantom-mutation prompts use **English-only** deterministic strings. Non-English conversational prose always comes from LLM-1/LLM-2 `draftReply`. Pipeline logic uses `isEnglishLanguage()` only — not separate Tamil/Hindi/etc. template tables.
 
 `renderSnapshotReply` always uses catalog English product names + `Total: Rs…`. For non-English customers, `mergeLeadWithSnapshot` appends the cart block without an English header; English customers get `Here's your updated order:` before the lines.
+
+### D6 order-status path (`orderStatusGuard.ts`)
+
+After apply, **before** LLM-2, if the turn is order-status (keywords such as status / where is it / last order / already ordered / eappo kidaikum / tracking, or cancel/refund ops) **and** `draftReply` looks like a deferral (“I’ll check / get back / still checking / Kanmani will confirm”) **or** does not cite an order number from `hotSet.orderHistory`:
+
+1. Strip any `knowledge_gap` op (no-op until that CartOp exists).
+2. Replace `finalText` with `renderOrderStatusReply` (order number + `ORDER_STATUS_LABELS` + English item names, or “no order on file”).
+3. Skip LLM-2. Never create a Customer Query. Metric: `CustomerQueryBlockedOrder`.
+
+Handoff still wins. Hypothetical prep (“how long if I order today”) with empty history is **not** D6.
+
+### Knowledge-gap persist (`customerQuery.ts`)
+
+After finalize (customer reply already queued), if there is **no** handoff and the turn is **not** D6 order-status:
+
+- LLM-1 emitted `knowledge_gap`, **or** `draftReply` matches deferral phrasing (fallback).
+- `toVendorEnglish` on the model question / customer text → `questionEn`. Dedup open rows for this vendor at cosine ≥ 0.85 (`hitCount++`); else insert.
+- Never sets `Conversation.aiPaused`. Sandbox skips DB writes. After a new insert (not a hitCount bump), fire-and-forget WhatsApp ping to the vendor (Redis throttle: 1 / 15 min / vendor). Does **not** write `OrderAlert`.
+
+Handoff + `knowledge_gap` on the same turn: handoff wins, no query.
 
 ### Rejected ops path (`renderRejectedOpsReply`)
 
@@ -470,9 +502,10 @@ After finalize, if a `confirm` op was not rejected and the snapshot has an `orde
 | Name + address | `set_field` | insights later in persist | `renderSetFieldConfirmation` or draft (LLM-2 skipped) |
 | “Yes, place it” but missing address | `confirm` **rejected** | cart unchanged | `renderRejectedOpsReply` — explains rejection + true cart |
 | “Yes, place it” complete | `confirm` accepted | still `pending` | confirmation copy, **no delivery date** |
-| “Where is my order?” | `noop` | none | draft grounded on RECENT ORDERS |
+| “Where is my order?” / “Eappo kidaikum?” with a pending order | `noop` | none | `renderOrderStatusReply` if draft deferred or omitted the order number; otherwise LLM-1 draft |
 | “Cancel ORD-…” | `cancel` | cancel if pending/confirmed | canned `Order … has been cancelled` |
 | “Refund please” ineligible | `refund_request` | `refund_denied` | canned denial + vendor alert, AI stays on |
+| “Does it include dividers?” (not in FAQ/desc) | `knowledge_gap` | ignored in engine | customer deferral + `CustomerQuery` row (AI stays on) |
 | Complaint / return | `handoff` | ignored in engine | canned handoff + `aiPaused` + vendor alert |
 | Wallet empty | — | — | `WALLET_EMPTY_TEMPLATE` |
 | Vendor paused AI | — | — | **no reply** |

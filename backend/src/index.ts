@@ -15,6 +15,7 @@ import { paymentsRouter } from './routes/payments.js';
 import { shippingRouter } from './routes/shipping.js';
 import { productsRouter } from './routes/products.js';
 import { faqsRouter } from './routes/faqs.js';
+import { customerQueriesRouter } from './routes/customerQueries.js';
 import { catalogImportRouter } from './routes/catalogImport.js';
 import { catalogEnhanceRouter } from './routes/catalogEnhance.js';
 import swaggerUi from 'swagger-ui-express';
@@ -90,6 +91,7 @@ async function bootstrap() {
   app.use('/api/orders', authenticate, ordersRouter);
   app.use('/api/products', authenticate, productsRouter);
   app.use('/api/faqs', authenticate, faqsRouter);
+  app.use('/api/customer-queries', authenticate, customerQueriesRouter);
   // catalog-import mounts its own auth: SSE needs to accept ?token= because
   // EventSource cannot set Authorization headers. The router-level middleware
   // accepts header or query and falls through to the kill switch.

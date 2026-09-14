@@ -23,6 +23,7 @@ const appFallback: PageMeta = {
 const appTitles: ReadonlyArray<readonly [string, string]> = [
   ['/dashboard', 'Dashboard'],
   ['/conversations', 'Conversations'],
+  ['/queries', 'Queries'],
   ['/orders', 'Orders'],
   ['/catalog/import/photo', 'Add from a photo'],
   ['/catalog/import/template', 'Import from a spreadsheet'],

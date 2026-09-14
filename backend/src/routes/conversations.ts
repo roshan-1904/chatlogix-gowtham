@@ -8,9 +8,8 @@ import {
   ErrorSeverity
 } from '../middleware/errorHandler.js';
 import { requireVendorAccess } from '../middleware/authorize.js';
-import { publishToQueue } from '../queue/sqsClient.js';
-import { env } from '../config/env.js';
-import { ensureMessageContentEn, hydrateMessagesContentEn } from '../utils/vendorEnglish.js';
+import { hydrateMessagesContentEn } from '../utils/vendorEnglish.js';
+import { sendVendorConversationReply } from '../services/vendorConversationReply.js';
 
 export const conversationsRouter = express.Router();
 
@@ -90,74 +89,13 @@ conversationsRouter.post(
       throw createValidationError('Message content is required', 'content', content);
     }
 
-    const conversation = await prisma.conversation.findUnique({
-      where: { id: conversationId },
-      include: {
-        customer: true,
-        vendor: {
-          include: {
-            whatsappNumbers: {
-              orderBy: { createdAt: 'desc' },
-              take: 1
-            }
-          }
-        }
-      }
+    const { message, markedOpenQueries } = await sendVendorConversationReply({
+      conversationId,
+      user,
+      content
     });
 
-    if (!conversation) {
-      throw createValidationError('Conversation not found', 'id', conversationId);
-    }
-
-    // Check vendor access
-    if (
-      !user.roles.includes('admin') &&
-      user.vendorId !== conversation.vendorId
-    ) {
-      throw new CustomError(
-        'You are not authorized to send messages in this conversation',
-        403,
-        ErrorType.AUTHORIZATION,
-        ErrorSeverity.MEDIUM,
-        true,
-        { conversationId, vendorId: conversation.vendorId }
-      );
-    }
-
-    // Get phoneNumberId for WhatsApp sending
-    const phoneNumberId = conversation.vendor.whatsappNumbers[0]?.phoneNumberId || undefined;
-
-    // Store vendor message and update conversation's updatedAt
-    const [message] = await prisma.$transaction([
-      prisma.message.create({
-        data: {
-          conversationId: conversation.id,
-          senderType: 'vendor',
-          content: content.trim(),
-          type: 'text'
-        }
-      }),
-      prisma.conversation.update({
-        where: { id: conversation.id },
-        data: { updatedAt: new Date() }
-      })
-    ]);
-
-    void ensureMessageContentEn(message.id, content.trim()).catch(() => {
-      // Non-blocking — vendor typed English is a no-op; translation failure is acceptable.
-    });
-
-    // Queue message to WhatsApp response queue
-    await publishToQueue(env.RESPONSE_QUEUE_URL, {
-      to: conversation.customer.phone,
-      text: content.trim(),
-      conversationId: conversation.id,
-      vendorId: conversation.vendorId,
-      customerId: conversation.customerId,
-      phoneNumberId
-    });
-
-    res.json(message);
+    res.json({ ...message, markedOpenQueries });
   }, ErrorType.AUTHORIZATION, ErrorSeverity.MEDIUM)
 );
 

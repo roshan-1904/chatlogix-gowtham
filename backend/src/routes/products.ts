@@ -4,6 +4,7 @@ import { requireRole } from '../middleware/authorize.js';
 import { logger } from '../logger.js';
 import { z } from 'zod';
 import { invalidateCompactCatalog } from '../conversation/prefetch.js';
+import { normalizeProductEnglish } from '../utils/englishStorage.js';
 
 export const productsRouter = express.Router();
 
@@ -206,7 +207,7 @@ productsRouter.post('/', requireRole('vendor', 'admin'), async (req, res) => {
     }
     
     // Validate input
-    const validated = ProductCreateSchema.parse(req.body);
+    const validated = await normalizeProductEnglish(ProductCreateSchema.parse(req.body));
     
     // Business logic validation
     if (validated.minOrderQuantity && validated.maxOrderQuantity) {
@@ -283,7 +284,7 @@ productsRouter.put('/:id', requireRole('vendor', 'admin'), async (req, res) => {
     
     // Validate input (partial schema for updates)
     const updateSchema = ProductCreateSchema.partial();
-    const validated = updateSchema.parse(req.body);
+    const validated = await normalizeProductEnglish(updateSchema.parse(req.body));
     
     // Business logic validation
     if (validated.minOrderQuantity && validated.maxOrderQuantity) {

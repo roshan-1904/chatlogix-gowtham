@@ -67,6 +67,9 @@ export function FaqForm({
           maxLength={300}
           error={errors.question}
         />
+        <p className="text-xs text-gray-500 mt-1">
+          Write in English. Stored in English so WhatsApp AI can reuse this for every language.
+        </p>
       </div>
 
       <div>

@@ -32,7 +32,13 @@ Documentation for product matching and validation system, including:
 - Product source strategies
 - Validation rules and fixes
 
-### [Order Delivery Settings](./order-delivery-settings/)
+### [Catalog enhancer](./catalog-enhancer/)
+Vendor portal “Enhance with AI” for product descriptions and FAQ answers. Authoritative spec: `docs/VENDOR_CATALOG_ENHANCER.md`.
+
+### [Customer Queries](./customer-queries/)
+Proposed knowledge inbox: unanswered product/policy questions from WhatsApp → vendor list → English FAQ or catalog variants. Order-status queries never defer. Authoritative spec: `docs/CUSTOMER_QUERIES.md`.
+
+### [Order Delivery Settings](./order-delivery/)
 Documentation for order delivery and preparation settings, including:
 - Configuration guide for vendors
 - API documentation

@@ -78,6 +78,7 @@ model Vendor {
   stageExecutionLogs             StageExecutionLog[]
   walletTransactions             WalletTransaction[]
   whatsappNumbers                WhatsAppNumber[]
+  customerQueries                CustomerQuery[]
 
   @@map("Vendor")
 }
@@ -91,6 +92,7 @@ model Customer {
   notificationHistory NotificationHistory[]
   orders              Order[]
   reactions           MessageReaction[]
+  customerQueries     CustomerQuery[]
 
   @@map("Customer")
 }
@@ -113,6 +115,7 @@ model Conversation {
   orders             Order[]
   qualityMetrics     QualityMetrics[]
   stageExecutionLogs StageExecutionLog[]
+  customerQueries    CustomerQuery[]
 
   @@index([vendorId, createdAt(sort: Desc)], map: "idx_conversation_vendor_created")
   @@index([vendorId, status], map: "idx_conversation_vendor_status")
@@ -156,6 +159,7 @@ model Message {
   reactions             MessageReaction[]
   statusEvents          MessageStatusEvent[]
   reactionHistory       MessageReactionHistory[]
+  customerQueries       CustomerQuery[]
 
   @@index([conversationId, timestamp])
   @@index([conversationId, timestamp(sort: Desc)], map: "idx_message_conversation_timestamp")
@@ -413,6 +417,7 @@ model Product {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @default(now()) @updatedAt
   vendor           Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  customerQueries  CustomerQuery[]
 
   @@unique([vendorId, name])
   @@unique([vendorId, sku], name: "Product_vendorId_sku_key")
@@ -443,10 +448,56 @@ model Faq {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @default(now()) @updatedAt
   vendor         Vendor    @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  customerQueries CustomerQuery[]
 
   @@index([vendorId])
   @@index([vendorId, isActive])
   @@map("Faq")
+}
+
+// Knowledge-gap inbox (docs/CUSTOMER_QUERIES.md). `embedding` is Unsupported
+// for the same Prisma 5.17 / pgvector reason as Faq.embedding — read/write
+// via $queryRaw / $executeRaw only.
+model CustomerQuery {
+  id                   String    @id @default(uuid())
+  vendorId             String
+  conversationId       String
+  customerId           String
+  sourceMessageId      String?
+  relatedMessageIds    Json      @default("[]")
+  productId            String?
+
+  questionOriginal     String    @db.VarChar(1000)
+  questionEn           String    @db.VarChar(1000)
+  category             String
+  status               String
+  hitCount             Int       @default(1)
+
+  vendorAnswerOriginal String?   @db.VarChar(2000)
+  vendorAnswerEn       String?   @db.VarChar(2000)
+  faqId                String?
+  dismissReason        String?
+
+  embedding            Unsupported("vector(1536)")?
+  embeddingModel       String?   @db.VarChar(64)
+
+  answeredAt           DateTime?
+  answeredByVendorId   String?
+  lastSeenAt           DateTime  @default(now())
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  vendor               Vendor       @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  conversation         Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  customer             Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  sourceMessage        Message?     @relation(fields: [sourceMessageId], references: [id], onDelete: SetNull)
+  faq                  Faq?         @relation(fields: [faqId], references: [id], onDelete: SetNull)
+  product              Product?     @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([vendorId, status, lastSeenAt])
+  @@index([conversationId, status])
+  @@index([vendorId, status])
+  @@map("CustomerQuery")
 }
 
 model CatalogImportJob {

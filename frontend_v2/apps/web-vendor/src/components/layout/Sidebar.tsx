@@ -1,8 +1,10 @@
 import { Link, useLocation } from 'react-router-dom';
+import { useCustomerQuerySummary } from '../../hooks/queries/useCustomerQueries';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: '📊' },
   { name: 'Conversations', href: '/conversations', icon: '💬' },
+  { name: 'Queries', href: '/queries', icon: '📥' },
   { name: 'Catalog', href: '/catalog', icon: '📦' },
   { name: 'FAQs', href: '/faqs', icon: '❓' },
   { name: 'Orders', href: '/orders', icon: '🛒' },
@@ -19,6 +21,7 @@ interface SidebarProps {
 
 export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
   const location = useLocation();
+  const { openCount } = useCustomerQuerySummary();
 
   return (
     <>
@@ -63,7 +66,12 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
                     }`}
                   >
                     <span className="text-base sm:text-lg">{item.icon}</span>
-                    <span>{item.name}</span>
+                    <span className="flex-1">{item.name}</span>
+                    {item.href === '/queries' && openCount > 0 && (
+                      <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-secondary-500 px-1.5 text-xs font-medium text-white">
+                        {openCount > 99 ? '99+' : openCount}
+                      </span>
+                    )}
                   </Link>
                 </li>
               );
@@ -74,4 +82,3 @@ export function Sidebar({ isOpen = true, onClose }: SidebarProps) {
     </>
   );
 }
-

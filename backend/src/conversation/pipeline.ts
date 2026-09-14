@@ -17,6 +17,13 @@ import { runLlm1 } from './llm/llm1.js';
 import { apply } from './cart/engine.js';
 import { runLlm2, selectFinalReply, renderRejectedOpsReply } from './llm/llm2.js';
 import { triggerHandoff } from './handoff.js';
+import {
+  isOrderStatusTurn,
+  renderOrderStatusReply,
+  shouldRewriteOrderStatusReply,
+  stripKnowledgeGapOps
+} from './orderStatusGuard.js';
+import { persistKnowledgeGapIfNeeded } from './customerQuery.js';
 import { notifyVendorOfPostSalesEvent } from './postSalesAlert.js';
 import { WALLET_EMPTY_TEMPLATE } from './templates.js';
 import { logStage, logLatency, logCount } from './metrics.js';
@@ -403,7 +410,17 @@ export async function processMessage(
     }
     logStage('cart_apply_done', { traceId, vendorId, conversationId }, { mutated: applyResult.mutated });
 
-    const handoffOp = llm1Result.ops.find((op): op is Extract<CartOp, { type: 'handoff' }> => op.type === 'handoff');
+    const orderHistory = hotSet.orderHistory ?? [];
+    const orderStatusTurn = isOrderStatusTurn({
+      mergedContent,
+      intent: llm1Result.intent,
+      ops: normalizedOps,
+      orderHistory
+    });
+    // D6: never persist a knowledge_gap for order-status turns (no-op until that op exists).
+    const replyOps = orderStatusTurn ? stripKnowledgeGapOps(normalizedOps) : normalizedOps;
+
+    const handoffOp = replyOps.find((op): op is Extract<CartOp, { type: 'handoff' }> => op.type === 'handoff');
     let finalText: string;
 
     if (handoffOp) {
@@ -457,6 +474,11 @@ export async function processMessage(
       // otherwise reach the customer even though nothing was persisted.
       logCount('RejectedOpsGrounded', { vendorId }, applyResult.rejectedOps.length);
       finalText = renderRejectedOpsReply(applyResult.rejectedOps, applyResult.snapshot, llm1Result.language, llm1Result.draftReply);
+    } else if (orderStatusTurn && shouldRewriteOrderStatusReply(llm1Result.draftReply, orderHistory)) {
+      // D6: order-status turns never defer and never invent a lookup. Skip LLM-2
+      // when the draft is a "I'll check / get back" line or does not cite a real order number.
+      logCount('CustomerQueryBlockedOrder', { vendorId });
+      finalText = renderOrderStatusReply(orderHistory, hotSet.vendorConfig);
     } else {
       // Step 6: LLM-2, conditionally (runLlm2 checks shouldRunLlm2 internally).
       const llm2StartedAt = Date.now();
@@ -466,7 +488,7 @@ export async function processMessage(
         vendorId,
         language: llm1Result.language,
         model: llm1Result.model,
-        ops: llm1Result.ops,
+        ops: replyOps,
         needsVerify: llm1Result.needsVerify,
         confidence: llm1Result.confidence
       });
@@ -489,7 +511,7 @@ export async function processMessage(
         snapshot: applyResult.snapshot,
         traceId,
         intent: llm1Result.intent,
-        ops: normalizedOps,
+        ops: replyOps,
         compactCatalog: hotSet.compactCatalog,
         language: llm1Result.language,
         cartMutated: applyResult.mutated
@@ -520,6 +542,24 @@ export async function processMessage(
       sandbox
     });
     logLatency('LatencyMs', publishedAt - startTime, { vendorId }); // §8 SLA clock: start (handler_start) -> publish, excluding the debit attempt's own duration
+
+    // Knowledge-gap persist after the customer reply is queued (I5: never block
+    // send). Handoff / D6 / sandbox no-op inside persistKnowledgeGapIfNeeded.
+    // Does not set aiPaused (D1).
+    await persistKnowledgeGapIfNeeded({
+      vendorId,
+      conversationId,
+      customerId,
+      sourceMessageId: inboundMessageId,
+      customerText: mergedContent,
+      ops: normalizedOps,
+      draftReply: llm1Result.draftReply,
+      orderStatusTurn,
+      hasHandoff: Boolean(handoffOp),
+      sandbox
+    }).catch((error) => {
+      logger.error({ err: error, vendorId, conversationId, traceId }, 'CustomerQuery persist failed');
+    });
 
     // Step 11 (async, fire-and-forget): vendor notify on a newly-confirmed
     // order. Reuses whatsappTemplateService.notifyVendorNewOrder exactly as
