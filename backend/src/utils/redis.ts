@@ -59,6 +59,13 @@ export function getRedisClient(): RedisClient | null {
       redisClient = new Cluster(
         [{ host: parsed.hostname, port }],
         {
+          // Must sit here, not in `redisOptions` -- ioredis applies redisOptions
+          // to the individual node connections, so a Cluster-level lazyConnect
+          // left in there lets the constructor start connecting on its own. The
+          // explicit connect() below then rejects with "Redis is already
+          // connecting/connected" and the catch nulls out a perfectly healthy
+          // client, forcing a brand-new cluster connection on every call.
+          lazyConnect: true,
           dnsLookup: (address, callback) => callback(null, address),
           redisOptions
         }

@@ -17,9 +17,17 @@ export interface UpsertInboundMessageResult {
 
 /**
  * Idempotent inbound-message insert, keyed on whatsappMessageId (I2). This
- * is a "create, then find on conflict" rather than a Prisma `upsert` because
- * there is nothing to *update* on a redelivery -- the original row is
- * already correct in place; a conflict just means "return what's there."
+ * is a "find, then create, then find again on conflict" rather than a Prisma
+ * `upsert` because there is nothing to *update* on a redelivery -- the
+ * original row is already correct in place; a conflict just means "return
+ * what's there."
+ *
+ * The leading lookup is not just an optimisation. Since the webhook handler
+ * persists the inbound row before enqueueing to the text queue, the row
+ * already exists by the time this runs for a *first* delivery, so relying on
+ * the unique violation alone made every message log a P2002 at ERROR level
+ * via the Prisma query middleware. The create is still wrapped, because a
+ * concurrent writer can land between the lookup and the insert.
  *
  * No existing helper does this correctly today: messageProcessor.ts's
  * storeIncomingMessage creates a Message row without ever setting
@@ -32,6 +40,12 @@ export interface UpsertInboundMessageResult {
  */
 export async function upsertInboundMessage(input: UpsertInboundMessageInput): Promise<UpsertInboundMessageResult> {
   const { vendorId, conversationId, customerId, content, whatsappMessageId } = input;
+
+  const preexisting = await prisma.message.findUnique({ where: { whatsappMessageId } });
+  if (preexisting) {
+    logger.info({ vendorId, conversationId, customerId, whatsappMessageId, messageId: preexisting.id }, 'Inbound message already processed (idempotent no-op)');
+    return { messageId: preexisting.id, alreadyProcessed: true };
+  }
 
   try {
     const message = await prisma.message.create({

@@ -37,6 +37,7 @@ beforeEach(() => {
 
 describe('upsertInboundMessage', () => {
   it('inserts a new customer Message with whatsappMessageId set', async () => {
+    messageFindUnique.mockResolvedValue(null);
     messageCreate.mockResolvedValue({ id: 'msg-1' });
 
     const result = await upsertInboundMessage(baseInput);
@@ -49,16 +50,29 @@ describe('upsertInboundMessage', () => {
   });
 
   it('§26 test 8 (inbound half): a redelivery of the same whatsappMessageId returns the existing row instead of inserting a second one', async () => {
-    messageCreate.mockRejectedValue(p2002Error());
     messageFindUnique.mockResolvedValue({ id: 'msg-1' });
 
     const result = await upsertInboundMessage(baseInput);
 
     expect(result).toEqual({ messageId: 'msg-1', alreadyProcessed: true });
     expect(messageFindUnique).toHaveBeenCalledWith({ where: { whatsappMessageId: 'wamid.1' } });
+    // The webhook handler already wrote this row, so the common path must not
+    // attempt an insert that would log a P2002 at ERROR on every message.
+    expect(messageCreate).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the conflict lookup when a concurrent writer inserts between the check and the create', async () => {
+    messageFindUnique.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'msg-raced' });
+    messageCreate.mockRejectedValue(p2002Error());
+
+    const result = await upsertInboundMessage(baseInput);
+
+    expect(result).toEqual({ messageId: 'msg-raced', alreadyProcessed: true });
+    expect(messageCreate).toHaveBeenCalledTimes(1);
   });
 
   it('rethrows a non-unique-constraint error', async () => {
+    messageFindUnique.mockResolvedValue(null);
     messageCreate.mockRejectedValue(new Error('connection reset'));
 
     await expect(upsertInboundMessage(baseInput)).rejects.toThrow('connection reset');
