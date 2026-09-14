@@ -28,21 +28,21 @@ function MessageGroupComponent({ group, messageRefs, onJumpToMessage, onReplyToM
               messageRefs.current.delete(msg.id);
             }
           }}
-          className="group/msg relative flex max-w-full items-center gap-1 transition-shadow duration-300"
+          className="group/msg relative flex max-w-full items-center gap-1.5 transition-shadow duration-300"
         >
+          <MessageBubble message={msg} onJumpToMessage={onJumpToMessage} />
           {isCustomer && onReplyToMessage ? (
             <button
               type="button"
               onClick={() => onReplyToMessage(msg)}
-              className="order-2 shrink-0 rounded-full p-1.5 text-[#54656f] opacity-60 transition-opacity hover:bg-black/5 hover:opacity-100 group-hover/msg:opacity-100 focus:opacity-100"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/80 text-[#54656f] shadow-sm ring-1 ring-black/5 transition hover:bg-white hover:text-[#072349] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#25d366]"
               aria-label={t('reply.action')}
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
                 <path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z" />
               </svg>
             </button>
           ) : null}
-          <MessageBubble message={msg} onJumpToMessage={onJumpToMessage} />
         </div>
       ))}
     </div>

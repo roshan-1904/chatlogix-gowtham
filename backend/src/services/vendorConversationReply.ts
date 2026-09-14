@@ -135,7 +135,43 @@ export async function sendVendorConversationReply(input: {
     queuePayload.fallbackQuestionText = quoteTarget.fallbackQuestionOriginal;
   }
 
-  await publishToQueue(env.RESPONSE_QUEUE_URL, queuePayload);
+  try {
+    await publishToQueue(env.RESPONSE_QUEUE_URL, queuePayload);
+  } catch (error) {
+    // The Message row is already committed, so an unhandled publish failure leaves it
+    // on `pending` forever — the composer shows "Sending…" for a message that never
+    // reached the dispatcher. Mark it failed so the UI can surface the error tick.
+    await prisma.message
+      .update({
+        where: { id: message.id },
+        data: {
+          status: 'failed',
+          failureReason: `Could not queue for delivery: ${
+            error instanceof Error ? error.message : String(error)
+          }`.slice(0, 500)
+        }
+      })
+      .catch((updateError: unknown) => {
+        logger.error(
+          { err: updateError, messageId: message.id },
+          'Failed to mark vendor reply as failed after response queue publish error'
+        );
+      });
+
+    logger.error(
+      { err: error, conversationId: conversation.id, messageId: message.id },
+      'Failed to publish vendor reply to response queue'
+    );
+
+    throw new CustomError(
+      'Could not queue the reply for delivery. Please try again.',
+      502,
+      ErrorType.QUEUE,
+      ErrorSeverity.HIGH,
+      true,
+      { conversationId: conversation.id, messageId: message.id }
+    );
+  }
 
   let markedOpenQueries = 0;
   try {
