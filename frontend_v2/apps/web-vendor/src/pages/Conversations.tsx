@@ -9,7 +9,7 @@ import { MessageList } from '../components/conversations/MessageList';
 import { MessageInput } from '../components/conversations/MessageInput';
 import { CustomerDetailsPanel } from '../components/conversations/CustomerDetailsPanel';
 import { MediaGalleryProvider } from '../components/conversations/MediaGalleryContext';
-import type { Conversation, CustomerInsights, Order } from '../components/conversations/types';
+import type { Conversation, CustomerInsights, Message, Order, PendingReplyTarget } from '../components/conversations/types';
 import { useConversations } from '../components/conversations/hooks/useConversations';
 import { useMessages } from '../components/conversations/hooks/useMessages';
 import { notifyCustomerQueriesChanged } from '../hooks/queries/useCustomerQueries';
@@ -21,6 +21,7 @@ export function Conversations() {
   const [customerInsights, setCustomerInsights] = useState<CustomerInsights | null>(null);
   const [customerOrders, setCustomerOrders] = useState<Order[]>([]);
   const [newMessage, setNewMessage] = useState('');
+  const [replyTo, setReplyTo] = useState<PendingReplyTarget | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState<ConversationFilters>({
@@ -102,6 +103,7 @@ export function Conversations() {
 
   // Keep customer context in sync with the selected conversation
   const handleConversationSelect = (conversation: Conversation) => {
+    setReplyTo(null);
     setSelectedConversation(conversation);
     if (conversation.customerId) {
       fetchCustomerInsights(conversation.customerId);
@@ -168,10 +170,15 @@ export function Conversations() {
     setError(null);
 
     try {
+      const payload: { content: string; replyToMessageId?: string } = { content: messageToSend };
+      if (replyTo?.id) {
+        payload.replyToMessageId = replyTo.id;
+      }
       const sent = await apiClient.post<{ markedOpenQueries?: number }>(
         `/conversations/${selectedConversation.id}/messages`,
-        { content: messageToSend }
+        payload
       );
+      setReplyTo(null);
       if (sent.markedOpenQueries && sent.markedOpenQueries > 0) {
         toast.success('Save this as an FAQ from Queries');
         notifyCustomerQueriesChanged();
@@ -186,6 +193,15 @@ export function Conversations() {
       setIsSending(false);
     }
   };
+
+  const handleReplyToMessage = useCallback((message: Message) => {
+    if (message.senderType !== 'customer') return;
+    setReplyTo({
+      id: message.id,
+      contentPreview: message.content,
+      contentEn: message.contentEn
+    });
+  }, []);
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -248,6 +264,7 @@ export function Conversations() {
                     newMessageCount={newMessageCount}
                     onLoadNewMessages={loadNewMessages}
                     isLoadingNew={isLoadingNew}
+                    onReplyToMessage={handleReplyToMessage}
                   />
                 </MediaGalleryProvider>
               </div>
@@ -259,6 +276,8 @@ export function Conversations() {
                   onKeyPress={handleKeyPress}
                   disabled={isSending || isLoadingMessages}
                   error={combinedError}
+                  replyTo={replyTo}
+                  onClearReply={() => setReplyTo(null)}
                 />
               )}
             </>

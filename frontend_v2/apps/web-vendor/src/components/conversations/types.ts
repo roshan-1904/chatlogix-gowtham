@@ -22,6 +22,12 @@ export type MessageStatus =
 
 export type MediaFetchState = 'pending' | 'ready' | 'failed' | 'expired' | string;
 
+export interface PendingReplyTarget {
+  id: string;
+  contentPreview: string;
+  contentEn?: string | null;
+}
+
 export interface MessageReplyPreview {
   id: string;
   contentPreview: string;

@@ -10,22 +10,38 @@ import {
   ErrorType
 } from '../middleware/errorHandler.js';
 import { markOpenQueriesAnswered } from '../conversation/customerQuery.js';
+import { logCount } from '../conversation/metrics.js';
+import {
+  planOutboundTextForQuote,
+  quotedReplyFallbackIntro,
+  resolveConversationReplyQuote,
+  resolveQuoteWamid,
+  type ResolvedQuoteTarget
+} from './quotedReplyHelpers.js';
 
 export interface VendorReplyUser {
   vendorId?: string | null;
   roles: string[];
 }
 
+export type CustomerQueryReplyContext = {
+  quoteMessageId: string | null;
+  sourceMessageId: string | null;
+  questionOriginal: string;
+};
+
 export async function sendVendorConversationReply(input: {
   conversationId: string;
   user: VendorReplyUser;
   content: string;
+  replyToMessageId?: string | null;
+  customerQueryReply?: CustomerQueryReplyContext;
 }): Promise<{
   message: { id: string; conversationId: string; senderType: string; content: string };
   markedOpenQueries: number;
 }> {
-  const content = input.content.trim();
-  if (!content) {
+  const vendorReply = input.content.trim();
+  if (!vendorReply) {
     throw createValidationError('Message content is required', 'content', input.content);
   }
 
@@ -61,12 +77,32 @@ export async function sendVendorConversationReply(input: {
 
   const phoneNumberId = conversation.vendor.whatsappNumbers[0]?.phoneNumberId || undefined;
 
+  let quoteTarget: ResolvedQuoteTarget | null = null;
+  const intro = quotedReplyFallbackIntro();
+
+  if (input.customerQueryReply) {
+    const anchorId =
+      input.customerQueryReply.quoteMessageId ?? input.customerQueryReply.sourceMessageId;
+    quoteTarget = await resolveQuoteWamid(
+      anchorId,
+      input.customerQueryReply.questionOriginal,
+      conversation.id
+    );
+  } else if (input.replyToMessageId) {
+    quoteTarget = await resolveConversationReplyQuote(input.conversationId, input.replyToMessageId);
+  }
+
+  const { text: outboundText, useQuoteContext } = planOutboundTextForQuote(vendorReply, quoteTarget, intro);
+  if (quoteTarget && !useQuoteContext) {
+    logCount('CustomerQueryReplyFallback', {});
+  }
+
   const [message] = await prisma.$transaction([
     prisma.message.create({
       data: {
         conversationId: conversation.id,
         senderType: 'vendor',
-        content,
+        content: outboundText,
         type: 'text'
       }
     }),
@@ -76,25 +112,37 @@ export async function sendVendorConversationReply(input: {
     })
   ]);
 
-  void ensureMessageContentEn(message.id, content).catch(() => {
+  void ensureMessageContentEn(message.id, outboundText).catch(() => {
     // Non-blocking — vendor typed English is a no-op; translation failure is acceptable.
   });
 
-  await publishToQueue(env.RESPONSE_QUEUE_URL, {
+  const queuePayload: Record<string, unknown> = {
+    type: 'text',
     to: conversation.customer.phone,
-    text: content,
+    text: outboundText,
     conversationId: conversation.id,
     vendorId: conversation.vendorId,
     customerId: conversation.customerId,
-    phoneNumberId
-  });
+    phoneNumberId,
+    messageId: message.id
+  };
+
+  if (quoteTarget && useQuoteContext && quoteTarget.whatsappMessageId) {
+    queuePayload.replyToWhatsappMessageId = quoteTarget.whatsappMessageId;
+    queuePayload.replyToInternalMessageId = quoteTarget.internalMessageId;
+    queuePayload.fallbackQuestionText = quoteTarget.fallbackQuestionOriginal;
+  } else if (quoteTarget && !useQuoteContext) {
+    queuePayload.fallbackQuestionText = quoteTarget.fallbackQuestionOriginal;
+  }
+
+  await publishToQueue(env.RESPONSE_QUEUE_URL, queuePayload);
 
   let markedOpenQueries = 0;
   try {
     markedOpenQueries = await markOpenQueriesAnswered({
       conversationId: conversation.id,
       vendorId: conversation.vendorId,
-      vendorAnswerOriginal: content,
+      vendorAnswerOriginal: vendorReply,
       answeredByVendorId: conversation.vendorId
     });
   } catch (error) {

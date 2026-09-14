@@ -1,5 +1,11 @@
 import { logger, StepLogger, createOperationId, logWhatsAppOperation, logConversation, logErrorWithContext, logDatabaseFailure, logWhatsAppFailure } from '../logger.js';
 import { sendWhatsAppText, sendWhatsAppTemplate } from '../services/whatsappClient.js';
+import { WhatsAppSendError } from '../services/whatsappSendErrors.js';
+import {
+  buildQuotedReplyFallbackBody,
+  quotedReplyFallbackIntro
+} from '../services/quotedReplyHelpers.js';
+import { logCount } from '../conversation/metrics.js';
 import { AsyncDatabaseService } from '../services/asyncDatabaseService.js';
 import { CustomerInsightsService } from '../services/customerInsightsService.js';
 import { prisma } from '../db/prisma.js';
@@ -15,6 +21,9 @@ export type ResponseQueueMessage =
       messageId?: string;
       aiTokensUsed?: number;
       phoneNumberId?: string;
+      replyToWhatsappMessageId?: string;
+      replyToInternalMessageId?: string;
+      fallbackQuestionText?: string;
       metadata?: Record<string, any>; // For tracking notification context
     }
   | {
@@ -101,15 +110,36 @@ export async function processResponseMessage(body: ResponseQueueMessage, parentO
           phoneNumberIdProvided: !!textBody.phoneNumberId
         });
 
+        const quoteFields =
+          body.type === 'text'
+            ? {
+                replyToWhatsappMessageId: body.replyToWhatsappMessageId,
+                replyToInternalMessageId: body.replyToInternalMessageId,
+                fallbackQuestionText: body.fallbackQuestionText
+              }
+            : {};
+
         let textSendResult: Awaited<ReturnType<typeof sendWhatsAppText>>;
         try {
-          textSendResult = await sendWhatsAppText(body.to, textBody.text, textBody.phoneNumberId);
+          const { result, quoteApplied } = await sendTextWithQuoteFallback(
+            body.to,
+            textBody.text,
+            textBody.phoneNumberId,
+            textBody.messageId,
+            quoteFields
+          );
+          textSendResult = result;
           stepLogger.step('WhatsApp text message sent successfully', {
-            whatsappMessageId: textSendResult?.messageId
+            whatsappMessageId: textSendResult?.messageId,
+            quoteApplied
           });
 
           if (textBody.messageId) {
-            await markAssistantMessageSent(textBody.messageId, textSendResult?.messageId).catch(updateErr => {
+            await markAssistantMessageSent(
+              textBody.messageId,
+              textSendResult?.messageId,
+              quoteApplied ? quoteFields.replyToInternalMessageId : undefined
+            ).catch(updateErr => {
               logger.warn({ err: updateErr, messageId: textBody.messageId }, 'Failed to mark assistant message as sent');
             });
           }
@@ -410,16 +440,85 @@ async function handleDatabaseOperationsAsync(body: { conversationId?: string; te
   }
 
 /**
+ * Send the outbound text, quoting the customer's message when a wamid is supplied.
+ *
+ * A second send only ever happens for a quote-specific Graph rejection
+ * (`isInvalidQuoteContext`). Every other failure — 401, 429, 5xx, or a network
+ * error that never produced a WhatsAppSendError — rethrows untouched so SQS
+ * retries the original payload. Retrying unquoted on a generic failure risks a
+ * duplicate customer message when Graph accepted the first request but we
+ * failed to read the response.
+ *
+ * `quoteApplied` reports whether the delivered message actually carried
+ * `context.message_id`, so the caller only stamps `Message.replyToMessageId`
+ * when the customer really saw a quoted bubble.
+ */
+async function sendTextWithQuoteFallback(
+  to: string,
+  text: string,
+  phoneNumberId?: string,
+  outboundMessageId?: string,
+  quote?: {
+    replyToWhatsappMessageId?: string;
+    replyToInternalMessageId?: string;
+    fallbackQuestionText?: string;
+  }
+): Promise<{ result: Awaited<ReturnType<typeof sendWhatsAppText>>; quoteApplied: boolean }> {
+  const wamid = quote?.replyToWhatsappMessageId;
+  if (!wamid) {
+    return { result: await sendWhatsAppText(to, text, phoneNumberId), quoteApplied: false };
+  }
+
+  try {
+    const result = await sendWhatsAppText(to, text, phoneNumberId, {
+      replyToWhatsappMessageId: wamid
+    });
+    logCount('CustomerQueryReplyQuoted', {});
+    return { result, quoteApplied: true };
+  } catch (sendErr) {
+    const isQuoteError =
+      sendErr instanceof WhatsAppSendError &&
+      sendErr.isInvalidQuoteContext &&
+      !!quote?.fallbackQuestionText?.trim();
+    if (!isQuoteError) {
+      throw sendErr;
+    }
+
+    const fallbackBody = buildQuotedReplyFallbackBody(
+      quotedReplyFallbackIntro(),
+      quote.fallbackQuestionText!,
+      text
+    );
+    if (outboundMessageId) {
+      await prisma.message.update({
+        where: { id: outboundMessageId },
+        data: { content: fallbackBody }
+      });
+    }
+    logCount('CustomerQueryReplyFallback', {});
+    return {
+      result: await sendWhatsAppText(to, fallbackBody, phoneNumberId),
+      quoteApplied: false
+    };
+  }
+}
+
+/**
  * Update an assistant Message row with the WhatsApp messageId returned by Send,
  * and bump status to 'sent'. Idempotent — re-runs simply re-write the same fields.
  */
-async function markAssistantMessageSent(messageId: string, whatsappMessageId?: string): Promise<void> {
+async function markAssistantMessageSent(
+  messageId: string,
+  whatsappMessageId?: string,
+  replyToInternalMessageId?: string
+): Promise<void> {
   try {
     await prisma.message.update({
       where: { id: messageId },
       data: {
         status: 'sent',
-        ...(whatsappMessageId ? { whatsappMessageId } : {})
+        ...(whatsappMessageId ? { whatsappMessageId } : {}),
+        ...(replyToInternalMessageId ? { replyToMessageId: replyToInternalMessageId } : {})
       }
     });
   } catch (err: any) {

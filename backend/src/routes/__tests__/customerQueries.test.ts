@@ -141,7 +141,10 @@ describe('POST /customer-queries/:id/reply', () => {
     customerQueryFindFirst.mockResolvedValue({
       id: 'query-1',
       conversationId: 'conv-1',
-      vendorId: VENDOR_ID
+      vendorId: VENDOR_ID,
+      quoteMessageId: 'msg-customer-2',
+      sourceMessageId: 'msg-customer-1',
+      questionOriginal: 'Ithuku dividers varuma??'
     });
 
     const res = await fetch(`${baseUrl}/query-1/reply`, {
@@ -155,7 +158,12 @@ describe('POST /customer-queries/:id/reply', () => {
     expect(sendVendorConversationReplyMock).toHaveBeenCalledWith({
       conversationId: 'conv-1',
       user: currentUser,
-      content: 'Yes, divider included.'
+      content: 'Yes, divider included.',
+      customerQueryReply: {
+        quoteMessageId: 'msg-customer-2',
+        sourceMessageId: 'msg-customer-1',
+        questionOriginal: 'Ithuku dividers varuma??'
+      }
     });
     expect(body.markedOpenQueries).toBe(1);
   });

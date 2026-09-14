@@ -260,7 +260,14 @@ customerQueriesRouter.post('/:id/reply', requireRole('vendor', 'admin'), async (
     const validated = ReplySchema.parse(req.body);
     const query = await prisma.customerQuery.findFirst({
       where: { id: req.params.id, vendorId },
-      select: { id: true, conversationId: true, vendorId: true }
+      select: {
+        id: true,
+        conversationId: true,
+        vendorId: true,
+        quoteMessageId: true,
+        sourceMessageId: true,
+        questionOriginal: true
+      }
     });
 
     if (!query) {
@@ -270,7 +277,12 @@ customerQueriesRouter.post('/:id/reply', requireRole('vendor', 'admin'), async (
     const { message, markedOpenQueries } = await sendVendorConversationReply({
       conversationId: query.conversationId,
       user: { vendorId: req.user?.vendorId ?? null, roles: req.user?.roles ?? [] },
-      content: validated.content
+      content: validated.content,
+      customerQueryReply: {
+        quoteMessageId: query.quoteMessageId,
+        sourceMessageId: query.sourceMessageId,
+        questionOriginal: query.questionOriginal
+      }
     });
 
     res.json({ message, markedOpenQueries });

@@ -108,7 +108,8 @@ export async function upsertKnowledgeGap(input: UpsertKnowledgeGapInput): Promis
           data: {
             hitCount: { increment: 1 },
             lastSeenAt: new Date(),
-            relatedMessageIds: related.slice(-RELATED_MESSAGE_CAP)
+            relatedMessageIds: related.slice(-RELATED_MESSAGE_CAP),
+            ...(sourceMessageId ? { quoteMessageId: sourceMessageId } : {})
           }
         });
         logCount('CustomerQueryDeduped', { vendorId: input.vendorId });
@@ -128,6 +129,7 @@ export async function upsertKnowledgeGap(input: UpsertKnowledgeGapInput): Promis
     conversationId: input.conversationId,
     customerId: input.customerId,
     sourceMessageId,
+    quoteMessageId: sourceMessageId,
     questionOriginal,
     questionEn,
     category,

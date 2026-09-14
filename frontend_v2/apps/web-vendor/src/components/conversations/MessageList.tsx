@@ -17,6 +17,7 @@ interface MessageListProps {
   readonly newMessageCount?: number;
   readonly onLoadNewMessages?: () => void;
   readonly isLoadingNew?: boolean;
+  readonly onReplyToMessage?: (message: Message) => void;
 }
 
 const NEAR_BOTTOM_PX = 80;
@@ -37,6 +38,7 @@ function MessageListComponent({
   newMessageCount = 0,
   onLoadNewMessages,
   isLoadingNew = false,
+  onReplyToMessage,
 }: MessageListProps) {
   const { t } = useTranslation('conversations');
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -211,6 +213,7 @@ function MessageListComponent({
                   group={group}
                   messageRefs={messageRefs}
                   onJumpToMessage={scrollToMessage}
+                  onReplyToMessage={onReplyToMessage}
                 />
               ))}
             </div>

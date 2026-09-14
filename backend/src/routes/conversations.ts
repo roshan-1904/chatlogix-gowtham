@@ -74,7 +74,7 @@ conversationsRouter.post(
   asyncHandlerWithContext(async (req: any, res: any) => {
     const conversationId = req.params.id;
     const user = req.user;
-    const { content } = req.body;
+    const { content, replyToMessageId } = req.body;
 
     if (!user) {
       throw new CustomError(
@@ -89,10 +89,16 @@ conversationsRouter.post(
       throw createValidationError('Message content is required', 'content', content);
     }
 
+    const replyTo =
+      typeof replyToMessageId === 'string' && replyToMessageId.trim().length > 0
+        ? replyToMessageId.trim()
+        : undefined;
+
     const { message, markedOpenQueries } = await sendVendorConversationReply({
       conversationId,
       user,
-      content
+      content,
+      replyToMessageId: replyTo
     });
 
     res.json({ ...message, markedOpenQueries });

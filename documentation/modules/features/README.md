@@ -36,7 +36,10 @@ Documentation for product matching and validation system, including:
 Vendor portal “Enhance with AI” for product descriptions and FAQ answers. Authoritative spec: `docs/VENDOR_CATALOG_ENHANCER.md`.
 
 ### [Customer Queries](./customer-queries/)
-Proposed knowledge inbox: unanswered product/policy questions from WhatsApp → vendor list → English FAQ or catalog variants. Order-status queries never defer. Authoritative spec: `docs/CUSTOMER_QUERIES.md`.
+Knowledge inbox: unanswered product/policy questions from WhatsApp → vendor list → English FAQ or catalog variants. Order-status queries never defer. Spec: `docs/CUSTOMER_QUERIES.md`; quoted WhatsApp replies (v1.1): `docs/CUSTOMER_QUERY_QUOTED_REPLIES.md`.
+
+### [Vendor portal](./vendor-portal/)
+Completion roadmap (P0–P3) for `frontend_v2/apps/web-vendor`: dead sidebar entries (Billing, Support, Templates), order payment/shipping stubs, and self-serve wallet recharge. Spec: `docs/VENDOR_PORTAL_ROADMAP.md`.
 
 ### [Order Delivery Settings](./order-delivery/)
 Documentation for order delivery and preparation settings, including:

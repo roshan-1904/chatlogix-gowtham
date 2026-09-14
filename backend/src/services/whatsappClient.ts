@@ -1,6 +1,11 @@
 import fetch from 'node-fetch';
 import { env } from '../config/env.js';
 import { logger } from '../logger.js';
+import {
+  isInvalidQuoteContextError,
+  parseGraphErrorBody,
+  WhatsAppSendError
+} from './whatsappSendErrors.js';
 
 // Overridable so load tests can point both at a mock Graph API
 // (docs/LOAD_TESTING.md §5). config/env.ts supplies these same literals as Zod
@@ -26,8 +31,22 @@ async function postToGraph(targetPhoneNumberId: string, body: any): Promise<What
   });
   if (!res.ok) {
     const errBody = await res.text();
-    logger.error({ status: res.status, body: errBody, payloadType: body?.type }, 'Failed to send WhatsApp message');
-    throw new Error(`WhatsApp send failed: ${res.status}`);
+    const parsed = parseGraphErrorBody(errBody);
+    const invalidQuote = isInvalidQuoteContextError(
+      res.status,
+      parsed.graphCode,
+      parsed.graphSubcode,
+      parsed.message
+    );
+    logger.error(
+      { status: res.status, body: errBody, payloadType: body?.type, invalidQuote },
+      'Failed to send WhatsApp message'
+    );
+    throw new WhatsAppSendError(`WhatsApp send failed: ${res.status}`, res.status, {
+      graphCode: parsed.graphCode,
+      graphSubcode: parsed.graphSubcode,
+      isInvalidQuoteContext: invalidQuote
+    });
   }
   const json = (await res.json()) as { messages?: Array<{ id?: string }> };
   const messageId = json.messages?.[0]?.id;
@@ -151,15 +170,20 @@ export async function sendTypingIndicator(
 export async function sendWhatsAppText(
   to: string,
   text: string,
-  phoneNumberId?: string
+  phoneNumberId?: string,
+  options?: { replyToWhatsappMessageId?: string }
 ): Promise<WhatsAppSendResult | undefined> {
   const target = requireTargetPhoneNumberId(phoneNumberId);
-  return postToGraph(target, {
+  const payload: Record<string, unknown> = {
     messaging_product: 'whatsapp',
     to,
     type: 'text',
     text: { body: text }
-  });
+  };
+  if (options?.replyToWhatsappMessageId) {
+    payload.context = { message_id: options.replyToWhatsappMessageId };
+  }
+  return postToGraph(target, payload);
 }
 
 interface MediaSendInput {

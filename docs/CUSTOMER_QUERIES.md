@@ -462,6 +462,21 @@ Both paths must:
 
 If the vendor replies in chat **without** going through the list, a conversation-message hook (same POST handler) finds open queries for that `conversationId` and marks them answered. If several are open, mark the most recent, or all from that conversation — v1: **all open queries on that conversation** (vendors rarely have two unrelated gaps in one thread; simpler than a picker).
 
+### 14.1 WhatsApp quoted replies (v1.1 — implemented)
+
+**Problem (v1):** Outbound vendor replies are plain text bubbles with no link to the customer’s question, so answers can look random when they arrive long after the deferral.
+
+**Spec:** [CUSTOMER_QUERY_QUOTED_REPLIES.md](./CUSTOMER_QUERY_QUOTED_REPLIES.md)
+
+Summary of locked behavior:
+
+| Path | Quote target |
+|------|----------------|
+| `POST /api/customer-queries/:id/reply` | `CustomerQuery.quoteMessageId` (fallback `sourceMessageId`) → customer message wamid; Graph fallback uses stored `questionOriginal`. |
+| `POST /api/conversations/:id/messages` | **Unquoted by default.** Optional body `replyToMessageId` when the vendor uses Reply in Conversations. |
+
+Send uses Graph `context.message_id`. If quoting fails (invalid/expired wamid), send one message with inline context: connector + customer question text + vendor reply; update outbound `Message.content` to match. Do not retry unquoted on auth/rate-limit errors.
+
 ---
 
 ## 15. Promotion after vendor reply
@@ -837,6 +852,7 @@ Phase 1 can ship **before** the inbox. It fixes Murali’s “still checking my 
 | Q4 | Backfill English for existing Tamil FAQs/products? | Not v1; optional script later |
 | Q5 | Similarity threshold 0.85 for query dedup vs 0.75 for FAQ retrieval — confirm on real Ibell questions | 0.85 dedup / keep 0.75 FAQ |
 | Q6 | Should `knowledge_gap` store `productId` when the last catalog mention is unambiguous? | Yes when LLM-1 supplies it; optional field. `validateProductIds` nulls it when the id is absent from this turn's vendor-scoped compact catalog (the FK alone does not enforce vendor scoping), so the insert never has to fail-and-retry on a hallucinated id. |
+| Q7 | Should vendor answers quote the customer’s question on WhatsApp? | **Yes (v1.1).** See [CUSTOMER_QUERY_QUOTED_REPLIES.md](./CUSTOMER_QUERY_QUOTED_REPLIES.md). |
 
 ---
 
@@ -853,6 +869,7 @@ Phase 1 can ship **before** the inbox. It fixes Murali’s “still checking my 
 | `backend/src/routes/faqs.ts` | FAQ CRUD + embed; add English normalize |
 | `backend/src/routes/products.ts` | Variant schema; add English normalize |
 | `backend/src/routes/conversations.ts` | Vendor reply send; hook to mark queries answered |
+| `docs/CUSTOMER_QUERY_QUOTED_REPLIES.md` | v1.1 spec: WhatsApp quoted replies + fallback prefix |
 | `backend/src/services/catalogEnhancePrompts.ts` | Flip FAQ enhance to English |
 | `frontend_v2/apps/web-vendor/src/pages/Conversations.tsx` | Inbox + composer |
 | `frontend_v2/apps/web-vendor/src/pages/Faqs.tsx` | FAQ destination UI |

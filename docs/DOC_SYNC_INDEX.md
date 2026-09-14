@@ -31,5 +31,7 @@ When you change `backend/src/conversation/` behavior documented in the files abo
 | `docs/LOAD_TESTING.md` | Test methodology and harness; cites pipeline facts but does not document pipeline behavior |
 | `docs/troubleshooting/*` | Case studies; not pipeline reference docs |
 | `docs/VENDOR_CATALOG_ENHANCER.md` | Vendor portal “Enhance with AI” design spec; implementation tracked in spec §22 |
-| `docs/CUSTOMER_QUERIES.md` | Proposed knowledge-inbox spec (FAQ/variant promotion, English-only storage, order-status never defers); not implemented |
+| `docs/CUSTOMER_QUERIES.md` | Customer Queries v1 spec (implemented); see feature README for status |
+| `docs/CUSTOMER_QUERY_QUOTED_REPLIES.md` | v1.1 implemented: WhatsApp quoted vendor replies + fallback prefix |
+| `docs/VENDOR_PORTAL_ROADMAP.md` | Vendor portal P0–P3 completion plan; frontend/API scope, not pipeline logic |
 | `CLAUDE.md` / `.cursorrules` | No materially wrong language restrictions (points to flow doc for pipeline details) |

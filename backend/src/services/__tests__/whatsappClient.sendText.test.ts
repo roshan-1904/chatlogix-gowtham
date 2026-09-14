@@ -65,6 +65,22 @@ describe('sendWhatsAppText', () => {
     expect(url).toContain('default-phone-id');
   });
 
+  it('includes context.message_id when replyToWhatsappMessageId is set', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ messages: [{ id: 'wamid.quoted' }] })
+    });
+
+    await sendWhatsAppText('919000000000', 'answer', 'phone-99', {
+      replyToWhatsappMessageId: 'wamid.customer-1'
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(String(init.body)) as { context?: { message_id: string } };
+    expect(body.context).toEqual({ message_id: 'wamid.customer-1' });
+  });
+
   it('throws instead of silently no-op-ing when no phoneNumberId is available anywhere', async () => {
     envState.WHATSAPP_PHONE_NUMBER_ID = undefined;
 

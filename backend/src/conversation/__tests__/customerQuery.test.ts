@@ -150,7 +150,9 @@ describe('upsertKnowledgeGap', () => {
         questionEn: 'Does the baking tin come with dividers?',
         category: 'product',
         status: 'open',
-        productId: 'prod-tin'
+        productId: 'prod-tin',
+        quoteMessageId: 'msg-1',
+        sourceMessageId: 'msg-1'
       })
     });
     expect(logCountMock).toHaveBeenCalledWith('CustomerQueryOpened', { vendorId: 'vendor-1', category: 'product' });
@@ -182,7 +184,8 @@ describe('upsertKnowledgeGap', () => {
       where: { id: 'query-open' },
       data: expect.objectContaining({
         hitCount: { increment: 1 },
-        relatedMessageIds: ['msg-old', 'msg-2']
+        relatedMessageIds: ['msg-old', 'msg-2'],
+        quoteMessageId: 'msg-2'
       })
     });
     expect(logCountMock).toHaveBeenCalledWith('CustomerQueryDeduped', { vendorId: 'vendor-1' });

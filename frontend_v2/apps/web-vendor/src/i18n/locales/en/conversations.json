@@ -24,6 +24,8 @@
     "tooltipMore": "{{names}} and {{count}} more reacted with {{emoji}}"
   },
   "reply": {
+    "action": "Reply",
+    "clear": "Cancel reply",
     "missing": "Original message unavailable",
     "previewLabel": "Replying to {{sender}}"
   },

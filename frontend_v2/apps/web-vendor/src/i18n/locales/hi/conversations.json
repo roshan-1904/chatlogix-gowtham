@@ -24,6 +24,8 @@
     "tooltipMore": "{{names}} और {{count}} अन्य ने {{emoji}} के साथ प्रतिक्रिया दी"
   },
   "reply": {
+    "action": "उत्तर दें",
+    "clear": "उत्तर रद्द करें",
     "missing": "मूल संदेश उपलब्ध नहीं है",
     "previewLabel": "{{sender}} को उत्तर"
   },

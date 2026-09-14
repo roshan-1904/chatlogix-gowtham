@@ -159,7 +159,8 @@ model Message {
   reactions             MessageReaction[]
   statusEvents          MessageStatusEvent[]
   reactionHistory       MessageReactionHistory[]
-  customerQueries       CustomerQuery[]
+  customerQueriesFromSource CustomerQuery[] @relation("CustomerQuerySourceMessage")
+  customerQueriesAsQuote    CustomerQuery[] @relation("CustomerQueryQuoteMessage")
 
   @@index([conversationId, timestamp])
   @@index([conversationId, timestamp(sort: Desc)], map: "idx_message_conversation_timestamp")
@@ -464,6 +465,7 @@ model CustomerQuery {
   conversationId       String
   customerId           String
   sourceMessageId      String?
+  quoteMessageId       String?
   relatedMessageIds    Json      @default("[]")
   productId            String?
 
@@ -490,7 +492,8 @@ model CustomerQuery {
   vendor               Vendor       @relation(fields: [vendorId], references: [id], onDelete: Cascade)
   conversation         Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   customer             Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  sourceMessage        Message?     @relation(fields: [sourceMessageId], references: [id], onDelete: SetNull)
+  sourceMessage        Message?     @relation("CustomerQuerySourceMessage", fields: [sourceMessageId], references: [id], onDelete: SetNull)
+  quoteMessage         Message?     @relation("CustomerQueryQuoteMessage", fields: [quoteMessageId], references: [id], onDelete: SetNull)
   faq                  Faq?         @relation(fields: [faqId], references: [id], onDelete: SetNull)
   product              Product?     @relation(fields: [productId], references: [id], onDelete: SetNull)
 
