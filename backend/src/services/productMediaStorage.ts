@@ -535,7 +535,7 @@ export async function getProductMedia(productId: string, mediaId: string): Promi
  * GET /api/messages/:id/media so the fetch stays same-origin.
  */
 export async function readProductMediaObject(
-  media: ProductMediaRecord
+  media: Pick<ProductMediaRecord, 'id' | 's3Bucket' | 's3Key' | 'mimeType'>
 ): Promise<{ bytes: Buffer; contentType: string }> {
   const bucket = media.s3Bucket || env.WA_MEDIA_S3_BUCKET;
   if (!bucket) {

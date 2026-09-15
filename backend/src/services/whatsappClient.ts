@@ -196,9 +196,12 @@ interface MediaSendInput {
 }
 
 function buildMediaPayload(kind: 'image' | 'audio' | 'video' | 'document' | 'sticker', input: MediaSendInput) {
+  if (!input.mediaId && !input.link) {
+    throw new Error('WhatsApp media send requires mediaId or link');
+  }
   const inner: Record<string, any> = {};
   if (input.mediaId) inner.id = input.mediaId;
-  if (input.link) inner.link = input.link;
+  else if (input.link) inner.link = input.link;
   if (input.caption && (kind === 'image' || kind === 'video' || kind === 'document')) {
     inner.caption = input.caption;
   }
@@ -209,6 +212,51 @@ function buildMediaPayload(kind: 'image' | 'audio' | 'video' | 'document' | 'sti
     type: kind,
     [kind]: inner
   };
+}
+
+/**
+ * Upload bytes to WhatsApp-hosted media (preferred over `link` for catalog product media).
+ * @see https://developers.facebook.com/docs/whatsapp/cloud-api/reference/media
+ */
+export async function uploadWhatsAppMedia(
+  phoneNumberId: string,
+  mimeType: string,
+  body: Buffer,
+  filename: string
+): Promise<{ mediaId: string }> {
+  const target = requireTargetPhoneNumberId(phoneNumberId);
+  const url = `${BASE_URL}/${target}/media`;
+  const form = new FormData();
+  form.append('messaging_product', 'whatsapp');
+  form.append('type', mimeType);
+  form.append('file', new Blob([body], { type: mimeType }), filename);
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${env.WHATSAPP_ACCESS_TOKEN}`
+    },
+    body: form
+  });
+
+  if (!res.ok) {
+    const errBody = await res.text();
+    logger.error(
+      { status: res.status, body: errBody, mimeType, sizeBytes: body.byteLength, phoneNumberId: target },
+      'Failed to upload WhatsApp media'
+    );
+    throw new WhatsAppSendError(`WhatsApp media upload failed: ${res.status}`, res.status, {
+      graphCode: parseGraphErrorBody(errBody).graphCode,
+      graphSubcode: parseGraphErrorBody(errBody).graphSubcode,
+      isInvalidQuoteContext: false
+    });
+  }
+
+  const json = (await res.json()) as { id?: string };
+  if (!json.id) {
+    throw new Error('WhatsApp media upload succeeded but id missing from response');
+  }
+  return { mediaId: json.id };
 }
 
 export async function sendWhatsAppImage(input: MediaSendInput): Promise<WhatsAppSendResult | undefined> {

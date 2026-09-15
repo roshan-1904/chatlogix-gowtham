@@ -1,6 +1,6 @@
 import { logger, StepLogger, createOperationId, logWhatsAppOperation, logConversation, logErrorWithContext, logDatabaseFailure, logWhatsAppFailure } from '../logger.js';
 import { sendWhatsAppText, sendWhatsAppTemplate, sendWhatsAppImage, sendWhatsAppVideo } from '../services/whatsappClient.js';
-import { presignProductMediaOutboundGetUrl } from '../services/productMediaWhatsApp.js';
+import { uploadProductMediaForWhatsAppSend } from '../services/productMediaWhatsApp.js';
 import { WhatsAppSendError } from '../services/whatsappSendErrors.js';
 import {
   buildQuotedReplyFallbackBody,
@@ -540,10 +540,13 @@ async function processOutboundMediaAttachments(ctx: {
         continue;
       }
 
-      const link = await presignProductMediaOutboundGetUrl(productMedia.s3Bucket, productMedia.s3Key);
+      const graphMediaId = await uploadProductMediaForWhatsAppSend(
+        productMedia,
+        ctx.phoneNumberId ?? ''
+      );
       const mediaInput = {
         to: ctx.to,
-        link,
+        mediaId: graphMediaId,
         phoneNumberId: ctx.phoneNumberId,
         caption: attachment.caption
       };

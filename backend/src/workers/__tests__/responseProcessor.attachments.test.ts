@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const sendWhatsAppText = vi.fn();
 const sendWhatsAppImage = vi.fn();
 const sendWhatsAppVideo = vi.fn();
-const presignProductMediaOutboundGetUrl = vi.fn();
+const uploadProductMediaForWhatsAppSend = vi.fn();
 const messageFindUnique = vi.fn();
 const messageUpdate = vi.fn();
 const productMediaFindUnique = vi.fn();
@@ -15,7 +15,7 @@ vi.mock('../../services/whatsappClient.js', () => ({
   sendWhatsAppVideo: (...args: unknown[]) => sendWhatsAppVideo(...args)
 }));
 vi.mock('../../services/productMediaWhatsApp.js', () => ({
-  presignProductMediaOutboundGetUrl: (...args: unknown[]) => presignProductMediaOutboundGetUrl(...args)
+  uploadProductMediaForWhatsAppSend: (...args: unknown[]) => uploadProductMediaForWhatsAppSend(...args)
 }));
 vi.mock('../../services/asyncDatabaseService.js', () => ({ AsyncDatabaseService: vi.fn() }));
 vi.mock('../../services/customerInsightsService.js', () => ({
@@ -68,7 +68,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   sendWhatsAppText.mockResolvedValue({ messageId: 'wamid.text' });
   messageUpdate.mockResolvedValue({});
-  presignProductMediaOutboundGetUrl.mockResolvedValue('https://s3.example/presigned');
+  uploadProductMediaForWhatsAppSend.mockResolvedValue('meta-uploaded-media-id');
   messageFindUnique.mockResolvedValue({ status: 'pending' });
   productMediaFindUnique.mockResolvedValue(baseProductMedia);
   sendWhatsAppImage.mockResolvedValue({ messageId: 'wamid.img' });
@@ -76,7 +76,7 @@ beforeEach(() => {
 });
 
 describe('processResponseMessage product media attachments', () => {
-  it('sends text then image with presigned link and marks attachment sent', async () => {
+  it('sends text then image via Graph media id and marks attachment sent', async () => {
     await processResponseMessage({
       type: 'text',
       to: '919000000000',
@@ -95,13 +95,10 @@ describe('processResponseMessage product media attachments', () => {
     });
 
     expect(sendWhatsAppText).toHaveBeenCalledTimes(1);
-    expect(presignProductMediaOutboundGetUrl).toHaveBeenCalledWith(
-      'chatlogix-wa-media',
-      'vendor/vendor-1/catalog/prod-1/uuid-cake.jpg'
-    );
+    expect(uploadProductMediaForWhatsAppSend).toHaveBeenCalledWith(baseProductMedia, 'phone-1');
     expect(sendWhatsAppImage).toHaveBeenCalledWith({
       to: '919000000000',
-      link: 'https://s3.example/presigned',
+      mediaId: 'meta-uploaded-media-id',
       phoneNumberId: 'phone-1',
       caption: 'Front view'
     });
@@ -150,7 +147,7 @@ describe('processResponseMessage product media attachments', () => {
 
     expect(sendWhatsAppVideo).toHaveBeenCalledWith({
       to: '919000000000',
-      link: 'https://s3.example/presigned',
+      mediaId: 'meta-uploaded-media-id',
       phoneNumberId: 'phone-1',
       caption: undefined
     });
