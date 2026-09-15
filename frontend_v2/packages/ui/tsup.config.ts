@@ -1,6 +1,6 @@
-import { defineConfig } from 'tsup';
+import type { Options } from 'tsup';
 
-export default defineConfig({
+const config: Options = {
   entry: ['src/index.tsx'],
   format: ['cjs', 'esm'],
   dts: true,
@@ -8,5 +8,6 @@ export default defineConfig({
   sourcemap: true,
   clean: true,
   external: ['react', 'react-dom'],
-});
+};
 
+export default config;
