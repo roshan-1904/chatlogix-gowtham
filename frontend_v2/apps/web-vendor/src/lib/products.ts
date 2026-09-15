@@ -3,9 +3,19 @@
  * Handles all product-related API calls with price conversion
  */
 
-import { apiClient } from './api';
+import { tokenStorage } from '@chatlogix/auth';
+import { apiClient, API_URL } from './api';
 import { rupeesToPaise, paiseToRupees } from '../utils/price';
-import type { Product, ProductFormData, ProductFilters, ProductStats, BulkOperationResult } from '../types/product';
+import type {
+  Product,
+  ProductFormData,
+  ProductFilters,
+  ProductStats,
+  BulkOperationResult,
+  ProductMedia,
+  ProductMediaUploadUrlResponse,
+  ProductMediaCommitInput,
+} from '../types/product';
 
 /**
  * Convert Product from API (paise) to display format (rupees)
@@ -129,10 +139,15 @@ function convertProductFromAPI(product: any): Product {
     }
   }
 
+  const media: ProductMedia[] | undefined = Array.isArray(product.media)
+    ? product.media.map((m: ProductMedia) => ({ ...m }))
+    : undefined;
+
   return {
     ...product,
     basePrice: paiseToRupees(product.basePrice), // Convert to rupees for display
     variants,
+    media,
     stockQuantity: product.stockQuantity ? Number(product.stockQuantity) : undefined,
     baseQuantity: Number(product.baseQuantity),
     minOrderQuantity: product.minOrderQuantity ? Number(product.minOrderQuantity) : undefined,
@@ -328,6 +343,183 @@ export async function getCategories(): Promise<string[]> {
 /**
  * Get product statistics
  */
+// -- Product media (docs/PRODUCT_MEDIA.md §10) --------------------------------
+
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 16 * 1024 * 1024;
+const MAX_MEDIA_PER_PRODUCT = 10;
+
+const PRODUCT_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const PRODUCT_VIDEO_TYPES = ['video/mp4', 'video/3gpp'];
+
+function compactS3ErrorBody(text: string, max = 320): string {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  return normalized.length <= max ? normalized : `${normalized.slice(0, max)}...`;
+}
+
+function buildProductMediaS3Error(xhr: XMLHttpRequest): Error {
+  const status = xhr.status || 0;
+  const statusText = xhr.statusText || 'unknown';
+  const body = xhr.responseText?.trim();
+  const snippet = body ? compactS3ErrorBody(body) : null;
+  return new Error(
+    `Upload failed (${status} ${statusText})${snippet ? `: ${snippet}` : ''}.`,
+  );
+}
+
+/** Map API header names to what XMLHttpRequest expects for S3 presigned PUTs. */
+function normalizeS3HeaderName(key: string): string {
+  const lower = key.toLowerCase();
+  if (lower === 'contenttype' || lower === 'content-type') return 'Content-Type';
+  if (lower === 'contentlength' || lower === 'content-length') return 'Content-Length';
+  if (lower === 'tagging') return 'x-amz-tagging';
+  return key;
+}
+
+/** Same-origin PUT through the API (avoids S3 bucket CORS). */
+export function uploadProductMediaViaApi(
+  uploadUrl: string,
+  file: File,
+  requiredHeaders: Record<string, string>,
+  onProgress?: (loaded: number, total: number) => void,
+): Promise<void> {
+  const token = tokenStorage.getToken();
+  const url = uploadUrl.startsWith('http')
+    ? uploadUrl
+    : `${API_URL}${uploadUrl.startsWith('/') ? uploadUrl : `/${uploadUrl}`}`;
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', url);
+    if (token) {
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    }
+    for (const [rawKey, value] of Object.entries(requiredHeaders)) {
+      const name = normalizeS3HeaderName(rawKey);
+      xhr.setRequestHeader(name, value);
+    }
+    if (!Object.keys(requiredHeaders).some((k) => normalizeS3HeaderName(k).toLowerCase() === 'content-type')) {
+      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+    }
+
+    if (onProgress) {
+      xhr.upload.addEventListener('progress', (evt) => {
+        if (evt.lengthComputable) onProgress(evt.loaded, evt.total);
+      });
+    }
+
+    xhr.onload = () =>
+      xhr.status >= 200 && xhr.status < 300
+        ? resolve()
+        : reject(buildProductMediaS3Error(xhr));
+    xhr.onerror = () => reject(new Error('Upload network error. Check API connectivity.'));
+    xhr.send(file);
+  });
+}
+
+export function uploadProductMediaToS3(
+  presignedUrl: string,
+  file: File,
+  requiredHeaders: Record<string, string>,
+  onProgress?: (loaded: number, total: number) => void,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', presignedUrl);
+
+    const applied = new Set<string>();
+    for (const [rawKey, value] of Object.entries(requiredHeaders)) {
+      const name = normalizeS3HeaderName(rawKey);
+      if (!applied.has(name.toLowerCase())) {
+        xhr.setRequestHeader(name, value);
+        applied.add(name.toLowerCase());
+      }
+    }
+    if (!applied.has('content-length')) {
+      xhr.setRequestHeader('Content-Length', String(file.size));
+    }
+    if (!applied.has('x-amz-tagging')) {
+      xhr.setRequestHeader('x-amz-tagging', 'ChatLogixMediaClass=catalog');
+    }
+
+    if (onProgress) {
+      xhr.upload.addEventListener('progress', (evt) => {
+        if (evt.lengthComputable) onProgress(evt.loaded, evt.total);
+      });
+    }
+
+    xhr.onload = () =>
+      xhr.status >= 200 && xhr.status < 300
+        ? resolve()
+        : reject(buildProductMediaS3Error(xhr));
+    xhr.onerror = () =>
+      reject(new Error('Upload network error. Check CORS or connectivity.'));
+    xhr.send(file);
+  });
+}
+
+export async function requestProductMediaUploadUrl(
+  productId: string,
+  params: { filename: string; contentType: string; sizeBytes: number },
+): Promise<ProductMediaUploadUrlResponse> {
+  return apiClient.post<ProductMediaUploadUrlResponse>(
+    `/products/${productId}/media/upload-url`,
+    params,
+  );
+}
+
+export async function commitProductMedia(
+  productId: string,
+  body: ProductMediaCommitInput,
+): Promise<ProductMedia> {
+  return apiClient.post<ProductMedia>(`/products/${productId}/media/commit`, body);
+}
+
+export async function listProductMedia(
+  productId: string,
+  options?: { includeInactive?: boolean },
+): Promise<ProductMedia[]> {
+  const qs = options?.includeInactive ? '?includeInactive=true' : '';
+  const res = await apiClient.get<{ media: ProductMedia[] }>(
+    `/products/${productId}/media${qs}`,
+  );
+  return res.media ?? [];
+}
+
+export async function updateProductMedia(
+  productId: string,
+  mediaId: string,
+  patch: { label?: string | null; sortOrder?: number; isActive?: boolean },
+): Promise<ProductMedia> {
+  return apiClient.request<ProductMedia>(`/products/${productId}/media/${mediaId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  });
+}
+
+export async function reorderProductMedia(
+  productId: string,
+  orderedIds: string[],
+): Promise<ProductMedia[]> {
+  const res = await apiClient.post<{ media: ProductMedia[] }>(
+    `/products/${productId}/media/reorder`,
+    { orderedIds },
+  );
+  return res.media ?? [];
+}
+
+export async function deleteProductMedia(productId: string, mediaId: string): Promise<void> {
+  await apiClient.delete(`/products/${productId}/media/${mediaId}`);
+}
+
+export {
+  MAX_IMAGE_BYTES as PRODUCT_MEDIA_MAX_IMAGE_BYTES,
+  MAX_VIDEO_BYTES as PRODUCT_MEDIA_MAX_VIDEO_BYTES,
+  MAX_MEDIA_PER_PRODUCT,
+  PRODUCT_IMAGE_TYPES,
+  PRODUCT_VIDEO_TYPES,
+};
+
 export async function getProductStats(id: string): Promise<ProductStats> {
   const stats = await apiClient.get<{
     totalOrders: number;

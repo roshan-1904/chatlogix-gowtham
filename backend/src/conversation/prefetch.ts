@@ -131,7 +131,10 @@ async function loadCompactCatalog(vendorId: string): Promise<CompactCatalogEntry
     // Heal pre-baseQty cache rows (compact catalog schema added baseQuantity 2026-09-11).
     return cached.map((c) => ({
       ...c,
-      baseQuantity: Number(c.baseQuantity) > 0 ? Number(c.baseQuantity) : 1
+      baseQuantity: Number(c.baseQuantity) > 0 ? Number(c.baseQuantity) : 1,
+      imageCount: Number(c.imageCount) || 0,
+      videoCount: Number(c.videoCount) || 0,
+      mediaLabels: Array.isArray(c.mediaLabels) ? c.mediaLabels : []
     }));
   }
 
@@ -178,22 +181,48 @@ async function loadCompactCatalog(vendorId: string): Promise<CompactCatalogEntry
     await deleteCached(key);
   }
 
-  const value: CompactCatalogEntry[] = rows.map((p) => ({
-    id: p.id,
-    name: p.name,
-    price: p.basePrice,
-    unit: p.baseUnit,
-    baseQuantity: Number(p.baseQuantity) > 0 ? Number(p.baseQuantity) : 1,
-    minQty: p.minOrderQuantity !== null ? Number(p.minOrderQuantity) : null,
-    maxQty: p.maxOrderQuantity !== null ? Number(p.maxOrderQuantity) : null,
-    keywords: p.keywords,
-    fulfillmentType: p.fulfillmentType,
-    inStock: p.inStock,
-    stockQuantity: p.stockQuantity !== null ? Number(p.stockQuantity) : null,
-    variants: normalizeVariants(p.variants).filter((v) => v.isActive),
-    description: p.description ?? '',
-    isDivisible: p.isDivisible
-  }));
+  const productIds = rows.map((p) => p.id);
+  const mediaSummaryByProduct = new Map<string, { imageCount: number; videoCount: number; mediaLabels: string[] }>();
+  if (productIds.length > 0) {
+    const mediaRows = await prisma.productMedia.findMany({
+      where: { vendorId, productId: { in: productIds }, isActive: true },
+      select: { productId: true, kind: true, label: true, sortOrder: true, createdAt: true },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }]
+    });
+    for (const m of mediaRows) {
+      const cur = mediaSummaryByProduct.get(m.productId) ?? { imageCount: 0, videoCount: 0, mediaLabels: [] };
+      if (m.kind === 'video') cur.videoCount += 1;
+      else cur.imageCount += 1;
+      if (m.label && cur.mediaLabels.length < 3) {
+        const label = m.label.trim().slice(0, 40);
+        if (label) cur.mediaLabels.push(label);
+      }
+      mediaSummaryByProduct.set(m.productId, cur);
+    }
+  }
+
+  const value: CompactCatalogEntry[] = rows.map((p) => {
+    const media = mediaSummaryByProduct.get(p.id) ?? { imageCount: 0, videoCount: 0, mediaLabels: [] };
+    return {
+      id: p.id,
+      name: p.name,
+      price: p.basePrice,
+      unit: p.baseUnit,
+      baseQuantity: Number(p.baseQuantity) > 0 ? Number(p.baseQuantity) : 1,
+      minQty: p.minOrderQuantity !== null ? Number(p.minOrderQuantity) : null,
+      maxQty: p.maxOrderQuantity !== null ? Number(p.maxOrderQuantity) : null,
+      keywords: p.keywords,
+      fulfillmentType: p.fulfillmentType,
+      inStock: p.inStock,
+      stockQuantity: p.stockQuantity !== null ? Number(p.stockQuantity) : null,
+      variants: normalizeVariants(p.variants).filter((v) => v.isActive),
+      description: p.description ?? '',
+      isDivisible: p.isDivisible,
+      imageCount: media.imageCount,
+      videoCount: media.videoCount,
+      mediaLabels: media.mediaLabels
+    };
+  });
   await setCached(key, value, CATALOG_COMPACT_TTL);
   return value;
 }

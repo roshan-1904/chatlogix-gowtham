@@ -20,7 +20,7 @@ Operational items (manual, **outside this codebase**):
 
 - [ ] PM2: deploy `chatlogix-media-worker` to all backend hosts (`pm2 reload ecosystem.config.js`)
 - [ ] SQS: `media-fetch-queue` provisioned in each environment (`npm run queues:init` for dev; Terraform for staging/prod)
-- [ ] S3: `WA_MEDIA_S3_BUCKET` created in each environment with lifecycle rule expiring objects after `WA_MEDIA_RETENTION_MONTHS` (default 12)
+- [ ] S3: `WA_MEDIA_S3_BUCKET` (e.g. `chatlogix-wa-media`). Inbound keys: `vendor/<vendorId>/conversations/<customerId>/<YYYY-MM>/<messageId>.<ext>`. Lifecycle: expire **conversation** objects only (tag-based or legacy prefix rules) — not `vendor/<vendorId>/catalog/` — see `docs/PRODUCT_MEDIA.md` §9.5
 - [ ] IAM: backend role has `s3:PutObject` (media worker) + `s3:GetObject` (presigned-URL signer) on the bucket
 - [ ] Env vars set: `MEDIA_FETCH_QUEUE_URL`, `WA_MEDIA_S3_BUCKET`, `WA_MEDIA_S3_REGION`, `WA_MEDIA_RETENTION_MONTHS`, `MEDIA_FETCH_MAX_ATTEMPTS`
 - [ ] Note: media-fetch retry backoff is `[1s, 5s, 30s, 5min, 15min]` (5 attempts). The design doc's 30-min final slot is **clamped to 15 min** because SQS `DelaySeconds` caps at 900s. If a longer terminal delay is required, route the 5th attempt through a dedicated DLQ + scheduled re-drive — out of scope for this rollout.

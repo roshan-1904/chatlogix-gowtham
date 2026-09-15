@@ -101,6 +101,14 @@ export function validateProductIds(
       valid.push(op.productId && !catalogById.has(op.productId) ? { ...op, productId: null } : op);
       continue;
     }
+    if (op.type === 'send_product_media') {
+      if (!catalogById.has(op.productId)) {
+        invalid.push(op);
+      } else {
+        valid.push(op);
+      }
+      continue;
+    }
     const referencesProduct = op.type === 'add' || op.type === 'set_qty' || op.type === 'remove';
     if (!referencesProduct) {
       valid.push(op);

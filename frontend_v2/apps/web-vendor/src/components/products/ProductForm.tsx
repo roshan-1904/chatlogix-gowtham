@@ -3,6 +3,7 @@
  */
 
 import { useState } from 'react';
+import { ProductMediaGallery } from './ProductMediaGallery';
 import toast from 'react-hot-toast';
 import { Button, Input } from '@chatlogix/ui';
 import { EnhanceModal } from '../catalogEnhance/EnhanceModal';
@@ -22,6 +23,8 @@ interface ProductFormProps {
   isLoading?: boolean;
   /** Called after accept API persists; refresh parent state only (no second PUT). */
   onEnhanceSaved?: () => void | Promise<void>;
+  /** Refresh product (e.g. embedded `media`) after gallery CRUD. */
+  onMediaSaved?: () => void | Promise<void>;
 }
 
 function generateSuggestions(name: string, description?: string): string[] {
@@ -50,6 +53,7 @@ export function ProductForm({
   mode,
   isLoading = false,
   onEnhanceSaved,
+  onMediaSaved,
 }: ProductFormProps) {
   const [enhanceOpen, setEnhanceOpen] = useState(false);
   const {
@@ -170,17 +174,42 @@ export function ProductForm({
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Image URL</label>
-              <Input
-                type="url"
-                value={formData.imageUrl || ''}
-                onChange={(e) => updateField('imageUrl', e.target.value)}
-                placeholder="https://example.com/image.jpg"
-                className="w-full"
-              />
-            </div>
+            <details className="rounded-lg border border-gray-100 bg-gray-50/80 px-3 py-2">
+              <summary className="cursor-pointer text-sm font-medium text-gray-600">
+                Legacy image URL (optional)
+              </summary>
+              <div className="mt-3 pb-1">
+                <Input
+                  type="url"
+                  value={formData.imageUrl || ''}
+                  onChange={(e) => updateField('imageUrl', e.target.value)}
+                  placeholder="https://example.com/image.jpg"
+                  className="w-full"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Prefer product media below for WhatsApp. This field is only for older catalog links.
+                </p>
+              </div>
+            </details>
           </div>
+        </div>
+
+        <div className="bg-white border border-gray-200 rounded-lg p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-1">Product media</h3>
+          {mode === 'create' || !product?.id ? (
+            <p className="text-sm text-gray-500">
+              Save the product first, then add photos and videos customers can receive on WhatsApp.
+            </p>
+          ) : (
+            <ProductMediaGallery
+              productId={product.id}
+              initialMedia={product.media ?? []}
+              disabled={isLoading}
+              onMediaChange={() => {
+                void onMediaSaved?.();
+              }}
+            />
+          )}
         </div>
 
       {/* Pricing & Units */}

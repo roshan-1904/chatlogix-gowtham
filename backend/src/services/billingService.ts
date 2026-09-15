@@ -51,9 +51,30 @@ export interface TrialWalletBreakdownItem {
   jobs?: number;
 }
 
-export async function canProcessMessage(vendorId: string, kind: MessageKind): Promise<{ allowed: boolean; reason?: string }> {
+export type CanProcessMessageOptions = {
+  /**
+   * Conversation assistant turn: require wallet balance for 1 outbound text plus
+   * worst-case product media (3 images or 1 video per PM6), so enqueue does not
+   * start a turn the wallet cannot finish.
+   */
+  assistantTurnWorstCaseMedia?: boolean;
+};
+
+/** PM6 worst case: 1 assistant text + 3 images OR 1 assistant text + 1 video. */
+export function creditsForAssistantTurnWorstCase(): number {
+  const text = creditsForKind('text');
+  const threeImages = 3 * creditsForKind('image');
+  const oneVideo = creditsForKind('video');
+  return text + Math.max(threeImages, oneVideo);
+}
+
+export async function canProcessMessage(
+  vendorId: string,
+  kind: MessageKind,
+  options?: CanProcessMessageOptions
+): Promise<{ allowed: boolean; reason?: string }> {
   try {
-    logger.info({ vendorId, kind }, 'Checking credits for vendor');
+    logger.info({ vendorId, kind, options }, 'Checking credits for vendor');
     const vendor = await prisma.vendor.findUnique({
       where: { id: vendorId },
       select: {
@@ -70,8 +91,9 @@ export async function canProcessMessage(vendorId: string, kind: MessageKind): Pr
     if (vendor.trialExpiresAt && vendor.registrationStatus !== 'approved' && vendor.trialExpiresAt < new Date()) {
       return { allowed: false, reason: 'trial_expired' };
     }
-    if (vendor.walletBalance <= 0) {
-      logger.warn({ vendorId, walletBalance: vendor.walletBalance }, 'Insufficient balance');
+    const minimumBalance = options?.assistantTurnWorstCaseMedia ? creditsForAssistantTurnWorstCase() : 1;
+    if (vendor.walletBalance < minimumBalance) {
+      logger.warn({ vendorId, walletBalance: vendor.walletBalance, minimumBalance }, 'Insufficient balance');
       return { allowed: false, reason: 'insufficient_balance' };
     }
     logger.info({ vendorId, walletBalance: vendor.walletBalance }, 'Credit check passed');

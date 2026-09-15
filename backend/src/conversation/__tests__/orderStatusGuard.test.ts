@@ -5,7 +5,8 @@ import {
   looksLikeDeferral,
   renderOrderStatusReply,
   shouldRewriteOrderStatusReply,
-  stripKnowledgeGapOps
+  stripKnowledgeGapOps,
+  stripSendProductMediaOps
 } from '../orderStatusGuard.js';
 import type { OrderHistoryEntry } from '../types.js';
 
@@ -158,6 +159,16 @@ describe('shouldRewriteOrderStatusReply', () => {
 
   it('always rewrites when history is empty (nothing to cite)', () => {
     expect(shouldRewriteOrderStatusReply('No problem, I can help.', [])).toBe(true);
+  });
+});
+
+describe('stripSendProductMediaOps', () => {
+  it('drops send_product_media and leaves other ops', () => {
+    const ops = [
+      { type: 'noop' as const },
+      { type: 'send_product_media' as const, productId: 'p1', kind: 'image' as const }
+    ];
+    expect(stripSendProductMediaOps(ops)).toEqual([{ type: 'noop' }]);
   });
 });
 

@@ -34,6 +34,7 @@ const orderFindFirst = vi.fn();
 const orderFindMany = vi.fn();
 const faqCount = vi.fn();
 const queryRaw = vi.fn();
+const productMediaFindMany = vi.fn();
 
 vi.mock('../../db/prisma.js', () => ({
   prisma: {
@@ -42,6 +43,7 @@ vi.mock('../../db/prisma.js', () => ({
       findMany: (...args: unknown[]) => productFindMany(...args),
       update: (...args: unknown[]) => productUpdate(...args)
     },
+    productMedia: { findMany: (...args: unknown[]) => productMediaFindMany(...args) },
     $transaction: (arg: unknown) => transactionMock(arg),
     conversationMemory: { findUnique: (...args: unknown[]) => conversationMemoryFindUnique(...args) },
     customerInsights: { findUnique: (...args: unknown[]) => customerInsightsFindUnique(...args) },
@@ -78,6 +80,7 @@ const MESSAGE_TEXT = 'do you deliver on Sundays?';
 beforeEach(() => {
   vi.clearAllMocks();
   cacheStore.clear();
+  productMediaFindMany.mockResolvedValue([]);
   faqCount.mockResolvedValue(0);
   embedTextMock.mockResolvedValue(null);
   queryRaw.mockResolvedValue([]);
@@ -149,6 +152,10 @@ describe('prefetchHotSet', () => {
         isDivisible: false
       }
     ]);
+    productMediaFindMany.mockResolvedValue([
+      { productId: 'prod-1', kind: 'image', label: 'Front', sortOrder: 0, createdAt: new Date() },
+      { productId: 'prod-1', kind: 'video', label: 'Demo', sortOrder: 1, createdAt: new Date() }
+    ]);
 
     const hotSet = await prefetchHotSet(VENDOR_ID, CONVERSATION_ID, CUSTOMER_ID, MESSAGE_TEXT);
 
@@ -167,7 +174,10 @@ describe('prefetchHotSet', () => {
         stockQuantity: null,
         variants: [],
         description: '',
-        isDivisible: false
+        isDivisible: false,
+        imageCount: 1,
+        videoCount: 1,
+        mediaLabels: ['Front', 'Demo']
       }
     ]);
   });

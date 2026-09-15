@@ -3,6 +3,7 @@ import { logger } from '../logger.js';
 import { calculateCost } from '../utils/costCalculator.js';
 import { invalidateCustomerContext } from './prefetch.js';
 import type { CartSnapshot } from './types.js';
+import type { ResolvedOutboundAttachment, OutboundMediaAttachment } from './productMediaAttachments.js';
 
 export interface PersistInput {
   vendorId: string;
@@ -151,4 +152,38 @@ export async function persistTurn(input: PersistInput): Promise<PersistResult> {
   );
 
   return { assistantMessageId: assistantMessage.id };
+}
+
+/**
+ * Pending assistant image/video rows for outbound catalog media (PM10).
+ * Dispatcher marks each sent/failed; SQS retry skips rows already `sent`.
+ */
+export async function persistPendingOutboundMedia(input: {
+  conversationId: string;
+  attachments: ResolvedOutboundAttachment[];
+}): Promise<OutboundMediaAttachment[]> {
+  if (input.attachments.length === 0) return [];
+
+  const created = await prisma.$transaction(
+    input.attachments.map((a) =>
+      prisma.message.create({
+        data: {
+          conversationId: input.conversationId,
+          senderType: 'assistant',
+          content: a.caption ?? '',
+          type: a.kind,
+          status: 'pending',
+          productMediaId: a.productMediaId
+        },
+        select: { id: true, productMediaId: true, type: true }
+      })
+    )
+  );
+
+  return created.map((row, i) => ({
+    messageId: row.id,
+    productMediaId: row.productMediaId!,
+    kind: input.attachments[i].kind,
+    caption: input.attachments[i].caption
+  }));
 }

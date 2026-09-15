@@ -415,6 +415,7 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
 
             case 'handoff':
             case 'knowledge_gap':
+            case 'send_product_media':
             case 'noop':
               // Handled outside CartEngine — handoff.ts reacts to 'handoff';
               // customerQuery.ts reacts to 'knowledge_gap'; 'noop' is a no-op.

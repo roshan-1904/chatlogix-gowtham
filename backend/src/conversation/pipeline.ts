@@ -5,7 +5,12 @@ import { publishToQueue } from '../queue/sqsClient.js';
 import { canProcessMessage } from '../services/billingService.js';
 import { sendTypingIndicator } from '../services/whatsappClient.js';
 import { WhatsAppTemplateService } from '../services/whatsappTemplateService.js';
-import { persistTurn, markCoalescedSiblings } from './persist.js';
+import { persistTurn, markCoalescedSiblings, persistPendingOutboundMedia } from './persist.js';
+import {
+  collectSendProductMediaOps,
+  resolveProductMediaAttachments,
+  type ResolvedOutboundAttachment
+} from './productMediaAttachments.js';
 import { debitAfterEnqueue } from './billing.js';
 import { resolveIdentity } from './identity.js';
 import { acquireLock, releaseLock, LockContentionError, LockUnavailableError } from './lock.js';
@@ -21,7 +26,8 @@ import {
   isOrderStatusTurn,
   renderOrderStatusReply,
   shouldRewriteOrderStatusReply,
-  stripKnowledgeGapOps
+  stripKnowledgeGapOps,
+  stripSendProductMediaOps
 } from './orderStatusGuard.js';
 import { persistKnowledgeGapIfNeeded } from './customerQuery.js';
 import { notifyVendorOfPostSalesEvent } from './postSalesAlert.js';
@@ -60,6 +66,7 @@ export interface FinalizeTurnInput {
   intent: string;
   tokenMeta: { model: string; promptTokens: number; completionTokens: number };
   sandbox?: boolean;
+  pendingMedia?: ResolvedOutboundAttachment[];
 }
 
 export interface ProcessMessageResult {
@@ -102,7 +109,8 @@ export async function finalizeTurn(input: FinalizeTurnInput): Promise<FinalizeTu
     language,
     intent,
     tokenMeta,
-    sandbox = false
+    sandbox = false,
+    pendingMedia = []
   } = input;
 
   const { assistantMessageId } = await persistTurn({
@@ -116,6 +124,11 @@ export async function finalizeTurn(input: FinalizeTurnInput): Promise<FinalizeTu
     tokenMeta,
     whatsappMessageId
   });
+
+  const attachments =
+    pendingMedia.length > 0
+      ? await persistPendingOutboundMedia({ conversationId, attachments: pendingMedia })
+      : [];
 
   await markCoalescedSiblings({
     vendorId,
@@ -150,6 +163,7 @@ export async function finalizeTurn(input: FinalizeTurnInput): Promise<FinalizeTu
     customerId,
     phoneNumberId,
     messageId: assistantMessageId,
+    ...(attachments.length > 0 ? { attachments } : {}),
     metadata: { intent, processor: 'conversation-v1', traceId: whatsappMessageId }
   });
   const publishedAt = Date.now(); // §19 step 9: SLA clock stops here
@@ -319,7 +333,7 @@ export async function processMessage(
       return;
     }
 
-    const creditCheck = await canProcessMessage(vendorId, 'text');
+    const creditCheck = await canProcessMessage(vendorId, 'text', { assistantTurnWorstCaseMedia: true });
     if (!creditCheck.allowed) {
       if (sandbox) {
         return {
@@ -417,8 +431,10 @@ export async function processMessage(
       ops: normalizedOps,
       orderHistory
     });
-    // D6: never persist a knowledge_gap for order-status turns (no-op until that op exists).
-    const replyOps = orderStatusTurn ? stripKnowledgeGapOps(normalizedOps) : normalizedOps;
+    // D6: never persist knowledge_gap or send catalog media on order-status turns.
+    const replyOps = orderStatusTurn
+      ? stripSendProductMediaOps(stripKnowledgeGapOps(normalizedOps))
+      : normalizedOps;
 
     const handoffOp = replyOps.find((op): op is Extract<CartOp, { type: 'handoff' }> => op.type === 'handoff');
     let finalText: string;
@@ -525,6 +541,16 @@ export async function processMessage(
       completionTokens: llm1Result.completionTokens
     };
 
+    let pendingMedia: ResolvedOutboundAttachment[] = [];
+    if (!orderStatusTurn && !handoffOp && !sandbox) {
+      const mediaOps = collectSendProductMediaOps(normalizedOps);
+      if (mediaOps.length > 0) {
+        pendingMedia = await resolveProductMediaAttachments(vendorId, mediaOps, finalText);
+      }
+    }
+
+    const queueIntent = pendingMedia.length > 0 ? 'send_media' : llm1Result.intent;
+
     // Steps 8-10: persist -> response queue -> debit.
     const { publishedAt } = await finalizeTurn({
       vendorId,
@@ -537,9 +563,10 @@ export async function processMessage(
       snapshot: applyResult.snapshot,
       finalText,
       language: llm1Result.language,
-      intent: llm1Result.intent,
+      intent: queueIntent,
       tokenMeta,
-      sandbox
+      sandbox,
+      pendingMedia
     });
     logLatency('LatencyMs', publishedAt - startTime, { vendorId }); // §8 SLA clock: start (handler_start) -> publish, excluding the debit attempt's own duration
 

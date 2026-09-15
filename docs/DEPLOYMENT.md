@@ -653,8 +653,8 @@ Keep `chatlogix-backend` (the API) and `chatlogix-media-worker` running on Light
 |---|---|
 | `OPENAI_API_KEY` | Whisper API for voice-note transcription |
 | `WHATSAPP_ACCESS_TOKEN` | Download media bytes from Meta CDN |
-| `WA_MEDIA_S3_BUCKET` | Bucket where downloaded bytes are stored |
-| `WA_MEDIA_S3_REGION` | (Optional) defaults to `AWS_REGION` |
+| `WA_MEDIA_S3_BUCKET` | Bucket for WA media (e.g. `chatlogix-wa-media`). **Keys:** `vendor/{vendorId}/conversations/…` (inbound); `vendor/{vendorId}/catalog/…` (product media, planned). See `docs/PRODUCT_MEDIA.md` §9 |
+| `WA_MEDIA_S3_REGION` | (Optional) defaults to `AWS_REGION`; bucket often in `us-east-1` |
 | `MEDIA_FETCH_QUEUE_URL` | Queue it consumes from |
 | `AUDIO_QUEUE_URL` | Queue it publishes transcripts to |
 | `IMAGE_QUEUE_URL` | Queue it publishes image captions to |

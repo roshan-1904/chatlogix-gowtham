@@ -28,7 +28,10 @@ const catalog: CompactCatalogEntry[] = [
     stockQuantity: null,
     variants: [],
     description: '',
-    isDivisible: true
+    isDivisible: true,
+    imageCount: 0,
+    videoCount: 0,
+    mediaLabels: []
   }
 ];
 

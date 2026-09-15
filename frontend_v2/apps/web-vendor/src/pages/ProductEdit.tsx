@@ -120,6 +120,7 @@ export function ProductEdit() {
         onCancel={handleCancel}
         isLoading={isSubmitting}
         onEnhanceSaved={loadProduct}
+        onMediaSaved={loadProduct}
       />
     </div>
   );

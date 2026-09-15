@@ -297,6 +297,22 @@ describe('CartEngine.apply', () => {
     expect(result.snapshot.address).toBe('123 Main St');
   });
 
+  it('treats send_product_media as a no-op — no cart mutation', async () => {
+    orderFindFirst.mockResolvedValue(null);
+
+    const result = await apply({
+      vendorId: VENDOR_ID,
+      conversationId: CONVERSATION_ID,
+      customerId: CUSTOMER_ID,
+      orderId: null,
+      ops: [{ type: 'send_product_media', productId: 'prod-tin', kind: 'image' }],
+      traceId: 'wamid.media'
+    });
+
+    expect(orderCreate).not.toHaveBeenCalled();
+    expect(result.mutated).toBe(false);
+  });
+
   it('treats knowledge_gap as a no-op — no cart mutation, no new order', async () => {
     orderFindFirst.mockResolvedValue(null);
 

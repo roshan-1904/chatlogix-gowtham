@@ -16,7 +16,10 @@ const brownie: CompactCatalogEntry = {
   stockQuantity: null,
   variants: [],
   description: '',
-  isDivisible: true
+  isDivisible: true,
+  imageCount: 0,
+  videoCount: 0,
+  mediaLabels: []
 };
 
 function makeHotSet(overrides: Partial<HotSet> = {}): HotSet {
@@ -67,6 +70,15 @@ describe('buildCatalogTable', () => {
   it('renders price as rupees (paise / 100), not raw paise', () => {
     const table = buildCatalogTable([brownie]);
     expect(table).toContain('100.00');
+  });
+
+  it('includes media summary when product has catalog assets', () => {
+    const table = buildCatalogTable([
+      { ...brownie, imageCount: 2, videoCount: 1, mediaLabels: ['Front', 'Side'] }
+    ]);
+    expect(table).toContain('media');
+    expect(table).toContain('2img/1vid');
+    expect(table).toContain('Front');
   });
 
   it('includes baseQty so pack-size pricing is visible to LLM-1', () => {
@@ -252,6 +264,8 @@ describe('buildLlm1SystemPrompt', () => {
     expect(prompt).toMatch(/emit "handoff" with category "complaint" or "return"/);
     expect(prompt).toMatch(/Emit "knowledge_gap" only when/);
     expect(prompt).toMatch(/NEVER emit knowledge_gap for order status/);
+    expect(prompt).toMatch(/send_product_media/);
+    expect(prompt).toMatch(/NEVER emit send_product_media on order-status/);
     expect(prompt).toMatch(/PRODUCT VARIANTS is empty/);
   });
 
@@ -358,5 +372,13 @@ describe('llm1JsonSchema', () => {
     expect(gap.required).toEqual(['type', 'question', 'category', 'productId']);
     expect(gap.properties.category.enum).toEqual(['product', 'policy', 'other', null]);
     expect(gap.additionalProperties).toBe(false);
+  });
+
+  it('send_product_media op schema is strict with nullable kind', () => {
+    const opsSchema = (llm1JsonSchema.properties as any).ops.items.anyOf as any[];
+    const media = opsSchema.find((s) => s.properties.type.enum[0] === 'send_product_media');
+    expect(media.required).toEqual(['type', 'productId', 'kind']);
+    expect(media.properties.kind.enum).toEqual(['image', 'video', null]);
+    expect(media.additionalProperties).toBe(false);
   });
 });

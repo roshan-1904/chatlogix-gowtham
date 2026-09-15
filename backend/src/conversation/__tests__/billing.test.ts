@@ -7,6 +7,7 @@ const walletTransactionCreate = vi.fn();
 const creditUsageCreate = vi.fn();
 const messageProcessingUpdateMany = vi.fn();
 const messageProcessingFindMany = vi.fn();
+const messageFindUnique = vi.fn();
 
 const txStub = {
   vendor: {
@@ -20,6 +21,9 @@ const txStub = {
 vi.mock('../../db/prisma.js', () => ({
   prisma: {
     $transaction: (fn: (tx: typeof txStub) => Promise<unknown>) => fn(txStub),
+    message: {
+      findUnique: (...args: unknown[]) => messageFindUnique(...args)
+    },
     messageProcessing: {
       updateMany: (...args: unknown[]) => messageProcessingUpdateMany(...args),
       findMany: (...args: unknown[]) => messageProcessingFindMany(...args)
@@ -36,7 +40,7 @@ vi.mock('../../logger.js', () => ({
 // dependency-bleed problem. creditsForKind is a pure lookup; a fixed stub is
 // equivalent for this file's purposes.
 vi.mock('../../services/billingService.js', () => ({
-  creditsForKind: () => 1
+  creditsForKind: (kind: string) => (kind === 'video' ? 10 : kind === 'image' ? 2 : 1)
 }));
 
 const emitMetricMock = vi.fn();
@@ -44,7 +48,12 @@ vi.mock('../../observability/metrics.js', () => ({
   emitMetric: (...args: unknown[]) => emitMetricMock(...args)
 }));
 
-import { debitAfterEnqueue, reconcileStuckDebits } from '../billing.js';
+import {
+  debitAfterEnqueue,
+  debitOutboundMessage,
+  outboundMessageDebitExternalId,
+  reconcileStuckDebits
+} from '../billing.js';
 
 const VENDOR_ID = 'vendor-1';
 const CONVERSATION_ID = 'conv-1';
@@ -94,6 +103,54 @@ describe('debitAfterEnqueue', () => {
     creditUsageCreate.mockRejectedValue(new Error('connection reset'));
 
     await expect(debitAfterEnqueue(VENDOR_ID, CONVERSATION_ID, 'wamid.3')).rejects.toThrow('connection reset');
+  });
+});
+
+describe('debitOutboundMessage', () => {
+  const MEDIA_MSG_ID = 'assistant-img-1';
+
+  beforeEach(() => {
+    messageFindUnique.mockResolvedValue({
+      conversationId: CONVERSATION_ID,
+      type: 'image',
+      conversation: { vendorId: VENDOR_ID }
+    });
+  });
+
+  it('debits image credits with idempotency key outbound-msg:{messageId}', async () => {
+    const outcome = await debitOutboundMessage(MEDIA_MSG_ID);
+
+    expect(outcome).toBe('debited');
+    expect(creditUsageCreate).toHaveBeenCalledWith({
+      data: {
+        vendorId: VENDOR_ID,
+        conversationId: CONVERSATION_ID,
+        creditsConsumed: 2,
+        conversationType: 'image',
+        externalId: outboundMessageDebitExternalId(MEDIA_MSG_ID)
+      }
+    });
+    expect(walletTransactionCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ amount: 2, vendorId: VENDOR_ID })
+    });
+  });
+
+  it('is idempotent on a unique-constraint violation (already debited)', async () => {
+    creditUsageCreate.mockRejectedValue(p2002Error());
+
+    const outcome = await debitOutboundMessage(MEDIA_MSG_ID);
+
+    expect(outcome).toBe('already_debited');
+  });
+
+  it('rejects non image/video message types', async () => {
+    messageFindUnique.mockResolvedValue({
+      conversationId: CONVERSATION_ID,
+      type: 'text',
+      conversation: { vendorId: VENDOR_ID }
+    });
+
+    await expect(debitOutboundMessage(MEDIA_MSG_ID)).rejects.toThrow('image or video');
   });
 });
 

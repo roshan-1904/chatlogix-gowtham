@@ -88,7 +88,7 @@ function buildS3Key(
 ): string {
   const yyyymm = new Date().toISOString().slice(0, 7); // YYYY-MM
   const ext = extensionForMime(mimeType);
-  return `vendor/${vendorId}/${customerId}/${yyyymm}/${messageId}.${ext}`;
+  return `vendor/${vendorId}/conversations/${customerId}/${yyyymm}/${messageId}.${ext}`;
 }
 
 async function fetchWhatsAppMediaUrl(mediaId: string): Promise<{

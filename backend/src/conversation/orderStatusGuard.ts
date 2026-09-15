@@ -105,6 +105,11 @@ export function stripKnowledgeGapOps<T extends { type: string }>(ops: T[]): T[] 
   return ops.filter((op) => op.type !== 'knowledge_gap');
 }
 
+/** D6: order-status turns never send catalog media (docs/PRODUCT_MEDIA.md §5). */
+export function stripSendProductMediaOps<T extends { type: string }>(ops: T[]): T[] {
+  return ops.filter((op) => op.type !== 'send_product_media');
+}
+
 export function renderOrderStatusReply(
   orderHistory: OrderHistoryEntry[],
   vendorConfig?: { orderPreparationConfig?: unknown } | null

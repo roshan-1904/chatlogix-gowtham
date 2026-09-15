@@ -1,14 +1,30 @@
 import { logger, StepLogger, createOperationId, logWhatsAppOperation, logConversation, logErrorWithContext, logDatabaseFailure, logWhatsAppFailure } from '../logger.js';
-import { sendWhatsAppText, sendWhatsAppTemplate } from '../services/whatsappClient.js';
+import { sendWhatsAppText, sendWhatsAppTemplate, sendWhatsAppImage, sendWhatsAppVideo } from '../services/whatsappClient.js';
+import { presignProductMediaOutboundGetUrl } from '../services/productMediaWhatsApp.js';
 import { WhatsAppSendError } from '../services/whatsappSendErrors.js';
 import {
   buildQuotedReplyFallbackBody,
   quotedReplyFallbackIntro
 } from '../services/quotedReplyHelpers.js';
+import { debitOutboundMessage } from '../conversation/billing.js';
 import { logCount } from '../conversation/metrics.js';
 import { AsyncDatabaseService } from '../services/asyncDatabaseService.js';
 import { CustomerInsightsService } from '../services/customerInsightsService.js';
 import { prisma } from '../db/prisma.js';
+
+export type ResponseMediaAttachment = {
+  messageId: string;
+  productMediaId: string;
+  kind: 'image' | 'video';
+  caption?: string;
+};
+
+class OutboundMediaPartialFailureError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'OutboundMediaPartialFailureError';
+  }
+}
 
 export type ResponseQueueMessage =
   | {
@@ -24,6 +40,7 @@ export type ResponseQueueMessage =
       replyToWhatsappMessageId?: string;
       replyToInternalMessageId?: string;
       fallbackQuestionText?: string;
+      attachments?: ResponseMediaAttachment[];
       metadata?: Record<string, any>; // For tracking notification context
     }
   | {
@@ -200,6 +217,25 @@ export async function processResponseMessage(body: ResponseQueueMessage, parentO
             }, '❌ Async insights update failed - logged to failure file');
           });
         }
+
+        const attachments =
+          body.type === 'text' && body.attachments?.length ? body.attachments : undefined;
+        if (attachments) {
+          const attachmentFailures = await processOutboundMediaAttachments({
+            to: body.to,
+            phoneNumberId: textBody.phoneNumberId,
+            vendorId: textBody.vendorId,
+            conversationId: textBody.conversationId,
+            attachments,
+            operationId,
+            stepLogger
+          });
+          if (attachmentFailures.length > 0) {
+            throw new OutboundMediaPartialFailureError(
+              `Outbound media partial failure (${attachmentFailures.length}/${attachments.length}): ${attachmentFailures.join('; ')}`
+            );
+          }
+        }
       } else if (body.type === 'template') {
         // Handle template messages
         stepLogger.step('Sending WhatsApp template message', {
@@ -300,6 +336,10 @@ export async function processResponseMessage(body: ResponseQueueMessage, parentO
 
     } catch (err) {
       stepLogger.error(err as Error);
+
+      if (err instanceof OutboundMediaPartialFailureError) {
+        throw err;
+      }
       
       // Enhanced error handling for notification messages (both template and text)
       if (('metadata' in body && body.metadata?.notificationId) || 
@@ -453,6 +493,146 @@ async function handleDatabaseOperationsAsync(body: { conversationId?: string; te
  * `context.message_id`, so the caller only stamps `Message.replyToMessageId`
  * when the customer really saw a quoted bubble.
  */
+async function processOutboundMediaAttachments(ctx: {
+  to: string;
+  phoneNumberId?: string;
+  vendorId?: string;
+  conversationId?: string;
+  attachments: ResponseMediaAttachment[];
+  operationId: string;
+  stepLogger: StepLogger;
+}): Promise<string[]> {
+  const failures: string[] = [];
+
+  for (const attachment of ctx.attachments) {
+    try {
+      const existing = await prisma.message.findUnique({
+        where: { id: attachment.messageId },
+        select: { status: true }
+      });
+      if (existing?.status === 'sent') {
+        ctx.stepLogger.step('Skipping outbound media — already sent', {
+          messageId: attachment.messageId,
+          productMediaId: attachment.productMediaId
+        });
+        continue;
+      }
+
+      const productMedia = await prisma.productMedia.findUnique({
+        where: { id: attachment.productMediaId }
+      });
+      if (!productMedia || !productMedia.isActive) {
+        const reason = !productMedia ? 'product_media_not_found' : 'product_media_inactive';
+        await markAssistantMessageFailed(attachment.messageId, reason).catch(() => {});
+        failures.push(`${attachment.messageId}: ${reason}`);
+        continue;
+      }
+      if (ctx.vendorId && productMedia.vendorId !== ctx.vendorId) {
+        const reason = 'product_media_vendor_mismatch';
+        await markAssistantMessageFailed(attachment.messageId, reason).catch(() => {});
+        failures.push(`${attachment.messageId}: ${reason}`);
+        continue;
+      }
+      if (productMedia.kind !== attachment.kind) {
+        const reason = 'product_media_kind_mismatch';
+        await markAssistantMessageFailed(attachment.messageId, reason).catch(() => {});
+        failures.push(`${attachment.messageId}: ${reason}`);
+        continue;
+      }
+
+      const link = await presignProductMediaOutboundGetUrl(productMedia.s3Bucket, productMedia.s3Key);
+      const mediaInput = {
+        to: ctx.to,
+        link,
+        phoneNumberId: ctx.phoneNumberId,
+        caption: attachment.caption
+      };
+
+      ctx.stepLogger.step('Sending WhatsApp media attachment', {
+        messageId: attachment.messageId,
+        kind: attachment.kind,
+        productMediaId: attachment.productMediaId,
+        phoneNumberId: ctx.phoneNumberId
+      });
+
+      logWhatsAppOperation(
+        attachment.kind === 'video' ? 'send_video' : 'send_image',
+        ctx.phoneNumberId,
+        ctx.to,
+        { productMediaId: attachment.productMediaId, assistantMessageId: attachment.messageId }
+      );
+
+      const sendResult =
+        attachment.kind === 'video'
+          ? await sendWhatsAppVideo(mediaInput)
+          : await sendWhatsAppImage(mediaInput);
+
+      await markAssistantMessageSent(attachment.messageId, sendResult?.messageId).catch(updateErr => {
+        logger.warn(
+          { err: updateErr, messageId: attachment.messageId },
+          'Failed to mark media attachment message as sent'
+        );
+      });
+
+      try {
+        await debitOutboundMessage(attachment.messageId);
+      } catch (debitErr) {
+        logger.error(
+          { err: debitErr, messageId: attachment.messageId, kind: attachment.kind },
+          'Outbound media debit failed after successful send'
+        );
+        logCount('DebitFail', { vendorId: ctx.vendorId, context: 'outbound_media' });
+      }
+
+      logConversation('outbound', {
+        conversationId: ctx.conversationId,
+        customerPhone: ctx.to,
+        vendorId: ctx.vendorId,
+        content: attachment.caption ?? `[${attachment.kind}]`,
+        messageType: attachment.kind,
+        status: 'sent',
+        metadata: {
+          productMediaId: attachment.productMediaId,
+          assistantMessageId: attachment.messageId
+        }
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      await markAssistantMessageFailed(attachment.messageId, message).catch(() => {});
+      failures.push(`${attachment.messageId}: ${message}`);
+      logWhatsAppFailure(
+        attachment.kind === 'video' ? 'send_video' : 'send_image',
+        err as Error,
+        {
+          to: ctx.to,
+          conversationId: ctx.conversationId,
+          productMediaId: attachment.productMediaId
+        }
+      );
+      logConversation('outbound', {
+        conversationId: ctx.conversationId,
+        customerPhone: ctx.to,
+        vendorId: ctx.vendorId,
+        content: attachment.caption ?? `[${attachment.kind}]`,
+        messageType: attachment.kind,
+        status: 'failed',
+        error: err as Error
+      });
+      logger.error(
+        {
+          err,
+          operationId: ctx.operationId,
+          messageId: attachment.messageId,
+          productMediaId: attachment.productMediaId
+        },
+        'Outbound product media send failed'
+      );
+    }
+  }
+
+  return failures;
+}
+
 async function sendTextWithQuoteFallback(
   to: string,
   text: string,

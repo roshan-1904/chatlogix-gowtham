@@ -16,8 +16,8 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "baseUrl": ".",
     "paths": {
+      "*": ["./*"],
       "@/*": ["./src/*"],
       "@chatlogix/ui": ["../../packages/ui/src"],
       "@chatlogix/design-tokens": ["../../packages/design-tokens/src"],

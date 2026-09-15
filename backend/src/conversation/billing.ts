@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../db/prisma.js';
 import { logger } from '../logger.js';
 import { emitMetric } from '../observability/metrics.js';
-import { creditsForKind } from '../services/billingService.js';
+import { creditsForKind, type MessageKind } from '../services/billingService.js';
 
 export type DebitOutcome = 'debited' | 'already_debited';
 
@@ -45,6 +45,76 @@ export async function debitAfterEnqueue(vendorId: string, conversationId: string
       // but its own markDebited call didn't (e.g. process died in between),
       // this call still closes out debitedAt so the sweep stops re-finding it.
       await markDebited(whatsappMessageId);
+      return 'already_debited';
+    }
+    throw error;
+  }
+}
+
+const OUTBOUND_DEBIT_EXTERNAL_ID_PREFIX = 'outbound-msg:';
+
+export function outboundMessageDebitExternalId(messageId: string): string {
+  return `${OUTBOUND_DEBIT_EXTERNAL_ID_PREFIX}${messageId}`;
+}
+
+/**
+ * Idempotent debit for a successfully sent outbound image/video Message row
+ * (product media v1). Keyed on Message.id via CreditUsage.externalId.
+ */
+export async function debitOutboundMessage(messageId: string): Promise<DebitOutcome> {
+  const message = await prisma.message.findUnique({
+    where: { id: messageId },
+    select: {
+      conversationId: true,
+      type: true,
+      conversation: { select: { vendorId: true } }
+    }
+  });
+  if (!message) {
+    throw new Error(`Message not found: ${messageId}`);
+  }
+  const vendorId = message.conversation.vendorId;
+  const kind = message.type as MessageKind;
+  if (kind !== 'image' && kind !== 'video') {
+    throw new Error(`debitOutboundMessage expects image or video, got ${message.type}`);
+  }
+
+  const credits = creditsForKind(kind);
+  const externalId = outboundMessageDebitExternalId(messageId);
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const vendor = await tx.vendor.findUnique({ where: { id: vendorId }, select: { walletBalance: true } });
+      if (!vendor) throw new Error(`Vendor not found: ${vendorId}`);
+
+      const before = vendor.walletBalance;
+      const after = before - credits;
+
+      await tx.vendor.update({ where: { id: vendorId }, data: { walletBalance: after } });
+      await tx.walletTransaction.create({
+        data: {
+          vendorId,
+          transactionType: 'deduction',
+          amount: credits,
+          balanceBefore: before,
+          balanceAfter: after
+        }
+      });
+      await tx.creditUsage.create({
+        data: {
+          vendorId,
+          conversationId: message.conversationId,
+          creditsConsumed: credits,
+          conversationType: kind,
+          externalId
+        }
+      });
+    });
+
+    return 'debited';
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      logger.info({ messageId, externalId, kind }, 'Outbound media debit already applied (idempotent no-op)');
       return 'already_debited';
     }
     throw error;

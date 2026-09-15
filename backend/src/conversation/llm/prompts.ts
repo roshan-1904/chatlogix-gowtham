@@ -60,7 +60,11 @@ export function buildCatalogTable(catalog: CompactCatalogEntry[]): string {
     stockQty: p.stockQuantity !== null ? String(p.stockQuantity) : '',
     // Flattened to one line (a literal newline would break a TOON row); commas
     // are escaped by toonTable() below like every other column.
-    desc: p.description ? p.description.replace(/\s+/g, ' ').trim() : ''
+    desc: p.description ? p.description.replace(/\s+/g, ' ').trim() : '',
+    media:
+      p.imageCount > 0 || p.videoCount > 0
+        ? `${p.imageCount}img/${p.videoCount}vid${p.mediaLabels.length ? ` (${p.mediaLabels.join('; ')})` : ''}`
+        : ''
   }));
   return toonTable(rows);
 }
@@ -227,6 +231,15 @@ function buildStaticBlock(hotSet: HotSet): string {
   );
   parts.push(
     '- NEVER emit knowledge_gap for order status, last order, "did I already order", tracking, or "eappo kidaikum" in an order context — answer from RECENT ORDERS. NEVER say "I\'ll check / get back" on those turns.'
+  );
+  parts.push(
+    '- When the customer asks to see a product photo, picture, image, or video (e.g. "show me", "photo irukka", "send pic"), emit "send_product_media" with the matched productId from PRODUCT CATALOG and optional kind "image" or "video" (null if either is fine). Never invent URLs or S3 keys. needsVerify: false. intent: "send_media" when this is the main action.'
+  );
+  parts.push(
+    '- If the catalog "media" column is empty for that product, do NOT emit send_product_media — reply honestly that no photos/videos are uploaded yet; you may also emit knowledge_gap (category "product") asking the vendor to add catalog media.'
+  );
+  parts.push(
+    '- NEVER emit send_product_media on order-status / tracking turns — answer from RECENT ORDERS only.'
   );
   parts.push(
     '- If PRODUCT VARIANTS already lists the asked size, answer from the table. If the asked size is missing but other rows exist, say so and list the real options (that is a grounded "no", not a gap). Prefer a clarifying question (noop) when a real variant pick would resolve it.'
@@ -398,6 +411,16 @@ const cartOpSchema = {
         productId: { type: ['string', 'null'] }
       },
       required: ['type', 'question', 'category', 'productId'],
+      additionalProperties: false
+    },
+    {
+      type: 'object',
+      properties: {
+        type: { type: 'string', enum: ['send_product_media'] },
+        productId: { type: 'string' },
+        kind: { type: ['string', 'null'], enum: ['image', 'video', null] }
+      },
+      required: ['type', 'productId', 'kind'],
       additionalProperties: false
     },
     {

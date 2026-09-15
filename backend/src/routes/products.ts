@@ -5,6 +5,7 @@ import { logger } from '../logger.js';
 import { z } from 'zod';
 import { invalidateCompactCatalog } from '../conversation/prefetch.js';
 import { normalizeProductEnglish } from '../utils/englishStorage.js';
+import { listProductMedia } from '../services/productMediaStorage.js';
 
 export const productsRouter = express.Router();
 
@@ -191,7 +192,11 @@ productsRouter.get('/:id', requireRole('vendor', 'admin'), async (req, res) => {
       return res.status(404).json({ error: 'Product not found' });
     }
     
-    res.json(product);
+    // The edit form renders the media gallery from this payload, so it does
+    // not have to round-trip to /media on open (docs/PRODUCT_MEDIA.md §10).
+    const media = await listProductMedia(product.id);
+
+    res.json({ ...product, media });
   } catch (error) {
     logger.error({ error, productId: req.params.id }, 'Failed to fetch product');
     res.status(500).json({ error: 'Failed to fetch product' });

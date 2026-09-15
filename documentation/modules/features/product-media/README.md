@@ -7,7 +7,7 @@ Vendor-uploaded product photos and videos stored in S3, sent to customers as **n
 ## Summary
 
 - **Where:** `web-vendor` product edit — media gallery (planned).
-- **Storage:** Private S3 (`ProductMedia` table, planned).
+- **Storage:** `WA_MEDIA_S3_BUCKET` (`chatlogix-wa-media`). Keys: **`vendor/{vendorId}/conversations/…`** (inbound), **`vendor/{vendorId}/catalog/{productId}/…`** (product uploads). See spec §9.
 - **AI:** LLM-1 op `send_product_media` → response queue → dispatcher (`sendWhatsAppImage` / `sendWhatsAppVideo`).
 - **Billing:** Per outbound message kind (text + image/video credits).
 

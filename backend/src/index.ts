@@ -14,6 +14,7 @@ import { ordersRouter } from './routes/orders.js';
 import { paymentsRouter } from './routes/payments.js';
 import { shippingRouter } from './routes/shipping.js';
 import { productsRouter } from './routes/products.js';
+import { productMediaRouter } from './routes/productMedia.js';
 import { faqsRouter } from './routes/faqs.js';
 import { customerQueriesRouter } from './routes/customerQueries.js';
 import { catalogImportRouter } from './routes/catalogImport.js';
@@ -89,6 +90,8 @@ async function bootstrap() {
   app.use('/api/messages', authenticate, messagesRouter);
   app.use('/api/usage', authenticate, usageRouter);
   app.use('/api/orders', authenticate, ordersRouter);
+  // Mounted first so /:id/media/* resolves before the generic /:id handlers.
+  app.use('/api/products', authenticate, productMediaRouter);
   app.use('/api/products', authenticate, productsRouter);
   app.use('/api/faqs', authenticate, faqsRouter);
   app.use('/api/customer-queries', authenticate, customerQueriesRouter);

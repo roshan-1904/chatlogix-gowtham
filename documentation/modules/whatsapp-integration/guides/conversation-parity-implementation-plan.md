@@ -117,7 +117,7 @@ Deliverables:
 | 4 | Status timeline | Full timeline in `MessageStatusEvent` (outbound only) + denormalized latest `status` on `Message` |
 | 5 | Reactor identity | FK to `Customer`; auto-create `Customer` row for unknown reactor phone numbers (mirrors `ensureConversation`) |
 | 6 | Backfill of legacy rows | Leave `whatsappMessageId` NULL; backfill `Message.status` once via UPDATE (`vendor → sent`, `customer → delivered`) |
-| 7 | Media storage backend | S3, key pattern `vendor/<vendorId>/<customerId>/<YYYY-MM>/<messageId>.<ext>`; original filename preserved on `MessageMedia.filename` |
+| 7 | Media storage backend | S3, key pattern `vendor/<vendorId>/conversations/<customerId>/<YYYY-MM>/<messageId>.<ext>`; original filename preserved on `MessageMedia.filename` |
 | 8 | Outbound persistence timing | Write `Message` row with `status = pending` and `whatsappMessageId = null` *before* calling Send API; update with returned ID + `sent` on success, `failed` + `failureReason` on error |
 
 ### Schema Changes
@@ -203,7 +203,7 @@ Add `video`, `location`, `sticker`, `contact`, `interactive`. Postgres `ALTER TY
 
 - New PM2 process consuming `MEDIA_FETCH_QUEUE`.
 - Pulls media from WhatsApp Graph API using vendor-scoped access token.
-- Uploads to S3 with key `vendor/<vendorId>/<customerId>/<YYYY-MM>/<messageId>.<ext>`.
+- Uploads to S3 with key `vendor/<vendorId>/conversations/<customerId>/<YYYY-MM>/<messageId>.<ext>`.
 - Updates `MessageMedia.fetchState`, `s3Key`, `mimeType`, `fileSizeBytes`, dimensions/duration where extractable.
 - Retry envelope per decision #6; on terminal failure sets `fetchState = failed` with `lastFetchError` populated.
 - Emits metrics: `media.fetch.success`, `media.fetch.attempt`, `media.fetch.terminal_failure`, `media.fetch.duration_ms`.

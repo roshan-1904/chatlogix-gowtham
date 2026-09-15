@@ -1,9 +1,9 @@
 # Product media (catalog images & videos → WhatsApp)
 
 <!-- DOC_SYNC
-  last_verified_commit: 916139f0a677029d9fce65c665ca9bf48cf7e474
+  last_verified_commit: 7eaa45e002b22fb78c126387e27e039f80d3a01b
   last_verified_at: 2026-09-15
-  scope: Planning spec — vendor upload to S3, AI-triggered native WhatsApp image/video send (not implemented)
+  scope: Planning spec — WA media bucket layout (conversation + catalog prefixes), vendor upload, WhatsApp image/video send (not implemented)
 -->
 
 **Status:** Planning — no `ProductMedia` model or outbound media path in production yet.  
@@ -80,6 +80,7 @@ Fixed for **v1** unless explicitly revised.
 | PM11 | **Multi-WABA:** `phoneNumberId` from the conversation must be passed on every send. Cached Graph `media_id` (phase 1.1) is keyed by `(productMediaId, phoneNumberId)`. |
 | PM12 | **Compact catalog invalidation** on any `ProductMedia` CRUD — same as product description updates (`invalidateCompactCatalog(vendorId)`). |
 | PM13 | **English/Latin `label` optional** on each asset (for prompt + optional caption). Customer-facing captions follow **customer language** from LLM `draftReply` snippet, kept short. |
+| PM14 | **One S3 bucket for all WhatsApp-related media:** `chatlogix-wa-media` via `WA_MEDIA_S3_BUCKET` / `WA_MEDIA_S3_REGION`. Keys: `vendor/{vendorId}/conversations/…` (inbound) and `vendor/{vendorId}/catalog/…` (product uploads). Do **not** use `CATALOG_IMPORT_S3_BUCKET` for product media. |
 
 ---
 
@@ -90,7 +91,8 @@ Fixed for **v1** unless explicitly revised.
 | **Prisma** | `Product.imageUrl` optional `VarChar(255)` | No videos, no multiple assets, no S3 metadata |
 | **Vendor UI** | `ProductForm` — single “Image URL” text field | No upload, no gallery |
 | **S3 upload pattern** | Catalog import presign + commit | Reuse with new prefix and video MIME types |
-| **Inbound WA media** | `MessageMedia` + `mediaFetchProcessor` → `WA_MEDIA_S3_BUCKET`; vendor streams via `GET /api/messages/:id/media` (auth) | Inbound only; pattern **not** usable for Meta fetch (no Bearer token) |
+| **Inbound WA media** | `MessageMedia` + `mediaFetchProcessor` → `WA_MEDIA_S3_BUCKET`, keys `vendor/{vendorId}/conversations/{customerId}/{YYYY-MM}/{messageId}.{ext}`; vendor streams via `GET /api/messages/:id/media` (auth) | Inbound only; pattern **not** usable for Meta fetch (no Bearer token) |
+| **Catalog product media** | Not implemented | Keys `vendor/{vendorId}/catalog/{productId}/{uuid}-{filename}`; `ProductMedia` + presign upload (planned) |
 | **WhatsApp client** | `sendWhatsAppImage`, `sendWhatsAppVideo`, … implemented | Unused on outbound hot path |
 | **Response queue** | `ResponseQueueMessage` = `text` \| `template` only (`responseProcessor.ts`) | No media branch |
 | **Pipeline** | `finalizeTurn` publishes `type: 'text'` only | No attachments |
@@ -242,6 +244,8 @@ Reject executables, `image/svg+xml` (XSS in some clients), and unknown types.
 
 ### 8.1 `ProductMedia` (new)
 
+**Implemented** in `backend/prisma/schema.prisma`; apply `backend/prisma/migrations/add_product_media_table.sql` by hand (same convention as `add_customer_query_table.sql`). `s3Key` is `@unique`, which is what makes `POST /commit` idempotent.
+
 ```prisma
 enum ProductMediaKind {
   image
@@ -254,7 +258,7 @@ model ProductMedia {
   productId                 String
   kind                      ProductMediaKind
   s3Bucket                  String
-  s3Key                     String
+  s3Key                     String           @unique
   mimeType                  String           @db.VarChar(127)
   fileSizeBytes             Int
   width                     Int?
@@ -272,6 +276,7 @@ model ProductMedia {
 
   product                   Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
   vendor                    Vendor           @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  messages                  Message[]
 
   @@index([productId, isActive, sortOrder])
   @@index([vendorId])
@@ -279,13 +284,11 @@ model ProductMedia {
 }
 ```
 
-Add relation on `Product` and `Vendor`.
+`Product.media` and `Vendor.productMedia` back-relations are on the schema. `Product.imageUrl` is untouched (legacy list thumbnails).
 
-### 8.2 Optional: link outbound messages to source asset
+### 8.2 Link outbound messages to source asset
 
-On `Message` (or JSON `metadata`):
-
-- `productMediaId` — which catalog asset was sent (analytics, support).
+**Implemented:** `Message.productMediaId` is a nullable FK with `ON DELETE SET NULL` — which catalog asset was sent (analytics, support). Deleting an asset therefore does not delete conversation history.
 
 No separate `MessageMedia` row required for **outbound** vendor-origin media if `Message` stores enough; inbound customer media continues using `MessageMedia`.
 
@@ -298,43 +301,125 @@ No separate `MessageMedia` row required for **outbound** vendor-origin media if 
 
 ## 9. Storage and S3 layout
 
-### 9.1 Bucket
+All WhatsApp-related binary media (inbound conversation files and outbound/catalog product files) lives in **one private bucket** per environment.
 
-**Recommended:** dedicated env `PRODUCT_MEDIA_S3_BUCKET` (and `PRODUCT_MEDIA_S3_REGION`) mirroring `CATALOG_IMPORT_S3_BUCKET`.
+### 9.1 Bucket and configuration
 
-**Alternative:** reuse catalog import bucket with distinct prefix — simpler IAM if same account/region.
+| Item | Value |
+|------|--------|
+| **Production bucket name** | `chatlogix-wa-media` (typical) |
+| **Env vars** | `WA_MEDIA_S3_BUCKET`, `WA_MEDIA_S3_REGION` (often `us-east-1`; see `backend/.env.example`) |
+| **SDK client** | `getWaMediaS3Client()` in `backend/src/utils/waMediaS3.ts` — use for conversation media **and** catalog product media (region + `followRegionRedirects`) |
+| **Not used for product media** | `CATALOG_IMPORT_S3_BUCKET` — Smart Catalog Import tabular/image **import jobs** only |
 
-Objects **must not** be public-read.
+Objects **must not** be public-read. Access is presigned PUT/GET or authenticated API streaming.
 
-### 9.2 Key pattern
+### 9.2 Folder structure
+
+All objects live under **`vendor/{vendorId}/`**, split by purpose into **`conversations/`** (inbound WhatsApp) and **`catalog/`** (vendor product assets).
 
 ```
-product-media/{vendorId}/{productId}/{uuid}-{sanitizedFilename}
+chatlogix-wa-media/
+└── vendor/
+    └── {vendorId}/
+        ├── conversations/              ← inbound customer media (voice, image, video, …)
+        │   └── {customerId}/
+        │       └── {YYYY-MM}/
+        │           └── {messageId}.{ext}
+        │
+        └── catalog/                    ← vendor-uploaded product photos & videos
+            └── {productId}/
+                └── {uuid}-{sanitizedFilename}
 ```
 
-Reuse `sanitizeFilename` from `importStorageService.ts`.
+| Path segment | Owner feature | Written by | DB pointer | Retention (intended) |
+|--------------|---------------|------------|------------|----------------------|
+| **`vendor/{vendorId}/conversations/`** | WhatsApp conversation parity | `mediaFetchProcessor.ts` (`buildS3Key`) after Meta download | `MessageMedia.s3Bucket` + `s3Key` | **Expire** per `WA_MEDIA_RETENTION_MONTHS` (default 12) — see §9.5 |
+| **`vendor/{vendorId}/catalog/`** | Product media for portal + AI WhatsApp send | Vendor presigned PUT + commit (planned) | `ProductMedia.s3Bucket` + `s3Key` | **No auto-expiry** with conversation media |
 
-### 9.3 IAM
+**Canonical key templates**
+
+| Kind | Template |
+|------|----------|
+| Conversation | `vendor/{vendorId}/conversations/{customerId}/{YYYY-MM}/{messageId}.{ext}` |
+| Catalog | `vendor/{vendorId}/catalog/{productId}/{uuid}-{filename}` |
+
+**Examples**
+
+```text
+# Inbound: customer voice note, March 2026
+vendor/vendor_ibell_001/conversations/cust_abc123/2026-03/msg-uuid-789.opus
+
+# Catalog: cake photo for a product
+vendor/vendor_ibell_001/catalog/prod_chocolate_01/a1b2c3d4-cake-front.jpg
+```
+
+**Legacy keys:** Older inbound objects may use `vendor/{vendorId}/{customerId}/{YYYY-MM}/…` (no `conversations/` segment). `MessageMedia` stores the full key — **do not rename** in S3; the media proxy reads whatever key is on the row. **New** inbound uploads use the `conversations/` path only.
+
+### 9.3 Key construction rules
+
+**Conversation (implemented)** — `backend/src/services/mediaFetchProcessor.ts`:
+
+```ts
+`vendor/${vendorId}/conversations/${customerId}/${yyyymm}/${messageId}.${ext}`
+```
+
+- `yyyymm` = `YYYY-MM` from upload time  
+- `ext` from MIME via `extensionForMime()`  
+- Original filename (if any) stays on `MessageMedia.filename`, not in the key  
+
+**Catalog (planned)** — product media service:
+
+```ts
+`vendor/${vendorId}/catalog/${productId}/${randomUUID()}-${sanitizeFilename(filename)}`
+```
+
+- Reuse `sanitizeFilename` from `importStorageService.ts`  
+- Store `s3Bucket` = `env.WA_MEDIA_S3_BUCKET` on every `ProductMedia` row
+
+### 9.4 IAM (single bucket, prefix-scoped)
 
 | Principal | Permissions |
 |-----------|-------------|
-| Express API (vendor presign) | `s3:PutObject` on `product-media/{vendorId}/*` |
-| Response dispatcher / Lambda | `s3:GetObject` on `product-media/*` |
-| Optional lifecycle rule | Delete incomplete multipart / orphaned keys after N days |
+| Media fetcher Lambda / `chatlogix-media-worker` | `s3:PutObject` on `vendor/*/conversations/*` |
+| Express API (vendor catalog upload presign) | `s3:PutObject` on `vendor/{vendorId}/catalog/*` |
+| Express API (preview / HeadObject on commit) | `s3:GetObject` on `vendor/{vendorId}/catalog/*` |
+| Express API (re-tag on commit, delete) | `s3:PutObjectTagging` + `s3:DeleteObject` on `vendor/{vendorId}/catalog/*` |
+| Response dispatcher / Lambda (outbound WhatsApp send) | `s3:GetObject` on `vendor/*/catalog/*` |
+| Express API (conversation media proxy) | `s3:GetObject` on `vendor/*` (existing `/api/messages/:id/media`) |
 
-### 9.4 Portal preview vs WhatsApp send
+Optional: abort incomplete multipart uploads under `vendor/*/catalog/` after N days.
 
-| Use case | Access |
-|----------|--------|
-| Vendor dashboard preview | Authenticated API stream or short presigned GET (vendor JWT + `vendorId` match) |
-| Meta `link` send | Presigned GET TTL **≥ 5 minutes** (Meta fetch latency); single-use mindset |
+### 9.5 S3 lifecycle (required ops check)
+
+Conversation and catalog keys share the `vendor/{vendorId}/` prefix, so a **single lifecycle rule on `vendor/`** would delete **both**. Before catalog media ships:
+
+1. **Preferred:** tag inbound objects at `PutObject` (e.g. `ChatLogixMediaClass=conversation`) and lifecycle-expire on that tag after `WA_MEDIA_RETENTION_MONTHS`. Catalog uploads use `ChatLogixMediaClass=catalog` or no expiry tag.  
+2. **Legacy inbound** without tags: optional one-off prefix rule only for old layout `vendor/{vendorId}/{customerId}/` (no `conversations/` segment) if still present.
+
+Do **not** expire `vendor/*/catalog/*` with conversation retention.
+
+See `documentation/modules/whatsapp-integration/guides/conversation-parity-rollout-runbook.md`.
+
+### 9.6 Portal preview vs WhatsApp send
+
+| Use case | Key path | Access |
+|----------|----------|--------|
+| Vendor conversation thread (customer media) | `vendor/…/conversations/…` | `GET /api/messages/:id/media` — auth stream from S3 |
+| Vendor product edit preview | `vendor/…/catalog/…` | Authenticated stream or short presigned GET (`vendorId` match) |
+| Meta outbound `link` send | `vendor/…/catalog/…` | Presigned GET TTL **≥ 5 minutes** |
 
 ---
 
+
 ## 10. API contract
 
-Base path (proposed): `/api/v1/products/:productId/media`  
-Auth: vendor JWT; `product.vendorId` must equal `req.user.vendorId` (admins excepted per existing routes).
+**Implemented** in `backend/src/routes/productMedia.ts` → `backend/src/services/productMediaStorage.ts`.
+
+Base path: `/api/products/:productId/media` (the router is mounted on `/api/products` **before** `productsRouter`, so `/:id/media/*` never falls into the generic `/:id` handlers).  
+Auth: vendor JWT; `product.vendorId` must equal `req.user.vendorId` (admins excepted per existing routes). A product owned by another vendor answers **404 `PRODUCT_NOT_FOUND`**, never 403, so the API does not confirm that someone else's product id exists.
+
+Errors are `{ "error": "<CODE>", "message": "..." }`; Zod failures are `{ "error": "invalid_input", "details": ... }` with 400.
 
 ### `POST /upload-url`
 
@@ -353,14 +438,17 @@ Auth: vendor JWT; `product.vendorId` must equal `req.user.vendorId` (admins exce
 ```json
 {
   "uploadId": "uuid",
-  "s3Key": "product-media/vendor-1/prod-1/uuid-cake-front.jpg",
+  "s3Key": "vendor/vendor-1/catalog/prod-1/uuid-cake-front.jpg",
   "presignedUrl": "https://...",
   "expiresAt": "ISO-8601",
-  "kind": "image"
+  "kind": "image",
+  "requiredHeaders": { "Content-Type": "image/jpeg" }
 }
 ```
 
-**Errors:** `415 UNSUPPORTED_MEDIA_TYPE`, `413 PAYLOAD_TOO_LARGE`, `429 RATE_LIMIT_EXCEEDED`, `503` S3 misconfig (same codes as catalog import).
+The PUT is signed with `ContentType`, `ContentLength` and `Tagging=ChatLogixMediaClass=catalog`. The client **must** send the headers listed in `requiredHeaders` (and exactly `sizeBytes` bytes) or S3 returns `SignatureDoesNotMatch`. The tag is re-applied server-side on commit as a safety net for the lifecycle rule in §9.5.
+
+**Errors:** `415 UNSUPPORTED_MEDIA_TYPE`, `413 PAYLOAD_TOO_LARGE`, `409 MEDIA_LIMIT_REACHED`, `404 PRODUCT_NOT_FOUND`, `403 VENDOR_CONTEXT_REQUIRED`, `503` S3 misconfig (same codes as catalog import).
 
 ### `POST /commit`
 
@@ -368,36 +456,46 @@ Auth: vendor JWT; `product.vendorId` must equal `req.user.vendorId` (admins exce
 
 ```json
 {
-  "uploadId": "uuid",
-  "kind": "image",
+  "s3Key": "vendor/vendor-1/catalog/prod-1/uuid-cake-front.jpg",
   "label": "Front view",
-  "sortOrder": 0
+  "sortOrder": 0,
+  "width": 1200,
+  "height": 1200,
+  "durationSec": 12
 }
 ```
 
-**Response 201:** `ProductMedia` DTO (id, kind, label, sortOrder, previewUrl, fileSizeBytes, …).
+Only `s3Key` is required; `label`, `sortOrder`, `width`, `height` and `durationSec` are optional. `kind`, `mimeType` and `fileSizeBytes` are **not** accepted from the client — they are read from HeadObject, so a vendor cannot register a 200 MB object by claiming it is 2 KB. `sortOrder` defaults to `max(sortOrder) + 1`.
 
-**Server:** HeadObject, verify size/MIME, enforce PM6 count cap.
+**Response 201:** `ProductMedia` DTO — `{ id, productId, kind, mimeType, fileSizeBytes, width, height, durationSec, label, sortOrder, isActive, previewUrl, createdAt, updatedAt }`. `s3Bucket` / `s3Key` are deliberately not exposed.
+
+**Server:** key-prefix check → HeadObject → MIME allowlist → size cap → PM6 count cap → row → `invalidateCompactCatalog`. Re-committing the same `s3Key` is idempotent and returns the existing row.
+
+**Errors:** `400 INVALID_S3_KEY`, `404 UPLOAD_NOT_FOUND` (object absent), `415`, `413`, `409 MEDIA_LIMIT_REACHED`, `409 MEDIA_ALREADY_COMMITTED` (key already attached to another product).
 
 ### `GET /`
 
-List active media for product, ordered by `sortOrder`.
+Active media for the product ordered by `sortOrder`, then `createdAt`. `?includeInactive=true` returns everything. Response: `{ "media": [ProductMediaDto, ...] }`.
+
+The same list is embedded (active only) on `GET /api/products/:id` as `media`, so the edit form does not need a second round trip.
 
 ### `PATCH /:mediaId`
 
-Update `label`, `sortOrder`, `isActive`.
+Update `label`, `sortOrder`, `isActive` (at least one). Reactivating an asset re-checks the PM6 cap. Response: the updated DTO.
 
 ### `POST /reorder`
 
 **Body:** `{ "orderedIds": ["id1", "id2", ...] }`
 
+`orderedIds` must be a permutation of **every** media row on the product (active and inactive), otherwise `400 INVALID_ORDER`. Writes a dense `sortOrder` 0..n-1 in one transaction. Response: `{ "media": [...] }` including inactive rows.
+
 ### `DELETE /:mediaId`
 
-Delete S3 object + row (or soft-delete per product policy).
+Hard delete (OQ1): S3 object then row, `204 No Content`. A failing S3 delete is logged and the row is still removed — an orphaned object is cheaper than a row pointing at bytes we can no longer send. `Message.productMediaId` is `ON DELETE SET NULL`, so outbound history survives.
 
 ### `GET /:mediaId/preview`
 
-Stream bytes (same pattern as `GET /api/messages/:id/media`) for vendor UI.
+Stream bytes (same pattern as `GET /api/messages/:id/media`) for vendor UI — authenticated, same-origin, `Cross-Origin-Resource-Policy: cross-origin`, `Cache-Control: private, max-age=60`.
 
 ---
 
@@ -684,7 +782,7 @@ Alerts: spike in `failed` outbound media; S3 403 on presign.
 | OQ1 | Soft-delete media vs immediate S3 delete? | Hard delete v1 |
 | OQ2 | Allow both 1 video + images same turn? | No (PM6) |
 | OQ3 | Sync first image to `Product.imageUrl` for cards? | Yes, optional convenience |
-| OQ4 | Separate bucket vs shared with catalog import? | Separate env var |
+| OQ4 | Separate bucket vs shared WA media bucket? | **Resolved (PM14):** same `WA_MEDIA_S3_BUCKET`, paths under `vendor/{vendorId}/catalog/` |
 | OQ5 | Debit on enqueue vs on dispatcher success? | Dispatcher success for media |
 | OQ6 | Vendor manual “send media” from conversation UI? | P2 portal feature, reuse dispatcher payload |
 
@@ -698,8 +796,9 @@ Alerts: spike in `failed` outbound media; S3 403 on presign.
 - Response dispatcher: `backend/src/workers/responseProcessor.ts` (Lambda handler wraps same logic)
 - Conversation pipeline: `backend/src/conversation/pipeline.ts`, `llm/prompts.ts`, `types.ts`
 - Billing: `backend/src/conversation/billing.ts`, `backend/src/services/billingService.ts` (`creditsForKind`)
-- S3 presign pattern: `backend/src/services/importStorageService.ts`
-- Inbound media (reference only): `backend/src/services/mediaFetchProcessor.ts`, `backend/src/routes/messages.ts`
+- S3 presign pattern (upload flow): `backend/src/services/importStorageService.ts` — bucket env for **catalog import** only; product media presign should target `WA_MEDIA_S3_BUCKET` + `vendor/{vendorId}/catalog/` keys
+- WA media S3 client: `backend/src/utils/waMediaS3.ts`
+- Inbound conversation keys: `backend/src/services/mediaFetchProcessor.ts` (`buildS3Key`), `backend/src/routes/messages.ts`
 - Products API: `backend/src/routes/products.ts`
 - Schema: `backend/prisma/schema.prisma` (`Product`, `Message`, `MessageType`)
 

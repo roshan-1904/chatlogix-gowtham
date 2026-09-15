@@ -36,7 +36,10 @@ const {
   sendTypingIndicatorMock,
   ensureMessageContentEnMock,
   normalizeSetFieldOpsMock,
-  persistKnowledgeGapIfNeededMock
+  persistKnowledgeGapIfNeededMock,
+  resolveProductMediaAttachmentsMock,
+  persistPendingOutboundMediaMock,
+  collectSendProductMediaOpsMock
 } = vi.hoisted(() => {
   class MockLockContentionError extends Error {}
   class MockLockUnavailableError extends Error {}
@@ -72,13 +75,21 @@ const {
     sendTypingIndicatorMock: vi.fn(),
     ensureMessageContentEnMock: vi.fn(),
     normalizeSetFieldOpsMock: vi.fn(),
-    persistKnowledgeGapIfNeededMock: vi.fn()
+    persistKnowledgeGapIfNeededMock: vi.fn(),
+    resolveProductMediaAttachmentsMock: vi.fn(),
+    persistPendingOutboundMediaMock: vi.fn(),
+    collectSendProductMediaOpsMock: vi.fn()
   };
 });
 
 vi.mock('../persist.js', () => ({
   persistTurn: (...args: unknown[]) => persistTurnMock(...args),
-  markCoalescedSiblings: (...args: unknown[]) => markCoalescedSiblingsMock(...args)
+  markCoalescedSiblings: (...args: unknown[]) => markCoalescedSiblingsMock(...args),
+  persistPendingOutboundMedia: (...args: unknown[]) => persistPendingOutboundMediaMock(...args)
+}));
+vi.mock('../productMediaAttachments.js', () => ({
+  collectSendProductMediaOps: (...args: unknown[]) => collectSendProductMediaOpsMock(...args),
+  resolveProductMediaAttachments: (...args: unknown[]) => resolveProductMediaAttachmentsMock(...args)
 }));
 vi.mock('../billing.js', () => ({ debitAfterEnqueue: (...args: unknown[]) => debitAfterEnqueueMock(...args) }));
 vi.mock('../../queue/sqsClient.js', () => ({ publishToQueue: (...args: unknown[]) => publishToQueueMock(...args) }));
@@ -174,6 +185,7 @@ beforeEach(() => {
   debitAfterEnqueueMock.mockResolvedValue('debited');
   renderRejectedOpsReplyMock.mockReturnValue('rejected-ops reply');
   ensureMessageContentEnMock.mockResolvedValue(undefined);
+  persistPendingOutboundMediaMock.mockResolvedValue([]);
 });
 
 describe('finalizeTurn', () => {
@@ -248,6 +260,38 @@ describe('finalizeTurn', () => {
     await expect(finalizeTurn(baseInput)).rejects.toThrow('db down');
     expect(publishToQueueMock).not.toHaveBeenCalled();
   });
+
+  it('persists pending media after the text row and publishes attachments on the queue payload', async () => {
+    const callOrder: string[] = [];
+    persistTurnMock.mockImplementation(async () => {
+      callOrder.push('persistText');
+      return { assistantMessageId: 'assistant-msg-1' };
+    });
+    persistPendingOutboundMediaMock.mockImplementation(async () => {
+      callOrder.push('persistMedia');
+      return [{ messageId: 'img-1', productMediaId: 'pm-1', kind: 'image', caption: 'Photos' }];
+    });
+
+    await finalizeTurn({
+      ...baseInput,
+      intent: 'send_media',
+      pendingMedia: [{ productMediaId: 'pm-1', kind: 'image', caption: 'Photos' }]
+    });
+
+    expect(callOrder).toEqual(['persistText', 'persistMedia']);
+    expect(publishToQueueMock).toHaveBeenCalledWith('https://sqs.example/response-queue', {
+      type: 'text',
+      to: '+911234567890',
+      text: 'Here is your order summary.',
+      conversationId: 'conv-1',
+      vendorId: 'vendor-1',
+      customerId: 'customer-1',
+      phoneNumberId: 'waba-phone-1',
+      messageId: 'assistant-msg-1',
+      attachments: [{ messageId: 'img-1', productMediaId: 'pm-1', kind: 'image', caption: 'Photos' }],
+      metadata: { intent: 'send_media', processor: 'conversation-v1', traceId: 'wamid.1' }
+    });
+  });
 });
 
 describe('processMessage', () => {
@@ -305,6 +349,8 @@ describe('processMessage', () => {
     normalizeSetFieldOpsMock.mockImplementation(async (ops: unknown[]) => ops);
     ensureMessageContentEnMock.mockResolvedValue(undefined);
     persistKnowledgeGapIfNeededMock.mockResolvedValue(null);
+    collectSendProductMediaOpsMock.mockReturnValue([]);
+    resolveProductMediaAttachmentsMock.mockResolvedValue([]);
   });
 
   it('fires read+typing after guards pass, before prefetch/LLM-1', async () => {
@@ -509,6 +555,7 @@ describe('processMessage', () => {
 
     await processMessage(rawInput);
 
+    expect(canProcessMessageMock).toHaveBeenCalledWith('vendor-1', 'text', { assistantTurnWorstCaseMedia: true });
     expect(runLlm1Mock).not.toHaveBeenCalled();
     expect(debitAfterEnqueueMock).not.toHaveBeenCalled();
     const publishCall = publishToQueueMock.mock.calls[0][1];
@@ -763,6 +810,58 @@ describe('processMessage', () => {
     expect(runLlm2Mock).toHaveBeenCalled();
     expect(selectFinalReplyMock).toHaveBeenCalled();
     expect(logCountMock).not.toHaveBeenCalledWith('CustomerQueryBlockedOrder', expect.anything());
+  });
+
+  it('send_product_media: resolves attachments and publishes queue shape (no media on D6)', async () => {
+    const mediaOp = { type: 'send_product_media' as const, productId: 'prod-cake', kind: 'image' as const };
+    runLlm1Mock.mockResolvedValue({
+      ...llm1Result,
+      intent: 'send_media',
+      ops: [mediaOp],
+      draftReply: 'Here are photos of the cake.',
+      needsVerify: false
+    });
+    applyMock.mockResolvedValue({ snapshot, mutated: false, rejectedOps: [] });
+    collectSendProductMediaOpsMock.mockReturnValue([mediaOp]);
+    resolveProductMediaAttachmentsMock.mockResolvedValue([
+      { productMediaId: 'pm-1', kind: 'image', caption: 'Here are photos of the cake.' }
+    ]);
+    persistPendingOutboundMediaMock.mockResolvedValue([
+      { messageId: 'img-1', productMediaId: 'pm-1', kind: 'image', caption: 'Here are photos of the cake.' }
+    ]);
+
+    await processMessage({ ...rawInput, content: 'send cake photo' });
+
+    expect(publishToQueueMock).toHaveBeenCalledWith(
+      'https://sqs.example/response-queue',
+      expect.objectContaining({
+        attachments: [
+          { messageId: 'img-1', productMediaId: 'pm-1', kind: 'image', caption: 'Here are photos of the cake.' }
+        ],
+        metadata: expect.objectContaining({ intent: 'send_media' })
+      })
+    );
+  });
+
+  it('send_product_media: order-status turn does not resolve or publish attachments', async () => {
+    const mediaOp = { type: 'send_product_media' as const, productId: 'prod-cake', kind: 'image' as const };
+    runLlm1Mock.mockResolvedValue({
+      ...llm1Result,
+      intent: 'order_status',
+      ops: [mediaOp],
+      draftReply: 'Checking…',
+      needsVerify: false
+    });
+    applyMock.mockResolvedValue({ snapshot, mutated: false, rejectedOps: [] });
+    collectSendProductMediaOpsMock.mockReturnValue([mediaOp]);
+
+    await processMessage({ ...rawInput, content: "where's my order" });
+
+    expect(resolveProductMediaAttachmentsMock).not.toHaveBeenCalled();
+    expect(publishToQueueMock).toHaveBeenCalledWith(
+      'https://sqs.example/response-queue',
+      expect.not.objectContaining({ attachments: expect.anything() })
+    );
   });
 
   it('knowledge_gap: persists a CustomerQuery and does not pause AI', async () => {

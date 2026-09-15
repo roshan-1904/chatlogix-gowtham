@@ -79,6 +79,7 @@ model Vendor {
   walletTransactions             WalletTransaction[]
   whatsappNumbers                WhatsAppNumber[]
   customerQueries                CustomerQuery[]
+  productMedia                   ProductMedia[]
 
   @@map("Vendor")
 }
@@ -155,16 +156,19 @@ model Message {
   conversation          Conversation          @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   replyToMessage        Message?              @relation("MessageReply", fields: [replyToMessageId], references: [id], onDelete: SetNull)
   replies               Message[]             @relation("MessageReply")
+  productMediaId        String?
   media                 MessageMedia?
   reactions             MessageReaction[]
   statusEvents          MessageStatusEvent[]
   reactionHistory       MessageReactionHistory[]
   customerQueriesFromSource CustomerQuery[] @relation("CustomerQuerySourceMessage")
   customerQueriesAsQuote    CustomerQuery[] @relation("CustomerQueryQuoteMessage")
+  productMedia          ProductMedia?         @relation(fields: [productMediaId], references: [id], onDelete: SetNull)
 
   @@index([conversationId, timestamp])
   @@index([conversationId, timestamp(sort: Desc)], map: "idx_message_conversation_timestamp")
   @@index([replyToMessageId])
+  @@index([productMediaId])
   @@map("Message")
 }
 
@@ -419,6 +423,7 @@ model Product {
   updatedAt        DateTime @default(now()) @updatedAt
   vendor           Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
   customerQueries  CustomerQuery[]
+  media            ProductMedia[]
 
   @@unique([vendorId, name])
   @@unique([vendorId, sku], name: "Product_vendorId_sku_key")
@@ -758,6 +763,45 @@ enum FulfillmentType {
   made_to_order
 
   @@map("FulfillmentType")
+}
+
+enum ProductMediaKind {
+  image
+  video
+
+  @@map("ProductMediaKind")
+}
+
+// Vendor-uploaded catalog photos/videos (docs/PRODUCT_MEDIA.md). S3 is the
+// system of record (`WA_MEDIA_S3_BUCKET`, keys under vendor/{id}/catalog/).
+// Graph cache columns are reserved for v1.1 media_id reuse (PM11).
+model ProductMedia {
+  id                       String           @id @default(uuid())
+  vendorId                 String
+  productId                String
+  kind                     ProductMediaKind
+  s3Bucket                 String
+  s3Key                    String           @unique
+  mimeType                 String           @db.VarChar(127)
+  fileSizeBytes            Int
+  width                    Int?
+  height                   Int?
+  durationSec              Int?
+  label                    String?          @db.VarChar(120)
+  sortOrder                Int              @default(0)
+  isActive                 Boolean          @default(true)
+  whatsappMediaId          String?          @db.VarChar(255)
+  whatsappMediaIdExpiresAt DateTime?
+  uploadedForPhoneNumberId String?          @db.VarChar(64)
+  createdAt                DateTime         @default(now())
+  updatedAt                DateTime         @updatedAt
+  product                  Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  vendor                   Vendor           @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  messages                 Message[]
+
+  @@index([productId, isActive, sortOrder])
+  @@index([vendorId])
+  @@map("ProductMedia")
 }
 
 enum MessageProcessingStatus {

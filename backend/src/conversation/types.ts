@@ -35,6 +35,9 @@ export type CartOp =
   // after apply. CartEngine treats this as a no-op (same as handoff/noop). Does
   // not pause AI. Never emitted for order-status turns (D6).
   | { type: 'knowledge_gap'; question: string; category?: 'product' | 'policy' | 'other' | null; productId?: string | null }
+  // Product media (docs/PRODUCT_MEDIA.md PM5): LLM signals intent only; pipeline
+  // resolves files from ProductMedia (PM6 caps). CartEngine no-op.
+  | { type: 'send_product_media'; productId: string; kind?: 'image' | 'video' | null }
   | { type: 'noop' };
 
 /**
@@ -175,6 +178,11 @@ export interface CompactCatalogEntry {
   // (see prompts.ts's variant-table rule) -- prompts.ts must surface this so
   // LLM-1 doesn't wrongly demand a variant pick for a divisible product.
   isDivisible: boolean;
+  /** Active ProductMedia counts for LLM-1 (no URLs — PM5). */
+  imageCount: number;
+  videoCount: number;
+  /** Up to a few short vendor labels (PM13), sortOrder order. */
+  mediaLabels: string[];
 }
 
 /** Conversation memory (spec §11, `conv:{id}:memory`: "stage, facts, language"). */

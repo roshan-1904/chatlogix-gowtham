@@ -3,7 +3,7 @@
 <!-- DOC_SYNC
   last_verified_commit: 6797be1dcc141df16144a5ef8373e935ed14722a
   last_verified_at: 2026-09-14
-  scope: As-implemented incoming-response-generator pipeline (language, LLM-2 reply selection, D6 order-status rewrite, knowledge_gap CustomerQuery persist, contentEn, voice-note ASR, compact-catalog paise heal, catalog baseQty pack pricing)
+  scope: As-implemented incoming-response-generator pipeline (language, LLM-2 reply selection, D6 order-status rewrite, knowledge_gap CustomerQuery persist, send_product_media outbound attachments, contentEn, voice-note ASR, compact-catalog paise heal, catalog baseQty pack pricing)
 -->
 
 **Living document.** This describes the **as-implemented** text path in `chatlogix-incoming-response-generator`, not the locked design spec. When the pipeline in `backend/src/conversation/` changes, update this file in the same change (see `.cursor/rules/incoming-response-generator-flow.mdc`).
@@ -45,6 +45,7 @@
 | Handoff | `backend/src/conversation/handoff.ts` |
 | Post-sales vendor alert | `backend/src/conversation/postSalesAlert.ts` |
 | Persist turn | `backend/src/conversation/persist.ts` |
+| Product media resolve (PM6) | `backend/src/conversation/productMediaAttachments.ts` |
 | Debit after enqueue | `backend/src/conversation/billing.ts` |
 | Guard templates | `backend/src/conversation/templates.ts` |
 | Shared types | `backend/src/conversation/types.ts` |
@@ -141,11 +142,13 @@ flowchart TD
   PS --> FIN
   REJ --> FIN
   D6 --> FIN
-  LLM2 --> FIN
+  LLM2 --> MEDIA[11b. resolve send_product_media<br/>PM6 caps + pending image/video Messages]
+  MEDIA --> FIN
 
-  FIN --> PERSIST[persistTurn: assistant Message,<br/>insights, memory, MessageProcessing]
-  PERSIST --> PUB[publish RESPONSE_QUEUE ★ SLA stop]
-  PUB --> DEBIT[debitAfterEnqueue<br/>fail here does NOT retry the LLM]
+  FIN --> PERSIST[persistTurn: assistant text Message,<br/>insights, memory, MessageProcessing]
+  PERSIST --> PMEDIA[persistPendingOutboundMedia if any]
+  PMEDIA --> PUB[publish RESPONSE_QUEUE text + attachments[] ★ SLA stop]
+  PUB --> DEBIT[debitAfterEnqueue text credits<br/>fail here does NOT retry the LLM]
   DEBIT --> KG[12b. persistKnowledgeGapIfNeeded<br/>after publish; no aiPaused]
   KG --> NOTIFY[13. if confirm succeeded:<br/>notifyVendorNewOrder fire-and-forget]
   NOTIFY --> UNLOCK[finally: releaseLock]
@@ -183,7 +186,7 @@ If webhook copied Meta’s `phone_number_id` into `vendorId`, and that is not a 
 |---|---|
 | Duplicate `whatsappMessageId` | ACK. No second reply, no second debit. |
 | `conversation.aiPaused` | Store inbound. Silent. Vendor replies in the dashboard. |
-| Wallet empty (`canProcessMessage`) | Send `WALLET_EMPTY_TEMPLATE`. No LLM, no debit. |
+| Wallet insufficient (`canProcessMessage` with worst-case assistant turn: 1 text + max(3 images, 1 video)) | Send `WALLET_EMPTY_TEMPLATE`. No LLM, no debit. |
 | Redis lock held | `stashForBurstMerge`, then throw → SQS retry. |
 | Redis down | Fail closed. Throw. SQS retry. Never mutate the cart unlocked. |
 
@@ -287,9 +290,10 @@ Ops:
 | `refund_request` | Engine decides eligibility |
 | `handoff` | Escalate to vendor |
 | `knowledge_gap` | Ungrounded product/policy fact — persist `CustomerQuery`, do **not** pause AI |
+| `send_product_media` | Customer asked for photo/video — CartEngine no-op; pipeline resolves `ProductMedia` and enqueues native WA attachments (not on D6 order-status turns) |
 | `noop` | Question / greeting / unclear product match |
 
-After parse, ops whose `productId` is not in this turn’s compact catalog are **dropped** (`validateProductIds`). CartEngine still re-resolves every product from Postgres.
+After parse, ops whose `productId` is not in this turn’s compact catalog are **dropped** (`validateProductIds`) — including `send_product_media`. CartEngine still re-resolves every product from Postgres.
 
 `knowledge_gap` is the one exception: its `productId` is advisory (it only links the `CustomerQuery` row to a catalog item), so an unknown id nulls the field instead of dropping the op — dropping it would lose the gap itself. Because the compact catalog is vendor-scoped, this is also what keeps a *real but other-vendor* product id out of `CustomerQuery.productId`; the `Product` FK on that column would happily accept one.
 
@@ -462,7 +466,8 @@ Order rows are already written by CartEngine. `finalizeTurn` is the back half.
 ```mermaid
 flowchart TD
   FT[finalizeTurn] --> P[persistTurn transaction]
-  P --> M[create assistant Message content=finalText]
+  P --> M[create assistant text Message content=finalText]
+  P --> PM[persistPendingOutboundMedia<br/>pending image/video rows + productMediaId]
   M --> EN2[ensureMessageContentEn → contentEn if needed]
   P --> I[upsert CustomerInsights name/address/language]
   P --> MEM[upsert ConversationMemory stage + turn++]
@@ -477,7 +482,7 @@ flowchart TD
   LOG --> DONE
 ```
 
-Response payload includes `phoneNumberId` and `messageId` (assistant row) so the dispatcher uses the right WABA number and can mark delivery. **`contentEn` is never sent to the customer** — only `finalText` (original language) goes on `RESPONSE_QUEUE`.
+Response payload includes `phoneNumberId` and `messageId` (assistant text row) so the dispatcher uses the right WABA number and can mark delivery. Optional `attachments[]` (`messageId`, `productMediaId`, `kind`, `caption?`) — one pre-created `Message` per attachment; `chatlogix-whatsapp-response-dispatcher` presigns S3 and sends native image/video (see `docs/PRODUCT_MEDIA.md`). **`contentEn` is never sent to the customer** — only `finalText` (original language) goes on `RESPONSE_QUEUE` for the text bubble.
 
 ### Vendor portal English (`Message.contentEn`)
 
@@ -486,7 +491,7 @@ Response payload includes `phoneNumberId` and `messageId` (assistant row) so the
 - **Media:** `mediaFetchProcessor` transcribes voice notes with `gpt-4o-transcribe` (retry with a domain prompt if the transcript is implausibly short for the audio size; otherwise a typed-reply template and no AI enqueue). It sets `contentEn` from the transcript with the audio translation prompt (do not invent addresses/medical facts from garbled ASR) and from image/video/document captions (captions often never hit `TEXT_QUEUE`).
 - **Vendor typed send:** `POST /api/conversations/:id/messages` triggers the same helper after creating the row.
 
-Debit failure must not throw: the customer already has a reply on the way; SQS retry would re-run LLM-1/CartEngine. `reconcileStuckDebits` retries `MessageProcessing` rows that are `queued` with `debitedAt = null`.
+Debit failure must not throw: the customer already has a reply on the way; SQS retry would re-run LLM-1/CartEngine. `reconcileStuckDebits` retries `MessageProcessing` rows that are `queued` with `debitedAt = null`. Outbound product media uses separate idempotent `debitOutboundMessage(messageId)` in the response dispatcher after each successful image/video send (`CreditUsage.externalId` = `outbound-msg:{messageId}`).
 
 After finalize, if a `confirm` op was not rejected and the snapshot has an `orderId`, `notifyVendorNewOrder` runs fire-and-forget. Handoff already notified the vendor inside `triggerHandoff`.
 

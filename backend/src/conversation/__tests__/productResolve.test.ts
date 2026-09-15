@@ -54,7 +54,10 @@ describe('validateProductIds — variantSku hallucination guard', () => {
       stockQuantity: null,
       variants: [{ sku: 'SS-7X7', label: 'SS 7x7', attributes: {}, unit: 'unit', baseQuantity: 1, price: 179900, isDivisible: false, isActive: true }],
       description: '',
-      isDivisible: false // variant pick required -- base price is a reference/range only
+      isDivisible: false, // variant pick required -- base price is a reference/range only
+      imageCount: 0,
+      videoCount: 0,
+      mediaLabels: []
     },
     // Mirrors the real 2026-09-04 incident's catalog entry: sold loose by kg
     // (isDivisible: true) AND as fixed box variants.
@@ -72,9 +75,21 @@ describe('validateProductIds — variantSku hallucination guard', () => {
       stockQuantity: 1000,
       variants: [{ sku: 'BOX-1', label: '1 box', attributes: {}, unit: 'box', baseQuantity: 1, price: 49900, isDivisible: false, isActive: true }],
       description: '',
-      isDivisible: true
+      isDivisible: true,
+      imageCount: 0,
+      videoCount: 0,
+      mediaLabels: []
     }
   ];
+
+  it('drops send_product_media for an unknown productId', () => {
+    const { valid, invalid } = validateProductIds(
+      [{ type: 'send_product_media', productId: 'prod-unknown', kind: 'image' }],
+      catalog
+    );
+    expect(valid).toHaveLength(0);
+    expect(invalid).toHaveLength(1);
+  });
 
   it('drops an add op for a variant-bearing product with no variantSku', () => {
     const { valid, invalid } = validateProductIds([{ type: 'add', productId: 'prod-tin', qty: 1 }], catalog);
