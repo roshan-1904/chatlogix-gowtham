@@ -13,6 +13,10 @@ export function getWaMediaS3Client(): S3Client {
     client = new S3Client({
       region: env.WA_MEDIA_S3_REGION || env.AWS_REGION,
       followRegionRedirects: true,
+      // Presigned GET links must work in plain HTTP clients (WhatsApp media fetch).
+      // Default SDK checksum mode adds x-amz-checksum-mode=ENABLED to URLs and breaks Meta.
+      requestChecksumCalculation: 'WHEN_REQUIRED',
+      responseChecksumValidation: 'WHEN_REQUIRED',
       ...(env.AWS_ACCESS_KEY_ID && env.AWS_SECRET_ACCESS_KEY
         ? {
             credentials: {
