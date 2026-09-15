@@ -433,4 +433,5 @@ Portal-level, verifiable after the P0 sprint:
 **Docs**
 - Customer Queries (shipped portal feature): `docs/CUSTOMER_QUERIES.md`
 - Catalog enhancer: `docs/VENDOR_CATALOG_ENHANCER.md`
+- Product media (planning — S3 upload + WhatsApp image/video): `docs/PRODUCT_MEDIA.md`
 - Design rule: `.cursor/rules/21st-mcp-design.mdc`, `.21st/DESIGN.md`

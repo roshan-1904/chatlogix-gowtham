@@ -34,4 +34,5 @@ When you change `backend/src/conversation/` behavior documented in the files abo
 | `docs/CUSTOMER_QUERIES.md` | Customer Queries v1 spec (implemented); see feature README for status |
 | `docs/CUSTOMER_QUERY_QUOTED_REPLIES.md` | v1.1 implemented: WhatsApp quoted vendor replies + fallback prefix |
 | `docs/VENDOR_PORTAL_ROADMAP.md` | Vendor portal P0–P3 completion plan; frontend/API scope, not pipeline logic |
+| `docs/PRODUCT_MEDIA.md` | Product media planning spec (S3 upload + WhatsApp image/video send); not implemented |
 | `CLAUDE.md` / `.cursorrules` | No materially wrong language restrictions (points to flow doc for pipeline details) |
