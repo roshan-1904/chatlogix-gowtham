@@ -1,14 +1,14 @@
 export const onboardingCopy = {
   signup: {
     success:
-      'Your trial shop is ready. You have ₹100.00 to test how ChatLogix answers customer questions. Nothing is sent to your real WhatsApp yet.',
+      'Your trial shop is ready. You have ₹50.00 to test how ChatLogix answers customer questions. Nothing is sent to your real WhatsApp yet.',
     form: {
       phone: {
         title: 'Try it on your catalog',
         subtext:
           'Enter your mobile number to create a demo shop and try the assistant on your products.',
         fieldLabel: 'Mobile number',
-        helper: '₹100 free trial. No card.',
+        helper: '₹50 free trial. No card.',
         cta: 'Send code',
         footnote: 'Nothing is sent to your customers. You try the assistant first.',
       },
@@ -31,7 +31,7 @@ export const onboardingCopy = {
     meta: {
       title: 'Try it on your catalog | ChatLogix',
       description:
-        'Try your WhatsApp assistant on your catalog. ₹100 free trial. No card. Customers are not messaged.',
+        'Try your WhatsApp assistant on your catalog. ₹50 free trial. No card. Customers are not messaged.',
     },
     marketing: {
       hero: {
@@ -107,9 +107,9 @@ export const onboardingCopy = {
             'A tool that reads customer messages on WhatsApp and replies with your prices, products, and order details — automatically, in a natural way.',
         },
         {
-          question: 'Is the ₹100 trial really free?',
+          question: 'Is the ₹50 trial really free?',
           answer:
-            'Yes. Sign up with your mobile number. No credit card. Use ₹100 in free credits to upload your catalog and test the assistant before connecting live WhatsApp.',
+            'Yes. Sign up with your mobile number. No card needed. You get ₹50 of free trial balance to upload your catalog and test the assistant before connecting live WhatsApp.',
         },
         {
           question: 'Will my customers get messages during the trial?',
@@ -240,9 +240,9 @@ export const onboardingCopy = {
     trustBanner: 'Demo only — your customers are not messaged',
     loading: 'Replying…',
     emptyWallet:
-      'Trial credit is used up. You can still submit for approval.',
+      'Your trial balance is used up. You can still submit for approval.',
     suggestedPrompts: ['What are your prices?', 'I want to order 2 kg', 'Do you deliver?'],
-    whyWeAsk: 'Demo chat spends trial credit so you can see reply quality and cost before going live.',
+    whyWeAsk: 'Demo chat spends your trial balance so you can see reply quality and cost before going live.',
     guide: {
       kicker: 'Demo',
       h1: 'Try a customer chat',

@@ -2,7 +2,9 @@
 
 ## Overview
 
-The Vendor Dashboard API provides comprehensive business metrics, conversation insights, credit management, and order analytics with date filtering capabilities.
+The Vendor Dashboard API provides comprehensive business metrics, conversation insights, wallet spend, and order analytics with date filtering capabilities.
+
+> **Updated 2026-09-16.** The old `credits` block (plan quota, per-message-type credit weights) was replaced by a `billing` block denominated in **millirupees**. See [BILLING_AND_PRICING.md](../../../../docs/BILLING_AND_PRICING.md).
 
 ## Endpoint
 
@@ -69,36 +71,31 @@ interface DashboardStats {
       percentage: number;
     };
   };
-  credits: {
-    planCredits: number;
-    usedThisMonth: number;
-    remainingThisMonth: number;
-    used: {
-      total: number;
-      thisMonth: number;
-      thisWeek: number;
+  // Wallet spend. Every amount here is in MILLIRUPEES (1 rupee = 1000),
+  // a different unit from the paise used above for orders and revenue.
+  billing: {
+    balanceMilli: number;
+    spend: {
       today: number;
+      thisWeek: number;  // trailing 7 days
+      thisMonth: number; // current billing cycle
+      total: number;     // all time
     };
-    walletBalance: number; // in paise
-    usagePercentage: number;
-    planName: string;
-    breakdown: {
-      text: number;
-      audio: number;
-      image: number;
-      document: number;
-    };
-    projectedMonthlyUsage?: number;
-    lowBalanceWarning: boolean;
-    billingCycleStart?: string; // ISO date
-    billingCycleEnd?: string; // ISO date
-    usageTrends?: {
-      dailyUsage: Array<{
-        date: string; // ISO date string
-        creditsConsumed: number;
-      }>;
-      averagePerDay: number;
-    };
+    breakdownBySource: Array<{
+      source: string; // e.g. 'conversation_turn', 'catalog_import'
+      label: string;  // vendor-facing name
+      milli: number;
+      count?: number;
+    }>;
+    dailySpend: Array<{
+      date: string; // YYYY-MM-DD, trailing 7 days, backfilled with zeros
+      milli: number;
+    }>;
+    averagePerDayMilli: number;
+    projectedMonthlySpendMilli: number; // linear regression over dailySpend
+    lowBalanceWarning: boolean;         // balanceMilli < 20000 (₹20)
+    billingCycleStart: string;          // ISO
+    billingCycleEnd: string;            // ISO
   };
   products: {
     total: number;
@@ -172,18 +169,28 @@ Authorization: Bearer <jwt_token>
       "percentage": 15.5
     }
   },
-  "credits": {
-    "planCredits": 500,
-    "usedThisMonth": 350,
-    "remainingThisMonth": 150,
-    "usagePercentage": 70,
-    "planName": "Pro",
-    "breakdown": {
-      "text": 300,
-      "audio": 30,
-      "image": 20,
-      "document": 0
-    }
+  "billing": {
+    "balanceMilli": 42350,
+    "spend": {
+      "today": 1240,
+      "thisWeek": 8430,
+      "thisMonth": 31200,
+      "total": 96500
+    },
+    "breakdownBySource": [
+      { "source": "conversation_turn", "label": "Customer replies", "milli": 24100, "count": 118 },
+      { "source": "catalog_import", "label": "Catalog import", "milli": 5200, "count": 2 },
+      { "source": "catalog_enhance", "label": "Catalog enhancer", "milli": 1900, "count": 7 }
+    ],
+    "dailySpend": [
+      { "date": "2026-09-10", "milli": 900 },
+      { "date": "2026-09-11", "milli": 1310 }
+    ],
+    "averagePerDayMilli": 1204,
+    "projectedMonthlySpendMilli": 36120,
+    "lowBalanceWarning": false,
+    "billingCycleStart": "2026-09-01T00:00:00.000Z",
+    "billingCycleEnd": "2026-09-30T23:59:59.999Z"
   }
 }
 ```
@@ -238,16 +245,18 @@ The endpoint uses multi-tier caching:
 Date range filtering applies to:
 - Orders (count and breakdown)
 - Revenue (total and breakdown)
-- Credits usage trends
+- `billing.breakdownBySource`
 
 Date range filtering does NOT apply to:
 - Products (current state)
-- Credits status (current state)
+- `billing.balanceMilli`, `billing.spend.*`, `billing.dailySpend` (fixed windows: today, trailing 7 days, billing cycle, all time)
 - Conversations (current state)
 
 ## Notes
 
-- All amounts are stored/returned in paise (divide by 100 for ₹ display)
+- **Two money units.** Order and revenue amounts are **paise** (divide by 100 for ₹ display). Everything under `billing` is **millirupees** (divide by 1000). See [BILLING_AND_PRICING.md](../../../../docs/BILLING_AND_PRICING.md) §1
+- There is **no** `credits` block, no `planCredits` / `remainingThisMonth` / `usagePercentage` / `planName`, and no per-message-type credit breakdown — the monthly plan quota and flat credit weights were removed in the 2026-09-16 billing rework
+- `billing.spend.*` and `breakdownBySource` come from `CreditUsage.chargedMilli` grouped by `source`; wallet top-ups are excluded
 - Financial year follows Indian calendar (April 1 - March 31)
 - Custom date ranges are limited to maximum 1 year
 

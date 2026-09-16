@@ -4,11 +4,14 @@ import { prisma } from '../db/prisma.js';
 import { env } from '../config/env.js';
 import { logger } from '../logger.js';
 import { calculateCost } from '../utils/costCalculator.js';
-import { vendorAiChargePaise } from '../utils/billingPaise.js';
 import {
-  assertVendorWalletForAi,
-  recordVendorAiSpend
-} from './billingService.js';
+  aiCostMilliForAudio,
+  aiCostMilliFromUsd,
+  chargeVendor,
+  InsufficientBalanceError
+} from './pricing/pricingService.js';
+import { assertVendorWalletForAi } from './billingService.js';
+import { estimateWebRecordingDurationSec, TRANSCRIBE_MODEL } from './audioTranscription.js';
 import {
   ENRICHMENT_MODEL,
   shopContextFromVendorProfile,
@@ -62,13 +65,6 @@ const FaqGenSchema = z.object({
   answer: z.string(),
   question: z.string().optional()
 });
-
-export class InsufficientBalanceError extends Error {
-  constructor() {
-    super('insufficient_balance');
-    this.name = 'InsufficientBalanceError';
-  }
-}
 
 export class EntityNotFoundError extends Error {
   constructor() {
@@ -151,16 +147,13 @@ async function chargeGeneration(
   costUsd: number,
   usage: { promptTokens?: number; completionTokens?: number; model: string }
 ): Promise<void> {
-  const paiseCost = vendorAiChargePaise(costUsd);
-  if (paiseCost <= 0) return;
-  await recordVendorAiSpend({
+  await chargeVendor({
     vendorId,
-    paiseCost,
     source: 'catalog_enhance',
-    sessionId: session.id,
+    cost: { aiCostMilli: aiCostMilliFromUsd(costUsd) },
     entityType: session.entityType,
     entityId: session.entityId,
-    metadata: usage
+    metadata: { sessionId: session.id, ...usage }
   });
 }
 
@@ -469,19 +462,24 @@ export async function postEnhanceVoice(
     throw new InsufficientBalanceError();
   }
   const { transcribeVendorAudioBuffer } = await import('./vendorAudioTranscriptionService.js');
-  const { transcript, costUsd } = await transcribeVendorAudioBuffer(audioBytes, mimeType);
-  const paiseCost = vendorAiChargePaise(costUsd);
+  const { transcript } = await transcribeVendorAudioBuffer(audioBytes, mimeType);
+  // Priced from audio duration, not from the caller's returned costUsd — that
+  // number comes from calculateCost() on a synthetic token count, which is not
+  // how OpenAI bills speech-to-text.
   const session = await findSessionByIdForVendor(vendorId, sessionId);
-  if (paiseCost > 0) {
-    await recordVendorAiSpend({
-      vendorId,
-      paiseCost,
-      source: 'catalog_enhance_transcribe',
-      sessionId: session.id,
-      entityType: session.entityType,
-      entityId: session.entityId
-    });
-  }
+  await chargeVendor({
+    vendorId,
+    source: 'catalog_enhance_transcribe',
+    cost: {
+      aiCostMilli: aiCostMilliForAudio(
+        TRANSCRIBE_MODEL,
+        estimateWebRecordingDurationSec(audioBytes.byteLength)
+      )
+    },
+    entityType: session.entityType,
+    entityId: session.entityId,
+    metadata: { sessionId: session.id, model: TRANSCRIBE_MODEL }
+  });
   return postEnhanceMessage(vendorId, sessionId, transcript);
 }
 
@@ -490,4 +488,5 @@ export async function discardEnhanceSession(vendorId: string, sessionId: string)
   await deleteSession(session);
 }
 
-export { EnhanceSessionUnavailableError };
+// Re-exported so the enhance route keeps importing both error types from here.
+export { EnhanceSessionUnavailableError, InsufficientBalanceError };

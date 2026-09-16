@@ -1,5 +1,6 @@
 import express from 'express';
 import { prisma } from '../db/prisma.js';
+import { creditWalletFromTopUp, newAdminRechargeIdempotencyKey } from '../services/wallet/walletTopUpService.js';
 import { requireRole, requireVendorAccess } from '../middleware/authorize.js';
 import { createDatabaseError, asyncHandlerWithContext, createValidationError, ErrorType, ErrorSeverity } from '../middleware/errorHandler.js';
 import { z } from 'zod';
@@ -63,7 +64,8 @@ const vendorListSelect = {
   email: true,
   subscriptionPlan: true,
   subscriptionStatus: true,
-  walletBalance: true,
+  walletBalanceMilli: true,
+  markupPercent: true,
   createdAt: true
 };
 
@@ -109,7 +111,7 @@ vendorsRouter.post('/register', requireRole('admin'), async (req, res) => {
       phone,
       email,
       subscriptionPlan: subscriptionPlan || 'Starter',
-      walletBalance: 0
+      walletBalanceMilli: 0
     }
   });
   res.json(vendor);
@@ -120,9 +122,9 @@ vendorsRouter.get('/:id/usage-analytics', requireVendorAccess(req => req.params.
     const vendorId = req.params.id;
     const total = await prisma.creditUsage.aggregate({
       where: { vendorId },
-      _sum: { creditsConsumed: true }
+      _sum: { chargedMilli: true }
     });
-    res.json({ vendorId, creditsUsed: total._sum.creditsConsumed || 0 });
+    res.json({ vendorId, chargedMilli: total._sum.chargedMilli || 0 });
   } catch (error: any) {
     return handlePrismaError(error, 'aggregate', 'CreditUsage', next);
   }
@@ -137,7 +139,8 @@ vendorsRouter.get('/:id/config', requireVendorAccess(req => req.params.id), asyn
         businessName: true,
         subscriptionPlan: true,
         subscriptionStatus: true,
-        walletBalance: true,
+        walletBalanceMilli: true,
+        markupPercent: true,
         aiBotName: true,
         aiPersonality: true,
         aiSystemPrompt: true,
@@ -157,7 +160,8 @@ vendorsRouter.get('/:id/config', requireVendorAccess(req => req.params.id), asyn
       businessName: vendor.businessName,
       plan: vendor.subscriptionPlan,
       status: vendor.subscriptionStatus,
-      walletBalance: vendor.walletBalance,
+      walletBalanceMilli: vendor.walletBalanceMilli,
+      markupPercent: vendor.markupPercent,
       category: vendor.category ?? null,
       catalogImportEnabled: !!vendor.catalogImportEnabled,
       ai: {
@@ -188,26 +192,34 @@ vendorsRouter.put('/:id/ai-prompts', requireVendorAccess(req => req.params.id), 
 vendorsRouter.post('/:id/recharge-wallet', requireRole('admin'), async (req, res) => {
   const vendorId = req.params.id;
   const amount = Number(req.body?.amount || 0);
-  if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ error: 'invalid_amount' });
+  // Millirupees are stored as Int, and creditWalletFromTopUp rejects non-integers.
+  if (!Number.isInteger(amount) || amount <= 0) return res.status(400).json({ error: 'invalid_amount' });
   const vendor = await prisma.vendor.findUnique({ where: { id: vendorId } });
   if (!vendor) return res.status(404).json({ error: 'not_found' });
-  const before = vendor.walletBalance;
-  const after = before + amount;
-  await prisma.$transaction([
-    prisma.vendor.update({ where: { id: vendorId }, data: { walletBalance: after } }),
-    prisma.walletTransaction.create({
-      data: {
-        vendorId,
-        transactionType: 'recharge',
-        amount,
-        balanceBefore: before,
-        balanceAfter: after
-      }
-    })
-  ]);
-  res.json({ vendorId, walletBalance: after });
+
+  const idempotencyKey =
+    typeof req.body?.idempotencyKey === 'string' && req.body.idempotencyKey.length > 0
+      ? req.body.idempotencyKey
+      : newAdminRechargeIdempotencyKey();
+
+  const credit = await creditWalletFromTopUp({
+    vendorId,
+    amountMilli: amount,
+    idempotencyKey,
+    metadata: {
+      source: 'admin_recharge',
+      provider: 'admin',
+      idempotencyKey,
+      amountMilli: amount,
+      currency: 'INR',
+      adminUserId: req.user?.id
+    }
+  });
+
+  res.json({ vendorId, walletBalanceMilli: credit.balanceAfterMilli, idempotent: credit.idempotent });
 });
 
+// Bookkeeping only: subscriptionPlan no longer affects billing (no monthly quota).
 vendorsRouter.post('/:id/upgrade-plan', requireRole('admin'), async (req, res) => {
   const vendorId = req.params.id;
   const plan = req.body?.plan as string;
@@ -215,6 +227,86 @@ vendorsRouter.post('/:id/upgrade-plan', requireRole('admin'), async (req, res) =
   if (!allowed.includes(plan)) return res.status(400).json({ error: 'invalid_plan' });
   const vendor = await prisma.vendor.update({ where: { id: vendorId }, data: { subscriptionPlan: plan } });
   res.json({ id: vendor.id, plan: vendor.subscriptionPlan });
+});
+
+const billingConfigSchema = z.object({
+  markupPercent: z.number().int().min(0).max(500)
+});
+
+// PATCH /api/vendors/:id/billing-config - Admin-editable per-vendor markup
+vendorsRouter.patch('/:id/billing-config', requireRole('admin'), async (req, res, next) => {
+  const parsed = billingConfigSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: 'invalid_billing_config',
+      details: parsed.error.errors.map((e) => `${e.path.join('.')}: ${e.message}`)
+    });
+  }
+
+  try {
+    const vendor = await prisma.vendor.update({
+      where: { id: req.params.id },
+      data: { markupPercent: parsed.data.markupPercent },
+      select: { id: true, markupPercent: true }
+    });
+    return res.json({ id: vendor.id, markupPercent: vendor.markupPercent });
+  } catch (error: any) {
+    if (error?.code === 'P2025') {
+      return res.status(404).json({ error: 'not_found' });
+    }
+    return handlePrismaError(error, 'update', 'Vendor', next);
+  }
+});
+
+const walletTransactionsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(200).default(50)
+});
+
+// GET /api/vendors/:id/wallet-transactions - Recent wallet ledger for the admin vendor detail panel
+vendorsRouter.get('/:id/wallet-transactions', requireRole('admin'), async (req, res, next) => {
+  const parsed = walletTransactionsQuerySchema.safeParse(req.query ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: 'invalid_query',
+      details: parsed.error.errors.map((e) => `${e.path.join('.')}: ${e.message}`)
+    });
+  }
+
+  try {
+    const transactions = await prisma.walletTransaction.findMany({
+      where: { vendorId: req.params.id },
+      orderBy: { transactionDate: 'desc' },
+      take: parsed.data.limit,
+      select: {
+        id: true,
+        transactionType: true,
+        amountMilli: true,
+        balanceAfterMilli: true,
+        transactionDate: true,
+        metadata: true
+      }
+    });
+
+    return res.json({
+      transactions: transactions.map((tx) => {
+        const metadata =
+          tx.metadata && typeof tx.metadata === 'object' && !Array.isArray(tx.metadata)
+            ? (tx.metadata as Record<string, unknown>)
+            : undefined;
+
+        return {
+          id: tx.id,
+          transactionType: tx.transactionType,
+          amountMilli: tx.amountMilli,
+          balanceAfterMilli: tx.balanceAfterMilli,
+          transactionDate: tx.transactionDate.toISOString(),
+          ...(metadata ? { metadata } : {})
+        };
+      })
+    });
+  } catch (error: any) {
+    return handlePrismaError(error, 'findMany', 'WalletTransaction', next);
+  }
 });
 
 async function getVendorConversationsWithMeta(options: {

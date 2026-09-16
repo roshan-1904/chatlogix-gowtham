@@ -257,8 +257,11 @@ pacing is wrong and the run is invalid.
 - 10 vendors, each with a `WhatsAppNumber` row mapping a synthetic `phoneNumberId`
 - A plausible product catalog per vendor, **with product names in the regional languages
   being tested**, not English-only (§4.3)
-- Wallet credits on every vendor — otherwise `canProcessMessage` short-circuits at
-  `pipeline.ts:297` and you measure the guard path, not the AI path
+- A funded `walletBalanceMilli` on every vendor — otherwise `canProcessMessage`
+  short-circuits at `pipeline.ts:297` and you measure the guard path, not the AI path.
+  A non-zero balance is **not** sufficient: the gate requires enough to cover a
+  worst-case turn at the vendor's `markupPercent` (`docs/BILLING_AND_PRICING.md` §3),
+  so seed generously — a full run of a few thousand messages will actually spend it
 - 200 customers on a reserved phone prefix so cleanup is a single predicate
 
 ### Message IDs
@@ -522,8 +525,8 @@ way without a second paid run.
 
 ### 6.3 `seed.ts`
 
-Creates vendors, `WhatsAppNumber` rows, multilingual catalogs (§4.5), wallet credits, and
-customers. Idempotent. Writes a run manifest JSON — including each conversation's assigned
+Creates vendors, `WhatsAppNumber` rows, multilingual catalogs (§4.5), funded
+`walletBalanceMilli`, and customers. Idempotent. Writes a run manifest JSON — including each conversation's assigned
 language — consumed by the generator and by cleanup.
 
 ### 6.4 `cleanup.ts`
@@ -856,8 +859,9 @@ OpenAI 429 counts before concluding the DB failed.
   translation cost from generation cost, which is the main question §4 exists to answer.
 - **Too few distinct conversations** — measures Redis lock contention instead of
   throughput. Verify `LockContention` is ~0.
-- **Vendors without wallet credits** — every message takes the `guard_no_credit` path and
-  never reaches an LLM.
+- **Vendors with an underfunded wallet** — every message takes the `guard_no_credit` path
+  and never reaches an LLM. Note this can happen *mid-run* now that turns are charged at
+  real cost: check the balance after the run, not just before it.
 - **Single-turn conversations** — under-reports cost per message. §3.
 - **`CLOUDWATCH_METRICS_ENABLED` unset** — percentiles are lost; only Pino logs remain.
 - **Collecting before the queue drains** — in-flight messages are missing from the

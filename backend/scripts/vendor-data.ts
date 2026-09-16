@@ -10,7 +10,8 @@ export const vendorData = [
     email: 'contact@lushjuices.com',
     subscriptionPlan: 'Pro',
     subscriptionStatus: 'active',
-    walletBalance: 1000,
+    // Millirupees: ₹1,000 of demo wallet, ~2,400 assistant turns.
+    walletBalanceMilli: 1_000_000,
     aiBotName: 'LushBot',
     aiPersonality: 'Warm, refreshing, and natural — like chatting with a friendly neighborhood maker',
     aiSystemPrompt: `You are LushBot, the friendly WhatsApp assistant for Lush Fresh Juices.
@@ -77,7 +78,8 @@ Always stay on topic of juice products and orders. Keep messages short, clear, a
     email: 'orders@ibellcreations.com',
     subscriptionPlan: 'Pro',
     subscriptionStatus: 'active',
-    walletBalance: 1000,
+    // Millirupees: ₹1,000 of demo wallet, ~2,400 assistant turns.
+    walletBalanceMilli: 1_000_000,
     aiBotName: 'BrownieBakerBot',
     aiPersonality: 'Warm, homely, polite, and cheerful',
     aiSystemPrompt: `You are BrownieBakerBot, the friendly WhatsApp assistant for Ibell Creations.
@@ -141,7 +143,7 @@ export const sqlInsertStatements = vendorData.map((vendor, index) => {
     email,
     "subscriptionPlan",
     "subscriptionStatus",
-    "walletBalance",
+    "walletBalanceMilli",
     "aiBotName",
     "aiPersonality",
     "aiSystemPrompt",
@@ -157,7 +159,7 @@ export const sqlInsertStatements = vendorData.map((vendor, index) => {
     '${vendor.email}',
     '${vendor.subscriptionPlan}',
     '${vendor.subscriptionStatus}',
-    ${vendor.walletBalance},
+    ${vendor.walletBalanceMilli},
     '${vendor.aiBotName}',
     '${vendor.aiPersonality.replace(/'/g, "''")}',
     '${vendor.aiSystemPrompt.replace(/'/g, "''")}',
@@ -179,6 +181,6 @@ export function generateSQLFile(): string {
 ${sqlInsertStatements.join('\n\n')}
 
 -- Verify the data was inserted
-SELECT id, "businessName", "aiBotName", "subscriptionPlan", "walletBalance" FROM "Vendor";
+SELECT id, "businessName", "aiBotName", "subscriptionPlan", "walletBalanceMilli" FROM "Vendor";
 `;
 }

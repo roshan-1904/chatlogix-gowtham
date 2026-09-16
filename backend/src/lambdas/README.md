@@ -12,6 +12,7 @@ src/lambdas/
 │   ├── responseProcessor.ts         # SQS-triggered WhatsApp sender → chatlogix-whatsapp-response-dispatcher
 │   ├── orderRecovery.ts             # EventBridge-scheduled sweep → chatlogix-order-recovery
 │   ├── debitReconciliationSweep.ts  # EventBridge-scheduled sweep (not yet deployed as its own function — see docs/CONVERSATION_PROCESSOR_LAMBDA.md §19.1)
+│   ├── fxRateRefresh.ts             # Optional EventBridge USD/INR refresh. Not one of the 5 hardcoded deploy.yml names. Suggested rule: cron(30 18 * * ? *) UTC = 00:00 IST. The PM2 API process already runs the same refresh from index.ts.
 │   └── multiStageProcessor.ts       # Old 14-stage pipeline. No longer wired to any live function's text trigger; kept only in case audio/image ever needs it again.
 ├── services/           # Lambda-specific services
 │   ├── lambdaDeploymentService.ts    # Core deployment service

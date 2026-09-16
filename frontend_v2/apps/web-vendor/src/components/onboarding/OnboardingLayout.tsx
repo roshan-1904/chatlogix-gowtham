@@ -187,7 +187,7 @@ export function OnboardingLayout({
           <div className="flex shrink-0 items-center gap-3">
             {!hideWallet && (
               <Badge variant="info" className="rounded-full px-2.5 py-1">
-                {isLoading ? '…' : formatTrialLeft(wallet?.balancePaise ?? 0)}
+                {isLoading ? '…' : formatTrialLeft(wallet?.balanceMilli ?? 0)}
               </Badge>
             )}
             <Button type="button" variant="ghost" size="sm" onClick={handleLogout}>

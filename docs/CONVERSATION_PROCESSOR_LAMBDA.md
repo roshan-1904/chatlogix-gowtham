@@ -14,6 +14,8 @@
 
 This document is the source of truth for rewriting WhatsApp **text** conversation handling: latency (p90 ≤ 5s), cart correctness, and a Lambda that can later serve thousands of vendors and millions of messages.
 
+> **Terminology drift (2026-09-16, millirupee rework):** this spec says "credits" throughout. There are no credits any more — read every mention as **a wallet debit in millirupees**, sized by the turn's real cost × `(1 + Vendor.markupPercent/100)` and written by `pricingService.chargeVendor`. The *ordering* decisions (Q8-A: debit after enqueue, idempotent on `whatsappMessageId`) all held; only the amount and the function names changed. Inline implementation notes flag the specific spots. Current model: [BILLING_AND_PRICING.md](./BILLING_AND_PRICING.md).
+
 > **Revision v1.1 (2026-09-01):** Added scale-hardening guidance after a codebase re-audit — idempotent debit reconciliation (§19.1, 5-min sweep confirmed), PgBouncer as a hard prerequisite (§22.1), Redis lock failure handling (§21 error table, single ElastiCache node confirmed for dev/test), a two-gate latency validation process (§27, Gate B confirmed to trail Gate A), multi-language product-match measurement (§11), and a quality-evaluation loop (§23.1, gpt-4.1-mini judge + weekly cadence confirmed). Does **not** reopen locked decisions Q1–Q15.
 
 Related docs (do not contradict this spec for the **text** path):
@@ -179,7 +181,7 @@ The writer is already full of “CRITICAL FIX” branches that fight each other 
 
 ### Reuse as-is
 
-- `billingService.canProcessMessage` / `deductCredits` (extend for idempotency — [§24](#24-schema-changes)).  
+- `billingService.canProcessMessage` / `deductCredits` (extend for idempotency — [§24](#24-schema-changes)). *(As implemented: `canProcessMessage` reused; `deductCredits` was replaced by `pricingService.chargeVendor` — [BILLING_AND_PRICING.md](./BILLING_AND_PRICING.md).)*  
 - `humanHandoffService` (extend with vendor notify).  
 - `whatsappTemplateService` (vendor notify pattern, e.g. `notifyVendorNewOrder`).  
 - `publishToQueue` + `chatlogix-response-processor`.  
@@ -238,7 +240,7 @@ SQS text record
   7. Render final WhatsApp text from snapshot + last-message language
   8. Persist: order, insights, memory, assistant Message
   9. Publish RESPONSE_QUEUE          ★ SLA clock stops
- 10. deductCredits
+ 10. debitAfterEnqueue → pricingService.chargeVendor
  11. Async: metrics, vendor notify (handoff / new order), sampled quality
 ```
 
@@ -277,6 +279,8 @@ Do not insert a second customer message on SQS retry.
 | `whatsappMessageId` already `queued` / `processed` | ACK, no work. |
 
 Credit **check** here; **debit** in step 10.
+
+> **Implementation note (2026-09-16, millirupee rework):** the wallet guard is stricter than `<= 0`. `billingService.canProcessMessage` requires `Vendor.walletBalanceMilli` to cover a **worst-case turn estimate at the vendor's own markup** (LLM-1 4000/400 + LLM-2 1500/300 tokens on the vendor's `aiModel`, optionally plus 3 outbound-media fees), and also fails closed on `trial_expired`. Balances are in **millirupees**, not paise. See `docs/BILLING_AND_PRICING.md` §3.
 
 ---
 
@@ -602,6 +606,8 @@ Reuse `creditsForKind`:
 
 This Lambda is text-only; audio (3) and image (2) belong to other processors.
 
+> **Implementation note (2026-09-16, millirupee rework):** `creditsForKind` and the flat per-kind credit weights above **no longer exist**. `conversation/billing.ts#debitAfterEnqueue` charges the turn's *real* cost through `pricingService.chargeVendor`: `ceil((aiCostMilli + whatsappCostMilli + platformFeeMilli) × (1 + Vendor.markupPercent/100))` in millirupees, where `aiCostMilli` is LLM-1 + LLM-2 token cost plus any upstream Whisper transcription carried on the SQS payload. `whatsappCostMilli` is 0 until the P2h Meta rate card. Outbound product media is debited separately by the dispatcher (`debitOutboundMessage`, source `outbound_media`). Full model: `docs/BILLING_AND_PRICING.md`.
+
 - Guard already blocked `walletBalance <= 0`.  
 - Debit **after** successful response-queue publish.  
 - Unique on `whatsappMessageId` (additive schema) so retries do not double-charge.  
@@ -611,6 +617,8 @@ This Lambda is text-only; audio (3) and image (2) belong to other processors.
 ### 19.1 Debit reconciliation (idempotent retry)
 
 Today `deductCredits` runs **before** AI generation and `CreditUsage` has no idempotency key — this Lambda reverses that ordering (Q8-A), so the retry-safety has to be built, not assumed:
+
+> **Implementation note (2026-09-16):** `deductCredits` has since been deleted; `CreditUsage.externalId @unique` shipped and is the idempotency key for every charge source, not just conversation turns. A sweep retry has no record of the original token usage, so it charges the **worst-case turn estimate** instead.
 
 1. **Idempotency key:** add `CreditUsage.externalId @unique` (schema change, see [§24](#24-schema-changes)), value = `whatsappMessageId`. Debit = `create`, catch the unique-violation, treat as already-debited (no-op, not an error).
 2. **Inline attempt:** debit synchronously in the same invocation, immediately after the response-queue publish succeeds. This is the common path — a single cheap write, no async machinery needed for the happy case.
@@ -886,6 +894,8 @@ BILLING_IMAGE_CREDIT=2
 ```
 
 This Lambda charges **text** only, after enqueue.
+
+> **Implementation note (2026-09-16, millirupee rework):** these three env vars **no longer exist** and setting them has no effect. The turn charge is computed from real token cost. The live knobs (FX rate, platform fees, trial grant) come from the `PlatformSettings` singleton in **paise**, admin-editable at web-admin `/billing`; the matching `*_MILLI` / `USD_TO_INR_RATE` env vars are seed + fallback only. Full model: `docs/BILLING_AND_PRICING.md`.
 
 ---
 

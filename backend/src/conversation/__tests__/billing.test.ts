@@ -1,26 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { Prisma } from '@prisma/client';
 
-const vendorFindUnique = vi.fn();
-const vendorUpdate = vi.fn();
-const walletTransactionCreate = vi.fn();
-const creditUsageCreate = vi.fn();
 const messageProcessingUpdateMany = vi.fn();
 const messageProcessingFindMany = vi.fn();
 const messageFindUnique = vi.fn();
 
-const txStub = {
-  vendor: {
-    findUnique: (...args: unknown[]) => vendorFindUnique(...args),
-    update: (...args: unknown[]) => vendorUpdate(...args)
-  },
-  walletTransaction: { create: (...args: unknown[]) => walletTransactionCreate(...args) },
-  creditUsage: { create: (...args: unknown[]) => creditUsageCreate(...args) }
-};
-
 vi.mock('../../db/prisma.js', () => ({
   prisma: {
-    $transaction: (fn: (tx: typeof txStub) => Promise<unknown>) => fn(txStub),
     message: {
       findUnique: (...args: unknown[]) => messageFindUnique(...args)
     },
@@ -35,12 +20,30 @@ vi.mock('../../logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
 }));
 
-// billingService.js pulls in config/env.js for real (Firebase-config-check
-// logging at import time) — mock it out rather than repeat Step 4/5's
-// dependency-bleed problem. creditsForKind is a pure lookup; a fixed stub is
-// equivalent for this file's purposes.
-vi.mock('../../services/billingService.js', () => ({
-  creditsForKind: (kind: string) => (kind === 'video' ? 10 : kind === 'image' ? 2 : 1)
+// config/env.js logs Firebase configuration at import time; stub the two
+// platform-fee knobs this module actually reads rather than repeat Step 4/5's
+// dependency-bleed problem.
+vi.mock('../../config/env.js', () => ({
+  env: { USD_TO_INR_RATE: '83' },
+  numericEnv: { platformFeePerTurnMilli: 0, platformFeeOutboundMediaMilli: 0 },
+  walletEnv: { mockTopUpEnabled: true, presetsMilli: [], minTopUpMilli: 0, maxTopUpMilli: 0 }
+}));
+
+vi.mock('../../services/platformSettingsService.js', () => ({
+  ensurePlatformSettings: vi.fn().mockResolvedValue(undefined),
+  getPlatformSettings: () => ({
+    platformFeePerTurnPaise: 0,
+    platformFeeOutboundMediaPaise: 0
+  })
+}));
+
+// The wallet arithmetic and ledger writes belong to pricingService and are
+// tested there; this file is about the pipeline's debit *ordering* and
+// idempotency handling.
+const chargeVendorMock = vi.fn();
+vi.mock('../../services/pricing/pricingService.js', () => ({
+  chargeVendor: (...args: unknown[]) => chargeVendorMock(...args),
+  turnEstimateCost: () => ({ aiCostMilli: 275, platformFeeMilli: 0 })
 }));
 
 const emitMetricMock = vi.fn();
@@ -58,51 +61,75 @@ import {
 const VENDOR_ID = 'vendor-1';
 const CONVERSATION_ID = 'conv-1';
 
-function p2002Error(): Prisma.PrismaClientKnownRequestError {
-  return new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
-    code: 'P2002',
-    clientVersion: '5.22.0'
-  });
-}
-
 beforeEach(() => {
   vi.clearAllMocks();
-  vendorFindUnique.mockResolvedValue({ walletBalance: 100 });
-  vendorUpdate.mockResolvedValue({});
-  walletTransactionCreate.mockResolvedValue({});
-  creditUsageCreate.mockResolvedValue({});
+  chargeVendorMock.mockResolvedValue({ outcome: 'charged', deductedMilli: 195, balanceAfterMilli: 99_805 });
   messageProcessingUpdateMany.mockResolvedValue({ count: 1 });
 });
 
 describe('debitAfterEnqueue', () => {
-  it('debits once and marks the MessageProcessing row queued + debitedAt', async () => {
-    const outcome = await debitAfterEnqueue(VENDOR_ID, CONVERSATION_ID, 'wamid.1');
+  it('charges the turn cost and marks the MessageProcessing row queued + debitedAt', async () => {
+    const outcome = await debitAfterEnqueue({
+      vendorId: VENDOR_ID,
+      conversationId: CONVERSATION_ID,
+      whatsappMessageId: 'wamid.1',
+      costs: { aiCostMilli: 130, upstreamCostMilli: 0 }
+    });
 
     expect(outcome).toBe('debited');
-    expect(creditUsageCreate).toHaveBeenCalledWith({
-      data: { vendorId: VENDOR_ID, conversationId: CONVERSATION_ID, creditsConsumed: 1, conversationType: 'text', externalId: 'wamid.1' }
-    });
+    expect(chargeVendorMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        vendorId: VENDOR_ID,
+        source: 'conversation_turn',
+        conversationId: CONVERSATION_ID,
+        idempotencyKey: 'wamid.1',
+        cost: { aiCostMilli: 130, platformFeeMilli: 0 }
+      })
+    );
     const markCall = messageProcessingUpdateMany.mock.calls[0][0];
     expect(markCall.where).toEqual({ whatsappMessageId: 'wamid.1' });
     expect(markCall.data.status).toBe('queued');
     expect(markCall.data.debitedAt).toBeInstanceOf(Date);
   });
 
-  it('is idempotent on a unique-constraint violation (already debited)', async () => {
-    creditUsageCreate.mockRejectedValue(p2002Error());
+  it('folds upstream transcription cost into the same turn charge', async () => {
+    await debitAfterEnqueue({
+      vendorId: VENDOR_ID,
+      conversationId: CONVERSATION_ID,
+      whatsappMessageId: 'wamid.audio',
+      costs: { aiCostMilli: 130, upstreamCostMilli: 25 }
+    });
 
-    const outcome = await debitAfterEnqueue(VENDOR_ID, CONVERSATION_ID, 'wamid.2');
+    expect(chargeVendorMock.mock.calls[0][0].cost.aiCostMilli).toBe(155);
+  });
+
+  it('is idempotent when the charge was already applied', async () => {
+    chargeVendorMock.mockResolvedValue({ outcome: 'already_charged', deductedMilli: 0, balanceAfterMilli: null });
+
+    const outcome = await debitAfterEnqueue({
+      vendorId: VENDOR_ID,
+      conversationId: CONVERSATION_ID,
+      whatsappMessageId: 'wamid.2',
+      costs: { aiCostMilli: 130, upstreamCostMilli: 0 }
+    });
 
     expect(outcome).toBe('already_debited');
-    // Still marks debitedAt even on the idempotent path, in case a prior
-    // attempt's CreditUsage write landed but its own mark didn't.
+    // Still marks debitedAt, in case a prior attempt's ledger write landed
+    // but its own mark didn't.
     expect(messageProcessingUpdateMany).toHaveBeenCalledTimes(1);
   });
 
-  it('rethrows any non-P2002 error', async () => {
-    creditUsageCreate.mockRejectedValue(new Error('connection reset'));
+  it('rethrows an unexpected charge failure', async () => {
+    chargeVendorMock.mockRejectedValue(new Error('connection reset'));
 
-    await expect(debitAfterEnqueue(VENDOR_ID, CONVERSATION_ID, 'wamid.3')).rejects.toThrow('connection reset');
+    await expect(
+      debitAfterEnqueue({
+        vendorId: VENDOR_ID,
+        conversationId: CONVERSATION_ID,
+        whatsappMessageId: 'wamid.3',
+        costs: { aiCostMilli: 130, upstreamCostMilli: 0 }
+      })
+    ).rejects.toThrow('connection reset');
   });
 });
 
@@ -117,26 +144,24 @@ describe('debitOutboundMessage', () => {
     });
   });
 
-  it('debits image credits with idempotency key outbound-msg:{messageId}', async () => {
+  it('charges only the outbound-media platform fee, keyed on outbound-msg:{messageId}', async () => {
     const outcome = await debitOutboundMessage(MEDIA_MSG_ID);
 
     expect(outcome).toBe('debited');
-    expect(creditUsageCreate).toHaveBeenCalledWith({
-      data: {
+    expect(chargeVendorMock).toHaveBeenCalledWith(
+      expect.objectContaining({
         vendorId: VENDOR_ID,
+        source: 'outbound_media',
         conversationId: CONVERSATION_ID,
-        creditsConsumed: 2,
         conversationType: 'image',
-        externalId: outboundMessageDebitExternalId(MEDIA_MSG_ID)
-      }
-    });
-    expect(walletTransactionCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({ amount: 2, vendorId: VENDOR_ID })
-    });
+        cost: { platformFeeMilli: 0 },
+        idempotencyKey: outboundMessageDebitExternalId(MEDIA_MSG_ID)
+      })
+    );
   });
 
-  it('is idempotent on a unique-constraint violation (already debited)', async () => {
-    creditUsageCreate.mockRejectedValue(p2002Error());
+  it('is idempotent when the charge was already applied', async () => {
+    chargeVendorMock.mockResolvedValue({ outcome: 'already_charged', deductedMilli: 0, balanceAfterMilli: null });
 
     const outcome = await debitOutboundMessage(MEDIA_MSG_ID);
 
@@ -166,13 +191,24 @@ describe('reconcileStuckDebits', () => {
     expect(query.where.queuedAt.lt).toBeInstanceOf(Date);
   });
 
+  it('charges the worst-case estimate, since the original token usage is gone', async () => {
+    messageProcessingFindMany.mockResolvedValue([
+      { vendorId: VENDOR_ID, conversationId: CONVERSATION_ID, whatsappMessageId: 'wamid.stuck-1' }
+    ]);
+
+    await reconcileStuckDebits();
+
+    expect(chargeVendorMock.mock.calls[0][0].cost).toEqual({ aiCostMilli: 275, platformFeeMilli: 0 });
+  });
+
   it('retries each stuck row and reports success/failure counts', async () => {
     messageProcessingFindMany.mockResolvedValue([
       { vendorId: VENDOR_ID, conversationId: CONVERSATION_ID, whatsappMessageId: 'wamid.stuck-1' },
       { vendorId: VENDOR_ID, conversationId: CONVERSATION_ID, whatsappMessageId: 'wamid.stuck-2' }
     ]);
-    // First retry succeeds, second fails.
-    creditUsageCreate.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('still down'));
+    chargeVendorMock
+      .mockResolvedValueOnce({ outcome: 'charged', deductedMilli: 414, balanceAfterMilli: 0 })
+      .mockRejectedValueOnce(new Error('still down'));
 
     const result = await reconcileStuckDebits();
 
@@ -187,6 +223,6 @@ describe('reconcileStuckDebits', () => {
 
     // No sqsClient import/mocks exist in this file at all — if reconcileStuckDebits
     // tried to publish anything, the module import itself would fail, not just an assertion.
-    expect(creditUsageCreate).toHaveBeenCalledTimes(1);
+    expect(chargeVendorMock).toHaveBeenCalledTimes(1);
   });
 });

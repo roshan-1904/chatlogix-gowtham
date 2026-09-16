@@ -11,7 +11,7 @@ import {
   resolveProductMediaAttachments,
   type ResolvedOutboundAttachment
 } from './productMediaAttachments.js';
-import { debitAfterEnqueue } from './billing.js';
+import { debitAfterEnqueue, type TurnCostInputs } from './billing.js';
 import { resolveIdentity } from './identity.js';
 import { acquireLock, releaseLock, LockContentionError, LockUnavailableError } from './lock.js';
 import { upsertInboundMessage } from './idempotency.js';
@@ -34,8 +34,7 @@ import { notifyVendorOfPostSalesEvent } from './postSalesAlert.js';
 import { WALLET_EMPTY_TEMPLATE } from './templates.js';
 import { logStage, logLatency, logCount } from './metrics.js';
 import { ensureMessageContentEn, normalizeSetFieldOps } from '../utils/vendorEnglish.js';
-import { calculateCost } from '../utils/costCalculator.js';
-import { usdToPaise } from '../utils/billingPaise.js';
+import { aiCostMilliForTokens } from '../services/pricing/pricingService.js';
 import type { CartOp, CartSnapshot, PostSalesOutcome } from './types.js';
 
 /** Deterministic customer-facing copy for a refund/cancel outcome — never LLM-authored (same reasoning as the handoff short-circuit: money/eligibility facts must not go through a free-text model). */
@@ -65,6 +64,8 @@ export interface FinalizeTurnInput {
   language: string;
   intent: string;
   tokenMeta: { model: string; promptTokens: number; completionTokens: number };
+  /** LLM-1 + LLM-2 + upstream transcription cost for this turn. */
+  costs: TurnCostInputs;
   sandbox?: boolean;
   pendingMedia?: ResolvedOutboundAttachment[];
 }
@@ -72,7 +73,12 @@ export interface FinalizeTurnInput {
 export interface ProcessMessageResult {
   finalText: string;
   intent: string;
-  costPaise: number;
+  /**
+   * Unrounded LLM-1 + LLM-2 API cost in millirupees, before markup. The live
+   * path has already charged this inside `finalizeTurn`; the sandbox caller
+   * uses it to charge the trial wallet itself (`onboardingSandboxService`).
+   */
+  aiCostMilli: number;
   tokenMeta: { model: string; promptTokens: number; completionTokens: number };
 }
 
@@ -109,6 +115,7 @@ export async function finalizeTurn(input: FinalizeTurnInput): Promise<FinalizeTu
     language,
     intent,
     tokenMeta,
+    costs,
     sandbox = false,
     pendingMedia = []
   } = input;
@@ -185,7 +192,7 @@ export async function finalizeTurn(input: FinalizeTurnInput): Promise<FinalizeTu
   });
 
   try {
-    await debitAfterEnqueue(vendorId, conversationId, whatsappMessageId);
+    await debitAfterEnqueue({ vendorId, conversationId, whatsappMessageId, costs });
   } catch (error) {
     // Must NOT rethrow: the customer already has their reply, so the SQS
     // message must not retry (that would re-run LLM-1/CartEngine). The
@@ -205,6 +212,12 @@ export interface ProcessMessageInput {
   whatsappMessageId: string;
   /** Voice-note transcript or image caption, when the TextMessage was handed off from media fetch. */
   sourceMessageType?: 'audio' | 'image';
+  /**
+   * Unrounded millirupees already spent upstream on this inbound message —
+   * today only Whisper transcription in `mediaFetchProcessor`. Folded into
+   * this turn's single charge rather than debited separately.
+   */
+  upstreamCostMilli?: number;
   /** Browser onboarding demo — skip WhatsApp/queue side effects; return reply synchronously. */
   sandbox?: boolean;
 }
@@ -215,19 +228,6 @@ function classifyError(error: unknown): string {
   if (error instanceof LockContentionError) return 'lock_contention';
   if (error instanceof LockUnavailableError) return 'lock_unavailable';
   return 'unknown';
-}
-
-function estimatePipelineCostPaise(tokenMeta: {
-  model: string;
-  promptTokens: number;
-  completionTokens: number;
-}): number {
-  const cost = calculateCost(
-    tokenMeta.model,
-    tokenMeta.promptTokens,
-    tokenMeta.completionTokens
-  );
-  return usdToPaise(cost.costUsd);
 }
 
 /**
@@ -298,7 +298,7 @@ export async function processMessage(
         return {
           finalText: 'This message was already answered.',
           intent: 'duplicate',
-          costPaise: 0,
+          aiCostMilli: 0,
           tokenMeta: { model: 'none', promptTokens: 0, completionTokens: 0 }
         };
       }
@@ -326,7 +326,7 @@ export async function processMessage(
         return {
           finalText: 'Your assistant is paused in this demo.',
           intent: 'ai_paused',
-          costPaise: 0,
+          aiCostMilli: 0,
           tokenMeta: { model: 'none', promptTokens: 0, completionTokens: 0 }
         };
       }
@@ -340,9 +340,9 @@ export async function processMessage(
           finalText:
             creditCheck.reason === 'trial_expired'
               ? 'Your trial has expired. You can still submit for approval or contact support.'
-              : 'Your ₹100 trial is used up. You can still submit for approval — our team will review your shop.',
+              : 'Your trial balance is used up. You can still submit for approval — our team will review your shop.',
           intent: 'guard_no_credit',
-          costPaise: 0,
+          aiCostMilli: 0,
           tokenMeta: { model: 'none', promptTokens: 0, completionTokens: 0 }
         };
       }
@@ -438,6 +438,10 @@ export async function processMessage(
 
     const handoffOp = replyOps.find((op): op is Extract<CartOp, { type: 'handoff' }> => op.type === 'handoff');
     let finalText: string;
+    // LLM-2's tokens were never costed anywhere before the wallet rewrite;
+    // they stay zero on the branches below that never call it.
+    let llm2PromptTokens = 0;
+    let llm2CompletionTokens = 0;
 
     if (handoffOp) {
       // §20: handoff wins over the normal LLM-2/render path -- the customer
@@ -513,6 +517,8 @@ export async function processMessage(
         logCount('Llm2Skipped', { vendorId });
         logStage('llm2_skipped', { traceId, vendorId, conversationId });
       } else {
+        llm2PromptTokens = llm2Result.promptTokens;
+        llm2CompletionTokens = llm2Result.completionTokens;
         logLatency('Llm2Ms', Date.now() - llm2StartedAt, { vendorId });
         logStage('llm2_done', { traceId, vendorId, conversationId });
       }
@@ -541,6 +547,13 @@ export async function processMessage(
       completionTokens: llm1Result.completionTokens
     };
 
+    // Both models bill at the same per-token rate (LLM-2 reuses LLM-1's
+    // model), but they are summed as two calls rather than one merged token
+    // count so the numbers stay legible against the OpenAI dashboard.
+    const aiCostMilli =
+      aiCostMilliForTokens(llm1Result.model, llm1Result.promptTokens, llm1Result.completionTokens) +
+      aiCostMilliForTokens(llm1Result.model, llm2PromptTokens, llm2CompletionTokens);
+
     let pendingMedia: ResolvedOutboundAttachment[] = [];
     if (!orderStatusTurn && !handoffOp && !sandbox) {
       const mediaOps = collectSendProductMediaOps(normalizedOps);
@@ -565,6 +578,7 @@ export async function processMessage(
       language: llm1Result.language,
       intent: queueIntent,
       tokenMeta,
+      costs: { aiCostMilli, upstreamCostMilli: input.upstreamCostMilli ?? 0 },
       sandbox,
       pendingMedia
     });
@@ -608,7 +622,7 @@ export async function processMessage(
       return {
         finalText,
         intent: llm1Result.intent,
-        costPaise: estimatePipelineCostPaise(tokenMeta),
+        aiCostMilli,
         tokenMeta
       };
     }

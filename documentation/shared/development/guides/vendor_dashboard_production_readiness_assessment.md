@@ -4,6 +4,8 @@
 **Document Reviewed:** `vendor_dashboard_implementation_plan.md`  
 **Status:** ⚠️ **MOSTLY READY** with Critical Prerequisites Required
 
+> ⚠️ **Historical assessment; stale on billing (2026-09-16).** It reviews a plan whose credits model was never built: there is no monthly plan quota, no `PLAN_CREDITS`/`getPlanCredits`, and no flat per-message-type credit weights. Wallet money is **millirupees**, not paise, and the dashboard returns a `billing` block instead of `credits`. Current behavior: **[docs/BILLING_AND_PRICING.md](../../../../docs/BILLING_AND_PRICING.md)** and **[vendor-dashboard/API.md](../../../modules/features/vendor-dashboard/API.md)**.
+
 ---
 
 ## Executive Summary
@@ -145,7 +147,7 @@ export const dashboardStatsRateLimit = rateLimit({
 
 #### c) Currency Utility (`currency.ts`)
 - ❌ Not found in codebase
-- ✅ Wallet balance stored in paise (Int type)
+- ✅ Wallet balance stored as an `Int` — **millirupees** (`walletBalanceMilli`) since the 2026-09-16 rework, not paise
 - ✅ Formatting needed for display
 
 **Required:** Create `backend/src/utils/currency.ts` as specified in document
@@ -244,8 +246,8 @@ export const dashboardStatsRateLimit = rateLimit({
 | Component | Status | Location |
 |-----------|--------|----------|
 | `requireVendorAccess` middleware | ✅ Exists | `backend/src/middleware/authorize.ts` |
-| Vendor model (subscriptionPlan, walletBalance) | ✅ Exists | `backend/prisma/schema.prisma` |
-| CreditUsage model | ✅ Exists | `backend/prisma/schema.prisma` |
+| Vendor model (`subscriptionPlan`, `walletBalanceMilli`, `markupPercent`) | ✅ Exists | `backend/prisma/schema.prisma` |
+| CreditUsage model (`chargedMilli`, required `source`) | ✅ Exists | `backend/prisma/schema.prisma` |
 | Dashboard component (placeholder) | ✅ Exists | `frontend_v2/apps/web-vendor/src/pages/Dashboard.tsx` |
 | DashboardStatCard component | ✅ Exists | Referenced in Dashboard.tsx |
 | Error handling middleware | ✅ Exists | `backend/src/middleware/errorHandler.ts` |

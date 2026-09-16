@@ -200,11 +200,18 @@ WHATSAPP_PHONE_NUMBER_ID=your-phone-number-id
 # OpenAI
 OPENAI_API_KEY=sk-your-key
 
-# Billing (optional)
-BILLING_TEXT_CREDIT=1
-BILLING_AUDIO_CREDIT=3
-BILLING_IMAGE_CREDIT=2
+# Billing — seed/fallback only; live values live in PlatformSettings
+# (see docs/BILLING_AND_PRICING.md)
+USD_TO_INR_RATE=83
+PLATFORM_FEE_PER_TURN_MILLI=0
+PLATFORM_FEE_OUTBOUND_MEDIA_MILLI=0
+TRIAL_GRANT_MILLI=50000
+TRIAL_EXPIRY_DAYS=30
 ```
+
+> The old `BILLING_TEXT_CREDIT` / `BILLING_AUDIO_CREDIT` / `BILLING_IMAGE_CREDIT` flat credit weights were removed in the 2026-09-16 billing rework and no longer do anything. Wallet money is millirupees; every charge is real cost × `(1 + Vendor.markupPercent/100)`.
+>
+> The billing vars above only **seed** the `PlatformSettings` singleton on first boot and act as a last-resort fallback. Once the row exists, change these knobs on the web-admin `/billing` page — editing `.env` will not move live behavior. `WALLET_PAYMENT_PROVIDER` is the exception and stays env-only.
 
 **Save and secure:**
 ```bash

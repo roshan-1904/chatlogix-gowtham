@@ -1,31 +1,65 @@
 import { prisma } from '../db/prisma.js';
-import { getPlanCredits, getBillingCycleDates } from '../utils/planUtils.js';
+import { getBillingCycleDates } from '../utils/planUtils.js';
 import { getDateRange, type DateRangePreset } from '../utils/dateRange.js';
 import { getCached, setCached } from '../utils/redis.js';
 import { DatabaseRetryService } from './databaseRetryService.js';
 
 /**
- * Calculate projected monthly usage using linear regression
+ * Wallet balance below this triggers the low-balance warning (₹20 in millirupees).
+ * Must stay under the trial grant (PlatformSettings.trialGrantPaise → milli), or every trial vendor starts out warned.
  */
-function calculateProjectedMonthlyUsage(
-  dailyUsage: Array<{ usageDate: Date; creditsConsumed: number }>
-): number {
-  if (dailyUsage.length < 2) {
+const LOW_BALANCE_THRESHOLD_MILLI = 20000;
+
+/** Number of trailing days reported in `billing.dailySpend`. */
+const DAILY_SPEND_WINDOW_DAYS = 7;
+
+/**
+ * Vendor-facing labels for every `ChargeSource` that `pricingService.chargeVendor`
+ * can write to `CreditUsage.source`. Wording matches billingService's trial
+ * breakdown so the two views name the same spend the same way.
+ */
+const SPEND_SOURCE_LABELS: Record<string, string> = {
+  conversation_turn: 'Customer replies',
+  legacy_conversation_turn: 'Customer replies',
+  outbound_media: 'Product media sends',
+  catalog_import: 'Catalog import',
+  catalog_enhance: 'Catalog enhancer',
+  catalog_enhance_transcribe: 'Catalog enhancer voice',
+  sandbox_chat: 'Sandbox replies',
+  sandbox_transcribe: 'Voice transcription',
+};
+
+/**
+ * Wallet *credits*, which reach `WalletTransaction` through walletTopUpService
+ * and never `chargeVendor` — so they cannot appear in `CreditUsage` today.
+ * Filtered anyway so a future caller mistake can't report a top-up as spend.
+ */
+const NON_SPEND_SOURCES = new Set(['wallet_topup', 'admin_recharge']);
+
+/**
+ * Calculate projected monthly spend (millirupees) using linear regression
+ */
+function calculateProjectedMonthlySpendMilli(dailySpend: Array<{ milli: number }>): number {
+  if (dailySpend.length === 0) {
+    return 0;
+  }
+
+  if (dailySpend.length < 2) {
     // Not enough data, use average
-    const avg = dailyUsage.reduce((sum, d) => sum + d.creditsConsumed, 0) / dailyUsage.length;
-    return avg * 30; // Project to 30 days
+    const avg = dailySpend.reduce((sum, d) => sum + d.milli, 0) / dailySpend.length;
+    return Math.max(0, Math.round(avg * 30)); // Project to 30 days
   }
 
   // Linear regression: y = mx + b
-  const n = dailyUsage.length;
+  const n = dailySpend.length;
   let sumX = 0,
     sumY = 0,
     sumXY = 0,
     sumX2 = 0;
 
-  dailyUsage.forEach((d, i) => {
+  dailySpend.forEach((d, i) => {
     const x = i;
-    const y = d.creditsConsumed;
+    const y = d.milli;
     sumX += x;
     sumY += y;
     sumXY += x * y;
@@ -37,7 +71,15 @@ function calculateProjectedMonthlyUsage(
 
   // Project to 30 days
   const projected30Days = m * 30 + b;
-  return Math.max(0, projected30Days); // Ensure non-negative
+  return Math.max(0, Math.round(projected30Days)); // Ensure non-negative
+}
+
+/** Local YYYY-MM-DD key, so daily buckets line up with the vendor's calendar days. */
+function toDayKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 /**
@@ -53,8 +95,7 @@ async function fetchDashboardStatsFromDB(
       prisma.vendor.findUnique({
         where: { id: vendorId },
         select: {
-          subscriptionPlan: true,
-          walletBalance: true,
+          walletBalanceMilli: true,
           createdAt: true,
         },
       }),
@@ -69,8 +110,9 @@ async function fetchDashboardStatsFromDB(
   const { start: billingCycleStart, end: billingCycleEnd } = getBillingCycleDates(vendor);
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
+  // Trailing DAILY_SPEND_WINDOW_DAYS window, inclusive of today.
   const startOfWeek = new Date(startOfToday);
-  startOfWeek.setDate(startOfWeek.getDate() - 7);
+  startOfWeek.setDate(startOfWeek.getDate() - (DAILY_SPEND_WINDOW_DAYS - 1));
 
   // Parallel queries for performance
   const [
@@ -82,16 +124,16 @@ async function fetchDashboardStatsFromDB(
     revenueStats,
     todayRevenue,
     thisMonthRevenue,
-    creditUsageTotal,
-    creditUsageThisMonth,
-    creditUsageThisWeek,
-    creditUsageToday,
-    creditBreakdown,
+    spendTotal,
+    spendThisMonth,
+    spendThisWeek,
+    spendToday,
+    spendBySource,
     conversationStats,
     productsStats,
     recentConversations,
     recentOrders,
-    dailyCreditUsage,
+    dailySpendRows,
   ] = await Promise.all([
     // Orders stats - optimized single query (filtered by date range)
     DatabaseRetryService.withRetry(
@@ -210,7 +252,7 @@ async function fetchDashboardStatsFromDB(
       () =>
         prisma.creditUsage.aggregate({
           where: { vendorId },
-          _sum: { creditsConsumed: true },
+          _sum: { chargedMilli: true },
         }),
       'creditUsage_aggregate_total',
       { vendorId }
@@ -224,7 +266,7 @@ async function fetchDashboardStatsFromDB(
             vendorId,
             usageDate: { gte: billingCycleStart },
           },
-          _sum: { creditsConsumed: true },
+          _sum: { chargedMilli: true },
         }),
       'creditUsage_aggregate_month',
       { vendorId }
@@ -238,7 +280,7 @@ async function fetchDashboardStatsFromDB(
             vendorId,
             usageDate: { gte: startOfWeek },
           },
-          _sum: { creditsConsumed: true },
+          _sum: { chargedMilli: true },
         }),
       'creditUsage_aggregate_week',
       { vendorId }
@@ -252,24 +294,25 @@ async function fetchDashboardStatsFromDB(
             vendorId,
             usageDate: { gte: startOfToday },
           },
-          _sum: { creditsConsumed: true },
+          _sum: { chargedMilli: true },
         }),
       'creditUsage_aggregate_today',
       { vendorId }
     ),
 
-    // Credits breakdown by type (filtered by date range for trends)
+    // Spend breakdown by source (filtered by date range)
     DatabaseRetryService.withRetry(
       () =>
         prisma.creditUsage.groupBy({
-          by: ['conversationType'],
+          by: ['source'],
           where: {
             vendorId,
             usageDate: { gte: dateRange.start, lte: dateRange.end },
           },
-          _sum: { creditsConsumed: true },
+          _sum: { chargedMilli: true },
+          _count: true,
         }),
-      'creditUsage_groupBy_type',
+      'creditUsage_groupBy_source',
       { vendorId }
     ),
 
@@ -352,7 +395,7 @@ async function fetchDashboardStatsFromDB(
       { vendorId }
     ),
 
-    // Daily credit usage for trends (last 7 days)
+    // Daily spend for trends (trailing DAILY_SPEND_WINDOW_DAYS)
     DatabaseRetryService.withRetry(
       () =>
         prisma.creditUsage.groupBy({
@@ -361,17 +404,14 @@ async function fetchDashboardStatsFromDB(
             vendorId,
             usageDate: { gte: startOfWeek },
           },
-          _sum: { creditsConsumed: true },
+          _sum: { chargedMilli: true },
         }),
       'creditUsage_groupBy_daily',
       { vendorId }
     ),
   ]);
 
-  // Calculate plan credits
-  const planCredits = getPlanCredits(vendor.subscriptionPlan || 'Starter');
-  const usedThisMonth = creditUsageThisMonth._sum.creditsConsumed || 0;
-  const remainingThisMonth = Math.max(0, planCredits - usedThisMonth);
+  const spentThisMonthMilli = spendThisMonth._sum.chargedMilli || 0;
 
   // Calculate trends
   const ordersTrend =
@@ -521,34 +561,37 @@ async function fetchDashboardStatsFromDB(
     }
   });
 
-  // Process credit breakdown
-  const creditBreakdownMap: Record<string, number> = {
-    text: 0,
-    audio: 0,
-    image: 0,
-    document: 0,
-  };
+  // Process spend breakdown by source (only sources with recorded spend are reported)
+  const breakdownBySource = spendBySource
+    .filter((item) => !NON_SPEND_SOURCES.has(item.source))
+    .map((item) => ({
+      source: item.source,
+      label: SPEND_SOURCE_LABELS[item.source] ?? 'Other usage',
+      milli: item._sum.chargedMilli || 0,
+      count: item._count,
+    }))
+    .sort((a, b) => b.milli - a.milli);
 
-  creditBreakdown.forEach((item) => {
-    const type = item.conversationType;
-    if (type in creditBreakdownMap) {
-      creditBreakdownMap[type] = item._sum.creditsConsumed || 0;
-    }
+  // Process daily spend for trends. `usageDate` is a timestamp, so bucket by calendar day
+  // and backfill the whole window so the trend chart has one point per day.
+  const dailySpendByDay = new Map<string, number>();
+  dailySpendRows.forEach((item) => {
+    const key = toDayKey(item.usageDate);
+    dailySpendByDay.set(key, (dailySpendByDay.get(key) || 0) + (item._sum.chargedMilli || 0));
   });
 
-  // Process daily credit usage for trends
-  const dailyUsage = dailyCreditUsage
-    .map((item) => ({
-      usageDate: item.usageDate,
-      creditsConsumed: item._sum.creditsConsumed || 0,
-    }))
-    .sort((a, b) => a.usageDate.getTime() - b.usageDate.getTime());
+  const dailySpend: Array<{ date: string; milli: number }> = [];
+  for (let offset = DAILY_SPEND_WINDOW_DAYS - 1; offset >= 0; offset -= 1) {
+    const day = new Date(startOfToday);
+    day.setDate(day.getDate() - offset);
+    const key = toDayKey(day);
+    dailySpend.push({ date: key, milli: dailySpendByDay.get(key) || 0 });
+  }
 
-  const totalCreditsInPeriod = dailyUsage.reduce((sum, d) => sum + d.creditsConsumed, 0);
-  const daysInPeriod = Math.max(1, Math.ceil((dateRange.end.getTime() - dateRange.start.getTime()) / (24 * 60 * 60 * 1000)));
-  const averagePerDay = totalCreditsInPeriod / daysInPeriod;
+  const windowSpendMilli = dailySpend.reduce((sum, d) => sum + d.milli, 0);
+  const averagePerDayMilli = Math.round(windowSpendMilli / DAILY_SPEND_WINDOW_DAYS);
 
-  const projectedMonthlyUsage = calculateProjectedMonthlyUsage(dailyUsage);
+  const projectedMonthlySpendMilli = calculateProjectedMonthlySpendMilli(dailySpend);
 
   // Fetch CustomerInsights for recent orders
   const orderCustomerIds = recentOrders.map((o) => o.customer.id);
@@ -611,31 +654,21 @@ async function fetchDashboardStatsFromDB(
       averageOrderValue: revenueStats._avg.totalAmount || 0,
       trend: revenueTrend,
     },
-    credits: {
-      planCredits,
-      usedThisMonth,
-      remainingThisMonth,
-      used: {
-        total: creditUsageTotal._sum.creditsConsumed || 0,
-        thisMonth: usedThisMonth,
-        thisWeek: creditUsageThisWeek._sum.creditsConsumed || 0,
-        today: creditUsageToday._sum.creditsConsumed || 0,
+    billing: {
+      balanceMilli: vendor.walletBalanceMilli,
+      spend: {
+        today: spendToday._sum.chargedMilli || 0,
+        thisWeek: spendThisWeek._sum.chargedMilli || 0,
+        thisMonth: spentThisMonthMilli,
+        total: spendTotal._sum.chargedMilli || 0,
       },
-      walletBalance: vendor.walletBalance,
-      usagePercentage: planCredits > 0 ? (usedThisMonth / planCredits) * 100 : 0,
-      planName: vendor.subscriptionPlan || 'Starter',
-      breakdown: creditBreakdownMap,
-      projectedMonthlyUsage,
-      lowBalanceWarning: vendor.walletBalance < 10000, // ₹100 in paise
+      breakdownBySource,
+      dailySpend,
+      averagePerDayMilli,
+      projectedMonthlySpendMilli,
+      lowBalanceWarning: vendor.walletBalanceMilli < LOW_BALANCE_THRESHOLD_MILLI,
       billingCycleStart: billingCycleStart.toISOString(),
       billingCycleEnd: billingCycleEnd.toISOString(),
-      usageTrends: {
-        dailyUsage: dailyUsage.map((d) => ({
-          date: d.usageDate.toISOString().split('T')[0],
-          creditsConsumed: d.creditsConsumed,
-        })),
-        averagePerDay,
-      },
     },
     products: {
       total: totalProducts,

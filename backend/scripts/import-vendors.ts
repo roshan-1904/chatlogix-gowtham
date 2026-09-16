@@ -19,7 +19,8 @@ interface VendorData {
   phone: string;
   email: string;
   subscriptionPlan: string;
-  walletBalance: number;
+  /** Wallet money is millirupees (1 rupee = 1000 milli). */
+  walletBalanceMilli: number;
 }
 
 class VendorImporter {
@@ -173,7 +174,7 @@ Always stay on topic of juice products and orders. Keep messages short, clear, a
       phone: '+919876543210', // Default phone
       email: 'contact@lushjuices.com', // Default email
       subscriptionPlan: 'Pro',
-      walletBalance: 1000
+      walletBalanceMilli: 1_000_000 // ₹1,000
     };
   }
 
@@ -255,7 +256,7 @@ Always stay on topic of brownies and ordering. Be friendly and patient. Use emoj
       phone: '+919876543211', // Default phone
       email: 'orders@ibellcreations.com', // Default email
       subscriptionPlan: 'Pro',
-      walletBalance: 1000
+      walletBalanceMilli: 1_000_000 // ₹1,000
     };
   }
 
@@ -284,7 +285,7 @@ Always stay on topic of brownies and ordering. Be friendly and patient. Use emoj
           email: vendorData.email,
           subscriptionPlan: vendorData.subscriptionPlan,
           subscriptionStatus: 'active',
-          walletBalance: vendorData.walletBalance,
+          walletBalanceMilli: vendorData.walletBalanceMilli,
           aiBotName: vendorData.aiBotName,
           aiPersonality: vendorData.aiPersonality,
           aiSystemPrompt: vendorData.aiSystemPrompt,

@@ -15,7 +15,7 @@
 8. Human-assisted tasks and escalation
 9. Error handling & user messaging
 10. Security, privacy & compliance
-11. Migration path & BSP fallback
+11. Assisted onboarding & edge cases
 12. SLA & timelines
 13. Acceptance criteria & telemetry
 14. Implementation tickets (epics & sample issues)
@@ -27,7 +27,8 @@
 - Make Direct Meta Cloud API onboarding **frictionless** for small vendors.
 - Automate all repeatable steps and surface only the minimal actions the vendor must take.
 - Achieve **70%+ automated onboarding completion** without human ops.
-- Provide a **fallback**: if a vendor cannot complete Direct Meta onboarding, offer BSP-managed onboarding.
+- **Billing (locked):** ChatLogix is a **Meta Solution Partner** with its own **line of credit**. Vendors connect **their** WABA via Embedded Signup; we attach **our** credit line (`INR`) so Meta bills **ChatLogix** and vendors see **one ChatLogix wallet** (AI + WhatsApp, markup configurable per vendor in admin). The per-vendor markup shipped as `Vendor.markupPercent`; the WhatsApp half is **not billed yet** — see [BILLING_AND_PRICING.md](../../../../docs/BILLING_AND_PRICING.md) §7.
+- Provide **assisted onboarding** (ops calls, doc help) when self-serve Meta steps fail — not dependency on a third-party BSP for billing.
 
 ---
 
@@ -40,13 +41,11 @@
 ---
 
 ## 3. High-level flow
-1. Vendor signs up on our dashboard (phone number + email).  
-2. Vendor selects onboarding path: `Self-Serve` or `Assisted`.
-3. Dashboard collects required documents & metadata.  
-4. Dashboard initiates Meta Business Verification flow via API (or prepares payload for manual submission).  
-5. Vendor verifies phone number & accepts migration steps (if required).  
-6. Once Meta approves Business and phone number, we register the number on our tenant & enable the webhook.  
-7. Final tests: send/receive test messages, template approvals, and go-live checklist.  
+1. Vendor completes ChatLogix signup and trial onboarding (see [public-signup-onboarding.md](../../features/vendor-onboarding/guides/public-signup-onboarding.md)); admin approves; vendor **tops up wallet**.
+2. Vendor opens **Connect WhatsApp** (`/settings/whatsapp`); chooses **Cloud API** or **Coexistence**.
+3. **Embedded Signup** — vendor logs in with Meta; creates or selects Business Portfolio + WABA + profile + phone (OTP or CoEx QR).
+4. ChatLogix backend completes Graph steps: token exchange, register number, webhook subscription, **credit line attach** (`waba_currency=INR`).
+5. Go-live checklist: inbound test, outbound test (wallet debited for the AI cost today; Meta base + markup once P2h lands), utility templates as needed.
 
 ---
 
@@ -88,15 +87,25 @@ UI helpers: tooltips, sample images, inline checklist showing missing items.
 - Shows live status: `Draft` → `Submitted` → `In Review` → `Approved`/`Rejected` with reason.  
 - Display estimated time + next steps.
 
-**E. Phone Number Migration / Linking Screen**
-- If vendor uses personal WhatsApp: show migration guide with clear steps and warnings.
-- Provide `Test Mode` number option for early testing.
+**E. Phone Number Linking — two paths (both required in product)**
 
-**F. Webhook & Tokens (for internal use)**
-- For advanced vendors: show webhook URL, verify token, and CSR key.  
-- For regular vendors: show toggles `Enable WhatsApp` / `Disable`.
+| Path | When to use | Vendor action |
+| --- | --- | --- |
+| **Cloud API** | New or dedicated business line; number **not** active on consumer WA / WA Business App (or deleted + cooldown) | Enter number in Embedded Signup; SMS or voice OTP |
+| **Coexistence (CoEx)** | Number already active on **WhatsApp Business App** (typically ≥7 days on app per Meta/partner guidance) | Embedded Signup → scan QR in WA Business App |
 
-**G. Final Go-Live Checklist**
+- If vendor uses **personal WhatsApp** on the business number: migration / delete-from-app guidance before Cloud API path.
+- Do **not** default to “leased” platform numbers for production; trial value is browser sandbox, not shared WABA numbers.
+
+**F. Connect status (vendor-facing)**
+- States: `not_started` → `meta_in_progress` → `credit_attached` → `live` → `error` (with Meta error copy + support CTA)
+- Toggles: `Enable WhatsApp` / `Disable` (disable = stop outbound + AI; optional ops-only suspend)
+
+**G. Webhook & tokens (internal / advanced)**
+- Webhook URL and verify token are platform-level; vendors do not paste tokens.
+- Optional advanced panel: display name / template status only.
+
+**H. Final Go-Live Checklist**
 - Send test inbound message (auto-logged)  
 - Approve 3 message templates (welcome, order status, payment)  
 - Payment connector test  
@@ -106,26 +115,31 @@ UI helpers: tooltips, sample images, inline checklist showing missing items.
 ---
 
 ## 6. Backend processes & API calls (sequence)
-**Assumption:** We manage a central Meta Cloud App on behalf of tenants via our own Meta Business Manager (app). We submit Business Verification on vendor's behalf when possible.
 
-1. **Create Vendor Account (DB)**: create tenant record, initial state `onboarding:started`.
-2. **Collect Docs**: store documents in S3 (encrypted), create verification request record.
-3. **Business Manager Flow**:
-   - If vendor consents, create a Business Manager invitation payload (Meta APIs).  
-   - Generate business verification submission package: company name, website (optional), address, documents.
-   - POST to Meta Business Verification endpoints (as per Meta docs).
-4. **Phone Number Setup**:
-   - Validate phone format.  
-   - If migrating existing WhatsApp number: follow Meta's `migrating a number` protocol (request code, vendor confirms migration on their phone).  
-   - If new number: register number via Cloud API and request verification.
-5. **Webhook & Callback**:
-   - Wait for webhook callbacks from Meta for verification status & message events.  
-   - On approval, create `wa_number` entry (phone_number_id, waba_id) in DB.
-6. **Template Submission (optional)**:
-   - Vendor can submit templates; we submit to Meta via API for approval.
-7. **Testing**:
-   - Send test interactive message (list/buttons) and ensure delivery & session handling.
-8. **Mark Go‑Live**: set vendor `onboarding:completed` and enable production keys.
+**Assumption:** One ChatLogix Meta app; vendors onboard **their** WABA via Embedded Signup. ChatLogix must be a **Solution Partner** with an approved **extended credit line** and Credit Allocation API terms accepted.
+
+1. **Embedded Signup (client):** Meta returns WABA ID, phone number ID, exchangeable code (Embedded Signup v4).
+2. **Exchange code (server):** Business-scoped token for customer WABA; store **encrypted** per vendor/WABA.
+3. **Register phone** for Cloud API (Cloud path) or complete CoEx handshake (CoEx path).
+4. **Subscribe app** to customer WABA webhooks (same callback URL as production Lambda/Express).
+5. **Attach credit line (Solution Partner only):**
+   ```http
+   POST /{EXTENDED_CREDIT_LINE_ID}/whatsapp_credit_sharing_and_attach
+     ?waba_currency=INR
+     &waba_id={CUSTOMER_WABA_ID}
+   Authorization: Bearer {SYSTEM_USER_TOKEN}
+   ```
+   Verify: `GET /{WABA_ID}?fields=primary_funding_id` matches allocation. ChatLogix is **Bill To Party** for Meta usage on that WABA.
+6. **Persist** `WhatsAppNumber` (`phoneNumberId`, `wabaId`, `vendorId`); migrate sends/media fetch to **per-tenant token** (not global `WHATSAPP_ACCESS_TOKEN` only).
+7. **Template submission (optional):** Submit utility/order templates to **that** WABA namespace.
+8. **Testing:** Inbound webhook → persist message; if `walletBalanceMilli` covers a worst-case turn, run AI pipeline + outbound; debit wallet through `pricingService.chargeVendor`. Today that charge is `ceil(aiCostMilli × (1 + markupPercent/100))` in millirupees; P2h adds the Meta base rate into the same `whatsappCostMilli` slot.
+9. **Offboarding:** Revoke credit sharing; revoke token; disable webhooks for WABA.
+
+**Wallet gating (live):** If balance is insufficient for estimated AI + outbound cost, **still store inbound** messages; **do not** enqueue conversation processor or response queue. Outbound templates and AI replies resume after top-up.
+
+**Pricing:** WhatsApp debits = Meta INR rate card for category/destination × `(1 + Vendor.markupPercent/100)`. The markup field shipped as **`Vendor.markupPercent`** (default 50, admin-editable via `PATCH /api/vendors/:id/billing-config`) — there is no separate `whatsappMarkupPercent`. The rate-card lookup itself is the outstanding P2h work; until then `whatsappCostMilli` is 0 and ChatLogix absorbs Meta conversation fees.
+
+References: [Embedded Signup](https://developers.facebook.com/docs/whatsapp/embedded-signup/), [Share and revoke credit lines](https://developers.facebook.com/docs/whatsapp/embedded-signup/manage-accounts/share-and-revoke-credit-lines).
 
 ---
 
@@ -163,13 +177,16 @@ UI helpers: tooltips, sample images, inline checklist showing missing items.
 
 ---
 
-## 11. Migration path & BSP fallback
-**Why fallback:** Some micro sellers won’t have GST or business docs.  
-**Fallback options:**
-- Offer **BSP-assisted onboarding** (we act as reseller): BSP handles verification; we bill vendor.  
-- Offer **sandbox mode** with leased numbers (temporary) until vendor completes verification.  
+## 11. Assisted onboarding & edge cases
+**Why assisted:** Some micro sellers lack GST, website, or Meta Business verification on first try.
 
-**Migration strategy:** allow moving from BSP-managed number to Direct Meta once vendor completes verification.
+**Options:**
+- **Ops-assisted Embedded Signup** — screen-share / call; same Cloud API or CoEx paths; ops does not replace vendor Meta login where Meta requires it.
+- **Browser sandbox** during trial — no live WABA required until post-approval connect.
+
+**Not the default product path:** Reselling through a **third-party BSP** for Meta billing. ChatLogix **owns** Solution Partner + credit line.
+
+**Churn:** Revoke credit line sharing and API access when vendor leaves; vendor retains WABA in their Business Manager.
 
 ---
 
@@ -199,9 +216,12 @@ UI helpers: tooltips, sample images, inline checklist showing missing items.
 - Ticket: OTP phone verification + retry/backoff.  
 
 **Epic: Meta Integration**
-- Ticket: Business verification API client & submit flow.  
-- Ticket: Phone migration flow & verification.  
-- Ticket: Webhook handling for verification callbacks.  
+- Ticket: Embedded Signup v4 (Cloud API + Coexistence) in vendor settings.  
+- Ticket: Token exchange, encrypted storage, webhook subscribe, **credit attach (INR)** + verify `primary_funding_id`.  
+- Ticket: Per-vendor Graph token for send/media; deprecate global-only token path.  
+- Ticket: Populate `whatsappCostMilli` on the existing wallet charge from the Meta base rate (reuse `chargeVendor`, do **not** add a parallel debit path); reconcile with status webhook pricing fields.  
+- Ticket: Credit revoke on offboard.  
+- Ticket: Phone migration / CoEx error playbooks (vendor-facing copy).  
 
 **Epic: Ops & Assisted Flow**
 - Ticket: Ops dashboard — list of vendors needing review, action buttons, notes.  

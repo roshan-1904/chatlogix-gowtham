@@ -1,5 +1,11 @@
 # 🚀 Billing System Implementation Plan - ChatLogix
 
+> ⚠️ **Superseded (2026-09-16) — kept for history. Do not implement from this document.**
+>
+> ChatLogix does **not** bill on subscription plans with credit allowances and extra-usage rates. What shipped is a single prepaid wallet in **millirupees** where every billable action costs `ceil((aiCost + whatsappCost + platformFee) × (1 + Vendor.markupPercent/100))`, written by `backend/src/services/pricing/pricingService.ts`. There is no monthly quota, no `planCredits`, and no flat per-message credit cost. `Vendor.subscriptionPlan` survives as bookkeeping only.
+>
+> The authority for how billing actually works is **[docs/BILLING_AND_PRICING.md](../../../docs/BILLING_AND_PRICING.md)**.
+
 ## 📋 Project Overview
 This document provides a detailed, step-by-step implementation plan for developers to build the complete billing and pricing system for ChatLogix, including subscription management, credit tracking, wallet management, and revenue analytics.
 

@@ -22,23 +22,21 @@ Displays a single metric with optional trend indicator and sub-values.
 - ARIA labels for screen readers
 - Memoized for performance
 
-### CreditsCard
+### WalletBalanceCard
 
-Displays credit usage information with progress bar and wallet balance.
+Displays the prepaid wallet balance and this cycle's spend. Replaced `CreditsCard`, which was deleted along with the plan-quota model in the 2026-09-16 billing rework.
 
 **Props:**
-- `planCredits: number` - Monthly plan credit allowance
-- `usedThisMonth: number` - Credits used this month
-- `remainingThisMonth: number` - Remaining credits
-- `walletBalance: number` - Wallet balance in paise
-- `planName: string` - Subscription plan name
-- `lowBalanceWarning: boolean` - Show low balance warning
+- `balanceMilli: number` - Wallet balance in **millirupees** (1 rupee = 1000)
+- `spentThisMonthMilli: number` - Spend in the current billing cycle
+- `lowBalanceWarning: boolean` - Show low balance warning (set when balance < ₹20)
 - `billingCycleEnd?: string` - Billing cycle end date
 
 **Features:**
-- Progress bar with color coding (green/yellow/red)
-- Low balance warning tooltip
-- Accessible progress indicator
+- Low balance warning
+- Links to `/wallet` for top-up
+
+> There is no progress bar against a plan allowance, because **there is no monthly quota** — spend is real cost plus the vendor's markup. See [BILLING_AND_PRICING.md](../../../../docs/BILLING_AND_PRICING.md).
 
 ### DateRangeFilter
 
@@ -59,30 +57,30 @@ Date range selector with presets and custom date picker support.
 - `thisFinancialYear` - Indian financial year (April-March)
 - `custom` - Custom date range
 
-### CreditsBreakdownChart
+### SpendBreakdownChart
 
-Pie chart showing credit consumption by type (Text, Audio, Image, Document).
+Pie chart showing wallet spend grouped by **charge source** (customer replies, catalog import, catalog enhancer, sandbox, …). Replaced `CreditsBreakdownChart`, which split by message type against the deleted flat credit weights.
 
 **Props:**
-- `breakdown: { text: number, audio: number, image: number, document: number }` - Credit breakdown
+- `breakdownBySource: DashboardStats['billing']['breakdownBySource']` — `Array<{ source, label, milli, count? }>`
 
 **Features:**
 - Lazy loaded for performance
 - Accessible with ARIA labels
-- Empty state handling
+- Empty state handling; sources with zero spend are filtered out
 
-### CreditsUsageTrendChart
+### SpendTrendChart
 
-Line chart showing daily credit usage over time with projected monthly usage.
+Line chart showing daily wallet spend over the trailing 7 days, with the projected monthly figure. Replaced `CreditsUsageTrendChart`.
 
 **Props:**
-- `usageTrends?: { dailyUsage: Array<{date: string, creditsConsumed: number}>, averagePerDay: number }` - Usage trend data
-- `projectedMonthlyUsage?: number` - Projected monthly usage
-- `planCredits: number` - Plan credit limit
+- `dailySpend: DashboardStats['billing']['dailySpend']` — `Array<{ date, milli }>`, backfilled so every day has a point
+- `averagePerDayMilli: number`
+- `projectedMonthlySpendMilli: number` — linear regression over `dailySpend`
 
 **Features:**
-- Shows projected usage with disclaimer
-- Reference lines for plan limit
+- Shows projected spend with disclaimer
+- No plan-limit reference line — there is no plan quota
 - Lazy loaded for performance
 
 ### OrderStatusChart
@@ -126,12 +124,12 @@ List of recent orders with customer and status information.
 Quick action buttons for common tasks.
 
 **Props:**
-- `credits: DashboardStats['credits']` - Credit information for conditional display
+- `billing: DashboardStats['billing']` - Wallet information for conditional display
 
 **Actions:**
 - Add Product
 - View Orders
-- Recharge Credits (shown if low balance)
+- Top up wallet → `/wallet` (highlighted when `lowBalanceWarning` is set)
 - View Conversations
 
 ### DashboardSkeleton

@@ -323,11 +323,15 @@ WHATSAPP_APP_SECRET=your_secret
 # OpenAI
 OPENAI_API_KEY=sk-...
 
-# Billing
-BILLING_TEXT_CREDIT=1
-BILLING_AUDIO_CREDIT=3
-BILLING_IMAGE_CREDIT=2
+# Billing — seed/fallback only; live values live in PlatformSettings
+# (see docs/BILLING_AND_PRICING.md)
+USD_TO_INR_RATE=83
+PLATFORM_FEE_PER_TURN_MILLI=0
+PLATFORM_FEE_OUTBOUND_MEDIA_MILLI=0
+TRIAL_GRANT_MILLI=50000
 ```
+
+> `BILLING_TEXT_CREDIT` / `BILLING_AUDIO_CREDIT` / `BILLING_IMAGE_CREDIT` were removed in the 2026-09-16 billing rework — setting them does nothing. The billing vars above seed the `PlatformSettings` singleton on first boot and are a fallback after that; change them live on the web-admin `/billing` page instead.
 
 **Secure the file:**
 ```bash

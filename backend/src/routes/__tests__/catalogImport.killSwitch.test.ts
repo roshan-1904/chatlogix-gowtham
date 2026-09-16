@@ -11,7 +11,7 @@ import type { Request, Response, NextFunction } from 'express';
 vi.mock('../../config/env.js', () => ({
   env: {
     CATALOG_IMPORT_GLOBAL_KILL: 'true',
-    CATALOG_IMPORT_DAILY_PAISE_CAP: '5000',
+    CATALOG_IMPORT_DAILY_MILLI_CAP: '5000',
     REDIS_URL: undefined,
     AUTH_JWT_SECRET: 'unused-in-test',
     AUTH_TOKEN_EXPIRES_IN: '1h'
@@ -51,9 +51,12 @@ vi.mock('../../middleware/auth.js', () => ({
     (_req: Request, _res: Response, next: NextFunction) =>
       next()
 }));
+// The names catalogImportRateLimit.ts actually imports. The kill switch 404s
+// before the middleware runs, so these are never called — but an under-mocked
+// module would hand the middleware `undefined` the moment that changed.
 vi.mock('../../services/billingService.js', () => ({
-  getTodaysCatalogImportPaiseSpent: vi.fn().mockResolvedValue(0),
-  recordCatalogImportSpend: vi.fn()
+  getTodaysCatalogImportMilliSpent: vi.fn().mockResolvedValue(0),
+  assertVendorWalletForAi: vi.fn().mockResolvedValue({ allowed: true })
 }));
 vi.mock('../../services/tokenService.js', () => ({
   // Treat any token as valid in this test — we want to prove that even with a

@@ -11,6 +11,12 @@ interface TextMessagePayload {
   whatsappMessageId: string;
   /** Set by mediaFetchProcessor when the TextMessage is a voice/image caption handoff. */
   sourceMessageType?: string;
+  /**
+   * Set by mediaFetchProcessor: unrounded millirupees of transcription cost
+   * already incurred for this message, to be folded into this turn's single
+   * wallet charge.
+   */
+  upstreamCostMilli?: number;
 }
 
 /**
@@ -38,12 +44,18 @@ export const handler: SQSHandler = async (event: SQSEvent): Promise<SQSBatchResp
           ? body.sourceMessageType
           : undefined;
 
+      const upstreamCostMilli =
+        typeof body.upstreamCostMilli === 'number' && Number.isFinite(body.upstreamCostMilli) && body.upstreamCostMilli > 0
+          ? body.upstreamCostMilli
+          : 0;
+
       await processMessage({
         vendorId: body.vendorId,
         phoneNumberId: body.phoneNumberId,
         customerPhone: body.customerPhone,
         content: body.content,
         whatsappMessageId: body.whatsappMessageId,
+        upstreamCostMilli,
         ...(sourceMessageType ? { sourceMessageType } : {})
       });
     } catch (error) {

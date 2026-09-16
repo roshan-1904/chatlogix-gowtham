@@ -57,7 +57,8 @@ export const openApiSpec: any = {
     { name: 'Orders' },
     { name: 'Payments' },
     { name: 'Shipping' },
-    { name: 'Usage' }
+    { name: 'Usage' },
+    { name: 'Admin' }
   ],
   security: [
     {
@@ -304,7 +305,8 @@ export const openApiSpec: any = {
                   "email": "owner@acmerestaurant.com",
                   "subscriptionPlan": "Starter",
                   "subscriptionStatus": "active",
-                  "walletBalance": 0,
+                  "walletBalanceMilli": 0,
+                  "markupPercent": 50,
                   "createdAt": "2025-10-18T18:54:16.520Z",
                   "updatedAt": "2025-10-18T18:54:16.520Z"
                 }
@@ -319,6 +321,7 @@ export const openApiSpec: any = {
       get: {
         tags: ['Vendors'],
         summary: 'Get usage analytics for a vendor',
+        description: 'Total amount charged to the vendor wallet, in millirupees (1 rupee = 1000 millirupees).',
         parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
         responses: {
           '200': {
@@ -328,12 +331,7 @@ export const openApiSpec: any = {
                 schema: { $ref: '#/components/schemas/UsageAnalytics' },
                 example: {
                   "vendorId": "vendor_123456",
-                  "creditsUsed": 150,
-                  "textMessages": 120,
-                  "audioMessages": 15,
-                  "imageMessages": 15,
-                  "period": "2025-10-01 to 2025-10-18",
-                  "walletBalance": 850
+                  "chargedMilli": 150000
                 }
               } 
             }
@@ -348,8 +346,107 @@ export const openApiSpec: any = {
         summary: 'Get vendor config',
         parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
         responses: {
-          '200': { description: 'Vendor', content: { 'application/json': { schema: { $ref: '#/components/schemas/Vendor' } } } },
+          '200': { description: 'Vendor config', content: { 'application/json': { schema: { $ref: '#/components/schemas/VendorConfig' } } } },
           '404': { description: 'Not found' }
+        }
+      }
+    },
+    '/api/vendors/{id}/billing-config': {
+      patch: {
+        tags: ['Vendors'],
+        summary: 'Update vendor billing config (admin only)',
+        description: 'Sets the per-vendor markup applied on top of AI + WhatsApp + platform cost when charging the wallet.',
+        parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/BillingConfigRequest' },
+              example: { "markupPercent": 50 }
+            }
+          }
+        },
+        responses: {
+          '200': {
+            description: 'Updated billing config',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/BillingConfigResponse' },
+                example: { "id": "vendor_123456", "markupPercent": 50 }
+              }
+            }
+          },
+          '400': { description: 'Invalid markupPercent' },
+          '403': { description: 'Admin role required' },
+          '404': { description: 'Vendor not found' }
+        }
+      }
+    },
+    '/api/vendors/{id}/wallet-transactions': {
+      get: {
+        tags: ['Vendors'],
+        summary: 'List recent wallet transactions (admin only)',
+        parameters: [
+          { in: 'path', name: 'id', required: true, schema: { type: 'string' } },
+          { in: 'query', name: 'limit', required: false, schema: { type: 'integer', minimum: 1, maximum: 200, default: 50 } }
+        ],
+        responses: {
+          '200': {
+            description: 'Wallet ledger, newest first',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/WalletTransactionsResponse' },
+                example: {
+                  "transactions": [
+                    {
+                      "id": "txn_123456",
+                      "transactionType": "deduction",
+                      "amountMilli": 390,
+                      "balanceAfterMilli": 99610,
+                      "transactionDate": "2025-10-18T18:54:16.520Z",
+                      "metadata": { "source": "conversation_turn", "markupPercent": 50 }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          '400': { description: 'Invalid query' },
+          '403': { description: 'Admin role required' }
+        }
+      }
+    },
+    '/api/vendors/{id}/dashboard-stats': {
+      get: {
+        tags: ['Vendors'],
+        summary: 'Get comprehensive dashboard statistics',
+        description: 'All wallet amounts are in millirupees (1 rupee = 1000 millirupees). Order and revenue amounts remain in paise.',
+        parameters: [
+          { in: 'path', name: 'id', required: true, schema: { type: 'string' } },
+          {
+            in: 'query',
+            name: 'dateRange',
+            required: false,
+            schema: {
+              type: 'string',
+              enum: ['thisWeek', 'thisMonth', 'last3Months', 'last6Months', 'thisFinancialYear', 'custom'],
+              default: 'thisMonth'
+            }
+          },
+          { in: 'query', name: 'startDate', required: false, schema: { type: 'string', example: '2025-10-01' } },
+          { in: 'query', name: 'endDate', required: false, schema: { type: 'string', example: '2025-10-18' } }
+        ],
+        responses: {
+          '200': {
+            description: 'Dashboard statistics',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/DashboardStats' }
+              }
+            }
+          },
+          '400': { description: 'Invalid date range' },
+          '429': { description: 'Rate limited' }
         }
       }
     },
@@ -372,10 +469,140 @@ export const openApiSpec: any = {
         responses: {
           '200': {
             description: 'New balance',
-            content: { 'application/json': { schema: { type: 'object', properties: { vendorId: { type: 'string' }, walletBalance: { type: 'integer' } } } } }
+            content: { 'application/json': { schema: { type: 'object', properties: { vendorId: { type: 'string' }, walletBalanceMilli: { type: 'integer' } } } } }
           },
           '400': { description: 'Invalid amount' },
           '404': { description: 'Vendor not found' }
+        }
+      }
+    },
+    '/api/vendors/me/wallet': {
+      get: {
+        tags: ['Vendors'],
+        summary: 'Get vendor wallet summary',
+        responses: {
+          '200': { description: 'Wallet summary' },
+          '404': { description: 'Vendor not found' }
+        }
+      }
+    },
+    '/api/vendors/me/wallet/top-up-intent': {
+      post: {
+        tags: ['Vendors'],
+        summary: 'Create wallet top-up intent',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['amountMilli'],
+                properties: { amountMilli: { type: 'integer' } }
+              }
+            }
+          }
+        },
+        responses: {
+          '201': { description: 'Intent created' },
+          '403': { description: 'Not approved or mock disabled' }
+        }
+      }
+    },
+    '/api/vendors/me/wallet/confirm-mock': {
+      post: {
+        tags: ['Vendors'],
+        summary: 'Confirm mock wallet top-up',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['intentId'],
+                properties: { intentId: { type: 'string', format: 'uuid' } }
+              }
+            }
+          }
+        },
+        responses: {
+          '200': { description: 'Top-up completed' },
+          '403': { description: 'Mock confirm unavailable' },
+          '409': { description: 'Already completed' }
+        }
+      }
+    },
+    '/api/admin/settings': {
+      get: {
+        tags: ['Admin'],
+        summary: 'Get platform billing settings',
+        description:
+          'Admin-only. Returns the PlatformSettings singleton. Money fields are paise. effectiveUsdToInrRate is usdToInrOverride ?? usdToInrRate.',
+        responses: {
+          '200': {
+            description: 'Platform settings',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/PlatformSettings' }
+              }
+            }
+          },
+          '401': { description: 'Authentication required' },
+          '403': { description: 'Admin role required' }
+        }
+      },
+      patch: {
+        tags: ['Admin'],
+        summary: 'Update platform billing settings',
+        description:
+          'Admin-only partial update. Does not accept usdToInrRate or usdToInrFetchedAt (cron-owned). usdToInrOverride may be a number or null to clear the pin. Money fields are paise.',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/PlatformSettingsPatch' }
+            }
+          }
+        },
+        responses: {
+          '200': {
+            description: 'Updated settings',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/PlatformSettings' }
+              }
+            }
+          },
+          '400': { description: 'Validation error' },
+          '401': { description: 'Authentication required' },
+          '403': { description: 'Admin role required' }
+        }
+      }
+    },
+    '/api/admin/settings/refresh-fx': {
+      post: {
+        tags: ['Admin'],
+        summary: 'Refresh USD/INR from Frankfurter',
+        description:
+          'Admin-triggered fetch. Rejects rates outside 50..150 and leaves yesterday\'s live rate in place. Suggested EventBridge schedule for the optional Lambda: cron(30 18 * * ? *) UTC.',
+        responses: {
+          '200': {
+            description: 'Fetch accepted and stored',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/FxRefreshResult' }
+              }
+            }
+          },
+          '502': {
+            description: 'Fetch rejected or upstream failed; previous settings returned',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/FxRefreshResult' }
+              }
+            }
+          },
+          '401': { description: 'Authentication required' },
+          '403': { description: 'Admin role required' }
         }
       }
     },
@@ -383,6 +610,7 @@ export const openApiSpec: any = {
       post: {
         tags: ['Vendors'],
         summary: 'Upgrade vendor plan',
+        description: 'Bookkeeping only. There is no monthly credit quota; billing is prepaid wallet spend with a per-vendor markup (see PATCH /api/vendors/{id}/billing-config).',
         parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
         requestBody: { 
           required: true, 
@@ -1570,11 +1798,190 @@ export const openApiSpec: any = {
           businessName: { type: 'string' },
           phone: { type: 'string' },
           email: { type: 'string' },
-          subscriptionPlan: { type: 'string' },
+          subscriptionPlan: { type: 'string', description: 'Bookkeeping only; does not affect billing' },
           subscriptionStatus: { type: 'string' },
-          walletBalance: { type: 'integer' },
+          walletBalanceMilli: { type: 'integer', description: 'Wallet balance in millirupees' },
+          markupPercent: { type: 'integer', description: 'Per-vendor markup applied at charge time' },
           createdAt: { type: 'string', format: 'date-time' },
           updatedAt: { type: 'string', format: 'date-time' }
+        }
+      },
+      VendorConfig: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          businessName: { type: 'string' },
+          plan: { type: 'string', description: 'Bookkeeping only; does not affect billing' },
+          status: { type: 'string' },
+          walletBalanceMilli: { type: 'integer', description: 'Wallet balance in millirupees' },
+          markupPercent: { type: 'integer', description: 'Per-vendor markup applied at charge time' },
+          category: { type: 'string', nullable: true },
+          catalogImportEnabled: { type: 'boolean' },
+          ai: {
+            type: 'object',
+            properties: {
+              botName: { type: 'string', nullable: true },
+              personality: { type: 'string', nullable: true },
+              systemPrompt: { type: 'string', nullable: true },
+              greeting: { type: 'string', nullable: true },
+              closing: { type: 'string', nullable: true },
+              preparationTimeMinutes: { type: 'integer', nullable: true },
+              deliveryInstructions: { type: 'string', nullable: true },
+              pickupDeliveryAddress: { type: 'string', nullable: true },
+              toneExample: { type: 'string', nullable: true }
+            }
+          }
+        }
+      },
+      BillingConfigRequest: {
+        type: 'object',
+        required: ['markupPercent'],
+        properties: {
+          markupPercent: { type: 'integer', minimum: 0, maximum: 500 }
+        }
+      },
+      BillingConfigResponse: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          markupPercent: { type: 'integer' }
+        }
+      },
+      PlatformSettings: {
+        type: 'object',
+        description: 'Platform billing knobs. Money fields are paise (1 rupee = 100 paise).',
+        properties: {
+          usdToInrRate: { type: 'number', example: 83.4521 },
+          usdToInrSource: { type: 'string', example: 'frankfurter' },
+          usdToInrFetchedAt: { type: 'string', format: 'date-time', nullable: true },
+          usdToInrOverride: { type: 'number', nullable: true, example: null },
+          effectiveUsdToInrRate: { type: 'number', example: 83.4521 },
+          platformFeePerTurnPaise: { type: 'integer', example: 0 },
+          platformFeeOutboundMediaPaise: { type: 'integer', example: 0 },
+          trialGrantPaise: { type: 'integer', example: 5000 },
+          trialExpiryDays: { type: 'integer', example: 30 },
+          catalogImportDailyPaiseCap: { type: 'integer', example: 5000 },
+          catalogEnhanceDailyPaiseCap: { type: 'integer', example: 3000 },
+          minWalletTopUpPaise: { type: 'integer', example: 10000 },
+          maxWalletTopUpPaise: { type: 'integer', example: 5000000 },
+          walletTopUpPresetsPaise: {
+            type: 'array',
+            items: { type: 'integer' },
+            example: [50000, 100000, 200000, 500000]
+          },
+          mockWalletTopUpEnabled: { type: 'boolean', example: true },
+          updatedAt: { type: 'string', format: 'date-time' },
+          updatedBy: { type: 'string', nullable: true }
+        }
+      },
+      PlatformSettingsPatch: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          usdToInrOverride: { type: 'number', nullable: true, minimum: 50, maximum: 150 },
+          platformFeePerTurnPaise: { type: 'integer', minimum: 0 },
+          platformFeeOutboundMediaPaise: { type: 'integer', minimum: 0 },
+          trialGrantPaise: { type: 'integer', minimum: 0 },
+          trialExpiryDays: { type: 'integer', minimum: 1, maximum: 3650 },
+          catalogImportDailyPaiseCap: { type: 'integer', minimum: 0 },
+          catalogEnhanceDailyPaiseCap: { type: 'integer', minimum: 0 },
+          minWalletTopUpPaise: { type: 'integer', minimum: 0 },
+          maxWalletTopUpPaise: { type: 'integer', minimum: 0 },
+          walletTopUpPresetsPaise: { type: 'array', items: { type: 'integer', minimum: 0 } },
+          mockWalletTopUpEnabled: { type: 'boolean' }
+        }
+      },
+      FxRefreshResult: {
+        type: 'object',
+        required: ['ok', 'settings'],
+        properties: {
+          ok: { type: 'boolean' },
+          rate: { type: 'number' },
+          reason: { type: 'string', enum: ['fetch_failed', 'invalid_payload', 'out_of_range'] },
+          settings: { $ref: '#/components/schemas/PlatformSettings' }
+        }
+      },
+      WalletTransaction: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          transactionType: { type: 'string', enum: ['recharge', 'deduction', 'refund'] },
+          amountMilli: { type: 'integer' },
+          balanceAfterMilli: { type: 'integer' },
+          transactionDate: { type: 'string', format: 'date-time' },
+          metadata: { type: 'object', additionalProperties: true }
+        }
+      },
+      WalletTransactionsResponse: {
+        type: 'object',
+        properties: {
+          transactions: { type: 'array', items: { $ref: '#/components/schemas/WalletTransaction' } }
+        }
+      },
+      DashboardBilling: {
+        type: 'object',
+        description: 'Prepaid wallet spend. All amounts are millirupees (1 rupee = 1000 millirupees).',
+        properties: {
+          balanceMilli: { type: 'integer' },
+          spend: {
+            type: 'object',
+            properties: {
+              today: { type: 'integer' },
+              thisWeek: { type: 'integer' },
+              thisMonth: { type: 'integer' },
+              total: { type: 'integer' }
+            }
+          },
+          breakdownBySource: {
+            type: 'array',
+            description:
+              'Spend grouped by the action that produced the charge (conversation_turn, legacy_conversation_turn, outbound_media, catalog_import, catalog_enhance, catalog_enhance_transcribe, sandbox_chat, sandbox_transcribe) over the requested date range; only sources with recorded spend appear.',
+            items: {
+              type: 'object',
+              properties: {
+                source: { type: 'string', example: 'conversation_turn' },
+                label: { type: 'string', example: 'Customer replies' },
+                milli: { type: 'integer' },
+                count: { type: 'integer' }
+              }
+            }
+          },
+          dailySpend: {
+            type: 'array',
+            description: 'Trailing 7 calendar days including today, backfilled with zeros.',
+            items: {
+              type: 'object',
+              properties: {
+                date: { type: 'string', example: '2025-10-18' },
+                milli: { type: 'integer' }
+              }
+            }
+          },
+          averagePerDayMilli: { type: 'integer' },
+          projectedMonthlySpendMilli: { type: 'integer' },
+          lowBalanceWarning: { type: 'boolean', description: 'True when the balance is below ₹20 (20000 millirupees)' },
+          billingCycleStart: { type: 'string', format: 'date-time' },
+          billingCycleEnd: { type: 'string', format: 'date-time' }
+        }
+      },
+      DashboardStats: {
+        type: 'object',
+        properties: {
+          dateRange: {
+            type: 'object',
+            properties: {
+              preset: { type: 'string' },
+              startDate: { type: 'string', example: '2025-10-01' },
+              endDate: { type: 'string', example: '2025-10-18' },
+              label: { type: 'string' }
+            }
+          },
+          orders: { type: 'object', additionalProperties: true },
+          revenue: { type: 'object', additionalProperties: true, description: 'Order money, in paise' },
+          billing: { $ref: '#/components/schemas/DashboardBilling' },
+          products: { type: 'object', additionalProperties: true },
+          conversations: { type: 'object', additionalProperties: true },
+          recentOrders: { type: 'array', items: { type: 'object', additionalProperties: true } }
         }
       },
       RegisterVendorRequest: {
@@ -1624,7 +2031,7 @@ export const openApiSpec: any = {
         type: 'object',
         properties: {
           vendorId: { type: 'string' },
-          creditsUsed: { type: 'integer' }
+          chargedMilli: { type: 'integer', description: 'Total wallet spend in millirupees' }
         }
       },
       MapWaNumberRequest: {

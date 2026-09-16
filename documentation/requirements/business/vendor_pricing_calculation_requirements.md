@@ -1,5 +1,11 @@
 # 💰 Vendor Pricing Calculation Requirements - ChatLogix
 
+> ⚠️ **Not the shipped pricing system (checked 2026-09-16).** Every formula below — plan credits, remaining credits, usage %, extra-usage rate — depends on a monthly plan quota that **does not exist in the code**. `PLAN_CREDITS` / `getPlanCredits` were deleted and no API returns `planCredits`, `remainingThisMonth` or `usagePercentage`.
+>
+> Shipped model: one prepaid wallet, `Vendor.walletBalanceMilli` in **millirupees**, debited per billable action as `ceil((aiCost + whatsappCost + platformFee) × (1 + Vendor.markupPercent/100))` by `backend/src/services/pricing/pricingService.ts`. The low-balance warning fires under **₹20**, not the thresholds below. Authority: **[docs/BILLING_AND_PRICING.md](../../../docs/BILLING_AND_PRICING.md)**.
+>
+> Keep this document as the **commercial requirements** input for the future rate card (P2h); do not implement from it as-is.
+
 ## 📋 Document Overview
 This document defines the complete requirements for implementing the vendor pricing calculation system in ChatLogix, including subscription plans, credit management, usage tracking, and billing calculations.
 

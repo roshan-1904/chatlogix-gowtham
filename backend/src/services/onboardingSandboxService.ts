@@ -3,21 +3,25 @@ import { prisma } from '../db/prisma.js';
 import { env } from '../config/env.js';
 import { logger } from '../logger.js';
 import { processMessage, type ProcessMessageResult } from '../conversation/pipeline.js';
-import { usdToPaise } from '../utils/billingPaise.js';
-import {
-  canProcessMessage,
-  recordSandboxSpend
-} from './billingService.js';
+import { aiCostMilliForAudio, chargeVendor } from './pricing/pricingService.js';
+import { canProcessMessage } from './billingService.js';
 import { logOnboardingFunnelEvent } from './onboardingFunnelService.js';
-import { TRANSCRIBE_MODEL } from './audioTranscription.js';
+import { TRANSCRIBE_MODEL, estimateWebRecordingDurationSec } from './audioTranscription.js';
 
 const SANDBOX_PHONE_PREFIX = 'sandbox:';
 const SANDBOX_PHONE_NUMBER_ID = 'sandbox-onboarding';
 const SANDBOX_EMPTY_WALLET_REPLY =
-  'Your ₹100 trial is used up. You can still submit for approval — our team will review your shop.';
+  'Your trial balance is used up. You can still submit for approval — our team will review your shop.';
 
 export interface SandboxChatResult extends ProcessMessageResult {
   transcript?: string;
+  /**
+   * Millirupees actually taken from the trial wallet — the marked-up charge,
+   * clamped so a trial balance never goes negative. The pipeline itself only
+   * reports the pre-markup `aiCostMilli`; the demo shows this number so the
+   * vendor sees the same pricing a live reply would cost them.
+   */
+  costMilli: number;
 }
 
 async function ensureSandboxConversation(vendorId: string): Promise<{
@@ -51,12 +55,20 @@ async function ensureSandboxConversation(vendorId: string): Promise<{
 
 async function transcribeAudioBuffer(bytes: Buffer, mimeType: string): Promise<{
   transcript: string;
-  transcribePaise: number;
+  transcribeCostMilli: number;
 }> {
   const { transcribeVendorAudioBuffer } = await import('./vendorAudioTranscriptionService.js');
-  const { transcript, costUsd } = await transcribeVendorAudioBuffer(bytes, mimeType);
-  const transcribePaise = usdToPaise(costUsd);
-  return { transcript, transcribePaise };
+  const { transcript } = await transcribeVendorAudioBuffer(bytes, mimeType);
+  // Priced from audio duration rather than the returned costUsd, which is a
+  // per-token figure computed from a synthetic token count — not how OpenAI
+  // bills speech-to-text.
+  return {
+    transcript,
+    transcribeCostMilli: aiCostMilliForAudio(
+      TRANSCRIBE_MODEL,
+      estimateWebRecordingDurationSec(bytes.byteLength)
+    )
+  };
 }
 
 export async function runOnboardingSandboxChat(
@@ -72,7 +84,8 @@ export async function runOnboardingSandboxChat(
           ? 'Your trial has expired. You can still submit for approval or contact support.'
           : SANDBOX_EMPTY_WALLET_REPLY,
       intent: 'guard_no_credit',
-      costPaise: 0,
+      aiCostMilli: 0,
+      costMilli: 0,
       tokenMeta: { model: 'none', promptTokens: 0, completionTokens: 0 }
     };
   }
@@ -94,23 +107,26 @@ export async function runOnboardingSandboxChat(
       throw new Error('Sandbox did not return a reply. Please try again.');
     }
 
+    // The sandbox runs the real pipeline but skips its debit (finalizeTurn
+    // returns before the charge when `sandbox` is set), so the trial wallet is
+    // charged here instead — at the vendor's real markup, so the demo numbers
+    // match what live traffic will cost.
+    const charge = await chargeVendor({
+      vendorId,
+      source: 'sandbox_chat',
+      cost: { aiCostMilli: result.aiCostMilli },
+      entityId: whatsappMessageId,
+      floorAtZero: true,
+      metadata: { intent: result.intent, model: result.tokenMeta.model }
+    });
+
     logOnboardingFunnelEvent('sandbox_message_sent', {
       vendorId,
-      costPaise: result.costPaise,
+      costMilli: charge.deductedMilli,
       durationMs: Date.now() - started
     });
 
-    if (result.costPaise > 0) {
-      await recordSandboxSpend({
-        vendorId,
-        paiseCost: result.costPaise,
-        source: 'sandbox_chat',
-        externalId: whatsappMessageId,
-        metadata: { intent: result.intent, model: result.tokenMeta.model }
-      });
-    }
-
-    return result;
+    return { ...result, costMilli: charge.deductedMilli };
   } catch (err) {
     logger.error({ err, vendorId, durationMs: Date.now() - started }, 'onboarding_sandbox_chat_failed');
     if (Date.now() - started > 20_000) {
@@ -134,32 +150,32 @@ export async function runOnboardingSandboxVoice(
           ? 'Your trial has expired. You can still submit for approval or contact support.'
           : SANDBOX_EMPTY_WALLET_REPLY,
       intent: 'guard_no_credit',
-      costPaise: 0,
+      aiCostMilli: 0,
+      costMilli: 0,
       tokenMeta: { model: 'none', promptTokens: 0, completionTokens: 0 }
     };
   }
 
-  const { transcript, transcribePaise } = await transcribeAudioBuffer(audioBuffer, mimeType);
+  const { transcript, transcribeCostMilli } = await transcribeAudioBuffer(audioBuffer, mimeType);
 
-  if (transcribePaise > 0) {
-    await recordSandboxSpend({
-      vendorId,
-      paiseCost: transcribePaise,
-      source: 'sandbox_transcribe',
-      metadata: { model: TRANSCRIBE_MODEL }
-    });
-  }
+  // Charged separately from the reply (unlike the live WhatsApp path, which
+  // folds transcription into the turn) so the trial breakdown can show the
+  // vendor where their demo spend went.
+  const transcribeCharge = await chargeVendor({
+    vendorId,
+    source: 'sandbox_transcribe',
+    cost: { aiCostMilli: transcribeCostMilli },
+    floorAtZero: true,
+    metadata: { model: TRANSCRIBE_MODEL }
+  });
 
   const result = await runOnboardingSandboxChat(vendorId, transcript);
+  const costMilli = result.costMilli + transcribeCharge.deductedMilli;
   logOnboardingFunnelEvent('sandbox_voice_sent', {
     vendorId,
-    costPaise: result.costPaise + transcribePaise,
+    costMilli,
     durationMs: Date.now() - started
   });
 
-  return {
-    ...result,
-    transcript,
-    costPaise: result.costPaise + transcribePaise
-  };
+  return { ...result, transcript, costMilli };
 }

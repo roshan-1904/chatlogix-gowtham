@@ -102,8 +102,8 @@ vendorOnboardingRouter.get(
         onboardingData: true,
         submittedAt: true,
         rejectionReason: true,
-        walletBalance: true,
-        trialGrantedPaise: true,
+        walletBalanceMilli: true,
+        trialGrantedMilli: true,
         trialExpiresAt: true,
         aiBotName: true,
         aiGreeting: true,
@@ -348,7 +348,7 @@ vendorOnboardingRouter.post(
     return res.json({
       response: result.finalText,
       intent: result.intent,
-      costPaise: result.costPaise,
+      costMilli: result.costMilli,
       tokenUsage: result.tokenMeta,
       durationMs
     });
@@ -377,7 +377,7 @@ vendorOnboardingRouter.post(
       transcript: result.transcript,
       response: result.finalText,
       intent: result.intent,
-      costPaise: result.costPaise,
+      costMilli: result.costMilli,
       tokenUsage: result.tokenMeta,
       durationMs: Date.now() - started
     });
@@ -435,8 +435,8 @@ vendorOnboardingRouter.get(
         email: true,
         registrationStatus: true,
         onboardingStep: true,
-        walletBalance: true,
-        trialGrantedPaise: true,
+        walletBalanceMilli: true,
+        trialGrantedMilli: true,
         trialExpiresAt: true
       }
     });

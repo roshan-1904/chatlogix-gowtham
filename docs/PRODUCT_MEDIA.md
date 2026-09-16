@@ -75,7 +75,7 @@ Fixed for **v1** unless explicitly revised.
 | PM6 | **Caps (v1):** max **10** active media rows per product; max **3** images **or** **1** video sent per customer turn (not both video + 3 images in one turn unless product revises). |
 | PM7 | **Customer-initiated session only** — media is sent as a **service reply** inside an open customer-care window. No broadcast of product videos to cold leads via this feature (templates are a separate product). |
 | PM8 | **MIME and size** validated at upload and again before send per [Meta media limits](#17-whatsapp-platform-limits-and-policy). |
-| PM9 | **Billing:** debit **per outbound WhatsApp message** using existing `creditsForKind` (`text`, `image`, `video`) — not a single text debit for a turn that included media. |
+| PM9 | **Billing:** debit **per outbound WhatsApp message**, not a single debit for a turn that included media. Each debit goes through `pricingService.chargeVendor` (see [BILLING_AND_PRICING.md](./BILLING_AND_PRICING.md)); the flat `text`/`image`/`video` credit weights this rule originally assumed no longer exist. |
 | PM10 | **One SQS response payload per turn** with optional `attachments[]`; dispatcher sends text then media sequentially. Each attachment gets its own `Message` row for history and idempotency. |
 | PM11 | **Multi-WABA:** `phoneNumberId` from the conversation must be passed on every send. Cached Graph `media_id` (phase 1.1) is keyed by `(productMediaId, phoneNumberId)`. |
 | PM12 | **Compact catalog invalidation** on any `ProductMedia` CRUD — same as product description updates (`invalidateCompactCatalog(vendorId)`). |
@@ -97,7 +97,7 @@ Fixed for **v1** unless explicitly revised.
 | **Response queue** | `ResponseQueueMessage` = `text` \| `template` only (`responseProcessor.ts`) | No media branch |
 | **Pipeline** | `finalizeTurn` publishes `type: 'text'` only | No attachments |
 | **LLM-1** | `CartOp` includes cart, handoff, `knowledge_gap`, … | No `send_product_media`; catalog table has no media hint |
-| **Billing** | `debitAfterEnqueue` uses `creditsForKind('text')` only | Must extend for outbound image/video messages |
+| **Billing** | ✅ Implemented — `debitAfterEnqueue` charges the turn's real AI cost; the dispatcher calls `debitOutboundMessage(messageId)` per sent image/video (`source: 'outbound_media'`, idempotent on `outbound-msg:{messageId}`) | None. Note the media charge is **₹0 today** — its only component is `PlatformSettings.platformFeeOutboundMediaPaise`, which is 0 until the P2h rate card |
 
 **Authoritative send path in production:** webhook → text queue → `chatlogix-incoming-response-generator` → `RESPONSE_QUEUE_URL` → `chatlogix-whatsapp-response-dispatcher`. Any media feature must wire through that chain (and update `docs/INCOMING_RESPONSE_GENERATOR_FLOW.md` when `backend/src/conversation/` changes).
 
@@ -196,7 +196,7 @@ sequenceDiagram
 6. `persistTurn` creates assistant **text** `Message` as today; create **pending** `Message` rows per attachment (`type: image` \| `video`, `status: pending`).
 7. Publish **one** response queue message: `{ type: 'text', text, attachments, messageId, ... }`.
 8. Dispatcher: send text; for each attachment, if `Message` not already `sent`, presign S3 → `sendWhatsAppImage` / `sendWhatsAppVideo` → update `Message` with `whatsappMessageId`, `status: sent`.
-9. Debit credits: 1× text + N× image or 1× video per PM9.
+9. Debit the wallet: one turn charge (real AI cost × markup) plus one `outbound_media` charge per sent attachment, per PM9.
 
 ### 6.3 No media on product
 
@@ -622,33 +622,32 @@ Reference Meta docs for current upload endpoint and field names.
 
 ## 14. Billing and wallet
 
-### 14.1 Credit weights (env defaults)
+**Implemented.** Option C below is what shipped. Canonical pricing reference: [BILLING_AND_PRICING.md](./BILLING_AND_PRICING.md).
 
-From `backend/src/config/env.ts`:
+### 14.1 No credit weights
 
-| Kind | Default credits |
-|------|-----------------|
-| text | 1 |
-| image | 2 |
-| video | 10 |
+The flat per-kind credit weights this section used to specify (text 1, image 2, video 10) **no longer exist**. Wallet money is millirupees and every charge is
 
-### 14.2 Required behavior
+```
+ceil((aiCostMilli + whatsappCostMilli + platformFeeMilli) × (1 + Vendor.markupPercent/100))
+```
 
-| Today | Target |
-|-------|--------|
-| `debitAfterEnqueue` → `creditsForKind('text')` once per inbound turn | Debit **text** for assistant text message + **each** outbound image/video `Message` |
+### 14.2 As implemented
 
-**Options:**
+| Debit | Where | Source | Cost components |
+|---|---|---|---|
+| Assistant turn | `finalizeTurn` → `debitAfterEnqueue` | `conversation_turn` | Real LLM-1 + LLM-2 tokens (+ upstream transcription), plus `PlatformSettings.platformFeePerTurnPaise` |
+| Each sent attachment | dispatcher → `debitOutboundMessage(messageId)` | `outbound_media` | `PlatformSettings.platformFeeOutboundMediaPaise` only — **no AI cost on this path** |
 
-- **A:** Single transaction after dispatcher success (requires dispatcher callback or billing queue) — accurate but async.
-- **B:** Pipeline debits **estimated** max credits before enqueue; reconcile on dispatcher (complex).
-- **C (recommended v1):** Extend `finalizeTurn` to debit text; dispatcher debits each media message on successful send (new `debitOutboundMessage(messageId)` idempotent on `Message.id`).
+Both are idempotent via `CreditUsage.externalId` (`whatsappMessageId` and `outbound-msg:{messageId}` respectively).
 
-**Pre-check:** Before enqueue, `canProcessMessage` should consider **worst-case** turn cost (1 text + 3× image or 1× video) to avoid wallet empty mid-send.
+**Outbound media is free to the vendor today.** `PlatformSettings.platformFeeOutboundMediaPaise` is `0` (admin-editable at web-admin `/billing`; env `PLATFORM_FEE_OUTBOUND_MEDIA_MILLI` is fallback only), so `chargeVendor` returns `outcome: 'skipped'` without writing a row. That is a deliberate drop from the old flat 2/10-credit charge — which was revenue unconnected to any real cost — and stays free until the P2h Meta rate card populates `whatsappCostMilli`.
+
+**Pre-check:** `canProcessMessage(vendorId, kind, { assistantTurnWorstCaseMedia: true })` reserves the worst-case turn **plus 3 outbound-media fees** (PM6) before enqueue, so the wallet cannot run empty mid-send.
 
 ### 14.3 `CreditUsage.conversationType`
 
-Record `image` / `video` for outbound media rows separately for analytics.
+`debitOutboundMessage` records `conversationType: 'image' | 'video'` on the outbound rows, so media sends are separable in analytics from the `text` turn charge.
 
 ---
 
@@ -703,7 +702,7 @@ Verify against [Meta WhatsApp Cloud API media documentation](https://developers.
 
 | Cost driver | Notes |
 |-------------|-------|
-| **ChatLogix credits** | Primary vendor-facing meter (image 2×, video 10× vs text) |
+| **ChatLogix wallet** | Primary vendor-facing meter. Media sends currently cost **₹0** (§14.2); the turn's AI cost is the only charge |
 | **S3 storage** | Low; lifecycle delete orphaned uploads |
 | **S3 egress** | Each `link` send = Meta download; cache reduces repeat |
 | **Lambda** | Extra dispatcher time << LLM cost |
@@ -795,7 +794,7 @@ Alerts: spike in `failed` outbound media; S3 403 on presign.
 - WhatsApp send: `backend/src/services/whatsappClient.ts`
 - Response dispatcher: `backend/src/workers/responseProcessor.ts` (Lambda handler wraps same logic)
 - Conversation pipeline: `backend/src/conversation/pipeline.ts`, `llm/prompts.ts`, `types.ts`
-- Billing: `backend/src/conversation/billing.ts`, `backend/src/services/billingService.ts` (`creditsForKind`)
+- Billing: `backend/src/conversation/billing.ts` (`debitAfterEnqueue`, `debitOutboundMessage`), `backend/src/services/pricing/pricingService.ts` (`chargeVendor`), `backend/src/services/billingService.ts` (`canProcessMessage`) — see `docs/BILLING_AND_PRICING.md`
 - S3 presign pattern (upload flow): `backend/src/services/importStorageService.ts` — bucket env for **catalog import** only; product media presign should target `WA_MEDIA_S3_BUCKET` + `vendor/{vendorId}/catalog/` keys
 - WA media S3 client: `backend/src/utils/waMediaS3.ts`
 - Inbound conversation keys: `backend/src/services/mediaFetchProcessor.ts` (`buildS3Key`), `backend/src/routes/messages.ts`

@@ -30,22 +30,21 @@ Build a **WhatsApp automation webhook API** for small vendors/entrepreneurs in I
 
 ---
 
-### 3. Vendor Subscription & Credit System
+### 3. Vendor Wallet & Billing
+
+> **Updated 2026-09-16 (millirupee rework).** This section originally specified a monthly subscription plan with preloaded credits and flat per-message-type weights. That model was **not** what shipped and no longer exists in the code. Authority: [docs/BILLING_AND_PRICING.md](../../../docs/BILLING_AND_PRICING.md).
+
 - Each vendor has:
   - Vendor ID, Name, Contact Info
-  - Subscription plan (monthly) with preloaded credits
-  - Usage limits per message type (text/audio/image)
-  - Billing cycle
-- **Credit Deduction Logic**:
-  - Text: 1 credit/message
-  - Audio: 3 credits/message
-  - Image: 2 credits/message
-  - AI-based responses may consume extra credits
-- Real-time check before processing:
-  - Credits available → process
-  - Credits exhausted → notify vendor or block message
-- Detailed logging per message:
-  - Vendor ID, message type, AI tokens, API/media cost, credits used
+  - A single prepaid wallet: `Vendor.walletBalanceMilli`, in **millirupees** (1 rupee = 1000)
+  - `Vendor.markupPercent` (default 50), admin-editable via `PATCH /api/vendors/:id/billing-config`
+  - `Vendor.subscriptionPlan` — bookkeeping only; it grants no quota
+- **Charge logic** — no flat per-message-type credits. Every debit goes through `pricingService.chargeVendor`:
+  - `ceil((aiCostMilli + whatsappCostMilli + platformFeeMilli) × (1 + markupPercent/100))`
+  - `aiCostMilli` is real token cost, plus Whisper transcription priced per second of audio for voice notes
+  - `whatsappCostMilli` is **0** today — ChatLogix absorbs Meta conversation fees until the P2h rate card
+- Real-time check before processing (`billingService.canProcessMessage`): the wallet must cover a worst-case turn estimate, otherwise the turn is gated and a template reply is sent.
+- Detailed logging per charge on `CreditUsage`: vendor, required `source`, AI tokens, cost components, `chargedMilli`, and `externalId` as the idempotency key.
 
 ---
 

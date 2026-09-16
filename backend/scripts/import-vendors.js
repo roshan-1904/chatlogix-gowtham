@@ -134,7 +134,7 @@ Always stay on topic of juice products and orders. Keep messages short, clear, a
             phone: '+919876543210', // Default phone
             email: 'contact@lushjuices.com', // Default email
             subscriptionPlan: 'Pro',
-            walletBalance: 1000
+            walletBalanceMilli: 1000000 // ₹1,000 in millirupees
         };
     }
     parseIbellVendor(content) {
@@ -206,7 +206,7 @@ Always stay on topic of brownies and ordering. Be friendly and patient. Use emoj
             phone: '+919876543211', // Default phone
             email: 'orders@ibellcreations.com', // Default email
             subscriptionPlan: 'Pro',
-            walletBalance: 1000
+            walletBalanceMilli: 1000000 // ₹1,000 in millirupees
         };
     }
     async importVendor(vendorData) {
@@ -232,7 +232,7 @@ Always stay on topic of brownies and ordering. Be friendly and patient. Use emoj
                     email: vendorData.email,
                     subscriptionPlan: vendorData.subscriptionPlan,
                     subscriptionStatus: 'active',
-                    walletBalance: vendorData.walletBalance,
+                    walletBalanceMilli: vendorData.walletBalanceMilli,
                     aiBotName: vendorData.aiBotName,
                     aiPersonality: vendorData.aiPersonality,
                     aiSystemPrompt: vendorData.aiSystemPrompt,

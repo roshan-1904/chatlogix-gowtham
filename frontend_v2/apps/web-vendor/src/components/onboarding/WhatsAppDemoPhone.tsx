@@ -43,7 +43,7 @@ interface WhatsAppDemoPhoneProps {
   suggestedPrompts: readonly string[];
   walletEmpty: boolean;
   onWalletRefresh?: () => void;
-  onLastCost?: (costPaise: number) => void;
+  onLastCost?: (costMilli: number) => void;
   onAssistantReply?: () => void;
   framed?: boolean;
 }
@@ -268,7 +268,7 @@ export function WhatsAppDemoPhone({
   }, []);
 
   const finishReply = useCallback(
-    async (msgId: string, sendStartedAt: number, work: Promise<{ response: string; costPaise: number }>) => {
+    async (msgId: string, sendStartedAt: number, work: Promise<{ response: string; costMilli: number }>) => {
       const typingTimer = window.setTimeout(() => {
         if (!mountedRef.current) return;
         setTyping(true);
@@ -296,7 +296,7 @@ export function WhatsAppDemoPhone({
             timestamp: new Date(),
           },
         ]);
-        onLastCost?.(result.costPaise);
+        onLastCost?.(result.costMilli);
         onWalletRefresh?.();
         onAssistantReply?.();
       } catch (err) {

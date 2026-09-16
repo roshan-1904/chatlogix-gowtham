@@ -9,6 +9,7 @@ import { StepLogger } from '../logger.js';
 import { emitMetric, emitDuration } from '../observability/metrics.js';
 import { getWaMediaS3Client } from '../utils/waMediaS3.js';
 import { ensureMessageContentEn } from '../utils/vendorEnglish.js';
+import { aiCostMilliForAudio } from './pricing/pricingService.js';
 import {
   TRANSCRIBE_MODEL,
   UNCLEAR_VOICE_REPLY,
@@ -187,11 +188,24 @@ async function transcribeOnce(
   return (res.text ?? '').trim();
 }
 
+interface TranscriptionResult {
+  transcript: string;
+  /**
+   * Unrounded millirupees of Whisper spend, handed to the conversation
+   * processor as `upstreamCostMilli` so the vendor sees one charge for the
+   * voice note rather than a transcription debit plus a reply debit. Nothing
+   * costed this before the wallet rewrite — inbound audio was simply free.
+   */
+  costMilli: number;
+}
+
 async function transcribeAudio(
   bytes: Buffer,
   mimeType: string | undefined,
   stepLogger: StepLogger
-): Promise<string> {
+): Promise<TranscriptionResult> {
+  const durationSec = estimateOpusDurationSec(bytes.byteLength);
+  const perPassCostMilli = aiCostMilliForAudio(TRANSCRIBE_MODEL, durationSec);
   const start = Date.now();
   const first = await transcribeOnce(bytes, mimeType);
   stepLogger.step('Audio transcription complete', {
@@ -205,7 +219,7 @@ async function transcribeAudio(
   });
 
   if (!isTranscriptTooThin(first, bytes.byteLength)) {
-    return first;
+    return { transcript: first, costMilli: perPassCostMilli };
   }
 
   emitMetric('media.transcript.too_thin', 1, {
@@ -234,7 +248,9 @@ async function transcribeAudio(
       dimensions: { messageType: 'audio' }
     });
   }
-  return picked;
+  // Both passes hit the API, so both are billed even when only one transcript
+  // is usable.
+  return { transcript: picked, costMilli: perPassCostMilli * 2 };
 }
 
 async function sendTemplatedReply(
@@ -327,8 +343,11 @@ async function handoffAfterFetch(
       stepLogger.warn('AUDIO_QUEUE_URL not configured; audio stays in S3 only');
       return;
     }
-    const transcript = await transcribeAudio(bytes, effectiveMime, stepLogger);
+    const { transcript, costMilli } = await transcribeAudio(bytes, effectiveMime, stepLogger);
     if (!transcript) {
+      // No AI reply follows, so nothing carries the transcription cost into a
+      // turn charge. Absorbed rather than debited on its own: a voice note we
+      // could not understand is not something to bill the vendor for.
       stepLogger.warn('Transcription unusable; sending templated reply');
       await sendTemplatedReply(job, UNCLEAR_VOICE_REPLY, stepLogger);
       return;
@@ -350,10 +369,12 @@ async function handoffAfterFetch(
       content: transcript,
       phoneNumberId: job.phoneNumberId,
       whatsappMessageId: job.whatsappMessageId,
-      sourceMessageType: 'audio'
+      sourceMessageType: 'audio',
+      upstreamCostMilli: costMilli
     });
     stepLogger.step('Audio handed off to AUDIO_QUEUE_URL', {
-      transcriptLength: transcript.length
+      transcriptLength: transcript.length,
+      upstreamCostMilli: costMilli
     });
     return;
   }

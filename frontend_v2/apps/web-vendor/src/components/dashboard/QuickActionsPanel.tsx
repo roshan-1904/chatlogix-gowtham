@@ -4,10 +4,10 @@ import { useNavigate } from 'react-router-dom';
 import type { DashboardStats } from '../../types/dashboard';
 
 interface QuickActionsPanelProps {
-  credits: DashboardStats['credits'];
+  billing: DashboardStats['billing'];
 }
 
-export function QuickActionsPanel({ credits }: QuickActionsPanelProps) {
+export function QuickActionsPanel({ billing }: QuickActionsPanelProps) {
   const navigate = useNavigate();
 
   return (
@@ -16,7 +16,7 @@ export function QuickActionsPanel({ credits }: QuickActionsPanelProps) {
       <nav className="space-y-2" aria-label="Quick actions navigation">
         <Button
           variant="primary"
-          onClick={() => navigate('/catalog/new')}
+          onClick={() => void navigate('/catalog/new')}
           className="w-full justify-center py-2 font-medium text-sm"
           aria-label="Add a new product to catalog"
         >
@@ -24,28 +24,27 @@ export function QuickActionsPanel({ credits }: QuickActionsPanelProps) {
         </Button>
         <Button
           variant="secondary"
-          onClick={() => navigate('/orders')}
+          onClick={() => void navigate('/orders')}
           className="w-full justify-center py-2 font-medium text-sm"
           aria-label="View all orders"
         >
           <span aria-hidden="true">📋</span> View Orders
         </Button>
-        {credits.lowBalanceWarning && (
-          <Button
-            variant="secondary"
-            onClick={() => {
-              // TODO: Navigate to billing/recharge page
-              alert('Recharge page coming soon');
-            }}
-            className="w-full justify-center py-2 font-medium text-sm bg-[#25D366] hover:bg-[#25D366]/90 text-white border-0"
-            aria-label="Recharge wallet credits"
-          >
-            <span aria-hidden="true">💳</span> Recharge Credits
-          </Button>
-        )}
+        <Button
+          variant="secondary"
+          onClick={() => void navigate('/wallet')}
+          className={`w-full justify-center py-2 font-medium text-sm ${
+            billing.lowBalanceWarning
+              ? 'bg-[#25D366] hover:bg-[#25D366]/90 text-white border-0'
+              : ''
+          }`}
+          aria-label="Add money to your wallet"
+        >
+          <span aria-hidden="true">💳</span> Add Money
+        </Button>
         <Button
           variant="ghost"
-          onClick={() => navigate('/conversations')}
+          onClick={() => void navigate('/conversations')}
           className="w-full justify-center py-2 font-medium text-sm hover:bg-gray-100"
           aria-label="View all conversations"
         >

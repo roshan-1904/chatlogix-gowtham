@@ -29,7 +29,8 @@ const prisma = new PrismaClient();
 const confirm = process.argv.includes('--confirm');
 const keepVendors = process.argv.includes('--keep-vendors');
 
-const WALLET_TOPUP_PAISE = 1_000_000;
+/** Matches seed.ts's WALLET_BALANCE_MILLI so a --keep-vendors run restarts from the same baseline. */
+const WALLET_TOPUP_MILLI = 10_000_000;
 
 const vendorWhere = { phone: { startsWith: VENDOR_PHONE_PREFIX } };
 const customerWhere = { phone: { startsWith: CUSTOMER_PHONE_PREFIX } };
@@ -102,7 +103,7 @@ async function main(): Promise<void> {
   if (!confirm) {
     console.log('[cleanup] DRY RUN — nothing deleted. Re-run with --confirm to delete.');
     if (keepVendors) {
-      console.log('[cleanup] --keep-vendors would preserve vendors, numbers, products; wallets reset to ' + WALLET_TOPUP_PAISE);
+      console.log('[cleanup] --keep-vendors would preserve vendors, numbers, products; wallets reset to ' + WALLET_TOPUP_MILLI);
     }
     return;
   }
@@ -123,9 +124,9 @@ async function main(): Promise<void> {
 
     const toppedUp = await prisma.vendor.updateMany({
       where: vendorWhere,
-      data: { walletBalance: WALLET_TOPUP_PAISE, registrationStatus: 'approved', trialExpiresAt: null }
+      data: { walletBalanceMilli: WALLET_TOPUP_MILLI, registrationStatus: 'approved', trialExpiresAt: null }
     });
-    console.log(`[cleanup] kept ${toppedUp.count} vendors, wallets reset to ${WALLET_TOPUP_PAISE} paise`);
+    console.log(`[cleanup] kept ${toppedUp.count} vendors, wallets reset to ${WALLET_TOPUP_MILLI} milli`);
   } else {
     const deletedVendors = await prisma.vendor.deleteMany({ where: vendorWhere });
     console.log(`[cleanup] deleted ${deletedVendors.count} vendors (numbers, products, wallet rows cascade)`);

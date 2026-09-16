@@ -48,7 +48,8 @@ This document provides comprehensive API documentation for all endpoints require
   "businessName": "Brownie Bakery",
   "plan": "Pro",
   "status": "active",
-  "walletBalance": 500000,
+  "walletBalanceMilli": 5000000,
+  "markupPercent": 50,
   "ai": {
     "botName": "BrownieBakerBot",
     "personality": "Friendly and helpful",

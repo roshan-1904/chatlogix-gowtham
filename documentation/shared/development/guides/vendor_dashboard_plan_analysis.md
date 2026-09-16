@@ -1,5 +1,7 @@
 # 📊 Vendor Dashboard Implementation Plan - Gap Analysis & Improvements
 
+> ⚠️ **Superseded on billing (2026-09-16) — kept for history.** The `planCredits` / `PLAN_CREDITS` / `getPlanCredits` model critiqued and proposed here no longer exists. The monthly plan quota was removed; charges are real cost × the vendor's `markupPercent`, in **millirupees**. Current behavior: **[docs/BILLING_AND_PRICING.md](../../../../docs/BILLING_AND_PRICING.md)**.
+
 ## Executive Summary
 
 This document provides a comprehensive analysis of the Vendor Dashboard Implementation Plan, identifying critical gaps, inconsistencies, and areas for improvement across technical, business, and UX dimensions.

@@ -14,7 +14,7 @@ function PlayIcon() {
   );
 }
 
-/** Same chip on both heroes: `₹100 free credits, no card required`, next to the Try Free CTA. */
+/** Same chip on both heroes: `₹50 free trial balance, no card required`, next to the Try Free CTA. */
 function HeroTrustChip({ className }: { className: string }) {
   return (
     <div

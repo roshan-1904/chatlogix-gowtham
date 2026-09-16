@@ -238,12 +238,12 @@ WhatsApp Webhook Payload
 
 #### Step 4.2: Billing & Rate Limiting
 **Process:**
-1. **Credit Check**: Verify vendor has sufficient credits
+1. **Wallet Check**: `billingService.canProcessMessage` verifies `Vendor.walletBalanceMilli` covers a worst-case turn estimate (also checks trial expiry)
 2. **Rate Limiting**: Check if vendor has exceeded rate limits
 3. **Block Processing**: If not allowed, log reason and skip
-4. **Deduct Credits**: Deduct 1 credit for text message processing
+4. **Debit the Wallet**: *after* the reply is enqueued, charge the turn's **real** cost via `pricingService.chargeVendor` — `ceil((aiCost + whatsappCost + platformFee) × (1 + markupPercent/100))` in millirupees. There is no flat "1 credit per text message" any more.
 
-**Code Location**: `src/services/billingService.ts`
+**Code Location**: `src/services/billingService.ts` (gate), `src/services/pricing/pricingService.ts` (charge), `src/conversation/billing.ts` (debit-after-enqueue). Model: [docs/BILLING_AND_PRICING.md](../../../docs/BILLING_AND_PRICING.md)
 
 #### Step 4.3: Message Relevance Check
 **Process:**

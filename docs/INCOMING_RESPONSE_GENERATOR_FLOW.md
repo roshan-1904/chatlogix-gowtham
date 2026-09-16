@@ -1,9 +1,9 @@
 # Incoming Response Generator — How We Prepare a WhatsApp Reply
 
 <!-- DOC_SYNC
-  last_verified_commit: 6797be1dcc141df16144a5ef8373e935ed14722a
-  last_verified_at: 2026-09-14
-  scope: As-implemented incoming-response-generator pipeline (language, LLM-2 reply selection, D6 order-status rewrite, knowledge_gap CustomerQuery persist, send_product_media outbound attachments, contentEn, voice-note ASR, compact-catalog paise heal, catalog baseQty pack pricing)
+  last_verified_commit: 34c42e767ad3c86d9ed1d3d1d4d7953b2adba03c
+  last_verified_at: 2026-09-16
+  scope: As-implemented incoming-response-generator pipeline (language, LLM-2 reply selection, D6 order-status rewrite, knowledge_gap CustomerQuery persist, send_product_media outbound attachments, contentEn, voice-note ASR, compact-catalog paise heal, catalog baseQty pack pricing, millirupee per-turn wallet charge via pricingService)
 -->
 
 **Living document.** This describes the **as-implemented** text path in `chatlogix-incoming-response-generator`, not the locked design spec. When the pipeline in `backend/src/conversation/` changes, update this file in the same change (see `.cursor/rules/incoming-response-generator-flow.mdc`).
@@ -47,6 +47,7 @@
 | Persist turn | `backend/src/conversation/persist.ts` |
 | Product media resolve (PM6) | `backend/src/conversation/productMediaAttachments.ts` |
 | Debit after enqueue | `backend/src/conversation/billing.ts` |
+| Charge arithmetic + the single wallet debit | `backend/src/services/pricing/pricingService.ts` |
 | Guard templates | `backend/src/conversation/templates.ts` |
 | Shared types | `backend/src/conversation/types.ts` |
 | Vendor English display | `backend/src/utils/vendorEnglish.ts` |
@@ -148,7 +149,7 @@ flowchart TD
   FIN --> PERSIST[persistTurn: assistant text Message,<br/>insights, memory, MessageProcessing]
   PERSIST --> PMEDIA[persistPendingOutboundMedia if any]
   PMEDIA --> PUB[publish RESPONSE_QUEUE text + attachments[] ★ SLA stop]
-  PUB --> DEBIT[debitAfterEnqueue text credits<br/>fail here does NOT retry the LLM]
+  PUB --> DEBIT["debitAfterEnqueue → pricingService.chargeVendor<br/>ceil((LLM-1 + LLM-2 + upstream transcription + fee) × markup)<br/>fail here does NOT retry the LLM"]
   DEBIT --> KG[12b. persistKnowledgeGapIfNeeded<br/>after publish; no aiPaused]
   KG --> NOTIFY[13. if confirm succeeded:<br/>notifyVendorNewOrder fire-and-forget]
   NOTIFY --> UNLOCK[finally: releaseLock]
@@ -186,11 +187,11 @@ If webhook copied Meta’s `phone_number_id` into `vendorId`, and that is not a 
 |---|---|
 | Duplicate `whatsappMessageId` | ACK. No second reply, no second debit. |
 | `conversation.aiPaused` | Store inbound. Silent. Vendor replies in the dashboard. |
-| Wallet insufficient (`canProcessMessage` with worst-case assistant turn: 1 text + max(3 images, 1 video)) | Send `WALLET_EMPTY_TEMPLATE`. No LLM, no debit. |
+| Wallet insufficient (`canProcessMessage`: balance must cover a worst-case turn estimate, LLM-1 + LLM-2 at the vendor's markup, plus worst-case product media) — or `trial_expired` for an unapproved vendor past `trialExpiresAt` | Send `WALLET_EMPTY_TEMPLATE`. No LLM, no debit. |
 | Redis lock held | `stashForBurstMerge`, then throw → SQS retry. |
 | Redis down | Fail closed. Throw. SQS retry. Never mutate the cart unlocked. |
 
-Credit is **checked** here and **debited only after** the reply is queued (`billing.ts`).
+The wallet is **checked** here and **charged only after** the reply is queued (`billing.ts`). Because the gate uses an estimate and the charge uses actual token usage, a balance can end up slightly negative when a turn overruns the estimate; the next turn's gate is what stops it.
 
 ---
 
@@ -491,7 +492,29 @@ Response payload includes `phoneNumberId` and `messageId` (assistant text row) s
 - **Media:** `mediaFetchProcessor` transcribes voice notes with `gpt-4o-transcribe` (retry with a domain prompt if the transcript is implausibly short for the audio size; otherwise a typed-reply template and no AI enqueue). It sets `contentEn` from the transcript with the audio translation prompt (do not invent addresses/medical facts from garbled ASR) and from image/video/document captions (captions often never hit `TEXT_QUEUE`).
 - **Vendor typed send:** `POST /api/conversations/:id/messages` triggers the same helper after creating the row.
 
-Debit failure must not throw: the customer already has a reply on the way; SQS retry would re-run LLM-1/CartEngine. `reconcileStuckDebits` retries `MessageProcessing` rows that are `queued` with `debitedAt = null`. Outbound product media uses separate idempotent `debitOutboundMessage(messageId)` in the response dispatcher after each successful image/video send (`CreditUsage.externalId` = `outbound-msg:{messageId}`).
+Debit failure must not throw: the customer already has a reply on the way; SQS retry would re-run LLM-1/CartEngine. `reconcileStuckDebits` retries `MessageProcessing` rows that are `queued` with `debitedAt = null` — those retries charge the worst-case turn estimate, since the original token usage is no longer available. Outbound product media uses separate idempotent `debitOutboundMessage(messageId)` in the response dispatcher after each successful image/video send (`CreditUsage.externalId` = `outbound-msg:{messageId}`).
+
+### What a turn costs
+
+Every wallet debit in the codebase — this pipeline, the outbound dispatcher, catalog import/enhance, the onboarding sandbox — goes through `pricingService.chargeVendor`, which is the only writer of `Vendor.walletBalanceMilli`:
+
+```
+chargeMilli = ceil((aiCostMilli + whatsappCostMilli + platformFeeMilli) × (1 + Vendor.markupPercent / 100))
+```
+
+All amounts are **millirupees** (1 rupee = 1000). One `Math.ceil`, applied after markup, so a sub-millirupee turn still costs 1 milli instead of nothing. Components for a conversation turn:
+
+| Component | Source |
+|---|---|
+| `aiCostMilli` | LLM-1 tokens + LLM-2 tokens (LLM-2 was previously never costed anywhere) + `upstreamCostMilli` |
+| `upstreamCostMilli` | Whisper transcription of an inbound voice note, computed in `mediaFetchProcessor` and carried on the `TextMessage` SQS payload so the vendor sees one charge, not two |
+| `whatsappCostMilli` | Always 0 until the Meta per-message rate card lands (P2h) |
+| `platformFeeMilli` | `PlatformSettings.platformFeePerTurnPaise` (×10), default 0 — env `PLATFORM_FEE_PER_TURN_MILLI` is fallback only |
+| markup | `Vendor.markupPercent`, default 50 |
+
+The ledger row (`WalletTransaction.metadata`) carries the full breakdown plus the `markupPercent` snapshot the charge was computed with. `CreditUsage.chargedMilli` + its unique `externalId` (= `whatsappMessageId`) is what makes the charge idempotent, and `CreditUsage.source` (`conversation_turn` here, `outbound_media` for attachments) is what the dashboard groups spend by.
+
+Full pricing model, the other charge sources, and the env vars: **[BILLING_AND_PRICING.md](./BILLING_AND_PRICING.md)**.
 
 After finalize, if a `confirm` op was not rejected and the snapshot has an `orderId`, `notifyVendorNewOrder` runs fire-and-forget. Handoff already notified the vendor inside `triggerHandoff`.
 

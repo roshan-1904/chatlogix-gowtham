@@ -34,9 +34,9 @@ export interface OnboardingState {
   phone: string;
   email: string;
   category: string | null;
-  trialGrantedPaise: number | null;
+  trialGrantedMilli: number | null;
   trialExpiresAt: string | null;
-  walletBalance: number;
+  walletBalanceMilli: number;
 }
 
 const STEP_PATHS: Record<number, string> = {
@@ -67,9 +67,9 @@ export async function getOnboardingState(vendorId: string): Promise<OnboardingSt
       phone: true,
       email: true,
       category: true,
-      trialGrantedPaise: true,
+      trialGrantedMilli: true,
       trialExpiresAt: true,
-      walletBalance: true
+      walletBalanceMilli: true
     }
   });
   if (!vendor) {
@@ -86,9 +86,9 @@ export async function getOnboardingState(vendorId: string): Promise<OnboardingSt
     phone: vendor.phone,
     email: vendor.email,
     category: vendor.category,
-    trialGrantedPaise: vendor.trialGrantedPaise,
+    trialGrantedMilli: vendor.trialGrantedMilli,
     trialExpiresAt: vendor.trialExpiresAt?.toISOString() ?? null,
-    walletBalance: vendor.walletBalance
+    walletBalanceMilli: vendor.walletBalanceMilli
   };
 }
 

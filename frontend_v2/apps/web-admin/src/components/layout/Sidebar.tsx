@@ -6,7 +6,6 @@ const navigation = [
   { name: 'Templates', href: '/templates', icon: '📝' },
   { name: 'Logs', href: '/logs', icon: '📋' },
   { name: 'Billing', href: '/billing', icon: '💳' },
-  { name: 'Settings', href: '/settings', icon: '⚙️' },
 ];
 
 export function Sidebar() {

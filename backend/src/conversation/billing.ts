@@ -1,54 +1,78 @@
-import { Prisma } from '@prisma/client';
 import { prisma } from '../db/prisma.js';
 import { logger } from '../logger.js';
 import { emitMetric } from '../observability/metrics.js';
-import { creditsForKind, type MessageKind } from '../services/billingService.js';
+import type { MessageKind } from '../services/billingService.js';
+import { chargeVendor, turnEstimateCost } from '../services/pricing/pricingService.js';
+import { ensurePlatformSettings, getPlatformSettings } from '../services/platformSettingsService.js';
+import { paiseToMilli } from '../utils/money.js';
 
 export type DebitOutcome = 'debited' | 'already_debited';
 
+/** What this turn actually cost, in unrounded millirupees before markup. */
+export interface TurnCostInputs {
+  /** LLM-1 plus LLM-2, from their reported token usage. */
+  aiCostMilli: number;
+  /**
+   * Inbound transcription already performed by the media pipeline and carried
+   * on the SQS payload, so it is billed once, inside this turn's charge,
+   * instead of as a second debit the vendor sees separately.
+   */
+  upstreamCostMilli: number;
+}
+
+export interface TurnDebitInput {
+  vendorId: string;
+  conversationId: string;
+  whatsappMessageId: string;
+  /**
+   * Omitted only by the reconciliation sweep, which has no record of the
+   * original token usage — see `reconcileStuckDebits`.
+   */
+  costs?: TurnCostInputs;
+}
+
 /**
- * Idempotent debit, keyed on whatsappMessageId (Q8-A, spec §19.1). Copies
- * billingService.deductCredits's transaction body rather than calling it —
- * that function has no idempotency key (CreditUsage had no unique
- * constraint until this rewrite added `externalId`), and this pipeline
- * debits *after* the response is enqueued, the opposite of today's
- * before-AI-runs ordering. Intentional short-term duplication, not an
- * oversight — unifying the two would mean changing billingService.ts's
- * behavior for the old pipeline too, which this rewrite doesn't touch.
+ * Idempotent per-turn debit, keyed on whatsappMessageId (Q8-A, spec §19.1),
+ * running *after* the response is enqueued. Delegates the arithmetic and the
+ * ledger writes to `pricingService.chargeVendor`, which is the only place in
+ * the codebase that moves wallet money.
  */
-export async function debitAfterEnqueue(vendorId: string, conversationId: string, whatsappMessageId: string): Promise<DebitOutcome> {
-  const credits = creditsForKind('text');
+export async function debitAfterEnqueue(input: TurnDebitInput): Promise<DebitOutcome> {
+  const { vendorId, conversationId, whatsappMessageId, costs } = input;
 
-  try {
-    await prisma.$transaction(async (tx) => {
-      const vendor = await tx.vendor.findUnique({ where: { id: vendorId }, select: { walletBalance: true } });
-      if (!vendor) throw new Error(`Vendor not found: ${vendorId}`);
+  await ensurePlatformSettings();
+  const cost = costs
+    ? {
+        aiCostMilli: costs.aiCostMilli + costs.upstreamCostMilli,
+        platformFeeMilli: paiseToMilli(getPlatformSettings().platformFeePerTurnPaise)
+      }
+    : turnEstimateCost();
 
-      const before = vendor.walletBalance;
-      const after = before - credits;
-
-      await tx.vendor.update({ where: { id: vendorId }, data: { walletBalance: after } });
-      await tx.walletTransaction.create({
-        data: { vendorId, transactionType: 'deduction', amount: credits, balanceBefore: before, balanceAfter: after }
-      });
-      await tx.creditUsage.create({
-        data: { vendorId, conversationId, creditsConsumed: credits, conversationType: 'text', externalId: whatsappMessageId }
-      });
-    });
-
-    await markDebited(whatsappMessageId);
-    return 'debited';
-  } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-      logger.info({ vendorId, conversationId, whatsappMessageId }, 'Debit already applied (idempotent no-op)');
-      // Idempotent by design: if a prior attempt's CreditUsage write landed
-      // but its own markDebited call didn't (e.g. process died in between),
-      // this call still closes out debitedAt so the sweep stops re-finding it.
-      await markDebited(whatsappMessageId);
-      return 'already_debited';
-    }
-    throw error;
+  if (!costs) {
+    logger.warn(
+      { vendorId, conversationId, whatsappMessageId },
+      'Turn cost unavailable (reconciliation retry) — charging the worst-case turn estimate'
+    );
   }
+
+  const result = await chargeVendor({
+    vendorId,
+    source: 'conversation_turn',
+    cost,
+    conversationId,
+    conversationType: 'text',
+    idempotencyKey: whatsappMessageId,
+    metadata: {
+      traceId: whatsappMessageId,
+      ...(costs ? { upstreamCostMilli: costs.upstreamCostMilli } : { estimated: true })
+    }
+  });
+
+  // Closes out debitedAt even on the idempotent path: a prior attempt's
+  // CreditUsage write may have landed while its own markDebited call didn't
+  // (e.g. the process died in between), and the sweep must stop re-finding it.
+  await markDebited(whatsappMessageId);
+  return result.outcome === 'already_charged' ? 'already_debited' : 'debited';
 }
 
 const OUTBOUND_DEBIT_EXTERNAL_ID_PREFIX = 'outbound-msg:';
@@ -60,6 +84,12 @@ export function outboundMessageDebitExternalId(messageId: string): string {
 /**
  * Idempotent debit for a successfully sent outbound image/video Message row
  * (product media v1). Keyed on Message.id via CreditUsage.externalId.
+ *
+ * There is no AI cost on this path, so the only chargeable component is the
+ * outbound-media platform fee from PlatformSettings. That is 0 today, which
+ * means sending product media is free until the WhatsApp per-message rate
+ * card lands (P2h) — a deliberate drop from the old flat 2/10-credit charge,
+ * which was revenue unconnected to any real cost.
  */
 export async function debitOutboundMessage(messageId: string): Promise<DebitOutcome> {
   const message = await prisma.message.findUnique({
@@ -79,46 +109,18 @@ export async function debitOutboundMessage(messageId: string): Promise<DebitOutc
     throw new Error(`debitOutboundMessage expects image or video, got ${message.type}`);
   }
 
-  const credits = creditsForKind(kind);
-  const externalId = outboundMessageDebitExternalId(messageId);
+  await ensurePlatformSettings();
+  const result = await chargeVendor({
+    vendorId,
+    source: 'outbound_media',
+    cost: { platformFeeMilli: paiseToMilli(getPlatformSettings().platformFeeOutboundMediaPaise) },
+    conversationId: message.conversationId,
+    conversationType: kind,
+    idempotencyKey: outboundMessageDebitExternalId(messageId),
+    metadata: { messageId, kind }
+  });
 
-  try {
-    await prisma.$transaction(async (tx) => {
-      const vendor = await tx.vendor.findUnique({ where: { id: vendorId }, select: { walletBalance: true } });
-      if (!vendor) throw new Error(`Vendor not found: ${vendorId}`);
-
-      const before = vendor.walletBalance;
-      const after = before - credits;
-
-      await tx.vendor.update({ where: { id: vendorId }, data: { walletBalance: after } });
-      await tx.walletTransaction.create({
-        data: {
-          vendorId,
-          transactionType: 'deduction',
-          amount: credits,
-          balanceBefore: before,
-          balanceAfter: after
-        }
-      });
-      await tx.creditUsage.create({
-        data: {
-          vendorId,
-          conversationId: message.conversationId,
-          creditsConsumed: credits,
-          conversationType: kind,
-          externalId
-        }
-      });
-    });
-
-    return 'debited';
-  } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-      logger.info({ messageId, externalId, kind }, 'Outbound media debit already applied (idempotent no-op)');
-      return 'already_debited';
-    }
-    throw error;
-  }
+  return result.outcome === 'already_charged' ? 'already_debited' : 'debited';
 }
 
 async function markDebited(whatsappMessageId: string): Promise<void> {
@@ -152,6 +154,10 @@ export interface ReconcileResult {
  * enum and stays 'queued' forever. Without the `debitedAt` filter this query
  * would keep matching every message ever successfully processed, growing
  * unboundedly instead of finding only the rare stuck ones.
+ *
+ * The original turn's token usage is long gone by the time the sweep runs, so
+ * these retries charge the worst-case turn estimate instead. That over-bills
+ * a cheap turn slightly; the alternative — never charging for it — is worse.
  */
 export async function reconcileStuckDebits(olderThanMs = 2 * 60_000): Promise<ReconcileResult> {
   const stuck = await prisma.messageProcessing.findMany({
@@ -164,7 +170,11 @@ export async function reconcileStuckDebits(olderThanMs = 2 * 60_000): Promise<Re
 
   for (const row of stuck) {
     try {
-      await debitAfterEnqueue(row.vendorId, row.conversationId, row.whatsappMessageId);
+      await debitAfterEnqueue({
+        vendorId: row.vendorId,
+        conversationId: row.conversationId,
+        whatsappMessageId: row.whatsappMessageId
+      });
       succeeded++;
     } catch (error) {
       failed++;

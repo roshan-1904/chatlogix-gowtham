@@ -23,6 +23,9 @@ import swaggerUi from 'swagger-ui-express';
 import { openApiSpec } from './docs/openapi.js';
 import { authRouter } from './routes/auth.js';
 import { vendorOnboardingRouter } from './routes/vendorOnboarding.js';
+import { vendorWalletRouter } from './routes/vendorWallet.js';
+import { adminSettingsRouter } from './routes/adminSettings.js';
+import { startFxRateRefreshLoop } from './services/platformSettingsService.js';
 import { 
   enhancedGlobalErrorHandler, 
   notFoundHandler, 
@@ -86,6 +89,7 @@ async function bootstrap() {
   app.use('/api/auth', authRouter);
   app.use('/api/vendors', authenticate, vendorsRouter);
   app.use('/api/vendors', authenticate, vendorOnboardingRouter);
+  app.use('/api/vendors', authenticate, vendorWalletRouter);
   app.use('/api/conversations', authenticate, conversationsRouter);
   app.use('/api/messages', authenticate, messagesRouter);
   app.use('/api/usage', authenticate, usageRouter);
@@ -102,6 +106,7 @@ async function bootstrap() {
   app.use('/api/catalog-enhance', authenticate, catalogEnhanceRouter);
   app.use('/api', authenticate, paymentsRouter);
   app.use('/api', authenticate, shippingRouter);
+  app.use('/api/admin/settings', authenticate, requireRole('admin'), adminSettingsRouter);
 
   if (env.ENABLE_SWAGGER === 'true' || env.NODE_ENV !== 'production') {
     app.get('/openapi.json', (req, res) => res.json(openApiSpec));
@@ -136,8 +141,12 @@ async function bootstrap() {
   app.use(enhancedGlobalErrorHandler);
 
   const port = Number(env.PORT);
+  let fxRefreshTimer: NodeJS.Timeout | undefined;
   const server = app.listen(port, () => {
     logger.info({ port }, 'HTTP server started');
+    if (env.NODE_ENV !== 'test') {
+      fxRefreshTimer = startFxRateRefreshLoop();
+    }
     process.send?.('ready');
   });
   server.on('error', (err: NodeJS.ErrnoException) => {
@@ -147,6 +156,7 @@ async function bootstrap() {
 
   const shutdown = (signal: string) => {
     logger.info({ signal }, 'Shutting down HTTP server');
+    if (fxRefreshTimer) clearInterval(fxRefreshTimer);
     server.close((err) => {
       if (err) {
         logger.error({ err }, 'Error during HTTP server shutdown');

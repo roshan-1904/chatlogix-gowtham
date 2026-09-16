@@ -27,7 +27,7 @@
 10. [Accept, auto-save, and cache invalidation](#10-accept-auto-save-and-cache-invalidation)
 11. [FAQ variant](#11-faq-variant)
 12. [Session model (24-hour resume)](#12-session-model-24-hour-resume)
-13. [Billing and credits](#13-billing-and-credits)
+13. [Billing and wallet](#13-billing-and-wallet)
 14. [Backend architecture](#14-backend-architecture)
 15. [API contract (proposed)](#15-api-contract-proposed)
 16. [Data model (proposed)](#16-data-model-proposed)
@@ -70,10 +70,10 @@ These decisions are **fixed** for v1 unless explicitly revised.
 | D6 | **Keywords** — product preview includes **suggested keywords**; accepting applies merged keywords to the product. |
 | D7 | **FAQ** — same modal pattern; entity has **one question and one answer**; preview focuses on **enhanced answer** (optional light question polish — see §11). |
 | D8 | **Session resume** — conversation state and last preview are **resumable for 24 hours** per vendor + entity. |
-| D9 | **Cost UI** — do **not** show token/rupee breakdown in the modal. Show a static note that enhancement **uses credits / wallet balance**. |
+| D9 | **Cost UI** — do **not** show a token/rupee breakdown in the modal. Show a static note that enhancement **is charged in rupees from the wallet balance** (as shipped — §5.4). |
 | D10 | **Mic** — voice recording is available **in the chat composer** (transcribe → insert as user message → same auto-update path). |
 | D11 | **Auto-save on accept** — **Use this** writes preview fields to the database via existing product/FAQ APIs without requiring a separate Save on the parent form. |
-| D12 | **Pricing** — charge vendor **2× actual OpenAI USD cost** converted to paise (100% ChatLogix markup on API cost). Debit per generation (and per transcription call). |
+| D12 | **Pricing** — charge vendor actual OpenAI cost **× (1 + `Vendor.markupPercent`/100)** in millirupees, debited per generation and per transcription call. *(Superseded: this originally locked a hardcoded 2×. The unified pricing rework replaced it with the vendor's own markup — default 1.5× — so enhancer spend fell ~25%. See §13.)* |
 
 **Engineering guardrails (recommended with D5):**
 
@@ -88,7 +88,7 @@ These decisions are **fixed** for v1 unless explicitly revised.
 | Customer path | Vendor enhancer |
 |---------------|-----------------|
 | `chatlogix-incoming-response-generator` / `backend/src/conversation/*` | Express routes under `/api/v1/...` (or `/api/products/...`, `/api/faqs/...`) |
-| Debits **CreditUsage** per WhatsApp message | Debits **wallet** (same pattern as catalog import) |
+| Debits the wallet per assistant turn (`source: 'conversation_turn'`) | Debits the **same** wallet (`source: 'catalog_enhance'`) via the same `chargeVendor` formula |
 | Reads `Product.description` via compact catalog prefetch | **Writes** `Product.description` (and keywords) on accept |
 | Reads FAQ via embedding on **question** | **Writes** FAQ **answer** (and rarely question) on accept |
 
@@ -169,13 +169,13 @@ On **Product create**, show disabled button with helper text: *Save the product 
 | **Use this** | Persist preview to entity (D11); toast success; optional close modal. |
 | **Close / X** | Persist session to Redis/DB for 24h; do not change live catalog text. |
 
-### 5.4 Credits note (copy)
+### 5.4 Cost note (copy)
 
-Static footer text (exact wording TBD by product):
+Static footer text, as shipped in `EnhanceModal.tsx`:
 
-> AI enhancement uses credits from your account balance.
+> AI enhancement is charged in rupees from your wallet balance.
 
-No rupee amounts, token counts, or per-message estimates in v1.
+No token counts or per-message estimates in v1. The wording says **rupees**, not credits — flat credits no longer exist ([BILLING_AND_PRICING.md](./BILLING_AND_PRICING.md)).
 
 ---
 
@@ -195,7 +195,7 @@ No rupee amounts, token counts, or per-message estimates in v1.
 │  [ textarea........... ] │  Keywords (chips)                │
 │  [ 🎤 ] [ Send ]         │  char count: n / 2000            │
 ├──────────────────────────┴──────────────────────────────────┤
-│  AI enhancement uses credits from your balance.              │
+│  AI enhancement is charged in rupees from your wallet.       │
 │                    [ Cancel ]  [ Use this description ]      │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -321,9 +321,9 @@ Reuse transcription path from `backend/src/services/onboardingSandboxService.ts`
 
 - `POST /api/vendors/me/enhance/sessions/:sessionId/voice`
 - Body: raw audio bytes (`Content-Type: audio/webm` or similar)
-- Response: `{ transcript, transcribePaiseCharged }` — client then posts transcript as a **user message** (or server appends and runs full generation in one request).
+- Response (as implemented): `{ transcript, messages, preview, assistantMessage }` — the server appends the transcript as a user message and runs the full generation in the same request. **No charged amount is returned**, per D9 (no cost breakdown in the modal).
 
-Debit transcription at **2×** Whisper API cost (D12).
+Transcription is debited as `source: 'catalog_enhance_transcribe'` at the vendor's markup over the Whisper cost, which is priced **per second of audio** via `aiCostMilliForAudio` (D12, §13).
 
 ### 9.3 Failure
 
@@ -419,40 +419,49 @@ Vendor may only access sessions for their `vendorId` and entities they own.
 
 ---
 
-## 13. Billing and credits
+## 13. Billing and wallet
+
+**As implemented.** The unified millirupee pricing model superseded D12's bespoke 2× markup — canonical reference: [BILLING_AND_PRICING.md](./BILLING_AND_PRICING.md).
 
 ### 13.1 Charge formula
 
+Enhancement charges go through the one shared path, `pricingService.chargeVendor`:
+
 ```text
-apiCostUsd = calculateCost(model, promptTokens, completionTokens, totalTokens).costUsd
-vendorChargePaise = usdToPaise(apiCostUsd) * 2
+aiCostMilli  = usdToMilliFloat(calculateCost(model, promptTokens, completionTokens).costUsd)
+chargeMilli  = ceil(aiCostMilli × (1 + Vendor.markupPercent/100))     // markupPercent default 50
 ```
 
-Use shared helper (proposed: `vendorAiChargePaise(costUsd, markupMultiplier = 2)` in `backend/src/utils/billingPaise.ts` or billing service).
+Money is **millirupees** (1 rupee = 1000), not paise. Transcription uses the same formula with `aiCostMilliForAudio(model, durationSec)` — Whisper is priced per second of audio, not per token.
 
-Transcription: same 2× on Whisper cost (see `onboardingSandboxService` cost calculation).
+> **Pricing change:** D12's hardcoded **2×** became the vendor's own `markupPercent` (default **1.5×**), so enhancer spend fell roughly **25%**. `markupPercent` is admin-editable per vendor via `PATCH /api/vendors/:id/billing-config`, so the effective multiplier is no longer a constant.
 
 ### 13.2 Wallet debit
 
-Mirror `recordCatalogImportSpend` in `backend/src/services/billingService.ts`:
+`catalogEnhanceChatService.ts` calls `chargeVendor` with:
 
-- New metadata source: `catalog_enhance` or `description_enhance`
-- Fields: `sessionId`, `entityType`, `entityId`, `model`, `promptTokens`, `completionTokens`
+| Charge | `source` |
+|---|---|
+| Generation pass | `catalog_enhance` |
+| Voice-note transcription | `catalog_enhance_transcribe` |
 
-**Pre-check** wallet balance before generation; if insufficient, return **402** with message suitable for UI (no amounts required by D9).
+Each writes a `WalletTransaction` (full cost breakdown + the `markupPercent` snapshot in `metadata`) and a `CreditUsage` row carrying `source` and `chargedMilli`.
 
-### 13.3 Relation to WhatsApp credits
+**Pre-check** wallet balance before generation; insufficient balance throws `InsufficientBalanceError`, which routes map to **402** with UI-safe copy (no amounts required by D9).
 
-WhatsApp messages use **CreditUsage** and per-message credit rules. Enhancement uses **wallet paise** like catalog import — ensure vendor dashboard copy explains both if needed.
+### 13.3 Relation to WhatsApp charges
 
-Catalog import today debits **1×** API cost; enhancer debits **2×** by product decision (D12). Document in vendor-facing help when implemented.
+There is no longer a separate meter. WhatsApp turns, catalog import, enhancement and the onboarding sandbox all debit the same `Vendor.walletBalanceMilli` through the same formula, and all appear in the dashboard's `billing.breakdownBySource`. The old distinction between "per-message credits" and "wallet paise" is gone.
+
+Catalog import and enhancement now use the **same** multiplier (the vendor's `markupPercent`); import rose ~50% and enhancement fell ~25% at the cutover.
 
 ### 13.4 Rate limits
 
-Mirror `catalogImportRateLimit.ts` patterns:
+Implemented in `middleware/catalogEnhanceRateLimit.ts`, mirroring `catalogImportRateLimit.ts`:
 
 - Per-vendor hourly request cap on enhance endpoints.
-- Optional daily **paise spent** cap via wallet aggregation (reuse `getTodaysCatalogImportPaiseSpent` pattern with new source filter).
+- Daily spend cap: `PlatformSettings.catalogEnhanceDailyPaiseCap` (default `3000` paise = ₹30, admin-editable at web-admin `/billing`; env `CATALOG_ENHANCE_DAILY_MILLI_CAP` is fallback only), summed by `getTodaysCatalogEnhanceMilliSpent` over `catalog_enhance` + `catalog_enhance_transcribe` ledger rows since IST midnight. Returns **429** with `Retry-After` to IST midnight; fails **open** on infra error.
+- Kill switch: `CATALOG_ENHANCE_GLOBAL_KILL`.
 
 ---
 
@@ -470,7 +479,7 @@ Mirror `catalogImportRateLimit.ts` patterns:
 Reuse:
 
 - `catalogEnrichmentService.ts` — `ENRICHMENT_MODEL`, `ShopEnrichmentContext`, keyword merge logic, TOON tables
-- `costCalculator.ts`, `billingPaise.ts`, `recordCatalogImportSpend` or generalized `recordVendorAiSpend`
+- `costCalculator.ts`, `utils/money.ts`, `services/pricing/pricingService.ts` (`chargeVendor`, `aiCostMilliFromUsd`, `aiCostMilliForAudio`)
 
 ### 14.2 Models
 
@@ -735,7 +744,7 @@ Shared UI: `@chatlogix/ui` Button, Input; follow `.21st/design.json` for modal s
 | Product CRUD + cache invalidation | `backend/src/routes/products.ts` |
 | FAQ CRUD + embeddings | `backend/src/routes/faqs.ts` |
 | LLM-1 catalog `desc` usage | `backend/src/conversation/llm/prompts.ts` |
-| Catalog import wallet debit | `backend/src/services/billingService.ts` (`recordCatalogImportSpend`) |
+| Catalog import wallet debit | `backend/src/services/catalogImportService.ts` → `pricingService.chargeVendor` (`source: 'catalog_import'`) |
 | Cost calculator | `backend/src/utils/costCalculator.ts` |
 | Onboarding voice + transcribe | `backend/src/services/onboardingSandboxService.ts`, `WhatsAppDemoPhone.tsx` |
 | Product form UI | `frontend_v2/apps/web-vendor/src/components/products/ProductForm.tsx` |

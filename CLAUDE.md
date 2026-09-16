@@ -69,7 +69,7 @@ npm run type-check                     # Type check all
 ## Database Models (Prisma)
 Core: `Vendor`, `Customer`, `Conversation`, `Message`, `Order`, `Product`
 AI/Analytics: `ConversationMemory`, `CustomerInsights`, `QualityMetrics`, `StageExecutionLog`, `CorrectionHistory`
-Billing: `CreditUsage`, `BillingHistory`, `WalletTransaction`
+Billing: `CreditUsage`, `BillingHistory`, `WalletTransaction`, `WalletTopUpIntent`, `PlatformSettings`, `FxRateHistory`
 Other: `WhatsAppNumber`, `NotificationHistory`, `OrderAuditLog`, `OrderAlert`, `Admin`
 
 ## API Routes
@@ -86,9 +86,10 @@ Other: `WhatsAppNumber`, `NotificationHistory`, `OrderAuditLog`, `OrderAlert`, `
 ## Conventions
 - Backend services are in `backend/src/services/` (60+ files, single-responsibility)
 - Routes are thin wrappers that delegate to services
-- All amounts stored as integers (paisa/cents, not rupees/dollars)
+- All amounts are stored as integers, but in **two different units**: wallet/billing money is **millirupees** (1 rupee = 1000 milli, fields suffixed `Milli`), while order/product/revenue money stays in **paise**. `backend/src/utils/money.ts` is the unit authority — do not mix them
+- **`backend/src/services/pricing/pricingService.ts` is the only writer of `Vendor.walletBalanceMilli`.** Every billable action costs `ceil((aiCost + whatsappCost + platformFee) × (1 + Vendor.markupPercent/100))` in millirupees, with one rounding step after markup. Full model: `docs/BILLING_AND_PRICING.md`
+- There is **no monthly plan quota and no flat per-message credit cost** — every charge is real cost plus the vendor's markup. `Vendor.subscriptionPlan` is bookkeeping only
 - Multi-language support: Tamil, Hindi, English
-- Message types: text (1 credit), audio (3 credits), image (2 credits)
 - Order numbers use vendor-configurable prefix
 - Docker Compose for local dev (postgres, redis, localstack, backend, workers)
 
@@ -111,3 +112,8 @@ Several deployed values drift from the specs in `docs/`. Full table in `docs/LOA
 - Prisma schema uses `@@map` to keep DB table names PascalCase
 - Backend uses ESM (`"type": "module"` in package.json)
 - Target cost: <$0.0022 per AI message
+- **Admin access to `web-admin` comes from the `AUTH_ADMIN_PHONES` env allowlist** (`services/roleService.ts`), not the `Admin` table
+- Trial wallet grant is **₹50** (`PlatformSettings.trialGrantPaise`, env fallback `TRIAL_GRANT_MILLI`); low-balance warning fires under ₹20
+- WhatsApp per-conversation fees are **not billed yet** (`platformFeePerTurnPaise` is `0` until the P2h rate card) — ChatLogix absorbs Meta conversation costs today
+- **All migrations are applied and recorded** (verified 2026-09-16 against `_prisma_migrations`, 8 rows; `prisma migrate status` → "Database schema is up to date!", zero drift from `schema.prisma`). That includes `20250916120000_wallet_top_up_intent`, `20250916180000_wallet_milli_units`, `20250916210000_credit_usage_source` and `20250916220000_platform_settings`. Their SQL had reached the DB out of band, so `migrate deploy` failed on an already-renamed column; they were reconciled with `prisma migrate resolve --applied` — accurate, not a problem. The ×10 rescale ran exactly once — all 277 pre-cutover `WalletTransaction` rows carry `metadata.unitMigration = 'paise_to_milli'`, which is the marker to check before ever re-running it
+- **Live billing knobs come from the `PlatformSettings` singleton, not env.** Read path: process memory (60s) → Redis `platform:settings` (24h) → Postgres → env fallback. Money columns there are **paise**; convert with `paiseToMilli` at the wallet boundary. `USD_TO_INR_RATE`, `TRIAL_GRANT_MILLI`, `PLATFORM_FEE_*_MILLI`, `CATALOG_*_DAILY_MILLI_CAP` and the top-up knobs are **seed + last-resort fallback only** — editing `.env` no longer changes live behavior. `WALLET_PAYMENT_PROVIDER` stays env-only. USD/INR refreshes daily from **Frankfurter** into `usdToInrRate` (history in `FxRateHistory`; admins can pin `usdToInrOverride`). Admin surface: the web-admin **`/billing`** page over `GET`/`PATCH /api/admin/settings` plus `POST /api/admin/settings/refresh-fx` — it always reads and writes **rupees**, converting at the edge

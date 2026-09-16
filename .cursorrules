@@ -140,6 +140,15 @@ ChatLogix/
 - Use dependency injection where appropriate
 - Services handle their own error cases
 
+### Billing and Money Units
+- **Wallet money is millirupees** (1 rupee = 1000 milli). Fields, env vars and variables holding it carry a `Milli` suffix. `backend/src/utils/money.ts` is the unit authority
+- **Order/product/revenue money is still paise.** `Order.totalAmount`, `Product.basePrice` and cart totals are paise and format at their own call sites — never route them through the milli helpers
+- **`backend/src/services/pricing/pricingService.ts` is the only writer of `Vendor.walletBalanceMilli`.** New billable features must call `chargeVendor` with a `ChargeSource`, never touch the balance directly
+- The charge is `ceil((aiCost + whatsappCost + platformFee) × (1 + Vendor.markupPercent/100))` — cost components stay fractional, one rounding step after markup
+- There is **no monthly plan quota and no flat per-message credit cost**. `Vendor.subscriptionPlan` is bookkeeping only
+- Pass `idempotencyKey` on every charge — it becomes `CreditUsage.externalId`, whose unique index is what makes a double charge a no-op
+- Full model, charge sources and env vars: `docs/BILLING_AND_PRICING.md`
+
 ### Conversation Memory
 - Store conversation context in ConversationMemory model
 - Extract key facts, preferences, and ongoing topics
@@ -152,6 +161,8 @@ ChatLogix/
 - `backend/src/index.ts` - Main entry point
 - `backend/prisma/schema.prisma` - Database schema
 - `backend/src/services/` - Core business logic
+- `backend/src/services/pricing/pricingService.ts` - The single wallet-debit path (see Billing and Money Units)
+- `backend/src/utils/money.ts` - Millirupee unit authority
 - `backend/src/workers/` - Background workers
 - `backend/src/routes/` - API endpoints
 
@@ -221,6 +232,7 @@ ChatLogix/
 - Include examples in documentation
 - Update docs when code changes
 - If you change the text conversation pipeline (`backend/src/conversation/`), update `docs/INCOMING_RESPONSE_GENERATOR_FLOW.md` in the same change
+- If you change pricing, wallet units, or charge sources, update `docs/BILLING_AND_PRICING.md` in the same change — it is the single source of truth other docs link to
 
 ## Environment Variables
 - Never commit `.env` files

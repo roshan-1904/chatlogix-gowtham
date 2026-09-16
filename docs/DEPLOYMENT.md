@@ -743,7 +743,7 @@ Rough estimate (low traffic, ~1000 messages/day, mostly text):
 - **Total added on top of Lightsail: ~$3–$7/mo**
 
 Cost knobs to keep in mind:
-- Audio messages cost ~6× a text message (Whisper + AI pipeline). The legacy `BILLING_AUDIO_CREDIT=3` already prices them higher to customers.
+- Audio messages cost ~6× a text message (Whisper + AI pipeline). Vendors now pay that real cost: transcription is priced per second of audio and folded into the turn charge, so a voice note is automatically dearer than a text without any per-kind multiplier. The old flat `BILLING_AUDIO_CREDIT=3` weight is gone — see `docs/BILLING_AND_PRICING.md`.
 - Captionless images cost **$0** in AI (templated reply bypasses the pipeline by design). Captioned images cost the same as text.
 - If Whisper volume becomes a concern, you can disable audio AI routing by removing `AUDIO_QUEUE_URL` from the media worker's `.env` — voice notes will then be stored to S3 but never transcribed or replied to.
 

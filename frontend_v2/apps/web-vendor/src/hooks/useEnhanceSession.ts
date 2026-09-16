@@ -43,7 +43,7 @@ export function useEnhanceSession({
       setPreview(res.preview ?? {});
     } catch (err) {
       if (isEnhanceInsufficientBalance(err)) {
-        toast.error('Insufficient credits for AI enhancement.');
+        toast.error('Not enough wallet balance for AI enhancement.');
       } else {
         toast.error(err instanceof Error ? err.message : 'Could not start enhancement');
       }
@@ -63,7 +63,7 @@ export function useEnhanceSession({
         setPreview(res.preview ?? {});
       } catch (err) {
         if (isEnhanceInsufficientBalance(err)) {
-          toast.error('Insufficient credits for AI enhancement.');
+          toast.error('Not enough wallet balance for AI enhancement.');
         } else {
           toast.error(err instanceof Error ? err.message : 'Send failed');
         }
@@ -84,7 +84,7 @@ export function useEnhanceSession({
         setPreview(res.preview ?? {});
       } catch (err) {
         if (isEnhanceInsufficientBalance(err)) {
-          toast.error('Insufficient credits for AI enhancement.');
+          toast.error('Not enough wallet balance for AI enhancement.');
         } else {
           toast.error(err instanceof Error ? err.message : 'Voice failed');
         }

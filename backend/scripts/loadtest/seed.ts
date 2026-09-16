@@ -32,12 +32,14 @@ import { SEED_PRODUCTS, keywordsFor } from './fixtures/catalog.js';
 const prisma = new PrismaClient();
 
 /**
- * Generous on purpose. `canProcessMessage` (billingService.ts:61) rejects at
- * walletBalance <= 0, and a guard rejection would make every message take the
+ * Generous on purpose. `canProcessMessage` rejects any vendor whose balance
+ * cannot cover a worst-case assistant turn at their markup (~414 milli at the
+ * default 50%), and a guard rejection would make every message take the
  * `guard_no_credit` path and never reach an LLM — the run would look healthy
- * and measure nothing.
+ * and measure nothing. ₹10,000 buys ~24,000 turns, far past the 1,000-message
+ * ramp.
  */
-const WALLET_BALANCE_PAISE = 1_000_000;
+const WALLET_BALANCE_MILLI = 10_000_000;
 
 async function seedVendor(index: number): Promise<ManifestVendor> {
   const phone = vendorPhoneFor(index);
@@ -48,7 +50,7 @@ async function seedVendor(index: number): Promise<ManifestVendor> {
     where: { phone },
     update: {
       // Reset the things a previous run may have drained or changed.
-      walletBalance: WALLET_BALANCE_PAISE,
+      walletBalanceMilli: WALLET_BALANCE_MILLI,
       registrationStatus: 'approved',
       trialExpiresAt: null
     },
@@ -59,7 +61,7 @@ async function seedVendor(index: number): Promise<ManifestVendor> {
       subscriptionPlan: 'starter',
       subscriptionStatus: 'active',
       registrationStatus: 'approved',
-      walletBalance: WALLET_BALANCE_PAISE,
+      walletBalanceMilli: WALLET_BALANCE_MILLI,
       // Leave aiModel on its gpt-4.1-mini default so the run measures the
       // production model rather than an override.
       aiBotName: 'Loadtest Assistant',

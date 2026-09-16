@@ -174,7 +174,8 @@ const baseInput = {
   finalText: 'Here is your order summary.',
   language: 'en',
   intent: 'order_item',
-  tokenMeta: { model: 'gpt-4.1-mini', promptTokens: 100, completionTokens: 50 }
+  tokenMeta: { model: 'gpt-4.1-mini', promptTokens: 100, completionTokens: 50 },
+  costs: { aiCostMilli: 0, upstreamCostMilli: 0 }
 };
 
 beforeEach(() => {

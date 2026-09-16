@@ -18,6 +18,7 @@ import { CatalogImportPhoto } from './pages/CatalogImportPhoto';
 import { CatalogImportTemplate } from './pages/CatalogImportTemplate';
 import { CatalogImportGoLive } from './pages/CatalogImportGoLive';
 import { Settings } from './pages/Settings';
+import { Wallet } from './pages/Wallet';
 import { Login } from './pages/Login';
 import { Signup } from './pages/onboarding/Signup';
 import { OnboardingWelcome } from './pages/onboarding/OnboardingWelcome';
@@ -108,6 +109,7 @@ function App() {
                   <Route path="/faqs/new" element={<FaqCreate />} />
                   <Route path="/faqs/:id/edit" element={<FaqEdit />} />
                   <Route path="/settings" element={<Settings />} />
+                  <Route path="/wallet" element={<Wallet />} />
                   <Route path="*" element={<div>404 - Page Not Found</div>} />
                 </Routes>
               </Layout>

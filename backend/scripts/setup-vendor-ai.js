@@ -16,7 +16,7 @@ async function setupVendorAI() {
                     email: 'hello@ibellcreations.com',
                     subscriptionPlan: 'pro',
                     subscriptionStatus: 'active',
-                    walletBalance: 10000, // 10000 credits
+                    walletBalanceMilli: 1000000, // ₹1,000 demo wallet, in millirupees
                 }
             });
             console.log('✅ Vendor created');

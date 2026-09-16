@@ -32,22 +32,21 @@ Build a **WhatsApp automation webhook API** for small vendors/entrepreneurs in I
 
 ---
 
-### 3. Vendor Subscription & Credit System
+### 3. Vendor Wallet & Billing
+
+> **Updated 2026-09-16 (millirupee rework).** The monthly-plan-with-preloaded-credits model described in earlier revisions of this doc no longer exists. Authority: [docs/BILLING_AND_PRICING.md](../../../../docs/BILLING_AND_PRICING.md).
+
 - Each vendor has:
   - Vendor ID, Name, Contact Info
-  - Subscription plan (monthly) with preloaded credits
-  - Usage limits per message type (text/audio/image)
-  - Billing cycle
-- **Credit Deduction Logic**:
-  - Text: 1 credit/message
-  - Audio: 3 credits/message
-  - Image: 2 credits/message
-  - AI-based responses may consume extra credits
-- Real-time check before processing:
-  - Credits available → process
-  - Credits exhausted → notify vendor or block message
-- Detailed logging per message:
-  - Vendor ID, message type, AI tokens, API/media cost, credits used
+  - A single prepaid wallet: `Vendor.walletBalanceMilli`, in **millirupees** (1 rupee = 1000)
+  - `Vendor.markupPercent` (default 50), admin-editable
+  - `Vendor.subscriptionPlan` — bookkeeping only; it grants no quota
+- **Charge logic** — there are no flat per-message-type credits. Every debit goes through `pricingService.chargeVendor`:
+  - `ceil((aiCostMilli + whatsappCostMilli + platformFeeMilli) × (1 + markupPercent/100))`
+  - `aiCostMilli` is real token cost (plus Whisper, priced per second, for voice notes), so an audio turn is naturally dearer than a text turn without any multiplier
+  - `whatsappCostMilli` is **0** today — ChatLogix absorbs Meta conversation fees until the P2h rate card
+- Real-time check before processing (`billingService.canProcessMessage`): the wallet must cover a worst-case turn estimate, otherwise the vendor is gated and a template reply is sent.
+- Detailed logging per charge on `CreditUsage`: vendor, `source` (e.g. `conversation_turn`, `outbound_media`), AI tokens, cost components, `chargedMilli`, and `externalId` as the idempotency key.
 
 ---
 

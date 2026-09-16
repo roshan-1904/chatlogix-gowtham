@@ -1,5 +1,9 @@
 # 📊 Vendor Dashboard Implementation Plan - ChatLogix
 
+> ⚠️ **Superseded on billing (2026-09-16) — kept for history.** Everything this plan says about credits is obsolete: there is no monthly plan quota, no `PLAN_CREDITS` / `getPlanCredits`, no `planCredits` / `remainingThisMonth` / `usagePercentage` / `planName`, and no flat per-message-type credit weights. The dashboard now returns a `billing` block denominated in **millirupees**, and charges are real cost × `(1 + Vendor.markupPercent/100)`. Do not implement the credits code in this document.
+>
+> Current behavior: **[docs/BILLING_AND_PRICING.md](../../../../docs/BILLING_AND_PRICING.md)** and **[vendor-dashboard/API.md](../../../modules/features/vendor-dashboard/API.md)**. The non-billing parts of this plan (orders, revenue, conversations, caching, date ranges) are still broadly accurate.
+
 ## 📋 Document Overview
 
 This document provides a comprehensive, production-ready implementation plan for the Vendor Dashboard in ChatLogix. It includes detailed specifications for displaying orders, revenue, products, conversation insights, and AI credits information in a near real-time, user-friendly dashboard interface.

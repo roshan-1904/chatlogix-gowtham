@@ -144,7 +144,7 @@ export function OnboardingCatalog() {
     void (async () => {
       try {
         const [profile, wallet] = await Promise.all([fetchOnboardingProfile(), fetchTrialWallet()]);
-        setWalletOk(wallet.balancePaise > 0);
+        setWalletOk(wallet.balanceMilli > 0);
         const savedId = catalogJobIdFromProfile(profile.onboardingData);
         if (!savedId) return;
         const job = await getJob(savedId);
@@ -197,8 +197,8 @@ export function OnboardingCatalog() {
 
   const handleAnalyze = async () => {
     const wallet = await fetchTrialWallet();
-    setWalletOk(wallet.balancePaise > 0);
-    if (wallet.balancePaise <= 0) {
+    setWalletOk(wallet.balanceMilli > 0);
+    if (wallet.balanceMilli <= 0) {
       toast.error('Your trial balance is empty. You can skip and add products later.');
       return;
     }
@@ -248,7 +248,7 @@ export function OnboardingCatalog() {
     try {
       await patchOnboarding({ step: 1, data: { skipped: true }, advance: true });
       const profile = await fetchOnboardingProfile();
-      navigate(pathAfterCatalog(profile));
+      void navigate(pathAfterCatalog(profile));
     } catch (err) {
       toast.error(mapOnboardingError(err));
     }
@@ -296,7 +296,7 @@ export function OnboardingCatalog() {
         }`
       );
       const profile = await fetchOnboardingProfile();
-      navigate(pathAfterCatalog(profile));
+      void navigate(pathAfterCatalog(profile));
     } catch (err) {
       toast.error(mapOnboardingError(err));
     } finally {

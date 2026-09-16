@@ -1,15 +1,15 @@
 # Public Signup & Trial Onboarding (Page-by-Page Spec)
 
-**Status:** Implemented (P2a–P2f, 2026-09-05); **intake-first funnel (P3b–P3e)** frontend shipped 2026-09-06; **P4 conversion UX overhaul** shipped and browser-verified 2026-09-11  
-**Last updated:** 2026-09-11  
+**Status:** Implemented (P2a–P2f, 2026-09-05); **intake-first funnel (P3b–P3e)** frontend shipped 2026-09-06; **P4 conversion UX overhaul** shipped and browser-verified 2026-09-11; **millirupee billing rework + ₹50 trial grant** shipped 2026-09-16  
+**Last updated:** 2026-09-16  
 **App:** `frontend_v2/apps/web-vendor` (vendor portal only)  
-**Related:** [Authentication](../../authentication/guides/authentication.md), [Vendor Onboarding Requirements](../requirements/VENDOR_ONBOARDING_REQUIREMENTS.md), [WhatsApp onboarding workflow](../../../whatsapp-integration/guides/vendor-onboarding-workflow.md)
+**Related:** [Billing and Pricing](../../../../../docs/BILLING_AND_PRICING.md) (**authority** for money), [Authentication](../../authentication/guides/authentication.md), [Vendor Onboarding Requirements](../requirements/VENDOR_ONBOARDING_REQUIREMENTS.md), [WhatsApp onboarding workflow](../../../whatsapp-integration/guides/vendor-onboarding-workflow.md)
 
 ---
 
 ## Executive summary
 
-New vendors sign up in the **vendor portal** with **real phone OTP**. They receive a **₹100 one-time trial wallet** to explore catalog import, AI sandbox chat, and voice-note simulation **before** admin approval. Until approved, they stay inside **onboarding routes only** (even on re-login). After manual admin approval, the trial wallet resets; the vendor loads prepaid balance (OpenAI-style: pay ₹1,000 → show ₹1,000). **WhatsApp connection** happens **after approval**, not during trial.
+New vendors sign up in the **vendor portal** with **real phone OTP**. They receive a **₹50 one-time trial wallet** to explore catalog import, AI sandbox chat, and voice-note simulation **before** admin approval. Until approved, they stay inside **onboarding routes only** (even on re-login). After manual admin approval, the trial wallet resets; the vendor loads prepaid balance (OpenAI-style: pay ₹1,000 → show ₹1,000). **WhatsApp connection** happens **after approval**, not during trial.
 
 This document captures product decisions from the 2026-09-05 planning discussion and maps them **page by page** for implementation.
 
@@ -39,7 +39,7 @@ Shipped in `d16210b` after a full browser verification pass (1280 desktop + 390 
 
 | Area | Change |
 | --- | --- |
-| **Signup / login** | Job-first headline ("Try it on your catalog"); ₹100 as helper line only; trust lines visible on mobile (`SignupTrustLines`); login split aligned with returning-user copy |
+| **Signup / login** | Job-first headline ("Try it on your catalog"); ₹50 as helper line only; trust lines visible on mobile (`SignupTrustLines`); login split aligned with returning-user copy |
 | **OTP** | Autosubmit on sixth digit; specific error text for wrong codes (`@chatlogix/auth` now unwraps `{ error: { message } }`) |
 | **Catalog** | Equal "Take photo" / "Upload file" actions; one-line product rows; production-parity editor (unit dropdown, `isDivisible`, min/max qty, `PriceCalculator` preview) |
 | **Demo chat** | Catalog-aware suggested chips (`getProducts` allowed for unapproved vendors); pricing Q&A fixed via `baseQty` in compact catalog (see `docs/INCOMING_RESPONSE_GENERATOR_FLOW.md` §7) |
@@ -81,7 +81,7 @@ Our vendors are **not developers**. Many use WhatsApp Business on a phone only. 
 | Do | Don't |
 | --- | --- |
 | “Your shop”, “customers on WhatsApp”, “automatic replies” | “Pipeline”, “webhook”, “LLM”, “API” |
-| “₹0.38 for this reply” (transparent) | “1 credit deducted” |
+| “₹0.39 for this reply” (transparent) | “1 credit deducted” |
 | “We’re reviewing your shop” | “Pending_approval status” |
 | “Try asking what a customer would ask” | “Sandbox test-message endpoint” |
 | Short sentences, one idea per line | Long paragraphs, legal tone |
@@ -89,7 +89,7 @@ Our vendors are **not developers**. Many use WhatsApp Business on a phone only. 
 **Trust signals to show (subtle, not salesy):**
 
 - “Your phone is verified — only you can log in”
-- “Trial uses **₹100 free balance** — no card required”
+- “Trial uses **₹50 free balance** — no card required”
 - “Demo chat does **not** message your real customers”
 - “Same AI that will reply on WhatsApp” (after sandbox uses production pipeline)
 - Optional: “Used by shops in [city]” when we have social proof
@@ -124,21 +124,21 @@ Each step includes a **“Why we ask this”** panel (collapsible on mobile) and
 
 #### Signup — `/signup`
 
-> **Layout & marketing copy (pending UI):** See **[Signup Page — Marketing Copy & Layout Spec](./signup-page-marketing-copy.md)** for the approved 65%/35% split, SEO meta tags, problem/solution copy, ₹100 offer block, FAQ, and implementation checklist. The strings below remain the **form-side and post-submit** copy.
+> **Layout & marketing copy (pending UI):** See **[Signup Page — Marketing Copy & Layout Spec](./signup-page-marketing-copy.md)** for the approved 65%/35% split, SEO meta tags, problem/solution copy, ₹50 offer block, FAQ, and implementation checklist. The strings below remain the **form-side and post-submit** copy.
 
-**Layout (target):** 65% marketing panel (trust + problem/solution + ₹100 offer) | 35% phone/OTP form — same shell as `/login`. Current implementation is single-column until that spec is built.
+**Layout (target):** 65% marketing panel (trust + problem/solution + ₹50 offer) | 35% phone/OTP form — same shell as `/login`. Current implementation is single-column until that spec is built.
 
 **Form headline (phone step):** “Start free — WhatsApp shop assistant trial”
 
 **Form explainer:**
-> Enter your mobile number. We’ll send a one-time OTP. You get **₹100 free credit** to test automatic replies — no card required.
+> Enter your mobile number. We’ll send a one-time OTP. You get **₹50 free trial balance** to test automatic replies — no card required.
 
 **Marketing H1 (left panel):** “Stop losing orders on WhatsApp — let an AI shop assistant reply for you”
 
 **Legacy headline (superseded on form):** ~~“Start free — see your WhatsApp shop assistant in minutes”~~
 
 **Success:**
-> **Your trial shop is ready.** You have ₹100.00 to test how ChatLogix answers customer questions. Nothing is sent to your real WhatsApp yet.
+> **Your trial shop is ready.** You have ₹50.00 to test how ChatLogix answers customer questions. Nothing is sent to your real WhatsApp yet.
 
 **Failure copy (never show stack traces):**
 
@@ -210,7 +210,7 @@ Each step includes a **“Why we ask this”** panel (collapsible on mobile) and
 
 **Loading:** “Your assistant is thinking…” (never blank > 3s without feedback)
 
-**Empty wallet:** “Your ₹100 trial is used up. You can still **submit for approval** — our team will review your shop.”
+**Empty wallet:** “Your trial balance is used up. You can still **submit for approval** — our team will review your shop.”
 
 **Slow / error:** “Something went wrong. Your message was saved — [Try again]. If this keeps happening, [contact us].” (Log full error server-side; user never sees `500` or `RATE_LIMIT_429`.)
 
@@ -271,7 +271,7 @@ Each step includes a **“Why we ask this”** panel (collapsible on mobile) and
 | Call `processMessage()` from `conversation/pipeline.ts` with `sandbox: true` | Same CartEngine + LLM-2 as live WhatsApp |
 | Skip WhatsApp send + RESPONSE_QUEUE publish | No accidental customer messages |
 | Still persist conversation for coherent multi-turn demo | “I want 2 kg” after “which product?” must work |
-| Debit trial wallet in **actual paise** from token usage | Transparent, matches live billing |
+| Debit trial wallet with the **real marked-up cost** from token usage | Transparent, matches live billing |
 
 **Do not ship** onboarding demo on `multiStageOrchestrator` — quality mismatch destroys trust.
 
@@ -319,7 +319,7 @@ Each step includes a **“Why we ask this”** panel (collapsible on mobile) and
 **Trust**
 
 - [ ] “Demo does not message real customers” visible on step 4
-- [ ] Wallet widget always shows ₹X of ₹100 and per-action cost
+- [ ] Wallet widget always shows ₹X of ₹50 and per-action cost
 - [ ] Submit works at ₹0 balance
 
 **Ops**
@@ -354,27 +354,34 @@ This alone converts anxious vendors who would otherwise bounce on any friction.
 | Admin approval v1 | **Manual DB update** (`registrationStatus`, `approvedAt`, `approvedBy`) |
 | Edit while pending | **Yes** — vendor can return to wizard steps |
 | Approval notification | **Yes** — WhatsApp or SMS to login phone |
-| Trial grant | **₹100** (10,000 paise) one-time per phone |
-| Trial expiry | **N days** — hardcode/env in v1; admin portal setting later |
+| Trial grant | **₹50** (`PlatformSettings.trialGrantPaise = 5000`, i.e. `50000` millirupees) one-time per phone |
+| Trial expiry | **30 days** (`PlatformSettings.trialExpiryDays`) — editable on the web-admin `/billing` page |
 | Demo / test chat | **Browser sandbox only** — uses **production `conversation/pipeline.ts`** (same quality as live WhatsApp; no customer messages sent) |
 | Submit for approval at ₹0 | **Allowed** |
 | After approval | Trial balance **not** carried over; wallet **reset to ₹0** until payment |
 | Paid wallet | Prepaid like OpenAI: client pays ₹X → balance shows **₹X** |
-| Usage deduction | **Actual AI cost in paise** (not flat “1 credit per message”) |
+| Usage deduction | **Actual AI cost × the vendor's `markupPercent`** (default 50%), in millirupees — not flat “1 credit per message” |
 | Usage UI | Breakdown by feature so vendors see cost per reply / import |
 | WhatsApp Embedded Signup | **After approval** (separate slice; not part of trial onboarding) |
+| Meta partnership | **ChatLogix owns** Meta **Solution Partner** status + **line of credit** (no long-term upstream BSP for billing) |
+| Vendor Meta assets | Vendor connects **their** Business Manager / WABA via Embedded Signup; guided steps if they have no Meta account yet |
+| Who pays Meta (API usage) | **ChatLogix** via **credit line sharing** on the vendor’s WABA (`waba_currency=INR`); vendor does **not** add a Meta payment method |
+| Vendor commercial model | **Wallet-only** — one ChatLogix balance for **AI + WhatsApp** (no separate subscription line for WA in v1) |
+| WhatsApp message pricing | Meta INR base rate + **per-vendor % markup**. The markup shipped (`Vendor.markupPercent`, admin-editable); the Meta base rate has **not** — WhatsApp conversation fees are absorbed by ChatLogix until P2h |
+| WhatsApp connect paths | **Both** supported: **Cloud API** (new/dedicated number) and **Coexistence** (existing WhatsApp Business App + QR) |
+| Low wallet balance (live) | **Block AI processing and all outbound** sends; **do not** block Meta connect or inbound message storage; vendor tops up to resume |
 
 ---
 
 ## Competitor context (why this flow)
 
-Platforms like Wati, Interakt, AiSensy, Gallabox, and DoubleTick all use **Meta Embedded Signup** for WhatsApp — the hard part is identical everywhere. ChatLogix differentiates by front-loading **catalog + AI demo** before Meta signup:
+Platforms like Wati, Interakt, AiSensy, Gallabox, and DoubleTick all use **Meta Embedded Signup** for WhatsApp — the hard part is identical everywhere. ChatLogix uses the same Meta connect mechanics but bills through **our** Solution Partner credit line so vendors see **one ChatLogix wallet**, not a separate Meta invoice. We differentiate by front-loading **catalog + AI demo** before Meta signup:
 
 ```
-Account + OTP → Business profile → Catalog + AI setup → Sandbox demo → Submit → Admin approve → Pay → WhatsApp connect → Go live
+Account + OTP → Business profile → Catalog + AI setup → Sandbox demo → Submit → Admin approve → Top up wallet → WhatsApp connect → Go live
 ```
 
-Competitors often push Meta signup or payment first; we let micro-vendors **see AI value on ₹100 trial** before approval and WhatsApp.
+Competitors often push Meta signup or payment first; we let micro-vendors **see AI value on a ₹50 trial** before approval and WhatsApp.
 
 ---
 
@@ -395,7 +402,7 @@ Additional fields (recommended):
 | --- | --- |
 | `registeredAt` | Signup timestamp (exists) |
 | `approvedAt`, `approvedBy` | Manual approval audit (exist) |
-| `trialGrantedPaise` | Original trial amount (10,000) for “₹72 of ₹100” UI |
+| `trialGrantedMilli` | Original trial amount (`50000`) for “₹32 of ₹50” UI |
 | `trialExpiresAt` | Trial wallet expiry |
 | `onboardingStep` or JSON `onboardingData` | Resume last incomplete step |
 | `submittedAt` | When vendor clicked “Submit for approval” |
@@ -405,41 +412,68 @@ Additional fields (recommended):
 
 ## Billing model (OpenAI-style prepaid wallet)
 
+**Shipped 2026-09-16.** Canonical reference: **[BILLING_AND_PRICING.md](../../../../../docs/BILLING_AND_PRICING.md)** — go there for the formula, all charge sources, and env vars. This section covers only what onboarding needs.
+
 ### Storage
 
-- `Vendor.walletBalance` — **integer paise** (e.g. ₹100 = `10000`)
-- `WalletTransaction` — every top-up and deduction with `balanceBefore` / `balanceAfter`
-- Optional transaction metadata JSON: `{ source, tokens, model, jobId, conversationId }`
+- `Vendor.walletBalanceMilli` — **integer millirupees**, 1 rupee = 1000 milli (e.g. ₹50 = `50000`)
+- `Vendor.markupPercent` — per-vendor markup, default **50**, admin-editable
+- `WalletTransaction` — every top-up and deduction with `amountMilli` / `balanceBeforeMilli` / `balanceAfterMilli`, plus a `metadata` JSON carrying the full cost breakdown and the `markupPercent` snapshot
+- `CreditUsage` — one row per charge with the required `source` and `chargedMilli`; this is what every vendor-facing spend number is derived from
+
+Order and product money stays in **paise** — a different unit. Do not mix them.
 
 ### Display
 
-Always show **rupees** in UI: `formatRupee(paise) => ₹${(paise/100).toFixed(2)}`
+Always show **rupees** in UI: `formatWalletAmount(milli) => ₹${(milli/1000).toFixed(2)}` (`src/utils/currency.ts`).
 
 ### Trial (on signup)
 
 ```text
-walletBalance     = 10000   // ₹100.00
-trialGrantedPaise = 10000
-trialExpiresAt    = now + N days   // e.g. TRIAL_EXPIRY_DAYS=30 in env
+walletBalanceMilli = 50000   // ₹50.00, from PlatformSettings.trialGrantPaise
+trialGrantedMilli  = 50000
+trialExpiresAt     = now + PlatformSettings.trialExpiryDays   // default 30
 registrationStatus = onboarding
 ```
 
-### Deductions (actual AI paise)
+> **Changed:** the trial grant was **lowered from ₹100 to ₹50**. At roughly ₹0.20 per reply that is about **250 replies**.
 
-| Feature | How cost is calculated |
-| --- | --- |
-| Catalog import | `CatalogImportJob.tokenUsage.totalPaise` → `recordCatalogImportSpend()` (already implemented) |
-| Sandbox test chat | LLM token cost per reply via `catalogImportSandboxService` / conversation pipeline with `sandbox: true` |
-| Sandbox voice notes | Whisper + LLM cost in paise |
-| Live WhatsApp (post-approval) | Same paise-based deduction per message |
+### Deductions (real cost × the vendor's markup)
 
-**Refactor note:** `billingService.deductCredits()` today uses flat per-message credits (`text=1`, `audio=3`). Implementation should move to **paise-from-tokens** for sandbox and live traffic to match this spec.
+Every debit goes through the one function, `pricingService.chargeVendor`:
+
+```
+chargeMilli = ceil((aiCostMilli + whatsappCostMilli + platformFeeMilli) × (1 + markupPercent/100))
+```
+
+| Feature | `source` | How cost is calculated |
+| --- | --- | --- |
+| Catalog import | `catalog_import` | `CatalogImportJob.tokenUsage.totalMilli`, then markup |
+| Catalog import fast path | `catalog_import` | Extraction **plus** the enrichment pass, then markup |
+| Sandbox test chat | `sandbox_chat` | Real LLM token cost from the production pipeline run with `sandbox: true`, then markup |
+| Sandbox voice notes | `sandbox_transcribe` (+ `sandbox_chat` for the reply) | Whisper priced **per second of audio**, then markup |
+| Live WhatsApp reply (post-approval) | `conversation_turn` | LLM-1 + LLM-2 tokens + any inbound transcription, then markup |
+| Outbound product media | `outbound_media` | Platform fee only — **₹0 today** |
+
+Trial and sandbox charges are floored at zero so a trial wallet never goes negative.
+
+> **No flat credits.** The old `text=1 / audio=3 / image=2` weights and `billingService.deductCredits()` are deleted. There is also no monthly plan quota — `Vendor.subscriptionPlan` is bookkeeping only.
+
+### Live WhatsApp + AI (single wallet, post-approval)
+
+After go-live, **all** billable usage debits the same `Vendor.walletBalanceMilli` through the same formula.
+
+- **WhatsApp conversation fees are not billed yet.** `whatsappCostMilli` and `PlatformSettings.platformFeePerTurnPaise` are both `0` until the P2h Meta rate card lands, so **ChatLogix absorbs Meta conversation costs today**. This is a known gap, not an oversight.
+- The per-vendor markup that P2h was going to introduce **already exists** as `Vendor.markupPercent` (`PATCH /api/vendors/:id/billing-config`). P2h only has to supply the WhatsApp base rate for it to multiply.
+- Vendors are **not** asked to add a credit card in Meta for API usage; Meta invoices **ChatLogix** as Bill To Party on shared credit lines ([share credit lines](https://developers.facebook.com/docs/whatsapp/embedded-signup/manage-accounts/share-and-revoke-credit-lines)).
+- When WhatsApp billing lands, it should populate `whatsappCostMilli` on the existing charge rather than introduce a parallel debit path, so the breakdown stays in one `WalletTransaction.metadata`.
+- **Low balance:** the wallet gate requires enough to cover a **worst-case turn at the vendor's markup**, not merely a non-zero balance. Inbound messages are still persisted to the inbox; the AI pipeline sends `WALLET_EMPTY_TEMPLATE` and runs no LLM and no debit. Vendor copy: “Top up to reply to customers.”
 
 ### After approval
 
 1. Ops sets `registrationStatus = 'approved'`, `approvedAt`, `approvedBy`.
-2. **Reset** `walletBalance = 0` (trial not carried over).
-3. Vendor pays ₹X (Razorpay later) → `walletBalance += X * 100` paise.
+2. **Reset** `walletBalanceMilli = 0` (trial not carried over).
+3. Vendor pays ₹X via wallet top-up ([P2g](./wallet-top-up-p2g.md): mock v1 shipped, Razorpay v2) → `walletBalanceMilli += X * 1000`.
 4. Send approval notification with login / payment instructions.
 
 ### Trial expiry
@@ -477,7 +511,7 @@ Steps 1–5 (see pages below). Persist current step server-side for resume on re
 ### Trial wallet widget (sticky header or sidebar)
 
 ```
-Trial balance: ₹72.40 of ₹100.00
+Trial balance: ₹32.40 of ₹50.00
 Expires: 4 Oct 2026
 
 Usage breakdown
@@ -488,20 +522,22 @@ Usage breakdown
 Total used:              −₹27.60
 ```
 
-**API (proposed):** `GET /api/vendors/me/trial-wallet`
+**API (as implemented):** `GET /api/vendors/me/trial-wallet`
 
 ```json
 {
-  "balancePaise": 7240,
-  "grantedPaise": 10000,
+  "balanceMilli": 32400,
+  "grantedMilli": 50000,
   "expiresAt": "2026-10-05T00:00:00.000Z",
   "breakdown": [
-    { "source": "sandbox_chat", "label": "Sandbox replies", "paise": 1820, "count": 12 },
-    { "source": "sandbox_audio", "label": "Sandbox voice", "paise": 600, "count": 2 },
-    { "source": "catalog_import", "label": "Catalog import", "paise": 940, "jobs": 1 }
+    { "source": "sandbox_chat", "label": "Sandbox replies", "milli": 18200, "count": 12 },
+    { "source": "sandbox_transcribe", "label": "Voice transcription", "milli": 6000, "count": 2 },
+    { "source": "catalog_import", "label": "Catalog import", "milli": 9400, "jobs": 1 }
   ]
 }
 ```
+
+Amounts are **millirupees**. `source` values come from the `ChargeSource` union in `pricingService.ts` and the labels from `billingService.labelForSource` — see [BILLING_AND_PRICING.md](../../../../../docs/BILLING_AND_PRICING.md) §4 for the full list.
 
 **UX thresholds:**
 
@@ -522,7 +558,7 @@ Total used:              −₹27.60
 **UI elements:**
 
 - **65% / 35% split** on desktop (marketing left, form right) — match `Login.tsx` shell
-- Marketing panel: problem, solution, ₹100 offer, trust strip, optional FAQ
+- Marketing panel: problem, solution, ₹50 offer, trust strip, optional FAQ
 - Form panel: phone + OTP (reuse login components)
 - Per-route SEO meta title + description on `/signup`
 - Legal: terms / privacy links (optional v1)
@@ -545,9 +581,9 @@ Vendor.create({
   subscriptionPlan: 'Trial',
   subscriptionStatus: 'trial',
   registrationStatus: 'onboarding',
-  walletBalance: 10000,
-  trialGrantedPaise: 10000,
-  trialExpiresAt: now + N days,
+  walletBalanceMilli: 50000,     // PlatformSettings.trialGrantPaise
+  trialGrantedMilli: 50000,
+  trialExpiresAt: now + PlatformSettings.trialExpiryDays,
   registeredAt: now,
   onboardingStep: 1
 })
@@ -555,7 +591,7 @@ Vendor.create({
 
 **Success message (modal or inline):**
 
-> Your trial account was created. You have **₹100.00** to try AI replies, catalog import, and test chat.
+> Your trial account was created. You have **₹50.00** to try AI replies, catalog import, and test chat.
 
 **Redirect:** `/onboarding/catalog`
 
@@ -709,12 +745,12 @@ Vendor.create({
 
 - Reuse `/api/catalog-import/*` routes
 - Gate: `registrationStatus` in (`onboarding`, `pending_approval`)
-- Pre-check: `walletBalance > 0` and trial not expired
-- Deduct `totalPaise` on job completion (existing `recordCatalogImportSpend`)
+- Pre-check: `assertVendorWalletForAi` (balance must cover a worst-case turn) and trial not expired; failure is a **402**. Plus the `PlatformSettings.catalogImportDailyPaiseCap` daily cap (429)
+- Charge `tokenUsage.totalMilli × (1 + markupPercent/100)` on job completion via `chargeVendor` (`source: 'catalog_import'`)
 
 **At ₹0 balance:** Upload disabled; **Skip** still enabled
 
-**Credits consumed:** Actual AI paise per import job
+**Wallet consumed:** the marked-up AI cost of the import job. This rose ~50% at the millirupee cutover — import previously billed at cost with no markup, and the fast path's enrichment pass was not billed at all.
 
 **Reuse:** `CatalogImport`, `CatalogImportPhoto`, etc. — may be embedded in onboarding layout rather than full nav.
 
@@ -763,7 +799,7 @@ Vendor.create({
 1. **Business info** summary (from step 1) — Edit link
 2. **Catalog** summary — N products imported, or “Skipped” — Edit link
 3. **AI settings** summary — Edit link
-4. **Trial usage** summary — ₹X used of ₹100
+4. **Trial usage** summary — ₹X used of ₹50
 5. Checkbox: “I understand full access requires admin approval”
 6. **Submit for approval** button (enabled even at **₹0.00** balance)
 
@@ -828,7 +864,7 @@ SET
   "approvedAt" = NOW(),
   "approvedBy" = 'ops@chatlogix.in',
   "subscriptionStatus" = 'active',
-  "walletBalance" = 0          -- trial not carried over
+  "walletBalanceMilli" = 0     -- trial not carried over
 WHERE phone = '+919876543210';
 ```
 
@@ -855,16 +891,19 @@ Send WhatsApp template or SMS to **login phone**:
 
 ### Wallet top-up (future slice)
 
-- Pay ₹1,000 → `walletBalance += 100000` paise
+- Pay ₹1,000 → `walletBalanceMilli += 1000000`
 - `WalletTransaction` type `topup`
 - UI shows **₹1,000.00** balance
 
 ### WhatsApp connection (after approval, separate slice)
 
 - Route: `/settings/whatsapp` or dedicated connect wizard
-- Meta **Embedded Signup** (same flow as Wati/AiSensy)
-- Login phone ≠ WhatsApp number — vendor enters business WA number during Meta flow
-- See [vendor-onboarding-workflow.md](../../../whatsapp-integration/guides/vendor-onboarding-workflow.md)
+- Meta **Embedded Signup** (same popup flow as Wati/Interakt); if vendor has no Business Manager, the flow **creates** portfolio / WABA inside Embedded Signup with step-by-step UI copy before/after the Meta popup
+- **Two connect paths:** (1) **Cloud API** — dedicated number, SMS/voice OTP; (2) **Coexistence** — existing WhatsApp Business App, QR scan
+- Login phone ≠ WhatsApp number — business WA number entered during Meta flow
+- **Server-side after signup:** exchange token → register number → subscribe app webhooks → **`whatsapp_credit_sharing_and_attach`** with `waba_currency=INR` → verify `primary_funding_id` → store encrypted token + `WhatsAppNumber` row
+- Vendor messaging: *“WhatsApp message charges are deducted from your ChatLogix balance; you don’t pay Meta separately.”*
+- See [vendor-onboarding-workflow.md](../../../whatsapp-integration/guides/vendor-onboarding-workflow.md) §5–§6
 
 ---
 
@@ -873,14 +912,14 @@ Send WhatsApp template or SMS to **login phone**:
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `POST` | `/api/auth/signup/send-code` | OTP for new phones (or reuse send-code with signup flag) |
-| `POST` | `/api/auth/signup/verify` | Verify OTP + create vendor + ₹100 trial |
+| `POST` | `/api/auth/signup/verify` | Verify OTP + create vendor + ₹50 trial |
 | `POST` | `/api/auth/verify-code` | Existing login path for known vendors |
 | `GET` | `/api/vendors/me` | Profile incl. `registrationStatus`, onboarding step |
 | `PATCH` | `/api/vendors/me/onboarding` | Save step data + advance step |
 | `GET` | `/api/vendors/me/trial-wallet` | Balance + breakdown |
 | `POST` | `/api/vendors/me/submit-for-approval` | `pending_approval` |
 | `POST` | `/api/catalog-import/...` | Existing; gated for trial vendors |
-| `POST` | `/api/vendors/me/sandbox/chat` | Sandbox chat via **production pipeline** (`sandbox: true`); deduct paise; return reply + cost |
+| `POST` | `/api/vendors/me/sandbox/chat` | Sandbox chat via **production pipeline** (`sandbox: true`); charge the wallet in millirupees; return reply + `costMilli` |
 
 ---
 
@@ -897,36 +936,36 @@ Send WhatsApp template or SMS to **login phone**:
 
 | Phase | Scope |
 | --- | --- |
-| **P2a** | Signup API + vendor create (₹100 trial) + login/signup routing by status |
+| **P2a** | Signup API + vendor create (₹50 trial) + login/signup routing by status |
 | **P2b** | Onboarding shell, step 1–2 pages, route guards |
-| **P2c** | Steps 3–4 (AI setup + sandbox) + paise deduction + wallet widget |
+| **P2c** | Steps 3–4 (AI setup + sandbox) + wallet deduction + wallet widget |
 | **P2d** | Step 5 + submitted page + submit API |
-| **P2e** | Paise-based billing refactor (replace flat credits for sandbox/live) |
+| **P2e** | Cost-based billing refactor (replace flat credits for sandbox/live). **Superseded 2026-09-16** by the millirupee + per-vendor-markup model — [BILLING_AND_PRICING.md](../../../../../docs/BILLING_AND_PRICING.md) |
 | **P2f** | Approval notification + ops runbook |
-| **P2g** | Post-approval wallet top-up (Razorpay) |
-| **P2h** | WhatsApp Embedded Signup (settings) |
+| **P2g** | Post-approval wallet top-up — **mock provider v1**, [detailed plan](./wallet-top-up-p2g.md); Razorpay v2 when credentials exist |
+| **P2h** | WhatsApp Embedded Signup (Cloud API + Coexistence), credit attach (INR), per-vendor tokens, admin markup %, wallet gating for AI/outbound |
 
 ---
 
-## Environment variables (proposed)
+## Environment variables
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `TRIAL_GRANT_PAISE` | `10000` | ₹100 trial on signup |
-| `TRIAL_EXPIRY_DAYS` | `30` | Days until trial AI actions blocked |
+| `TRIAL_GRANT_MILLI` | `50000` | ₹50 trial on signup — **seed/fallback only**, live value is `PlatformSettings.trialGrantPaise` |
+| `TRIAL_EXPIRY_DAYS` | `30` | Days until trial AI actions blocked — **seed/fallback only**, live value is `PlatformSettings.trialExpiryDays` |
 | `CORS_ALLOWED_ORIGINS` | — | Required for auth cookies (existing) |
 
-Add to `backend/.env.example` when implemented.
+The two trial knobs are edited in production on the web-admin `/billing` page, not in `.env`.
 
 ---
 
 ## Manual test checklist
 
-1. **Signup new phone** → “trial account created”, ₹100 balance, onboarding step 1.
+1. **Signup new phone** → “trial account created”, ₹50 balance, onboarding step 1.
 2. **Signup same phone again** → blocked; directed to login.
 3. **Complete steps 1–3** → resume on re-login at correct step.
-4. **Catalog import** → balance decreases by job paise cost.
-5. **Sandbox chat** → per-reply paise shown and deducted.
+4. **Catalog import** → balance decreases by the marked-up job cost.
+5. **Sandbox chat** → per-reply cost (`costMilli`) shown and deducted.
 6. **Balance ₹0** → sandbox/import blocked; submit still works.
 7. **Submit** → `pending_approval`; re-login → submitted page.
 8. **Edit while pending** → wizard accessible; changes saved.

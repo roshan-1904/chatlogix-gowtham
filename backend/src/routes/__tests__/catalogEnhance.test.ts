@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../../config/env.js', () => ({
   env: {
     CATALOG_ENHANCE_GLOBAL_KILL: undefined,
-    CATALOG_ENHANCE_DAILY_PAISE_CAP: '3000',
+    CATALOG_ENHANCE_DAILY_MILLI_CAP: '3000',
     CATALOG_ENHANCE_DISABLE_RATE_LIMIT: 'true',
     NODE_ENV: 'test'
   }

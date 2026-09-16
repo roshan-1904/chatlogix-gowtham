@@ -54,13 +54,10 @@ Registered routes live in `frontend_v2/apps/web-vendor/src/App.tsx`. Sidebar ent
 | Orders | `/orders`, `/orders/:orderId` | ✅ | Partial — status workflow works, payment and shipping are stubs ([P1](#5-p1--order-operations)) |
 | Settings | `/settings` | ✅ | Complete — 5 tabs, all wired to `/api/vendors/:id/*` |
 | **Templates** | `/templates` | ✅ | **No route** → 404 ([P0.3](#43-p03--templates-decide-before-building)) |
-| **Billing** | `/billing` | ✅ | **No route** → 404 ([P0.1](#41-p01--billing-page)) |
+| Wallet | `/wallet` | ✅ | Complete — shipped 2026-09-16 with P2g mock top-up ([P0.1](#41-p01--billing-page--✅-shipped-as-wallet-2026-09-16)) |
 | **Support** | `/support` | ✅ | **No route** → 404 ([P0.2](#42-p02--support-page)) |
 
-Two more links point at the wrong place today:
-
-- `src/components/dashboard/QuickActionsPanel.tsx:36-39` — the low-balance **Recharge Credits** button calls `alert('Recharge page coming soon')`.
-- `src/pages/CatalogImportGoLive.tsx:44-50` — the go-live checklist item labelled **"Open billing"** navigates to `/settings`.
+Both of the dead links previously listed here — the `alert('Recharge page coming soon')` in `QuickActionsPanel.tsx` and the "Open billing" go-live row pointing at `/settings` — were fixed when `/wallet` shipped.
 
 ---
 
@@ -79,60 +76,39 @@ Two more links point at the wrong place today:
 
 ## 4. P0 — Navigation honesty
 
-### 4.1 P0.1 — Billing page
+### 4.1 P0.1 — Billing page — ✅ shipped as `/wallet` (2026-09-16)
 
-**Problem.** Wallet balance drives whether the AI replies at all. The vendor has no page to see the balance, what consumed it, or how to top up. `Billing` in the sidebar 404s, and the dashboard's low-balance CTA is an `alert`.
+**Problem (original).** Wallet balance drives whether the AI replies at all. The vendor had no page to see the balance, what consumed it, or how to top up. `Billing` in the sidebar 404'd, and the dashboard's low-balance CTA was an `alert`.
 
-**Evidence.**
-- `src/components/layout/Sidebar.tsx:13` — `{ name: 'Billing', href: '/billing', icon: '💳' }`
-- `src/App.tsx:111` — unmatched paths render `<div>404 - Page Not Found</div>`
-- `src/components/dashboard/QuickActionsPanel.tsx:36-39` — `alert('Recharge page coming soon')`
+**What shipped.** The page landed as **`/wallet`**, not `/billing` — the sidebar entry, the route in `App.tsx`, and `src/pages/Wallet.tsx` all use `/wallet`. It ships with self-serve top-up (P2g mock provider), which folds in most of what [P3](#7-p3--self-serve-wallet-recharge) described.
 
-**Backend that already exists.**
+| Piece | State |
+|---|---|
+| `src/pages/Wallet.tsx` | Balance card, preset chips from `presetsMilli`, custom amount, mock "pay" flow, recent transactions |
+| `Sidebar.tsx` | `{ name: 'Wallet', href: '/wallet', icon: '💳' }` |
+| `QuickActionsPanel.tsx` | `alert` removed |
+| `WalletBalanceCard`, `SpendBreakdownChart`, `SpendTrendChart` | Replaced the deleted `CreditsCard` / `CreditsBreakdownChart` / `CreditsUsageTrendChart` |
+| `components/onboarding/TrialWalletBar.tsx` | Deleted |
 
-| Endpoint | Returns | Notes |
+**Backend, as implemented.** Money is **millirupees** throughout — see [BILLING_AND_PRICING.md](./BILLING_AND_PRICING.md).
+
+| Endpoint | Returns | Auth |
 |---|---|---|
-| `GET /api/vendors/:id/config` | `walletBalance` (paise), plan, status | `backend/src/routes/vendors.ts:131-178` |
-| `GET /api/vendors/:id/usage-analytics` | `creditsUsed` total | `vendors.ts:118-129`, aggregate over `CreditUsage` |
-| `GET /api/vendors/:id/dashboard-stats` | `credits` block (balance, used this month, low-balance warning, cycle dates) | `vendors.ts:753-758`, shape in `src/types/dashboard.ts:49-69` |
-| `GET /api/vendors/me/trial-wallet` | `balancePaise`, `grantedPaise`, `expiresAt`, `breakdown[]` by source | `vendorOnboarding.ts:321-326` → `billingService.getTrialWalletSummary` (`billingService.ts:185-250`). Mounted under `/api/vendors`, vendor role. |
-| `POST /api/vendors/:id/recharge-wallet` | new balance | `vendors.ts:188-208` — **`requireRole('admin')`**, not callable by a vendor. See [P3](#7-p3--self-serve-wallet-recharge). |
+| `GET /api/vendors/:id/config` | `walletBalanceMilli`, `markupPercent`, plan, status | vendor access |
+| `GET /api/vendors/:id/usage-analytics` | `{ vendorId, chargedMilli }` | vendor access |
+| `GET /api/vendors/:id/dashboard-stats` | `billing` block (balance, spend today/week/month/total, `breakdownBySource`, `dailySpend`, projections, `lowBalanceWarning`, cycle dates) | vendor access |
+| `GET /api/vendors/me/trial-wallet` | `balanceMilli`, `grantedMilli`, `expiresAt`, `breakdown[]` | vendor |
+| `GET /api/vendors/me/wallet` | `balanceMilli`, `provider`, `mockTopUpEnabled`, `presetsMilli`, `recentTransactions[]` | vendor |
+| `POST /api/vendors/me/wallet/top-up-intent` / `confirm-mock` | P2g mock top-up | vendor |
+| `GET /api/vendors/:id/wallet-transactions` | Recent ledger rows, `limit` 1–200 | **admin only** |
+| `POST /api/vendors/:id/recharge-wallet` | New balance, `amount` in millirupees | **admin only** |
 
-**Backend to add.** One endpoint, for transaction history:
+**Remaining gaps.** Two, both small:
 
-```
-GET /api/vendors/:id/wallet-transactions?limit=50&cursor=<id>
-  auth: requireVendorAccess(req => req.params.id)
-  200: {
-    transactions: [{
-      id, transactionType, amountPaise, balanceBeforePaise,
-      balanceAfterPaise, transactionDate, source, label
-    }],
-    nextCursor: string | null
-  }
-```
+1. `GET /api/vendors/:id/wallet-transactions` shipped as **`requireRole('admin')`** for the admin vendor detail panel. The vendor-facing history on `/wallet` comes from `GET /api/vendors/me/wallet`, which is capped at the **20 most recent** rows with **no pagination** — the cursor-paginated vendor view originally specced here does not exist.
+2. Real payments still need Razorpay credentials (P2g v2).
 
-Source data is the `WalletTransaction` model (`backend/prisma/schema.prisma:224-237`), already indexed on `[vendorId, transactionDate desc]`. Derive `source`/`label` from `metadata.source` with the same mapping `billingService.ts` uses for the trial breakdown (`labelForSource`), so the same vocabulary appears in onboarding and billing.
-
-**UI spec — `src/pages/Billing.tsx`.**
-
-1. **Balance card.** Current balance from `/config`, low-balance warning styling when `dashboard-stats.credits.lowBalanceWarning` is set. Trial vendors additionally get granted amount and `expiresAt` from `/me/trial-wallet` (reuse `src/components/onboarding/TrialWalletBar.tsx`).
-2. **Usage breakdown.** The `breakdown[]` from `/me/trial-wallet` (sandbox chat, voice, transcription, catalog import), plus credits consumed this month from dashboard stats.
-3. **Transaction history.** Table from the new endpoint: date, type, source label, amount, resulting balance. Paginated by cursor. Empty state: "No wallet activity yet."
-4. **Top-up panel.** Until [P3](#7-p3--self-serve-wallet-recharge) lands, this is copy plus the support CTA from [P0.2](#42-p02--support-page), not a payment form. Do not render a disabled "Recharge" button with no explanation.
-
-**Wire-ups in the same change.**
-- `QuickActionsPanel.tsx:36-39` → `navigate('/billing')`, drop the `alert`.
-- `CatalogImportGoLive.tsx:44-50` → `to="/billing"` so the label matches the destination.
-- `src/lib/seo.ts` → add the `/billing` title/meta entry alongside the existing routes.
-
-**Acceptance criteria.**
-- `/billing` renders for an approved vendor and shows a balance that matches the dashboard credits card.
-- All money is formatted through `src/utils/currency.ts` `formatAmountWithSymbol` (paise in, symbol out) — no ad-hoc `/100`.
-- Transaction list paginates and survives an empty history.
-- No sidebar item, dashboard CTA, or go-live checklist row points at a 404.
-
-**Effort.** ~1 day frontend, ~2 hours backend. **Depends on:** nothing.
+**Money formatting.** `src/utils/currency.ts` now exposes both units: `formatAmountWithSymbol(paise)` for orders and revenue, and `formatWalletAmount(milli)` / `formatWalletRupees(milli)` / `rupeesToMilli(rupees)` for wallet money. These are different units — do not cross them. Wallet API types live in `src/lib/wallet.ts`.
 
 ---
 
@@ -150,7 +126,7 @@ Source data is the `WalletTransaction` model (`backend/prisma/schema.prisma:224-
 **UI spec — `src/pages/Support.tsx`.**
 
 1. **Contact card.** WhatsApp deep link and mailto, from the same env resolution. Extract the duplicated `supportHref()` / `supportLink()` logic into one helper (`src/lib/support.ts`) and have all three call sites use it.
-2. **Self-serve section.** Links into the portal for the questions support actually receives: "AI replied something wrong" → `/queries`, "product details are wrong" → `/catalog`, "customers ask something we never answered" → `/faqs`, "AI stopped replying" → `/billing`.
+2. **Self-serve section.** Links into the portal for the questions support actually receives: "AI replied something wrong" → `/queries`, "product details are wrong" → `/catalog`, "customers ask something we never answered" → `/faqs`, "AI stopped replying" → `/wallet`.
 3. **Diagnostics block.** Vendor ID, business name, plan, app version (`Footer.tsx` already renders `Version 0.1.0`) with a copy button, so a vendor can paste identifying context into a support chat.
 
 Env vars are already documented in `frontend_v2/apps/web-vendor/.env.example:14-20`; no new configuration.
@@ -159,7 +135,7 @@ Env vars are already documented in `frontend_v2/apps/web-vendor/.env.example:14-
 - `/support` renders with no env vars set (falls back to `https://chatlogix.in`) and with each var set.
 - One shared helper resolves the support target; `NeedHelpFooter` and `OnboardingRejected` no longer carry their own copies.
 
-**Effort.** ~half a day. **Depends on:** P0.1 only for the `/billing` cross-link.
+**Effort.** ~half a day. **Depends on:** P0.1 only for the `/wallet` cross-link.
 
 ---
 
@@ -351,22 +327,25 @@ PUT  /api/vendors/:id/customer-notes    { customerId, note }
 
 ---
 
-## 7. P3 — Self-serve wallet recharge
+## 7. P3 — Self-serve wallet recharge — 🔶 mostly shipped as P2g
 
-**Problem.** A vendor cannot add money. `POST /api/vendors/:id/recharge-wallet` is `requireRole('admin')` (`backend/src/routes/vendors.ts:188-208`), so every top-up is a manual admin action. When the wallet empties, the AI stops replying and the vendor's only recovery path is contacting support.
+**Problem (original).** A vendor could not add money; every top-up was a manual admin action through `POST /api/vendors/:id/recharge-wallet`.
 
-**Why this is P3, not P0.** It needs the same payment gateway decision as [P1.1](#51-p11--payment-links), plus GST/invoicing treatment. Do P1.1 first and reuse that integration.
+**What shipped (P2g v1, 2026-09-16).** `/wallet` plus a provider-abstracted top-up path:
 
-**Scope.**
+- `POST /api/vendors/me/wallet/top-up-intent` → provider `createIntent`, persisted as a `WalletTopUpIntent` row.
+- `POST /api/vendors/me/wallet/confirm-mock` → credits the wallet, mock provider only, gated on `WALLET_PAYMENT_PROVIDER === 'mock'` (env-only) **and** `PlatformSettings.mockWalletTopUpEnabled`.
+- A single `creditWalletFromTopUp` in `backend/src/services/wallet/walletTopUpService.ts` — the mock provider, admin recharge and (later) the Razorpay webhook all go through it, transactionally with the `WalletTransaction` row and idempotent on `WalletTopUpIntent.idempotencyKey`.
+- Only **approved** vendors may top up (`assertVendorCanTopUp`).
+- Amounts are millirupees, bounded by `PlatformSettings.minWalletTopUpPaise` / `maxWalletTopUpPaise` (env `MIN/MAX_WALLET_TOPUP_MILLI` is fallback only).
 
-1. `POST /api/vendors/:id/wallet/topup` (vendor-scoped) creating a gateway checkout for a chosen amount.
-2. Webhook-driven credit: on verified success, run the existing `$transaction` pattern from `vendors.ts:196-206` — update `walletBalance` **and** write a `WalletTransaction` with `transactionType: 'recharge'` — keyed idempotently on the gateway payment id.
-3. Receipts via `BillingHistory` (`schema.prisma:211-222`), which exists but is unused by any route today.
-4. Auto-recharge threshold as an optional follow-on (`walletBalance < X` → charge saved method).
+**Still open.**
 
-**Hard requirements.** Money moves only on a signature-verified webhook, never on a client callback. Every balance mutation is transactional with its ledger row. Replayed webhooks are no-ops.
+1. **Razorpay** — `razorpayProvider.ts` is a stub pending credentials. Full migration steps: [wallet-top-up-p2g.md](../documentation/modules/features/vendor-onboarding/guides/wallet-top-up-p2g.md) §7.
+2. **Receipts / GST** — `BillingHistory` exists but is still unused by any route.
+3. **Auto-recharge threshold** — not started.
 
-**Effort.** ~1 week after P1.1. **Depends on:** gateway integration, tax/invoicing decision.
+**Hard requirements (unchanged, and they bind the Razorpay slice).** Money moves only on a signature-verified webhook, never on a client callback. Every balance mutation is transactional with its ledger row. Replayed webhooks are no-ops.
 
 ---
 
@@ -374,7 +353,7 @@ PUT  /api/vendors/:id/customer-notes    { customerId, note }
 
 Applies to every item above.
 
-- **Money is paise.** `walletBalance`, `Order.totalAmount`, and `WalletTransaction.amount` are integer paise. Format with `src/utils/currency.ts`; never hand-roll `/100`. Note that `parseOrderItems` (`src/utils/orderParsing.ts`) normalises items to **rupees** for display — that boundary is deliberate, so do not "fix" it by mixing units.
+- **Two money units.** Wallet money (`Vendor.walletBalanceMilli`, `WalletTransaction.amountMilli`, `CreditUsage.chargedMilli`, every `*Milli` API field) is **millirupees**, 1 rupee = 1000. Order money (`Order.totalAmount`, `Product.basePrice`) is **paise**. Format with `src/utils/currency.ts` — `formatWalletAmount` for milli, `formatAmountWithSymbol` for paise — and never hand-roll `/100` or `/1000`. Note that `parseOrderItems` (`src/utils/orderParsing.ts`) normalises items to **rupees** for display — that boundary is deliberate, so do not "fix" it by mixing units. See [BILLING_AND_PRICING.md](./BILLING_AND_PRICING.md) §1.
 - **Design tokens.** Navy `primary-500` `#072349`, WhatsApp green `secondary-500` `#25D366`. For new UI, follow `.cursor/rules/21st-mcp-design.mdc`: read `.21st/design.json` first, use 21st MCP for patterns, map onto `@chatlogix/design-tokens`. Do not paste a foreign theme's `:root` block into `src/index.css`.
 - **Error handling.** Toast for user-facing failures, `getErrorMessage` from `src/utils/errorHandling.ts` for message extraction, and never a bare `alert`.
 - **Auth.** Vendor-scoped endpoints use `requireVendorAccess(req => req.params.id)`; only genuinely administrative operations use `requireRole('admin')`.
@@ -408,7 +387,7 @@ Portal-level, verifiable after the P0 sprint:
 
 - [ ] Every `navigation` entry in `Sidebar.tsx` resolves to a registered route, or is explicitly marked unavailable.
 - [ ] No `window.alert` remains on an expected user path (`rg "window\.alert|[^.]\balert\(" frontend_v2/apps/web-vendor/src` returns nothing outside tests).
-- [ ] `/billing` balance equals the dashboard credits card for the same vendor.
+- [ ] `/wallet` balance equals the dashboard wallet balance card for the same vendor.
 - [ ] `/support` resolves a contact target with no env vars set.
 - [ ] `/nonsense` renders the styled not-found page with a working way back.
 - [ ] Dashboard custom range survives a reload (state lives in the URL).
@@ -426,11 +405,14 @@ Portal-level, verifiable after the P0 sprint:
 **Backend**
 - Vendor endpoints: `backend/src/routes/vendors.ts`
 - Trial wallet: `backend/src/routes/vendorOnboarding.ts` + `backend/src/services/billingService.ts`
+- Wallet + top-up: `backend/src/routes/vendorWallet.ts`, `backend/src/services/wallet/`
+- Pricing (the only wallet-debit path): `backend/src/services/pricing/pricingService.ts`, `backend/src/utils/money.ts`
 - Stubs to implement: `backend/src/routes/payments.ts`, `backend/src/routes/shipping.ts`, `orders.ts:181-205`
 - Outbound notifications: `backend/src/services/whatsappTemplateService.ts`
-- Schema: `backend/prisma/schema.prisma` (`WalletTransaction`, `BillingHistory`, `CreditUsage`, `NotificationHistory`)
+- Schema: `backend/prisma/schema.prisma` (`WalletTransaction`, `WalletTopUpIntent`, `BillingHistory`, `CreditUsage`, `NotificationHistory`)
 
 **Docs**
+- Billing and pricing (single source of truth): `docs/BILLING_AND_PRICING.md`
 - Customer Queries (shipped portal feature): `docs/CUSTOMER_QUERIES.md`
 - Catalog enhancer: `docs/VENDOR_CATALOG_ENHANCER.md`
 - Product media (planning — S3 upload + WhatsApp image/video): `docs/PRODUCT_MEDIA.md`

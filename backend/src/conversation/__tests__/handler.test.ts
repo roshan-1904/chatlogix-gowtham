@@ -41,7 +41,8 @@ describe('conversationProcessor handler', () => {
       phoneNumberId: 'waba-1',
       customerPhone: '+911234567890',
       content: '2 brownies',
-      whatsappMessageId: 'wamid.1'
+      whatsappMessageId: 'wamid.1',
+      upstreamCostMilli: 0
     });
     expect(result).toEqual({ batchItemFailures: [] });
   });
@@ -75,8 +76,36 @@ describe('conversationProcessor handler', () => {
       customerPhone: '+911234567890',
       content: 'பையனுக்கு birthday',
       whatsappMessageId: 'wamid.1',
+      upstreamCostMilli: 0,
       sourceMessageType: 'audio'
     });
+  });
+
+  it('forwards the transcription cost mediaFetchProcessor attached to a voice-note handoff', async () => {
+    processMessageMock.mockResolvedValue(undefined);
+
+    await handler(
+      {
+        Records: [
+          record({
+            body: JSON.stringify({
+              type: 'TextMessage',
+              vendorId: 'vendor-1',
+              customerPhone: '+911234567890',
+              content: 'two brownies please',
+              phoneNumberId: 'waba-1',
+              whatsappMessageId: 'wamid.1',
+              sourceMessageType: 'audio',
+              upstreamCostMilli: 166
+            })
+          })
+        ]
+      } as any,
+      {} as any,
+      {} as any
+    );
+
+    expect(processMessageMock.mock.calls[0][0].upstreamCostMilli).toBe(166);
   });
 
   it('reports the failing record via ReportBatchItemFailures instead of failing the whole batch', async () => {

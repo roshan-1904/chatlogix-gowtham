@@ -3,8 +3,10 @@ import RedisStore from 'rate-limit-redis';
 import type { Request, Response, NextFunction } from 'express';
 import { getRedisClient } from '../utils/redis.js';
 import { env } from '../config/env.js';
-import { getTodaysCatalogEnhancePaiseSpent } from '../services/billingService.js';
+import { getTodaysCatalogEnhanceMilliSpent } from '../services/billingService.js';
 import { logger } from '../logger.js';
+import { ensurePlatformSettings, getPlatformSettings } from '../services/platformSettingsService.js';
+import { paiseToMilli } from '../utils/money.js';
 
 const disabled =
   env.CATALOG_ENHANCE_DISABLE_RATE_LIMIT === 'true' || env.NODE_ENV !== 'production';
@@ -49,7 +51,7 @@ export const enhanceHourlyRateLimit: RateLimitRequestHandler = disabled
       }
     });
 
-export async function enforceEnhanceDailyPaiseCap(
+export async function enforceEnhanceDailyMilliCap(
   req: Request,
   res: Response,
   next: NextFunction
@@ -63,13 +65,14 @@ export async function enforceEnhanceDailyPaiseCap(
     next();
     return;
   }
-  const cap = Number.parseInt(env.CATALOG_ENHANCE_DAILY_PAISE_CAP, 10);
+  await ensurePlatformSettings();
+  const cap = paiseToMilli(getPlatformSettings().catalogEnhanceDailyPaiseCap);
   if (!Number.isFinite(cap) || cap <= 0) {
     next();
     return;
   }
   try {
-    const spent = await getTodaysCatalogEnhancePaiseSpent(vendorId);
+    const spent = await getTodaysCatalogEnhanceMilliSpent(vendorId);
     if (spent >= cap) {
       logger.warn({ vendorId, spent, cap }, 'catalog_enhance_daily_cap');
       res.status(429).json({ error: 'DAILY_SPEND_CAP' });

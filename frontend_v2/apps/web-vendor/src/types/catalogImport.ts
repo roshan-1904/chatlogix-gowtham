@@ -70,10 +70,16 @@ export interface PageProgress {
   error?: string;
 }
 
+/**
+ * The `*Milli` amounts are what billing charges. The `*Paise` amounts are kept
+ * on the wire for rows written before the millirupee cutover; they round to
+ * whole paise, so do not use them for display.
+ */
 export interface TokenUsageSummary {
-  vision?: { promptTokens: number; completionTokens: number; totalTokens: number; costPaise: number };
-  enrichment?: { promptTokens: number; completionTokens: number; totalTokens: number; costPaise: number };
+  vision?: { promptTokens: number; completionTokens: number; totalTokens: number; costPaise: number; costMilli: number };
+  enrichment?: { promptTokens: number; completionTokens: number; totalTokens: number; costPaise: number; costMilli: number };
   totalPaise: number;
+  totalMilli: number;
 }
 
 export interface CatalogImportJob {
@@ -138,7 +144,7 @@ export interface FastPhotoResult {
   bucket: RowBucket;
   warnings: string[];
   alternates: NormalizedProductDraft[];
-  costPaise: number;
+  costMilli: number;
 }
 
 export interface SandboxTestResult {

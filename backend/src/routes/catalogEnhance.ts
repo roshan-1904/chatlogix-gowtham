@@ -4,7 +4,7 @@ import { requireRole } from '../middleware/authorize.js';
 import { requireCatalogImportEnabled } from '../middleware/requireCatalogImportEnabled.js';
 import {
   enhanceHourlyRateLimit,
-  enforceEnhanceDailyPaiseCap
+  enforceEnhanceDailyMilliCap
 } from '../middleware/catalogEnhanceRateLimit.js';
 import {
   AcceptEnhanceSchema,
@@ -35,7 +35,7 @@ catalogEnhanceRouter.use((req, res, next) => {
 catalogEnhanceRouter.use(requireRole('vendor', 'admin'));
 catalogEnhanceRouter.use(requireCatalogImportEnabled);
 catalogEnhanceRouter.use(enhanceHourlyRateLimit);
-catalogEnhanceRouter.use(enforceEnhanceDailyPaiseCap);
+catalogEnhanceRouter.use(enforceEnhanceDailyMilliCap);
 
 function sessionPayload(
   session: EnhanceSession,

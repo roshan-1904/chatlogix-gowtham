@@ -69,7 +69,7 @@ Shadcn-shaped CSS for 21st previews lives in `.21st/chatlogix-theme.css`. It is 
 - Tokens ship as Tailwind scales, not CSS variables
 - 21st is for layout/interaction patterns, not a palette takeover
 - Signup/onboarding: one job per screen; demo preview card (catalog + chat + voice) is the signup product picture
-- Public `/signup` is trust-first: experience the AI with your own store; ₹100 free credits make it risk-free. Do not lead with ₹100 as the only headline.
+- Public `/signup` is trust-first: experience the AI with your own store; a ₹50 free trial balance makes it risk-free. Do not lead with ₹50 as the only headline.
 - Public `/signup` desktop: light gray marketing column + full-white form column (no card)
 - Signup demo preview is a chat-app window (header, composer, stepper) plus a quality-test callout
 - Onboarding catalog: after upload, vendors review/correct extracted products as stacked cards, then save. Extra uploads collapse; skip is only before products exist.
@@ -86,7 +86,7 @@ Shadcn-shaped CSS for 21st previews lives in `.21st/chatlogix-theme.css`. It is 
 - **Marketing FAQ:** Accordion answers overlay in place (absolute) so the snap section height does not change. Homepage footer is a single black bar attached to the bottom of `#faq`.
 - **Marketing header:** Same canvas as the hero (`#f8f9fa`), mint circular chat mark, Plus Jakarta wordmark in navy + teal, pill nav, navy Try Free → CTA.
 - **Onboarding setup split:** Catalog / Details / Confirm / Demo / Submit use the signup 60/40 light split. Left is coaching (what this step is, how to use it). Right is the work.
-- **Signup copy is job-first:** `Try it on your catalog` + `Send code`. ₹100 is helper text under the field — never the H1, a green badge, or the only CTA. Trust lines, a visible FAQ heading, and Terms/Privacy are on the page, not `sr-only`.
+- **Signup copy is job-first:** `Try it on your catalog` + `Send code`. the ₹50 trial balance is helper text under the field — never the H1, a green badge, or the only CTA. Trust lines, a visible FAQ heading, and Terms/Privacy are on the page, not `sr-only`.
 - **Shared public auth split:** `/signup` and `/login` both render `PublicAuthSplit` (light gray marketing column + full-white form column) with `SignupDemoPreview`. No dark navy login wall. OTP boxes are thumb-sized and auto-submit on the sixth digit.
 - **Catalog product rows:** one line per product (name, ₹ price, unit/qty, Edit / Remove), one row expanded at a time, description collapsed by default. Upload splits into equal **Take photo** and **Upload file** actions. A zero-product extract leads with *Add 3 items by hand*; Skip stays but warns the assistant cannot quote prices.
 - **Clarify starts empty:** no chip preselected, Continue disabled until answered, progress reads `Detail N of 5` plus one line on why it matters.
@@ -98,3 +98,7 @@ Shadcn-shaped CSS for 21st previews lives in `.21st/chatlogix-theme.css`. It is 
 - **Wallet chip:** navy `Badge` pill reading `₹N trial left` (whole rupees, `formatTrialLeft`). Per-reply cost keeps two decimals.
 - **Skeletons, not "Loading…":** `OnboardingActionSkeleton` fills the right column of the 60/40 split; `OnboardingPageSkeleton` reproduces the whole split for `ProtectedRoute` (`onboardingOnly`). Pulse is `motion-safe`.
 - **Help never disappears:** `NeedHelpFooter` always shows "Questions?" and resolves `VITE_SUPPORT_WHATSAPP` → `VITE_SUPPORT_EMAIL` → `https://chatlogix.in`. Both vars live in `frontend_v2/apps/web-vendor/.env.example`.
+- **Rupees, never "credits":** wallet money is millirupees and formats with `formatWalletAmount`; order/product/revenue money stays paise and formats with `formatAmountWithSymbol`. Keep the two formatters apart — swapping them is a 10x error.
+- **Wallet-first dashboard:** `WalletBalanceCard` (balance, spend this month, Add money CTA) replaces the credits card. `SpendBreakdownChart` and `SpendTrendChart` show rupees; no plan quota or "% of limit".
+- **Admin vendors:** `web-admin` `/vendors` is a searchable list beside a detail panel (wallet balance, markup editor with a worked example, recent wallet activity), built from `@chatlogix/ui` on navy + green.
+- **Admin billing:** `web-admin` `/billing` is stacked setting cards (FX, fees, trial, catalog caps, top-up). Admins type rupees; the API stores paise. Same Card/Button chrome as the vendor markup editor.

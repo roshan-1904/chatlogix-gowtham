@@ -53,7 +53,9 @@ vi.mock('../catalogExtractionService.js', () => ({ extract: vi.fn() }));
 vi.mock('../fileIntakeService.js', () => ({
   assertKeyBelongsToVendor: vi.fn()
 }));
-vi.mock('../billingService.js', () => ({ recordCatalogImportSpend: vi.fn() }));
+vi.mock('../billingService.js', () => ({
+  assertVendorWalletForAi: vi.fn().mockResolvedValue({ allowed: true })
+}));
 vi.mock('../catalogImportEventBus.js', () => ({
   catalogImportEventBus: { emit: vi.fn() }
 }));

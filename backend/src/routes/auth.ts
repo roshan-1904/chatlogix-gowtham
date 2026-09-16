@@ -162,8 +162,8 @@ authRouter.post(
         registrationStatus: vendor.registrationStatus
       },
       trial: {
-        balancePaise: vendor.walletBalance,
-        grantedPaise: vendor.trialGrantedPaise,
+        balanceMilli: vendor.walletBalanceMilli,
+        grantedMilli: vendor.trialGrantedMilli,
         expiresAt: vendor.trialExpiresAt.toISOString()
       },
       isNewUser: true

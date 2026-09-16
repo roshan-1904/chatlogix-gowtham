@@ -88,12 +88,14 @@ const EnvSchema = z.object({
   // Catalog Import (Smart Catalog Import feature)
   CATALOG_IMPORT_S3_BUCKET: z.string().optional(),
   CATALOG_IMPORT_S3_REGION: z.string().optional(),
-  CATALOG_IMPORT_DAILY_PAISE_CAP: z.string().default('5000'),
+  // Fallback only — live cap is PlatformSettings.catalogImportDailyPaiseCap (milli ÷ 10).
+  CATALOG_IMPORT_DAILY_MILLI_CAP: z.string().default('50000'),
   CATALOG_IMPORT_GLOBAL_KILL: z.string().optional(),
   CATALOG_IMPORT_DISABLE_RATE_LIMIT: z.string().optional(),
 
   CATALOG_ENHANCE_GLOBAL_KILL: z.string().optional(),
-  CATALOG_ENHANCE_DAILY_PAISE_CAP: z.string().default('3000'),
+  // Fallback only — live cap is PlatformSettings.catalogEnhanceDailyPaiseCap (milli ÷ 10).
+  CATALOG_ENHANCE_DAILY_MILLI_CAP: z.string().default('30000'),
   CATALOG_ENHANCE_DISABLE_RATE_LIMIT: z.string().optional(),
 
   // Product Matching Configuration
@@ -103,17 +105,12 @@ const EnvSchema = z.object({
   PRODUCT_MATCHING_ENABLE_AI_MULTILANG: z.string().optional(), // Default: 'true'
   PRODUCT_MATCHING_AI_FALLBACK_THRESHOLD: z.string().optional(), // Default: '0.6'
 
-  // Billing credits per message type
-  BILLING_TEXT_CREDIT: z.string().default('1'),
-  BILLING_AUDIO_CREDIT: z.string().default('3'),
-  BILLING_IMAGE_CREDIT: z.string().default('2'),
-  BILLING_VIDEO_CREDIT: z.string().default('10'),
-  BILLING_DOCUMENT_CREDIT: z.string().default('2'),
-  BILLING_LOCATION_CREDIT: z.string().default('1'),
-  BILLING_STICKER_CREDIT: z.string().default('0'),
-  BILLING_CONTACT_CREDIT: z.string().default('1'),
-  BILLING_INTERACTIVE_CREDIT: z.string().default('1'),
-  BILLING_REACTION_CREDIT: z.string().default('0'),
+  // Wallet billing fallbacks. Live knobs live in PlatformSettings (paise);
+  // these env vars seed the row and are last-resort when Redis/DB are empty.
+  // Convert milli → paise with ÷ 10. WALLET_PAYMENT_PROVIDER stays env-only.
+  USD_TO_INR_RATE: z.string().default('83'),
+  PLATFORM_FEE_PER_TURN_MILLI: z.string().default('0'),
+  PLATFORM_FEE_OUTBOUND_MEDIA_MILLI: z.string().default('0'),
 
   // Feature flags
   USE_STRUCTURED_AI_RESPONSES: z.string().optional(),
@@ -147,9 +144,17 @@ const EnvSchema = z.object({
   // When Firebase is not configured, allow the local 123456 OTP. Forced off in production.
   AUTH_ALLOW_DEV_OTP: z.string().optional(),
 
-  // Vendor onboarding trial wallet
-  TRIAL_GRANT_PAISE: z.string().default('10000'),
-  TRIAL_EXPIRY_DAYS: z.string().default('30')
+  // Trial wallet fallbacks (millirupees; 50000 = ₹50.00). Live: trialGrantPaise / trialExpiryDays.
+  TRIAL_GRANT_MILLI: z.string().default('50000'),
+  TRIAL_EXPIRY_DAYS: z.string().default('30'),
+
+  // Vendor wallet top-up. Provider stays env-only; amounts/presets/mock flag
+  // are fallbacks for PlatformSettings (paise = milli ÷ 10).
+  WALLET_PAYMENT_PROVIDER: z.enum(['mock', 'razorpay']).default('mock'),
+  MIN_WALLET_TOPUP_MILLI: z.string().default('100000'),
+  MAX_WALLET_TOPUP_MILLI: z.string().default('50000000'),
+  WALLET_TOPUP_PRESETS_MILLI: z.string().default('500000,1000000,2000000,5000000'),
+  MOCK_WALLET_TOPUP_ENABLED: z.string().default('true')
 });
 
 export type Env = z.infer<typeof EnvSchema> & {
@@ -186,22 +191,31 @@ if (!isFirebaseAuthConfigured && env.NODE_ENV === 'production') {
 }
 console.log('Environment configuration loaded (isFirebaseAuthConfigured=%s)', isFirebaseAuthConfigured ? 'true' : 'false');
 
+/** Infra + last-resort billing fallbacks. Live billing knobs: getPlatformSettings(). */
 export const numericEnv = {
-  textCreditsPerMessage: Number(env.BILLING_TEXT_CREDIT || '1'),
-  audioCreditsPerMessage: Number(env.BILLING_AUDIO_CREDIT || '3'),
-  imageCreditsPerMessage: Number(env.BILLING_IMAGE_CREDIT || '2'),
-  videoCreditsPerMessage: Number(env.BILLING_VIDEO_CREDIT || '10'),
-  documentCreditsPerMessage: Number(env.BILLING_DOCUMENT_CREDIT || '2'),
-  locationCreditsPerMessage: Number(env.BILLING_LOCATION_CREDIT || '1'),
-  stickerCreditsPerMessage: Number(env.BILLING_STICKER_CREDIT || '0'),
-  contactCreditsPerMessage: Number(env.BILLING_CONTACT_CREDIT || '1'),
-  interactiveCreditsPerMessage: Number(env.BILLING_INTERACTIVE_CREDIT || '1'),
-  reactionCreditsPerMessage: Number(env.BILLING_REACTION_CREDIT || '0'),
   mediaFetchMaxAttempts: Number(env.MEDIA_FETCH_MAX_ATTEMPTS || '5'),
   waMediaRetentionMonths: Number(env.WA_MEDIA_RETENTION_MONTHS || '12'),
   templatedReplyDebounceMs: Number(env.TEMPLATED_REPLY_DEBOUNCE_MS || '30000'),
-  trialGrantPaise: Number(env.TRIAL_GRANT_PAISE || '10000'),
-  trialExpiryDays: Number(env.TRIAL_EXPIRY_DAYS || '30')
+  trialGrantMilli: Number(env.TRIAL_GRANT_MILLI || '50000'),
+  trialExpiryDays: Number(env.TRIAL_EXPIRY_DAYS || '30'),
+  platformFeePerTurnMilli: Number(env.PLATFORM_FEE_PER_TURN_MILLI || '0'),
+  platformFeeOutboundMediaMilli: Number(env.PLATFORM_FEE_OUTBOUND_MEDIA_MILLI || '0')
+};
+
+function parsePresetsMilli(raw: string): number[] {
+  return raw
+    .split(',')
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isFinite(n) && n > 0);
+}
+
+/** `paymentProvider` stays live from env. Amounts/presets/mock are fallbacks. */
+export const walletEnv = {
+  paymentProvider: env.WALLET_PAYMENT_PROVIDER,
+  minTopUpMilli: Number(env.MIN_WALLET_TOPUP_MILLI || '100000'),
+  maxTopUpMilli: Number(env.MAX_WALLET_TOPUP_MILLI || '50000000'),
+  presetsMilli: parsePresetsMilli(env.WALLET_TOPUP_PRESETS_MILLI || '500000,1000000,2000000,5000000'),
+  mockTopUpEnabled: env.MOCK_WALLET_TOPUP_ENABLED !== 'false'
 };
 
 /**

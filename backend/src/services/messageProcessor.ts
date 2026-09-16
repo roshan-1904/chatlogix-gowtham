@@ -1,6 +1,7 @@
 import { prisma } from '../db/prisma.js';
 import { AIService } from './aiService.js';
-import { canProcessMessage, deductCredits } from './billingService.js';
+import { canProcessMessage } from './billingService.js';
+import { chargeVendor, turnEstimateCost } from './pricing/pricingService.js';
 import { publishToQueue } from '../queue/sqsClient.js';
 import { env, getTextQueueUrl } from '../config/env.js';
 import { logger, StepLogger, createOperationId, logDbOperation, logAIOperation, logBillingOperation, logQueueOperation, logConversation, logErrorWithContext, logDatabaseFailure } from '../logger.js';
@@ -296,10 +297,20 @@ export async function processIncomingTextMessage(data: any) {
       return;
     }
 
-    // 2. Deduct credits
-    stepLogger.step('Deducting credits');
-    logBillingOperation('deduct_credits', data.vendorId, 1, { conversationId: data.conversationId, messageType: 'text' });
-    await deductCredits(data.vendorId, data.conversationId, 'text');
+    // 2. Charge the wallet. This legacy path debits *before* the AI call, so
+    // the real token cost isn't known yet and the worst-case turn estimate is
+    // charged instead. The production path (conversation/pipeline.ts) charges
+    // actual cost after the reply is queued.
+    stepLogger.step('Charging wallet');
+    const charge = await chargeVendor({
+      vendorId: data.vendorId,
+      source: 'legacy_conversation_turn',
+      cost: turnEstimateCost(),
+      conversationId: data.conversationId,
+      conversationType: 'text',
+      metadata: { estimated: true, processor: 'legacy-express' }
+    });
+    logBillingOperation('charge_wallet', data.vendorId, charge.deductedMilli, { conversationId: data.conversationId, messageType: 'text' });
 
     // 3. Generate AI response
     stepLogger.step('Generating structured AI response');
@@ -458,10 +469,18 @@ export async function processBatchIncomingMessages(messages: Array<{
       return;
     }
 
-    // 3. Deduct credits once for the batch
-    stepLogger.step('Deducting credits for batch');
-    logBillingOperation('deduct_credits', messages[0].vendorId, 1, { conversationId, messageType: 'text', batchSize: messages.length });
-    await deductCredits(messages[0].vendorId, conversationId, 'text');
+    // 3. Charge once for the batch (see the note on the single-message path
+    // above: pre-AI debit, so this is the worst-case turn estimate).
+    stepLogger.step('Charging wallet for batch');
+    const charge = await chargeVendor({
+      vendorId: messages[0].vendorId,
+      source: 'legacy_conversation_turn',
+      cost: turnEstimateCost(),
+      conversationId,
+      conversationType: 'text',
+      metadata: { estimated: true, processor: 'legacy-express', batchSize: messages.length }
+    });
+    logBillingOperation('charge_wallet', messages[0].vendorId, charge.deductedMilli, { conversationId, messageType: 'text', batchSize: messages.length });
 
     // 4. Combine message contents into single context
     stepLogger.step('Combining message contents');

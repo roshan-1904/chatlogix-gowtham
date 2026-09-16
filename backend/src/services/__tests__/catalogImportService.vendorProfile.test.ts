@@ -31,6 +31,13 @@ vi.mock('../catalogExtractionService.js', () => ({
 vi.mock('../fileIntakeService.js', () => ({
   assertKeyBelongsToVendor: vi.fn()
 }));
+vi.mock('../billingService.js', () => ({
+  assertVendorWalletForAi: vi.fn().mockResolvedValue({ allowed: true })
+}));
+vi.mock('../pricing/pricingService.js', () => ({
+  chargeVendor: vi.fn().mockResolvedValue({ outcome: 'skipped', deductedMilli: 0 }),
+  InsufficientBalanceError: class InsufficientBalanceError extends Error {}
+}));
 vi.mock('../vendorAIConfigService.js', () => ({
   applyExtractedCatalogProfile: vi.fn().mockResolvedValue(undefined),
   applyGeneratedOnboardingAiConfigIfEmpty: vi.fn().mockResolvedValue(undefined),
@@ -75,7 +82,7 @@ describe('catalogImportService.startAnalyze — persist vendorProfile', () => {
       normalizedProducts: [],
       vendorProfile,
       warnings: [],
-      tokenUsage: { totalPaise: 0 },
+      tokenUsage: { totalPaise: 0, totalMilli: 0 },
       pageProgress: []
     });
 
@@ -98,7 +105,7 @@ describe('catalogImportService.startAnalyze — persist vendorProfile', () => {
       normalizedProducts: [],
       vendorProfile: emptyProfile,
       warnings: [],
-      tokenUsage: { totalPaise: 0 },
+      tokenUsage: { totalPaise: 0, totalMilli: 0 },
       pageProgress: []
     });
 

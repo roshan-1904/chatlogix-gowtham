@@ -38,7 +38,7 @@ export function OnboardingDemoChat() {
   const [botName, setBotName] = useState('Shop Assistant');
   const [greeting, setGreeting] = useState<string | undefined>();
   const [demoPrompts, setDemoPrompts] = useState<string[]>([]);
-  const [lastCostPaise, setLastCostPaise] = useState<number | null>(null);
+  const [lastCostMilli, setLastCostMilli] = useState<number | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [heardReply, setHeardReply] = useState(false);
   const [skippedCatalog, setSkippedCatalog] = useState(false);
@@ -97,13 +97,13 @@ export function OnboardingDemoChat() {
     }
   };
 
-  const walletEmpty = (wallet?.balancePaise ?? 0) <= 0;
+  const walletEmpty = (wallet?.balanceMilli ?? 0) <= 0;
   const continuePrimary = heardReply || walletEmpty || skippedCatalog;
   const lastCostLabel =
-    lastCostPaise !== null && lastCostPaise > 0
-      ? onboardingCopy.demoPhone.lastReplyCost.replace('{cost}', formatRupee(lastCostPaise))
+    lastCostMilli !== null && lastCostMilli > 0
+      ? onboardingCopy.demoPhone.lastReplyCost.replace('{cost}', formatRupee(lastCostMilli))
       : null;
-  const trialLabel = walletLoading ? '…' : formatTrialLeft(wallet?.balancePaise ?? 0);
+  const trialLabel = walletLoading ? '…' : formatTrialLeft(wallet?.balanceMilli ?? 0);
 
   const continueButton = (
     <Button
@@ -160,7 +160,7 @@ export function OnboardingDemoChat() {
           suggestedPrompts={demoPrompts}
           walletEmpty={walletEmpty}
           onWalletRefresh={refreshWallet}
-          onLastCost={setLastCostPaise}
+          onLastCost={setLastCostMilli}
           onAssistantReply={() => setHeardReply(true)}
           framed={!isMobile}
         />

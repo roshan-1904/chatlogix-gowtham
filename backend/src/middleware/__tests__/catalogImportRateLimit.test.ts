@@ -6,13 +6,18 @@ vi.mock('../../logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
 }));
 vi.mock('../../services/billingService.js', () => ({
-  getTodaysCatalogImportPaiseSpent: vi.fn()
+  getTodaysCatalogImportMilliSpent: vi.fn(),
+  assertVendorWalletForAi: vi.fn()
 }));
 vi.mock('../../config/env.js', () => ({
-  env: { CATALOG_IMPORT_DAILY_PAISE_CAP: '5000', REDIS_URL: undefined }
+  env: { CATALOG_IMPORT_DAILY_MILLI_CAP: '5000', REDIS_URL: undefined }
+}));
+vi.mock('../../services/platformSettingsService.js', () => ({
+  ensurePlatformSettings: vi.fn().mockResolvedValue(undefined),
+  getPlatformSettings: () => ({ catalogImportDailyPaiseCap: 500 })
 }));
 
-import { enforceDailyPaiseCap } from '../catalogImportRateLimit.js';
+import { enforceDailyMilliCap } from '../catalogImportRateLimit.js';
 import * as billing from '../../services/billingService.js';
 
 function makeReqRes(vendorId?: string) {
@@ -29,31 +34,47 @@ function makeReqRes(vendorId?: string) {
   return { req, res, headers };
 }
 
-describe('enforceDailyPaiseCap', () => {
-  beforeEach(() => vi.clearAllMocks());
+describe('enforceDailyMilliCap', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(billing.assertVendorWalletForAi).mockResolvedValue({ allowed: true });
+  });
+
+  it('returns 402 when the wallet cannot fund an import', async () => {
+    vi.mocked(billing.assertVendorWalletForAi).mockResolvedValue({
+      allowed: false,
+      reason: 'insufficient_balance'
+    });
+    const { req, res } = makeReqRes('v1');
+    const next = vi.fn() as NextFunction;
+    await enforceDailyMilliCap(req, res, next);
+    expect(res.status).toHaveBeenCalledWith(402);
+    expect(next).not.toHaveBeenCalled();
+    expect(billing.getTodaysCatalogImportMilliSpent).not.toHaveBeenCalled();
+  });
 
   it('returns 403 when vendor context is missing', async () => {
     const { req, res } = makeReqRes(undefined);
     const next = vi.fn() as NextFunction;
-    await enforceDailyPaiseCap(req, res, next);
+    await enforceDailyMilliCap(req, res, next);
     expect(res.status).toHaveBeenCalledWith(403);
     expect(next).not.toHaveBeenCalled();
   });
 
   it('passes through when spend is under the cap', async () => {
-    vi.mocked(billing.getTodaysCatalogImportPaiseSpent).mockResolvedValue(1234);
+    vi.mocked(billing.getTodaysCatalogImportMilliSpent).mockResolvedValue(1234);
     const { req, res } = makeReqRes('v1');
     const next = vi.fn() as NextFunction;
-    await enforceDailyPaiseCap(req, res, next);
+    await enforceDailyMilliCap(req, res, next);
     expect(next).toHaveBeenCalledOnce();
     expect(res.status).not.toHaveBeenCalled();
   });
 
   it('returns 429 with Retry-After when spend hits the cap', async () => {
-    vi.mocked(billing.getTodaysCatalogImportPaiseSpent).mockResolvedValue(5000);
+    vi.mocked(billing.getTodaysCatalogImportMilliSpent).mockResolvedValue(5000);
     const { req, res, headers } = makeReqRes('v1');
     const next = vi.fn() as NextFunction;
-    await enforceDailyPaiseCap(req, res, next);
+    await enforceDailyMilliCap(req, res, next);
     expect(res.status).toHaveBeenCalledWith(429);
     expect(next).not.toHaveBeenCalled();
     expect(headers.get('Retry-After')).toBeDefined();
@@ -63,10 +84,10 @@ describe('enforceDailyPaiseCap', () => {
   });
 
   it('fails open when the billing query throws', async () => {
-    vi.mocked(billing.getTodaysCatalogImportPaiseSpent).mockRejectedValue(new Error('redis down'));
+    vi.mocked(billing.getTodaysCatalogImportMilliSpent).mockRejectedValue(new Error('redis down'));
     const { req, res } = makeReqRes('v1');
     const next = vi.fn() as NextFunction;
-    await enforceDailyPaiseCap(req, res, next);
+    await enforceDailyMilliCap(req, res, next);
     expect(next).toHaveBeenCalledOnce();
     expect(res.status).not.toHaveBeenCalled();
   });

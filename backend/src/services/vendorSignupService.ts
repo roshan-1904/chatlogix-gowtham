@@ -1,7 +1,8 @@
 import { prisma } from '../db/prisma.js';
-import { numericEnv } from '../config/env.js';
 import { CustomError, ErrorType, ErrorSeverity } from '../middleware/errorHandler.js';
 import { logger } from '../logger.js';
+import { ensurePlatformSettings, getPlatformSettings } from './platformSettingsService.js';
+import { paiseToMilli } from '../utils/money.js';
 
 const PHONE_REGEX = /^\+[1-9]\d{6,14}$/;
 
@@ -28,8 +29,8 @@ export interface CreateTrialVendorInput {
 export interface CreatedTrialVendor {
   vendorId: string;
   registrationStatus: string;
-  walletBalance: number;
-  trialGrantedPaise: number;
+  walletBalanceMilli: number;
+  trialGrantedMilli: number;
   trialExpiresAt: Date;
 }
 
@@ -54,9 +55,11 @@ export async function createTrialVendor(input: CreateTrialVendorInput | { phoneN
     );
   }
 
-  const grantPaise = numericEnv.trialGrantPaise;
+  await ensurePlatformSettings();
+  const settings = getPlatformSettings();
+  const grantMilli = paiseToMilli(settings.trialGrantPaise);
   const trialExpiresAt = new Date();
-  trialExpiresAt.setDate(trialExpiresAt.getDate() + numericEnv.trialExpiryDays);
+  trialExpiresAt.setDate(trialExpiresAt.getDate() + settings.trialExpiryDays);
 
   const vendor = await prisma.$transaction(async (tx) => {
     const created = await tx.vendor.create({
@@ -67,8 +70,8 @@ export async function createTrialVendor(input: CreateTrialVendorInput | { phoneN
         subscriptionPlan: 'Trial',
         subscriptionStatus: 'trial',
         registrationStatus: 'onboarding',
-        walletBalance: grantPaise,
-        trialGrantedPaise: grantPaise,
+        walletBalanceMilli: grantMilli,
+        trialGrantedMilli: grantMilli,
         trialExpiresAt,
         registeredAt: new Date(),
         onboardingStep: 1,
@@ -81,9 +84,9 @@ export async function createTrialVendor(input: CreateTrialVendorInput | { phoneN
       data: {
         vendorId: created.id,
         transactionType: 'recharge',
-        amount: grantPaise,
-        balanceBefore: 0,
-        balanceAfter: grantPaise,
+        amountMilli: grantMilli,
+        balanceBeforeMilli: 0,
+        balanceAfterMilli: grantMilli,
         metadata: { source: 'trial_grant' }
       }
     });
@@ -92,7 +95,7 @@ export async function createTrialVendor(input: CreateTrialVendorInput | { phoneN
   });
 
   logger.info(
-    { vendorId: vendor.id, phone, grantPaise, trialExpiresAt },
+    { vendorId: vendor.id, phone, grantMilli, trialExpiresAt },
     'trial_vendor_created'
   );
 
@@ -100,8 +103,8 @@ export async function createTrialVendor(input: CreateTrialVendorInput | { phoneN
     id: vendor.id,
     vendorId: vendor.id,
     registrationStatus: vendor.registrationStatus,
-    walletBalance: vendor.walletBalance,
-    trialGrantedPaise: grantPaise,
+    walletBalanceMilli: vendor.walletBalanceMilli,
+    trialGrantedMilli: grantMilli,
     trialExpiresAt
   };
 }

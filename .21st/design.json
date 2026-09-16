@@ -150,7 +150,7 @@
     },
     {
       "id": "signup-phone-conversion",
-      "decision": "Public /signup is trust-first: experience the AI with your own store; ₹100 free credits make that risk-free. Phone OTP form unchanged. Do not lead with ₹100 as the only headline.",
+      "decision": "Public /signup is trust-first: experience the AI with your own store; a ₹100 free trial balance makes that risk-free. Phone OTP form unchanged. Do not lead with ₹100 as the only headline.",
       "date": "2026-09-05"
     },
     {
@@ -287,6 +287,26 @@
       "id": "onboarding-help-always-visible",
       "decision": "NeedHelpFooter never returns null. It always shows 'Questions?' and resolves a link in order: VITE_SUPPORT_WHATSAPP (wa.me) → VITE_SUPPORT_EMAIL (mailto) → https://chatlogix.in. Both vars are documented in frontend_v2/apps/web-vendor/.env.example.",
       "date": "2026-09-11"
+    },
+    {
+      "id": "money-in-rupees-not-credits",
+      "decision": "Vendor UI never says 'credits'. Wallet money is millirupees (1 rupee = 1000) and renders through formatWalletAmount; order, product, and revenue money stays paise and renders through formatAmountWithSymbol. The two formatters are deliberately separate — mixing them is a 10x error.",
+      "date": "2026-09-16"
+    },
+    {
+      "id": "dashboard-wallet-first-card",
+      "decision": "The dashboard credits card is replaced by WalletBalanceCard: balance, spend this month, low-balance line, and an Add money CTA (green when low, navy outline otherwise). The two credit charts became rupee-spend charts — a source breakdown pie and a daily-spend line with a green daily-average reference. No plan quota or '% of limit' anywhere.",
+      "date": "2026-09-16"
+    },
+    {
+      "id": "admin-vendor-master-detail",
+      "decision": "web-admin /vendors is a searchable vendor list (left, 5/12 on lg) beside a detail panel (right) with wallet balance, markup percent, a markup editor that previews the charge on a sample reply, and recent wallet activity. Built from @chatlogix/ui Card/Button/Badge on navy + green — 21st get_inspiration returned no candidate above 62%, so no external component was pulled.",
+      "date": "2026-09-16"
+    },
+    {
+      "id": "admin-billing-settings",
+      "decision": "web-admin /billing is stacked white Cards (FX, platform fees, trial, catalog caps, wallet top-up) using @chatlogix/ui Card/Button/Badge, MarkupEditor input chrome, navy headings, green save/refresh. Money is typed and shown in rupees; GET/PATCH stay in paise. 21st get_inspiration peaked at 61%, so no external component was pulled.",
+      "date": "2026-09-16"
     }
   ],
   "evidence": [
@@ -304,5 +324,5 @@
     }
   ],
   "generatedAt": "2026-09-05T17:29:11.983Z",
-  "updatedAt": "2026-09-11T07:05:00.000Z"
+  "updatedAt": "2026-09-16T17:00:00.000Z"
 }

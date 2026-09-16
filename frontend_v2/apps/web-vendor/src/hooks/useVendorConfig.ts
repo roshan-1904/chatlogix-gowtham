@@ -7,7 +7,8 @@ export interface VendorConfig {
   businessName: string;
   plan: string;
   status: string;
-  walletBalance: number;
+  walletBalanceMilli: number;
+  markupPercent: number;
   category: string | null;
   catalogImportEnabled: boolean;
   ai: Record<string, unknown>;

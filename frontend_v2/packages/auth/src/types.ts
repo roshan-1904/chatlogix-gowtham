@@ -16,9 +16,10 @@ export interface AuthResponse {
 }
 
 export interface SignupResponse extends AuthResponse {
+  /** Trial wallet money is in millirupees (1 rupee = 1000), not paise. */
   trial?: {
-    balancePaise: number;
-    grantedPaise: number;
+    balanceMilli: number;
+    grantedMilli: number;
     expiresAt: string;
   };
   redirectTo?: string;

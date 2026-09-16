@@ -43,38 +43,31 @@ export interface DashboardStats {
     };
   };
 
-  // Credits
-  credits: {
-    planCredits: number; // Monthly allowance from subscription plan
-    usedThisMonth: number; // Credits consumed in current billing cycle
-    remainingThisMonth: number; // planCredits - usedThisMonth
-    used: {
-      total: number; // all time credits consumed
-      thisMonth: number; // current billing cycle
+  // Wallet spend. Every amount here is in millirupees (1 rupee = 1000),
+  // which is a different unit from the paise used for orders and revenue.
+  billing: {
+    balanceMilli: number; // Prepaid wallet balance
+    spend: {
+      today: number;
       thisWeek: number; // last 7 days
-      today: number; // today
+      thisMonth: number; // current billing cycle
+      total: number; // all time
     };
-    walletBalance: number; // ₹ balance (in paise) for extra usage charges
-    usagePercentage: number; // (usedThisMonth / planCredits) * 100
-    planName: string; // Subscription plan name
-    breakdown: {
-      text: number; // Credits consumed for text messages (within date range if filtered)
-      audio: number; // Credits consumed for audio messages (within date range if filtered)
-      image: number; // Credits consumed for image messages (within date range if filtered)
-      document: number; // Credits consumed for document messages (within date range if filtered)
-    };
-    projectedMonthlyUsage?: number; // Calculated from trends (linear regression on selected period)
-    lowBalanceWarning: boolean; // if walletBalance < 10000 paise (₹100)
+    breakdownBySource: Array<{
+      source: string; // e.g. 'conversation', 'catalog_import'
+      label: string; // Vendor-facing name for the source
+      milli: number;
+      count?: number;
+    }>;
+    dailySpend: Array<{
+      date: string; // ISO date string
+      milli: number;
+    }>;
+    averagePerDayMilli: number; // Average spend per day in the selected period
+    projectedMonthlySpendMilli: number; // Extrapolated from recent spend
+    lowBalanceWarning: boolean; // if balanceMilli < 20000 milli (₹20)
     billingCycleStart?: string; // ISO date of current billing cycle start
     billingCycleEnd?: string; // ISO date of current billing cycle end
-    // Usage trends (filtered by date range)
-    usageTrends?: {
-      dailyUsage: Array<{
-        date: string; // ISO date string
-        creditsConsumed: number;
-      }>;
-      averagePerDay: number; // Average credits per day in selected period
-    };
   };
 
   // Products

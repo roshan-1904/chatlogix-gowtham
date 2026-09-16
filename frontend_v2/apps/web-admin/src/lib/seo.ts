@@ -18,7 +18,6 @@ const appTitles: ReadonlyArray<readonly [string, string]> = [
   ['/templates', 'Templates'],
   ['/logs', 'Logs'],
   ['/billing', 'Billing'],
-  ['/settings', 'Settings'],
 ];
 
 export function resolveAdminPageMeta(pathname: string): PageMeta {

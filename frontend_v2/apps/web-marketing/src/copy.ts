@@ -1,7 +1,7 @@
 export const homeMeta = {
   title: 'Stop typing WhatsApp replies | ChatLogix',
   description:
-    'ChatLogix answers product questions, quotes from your catalog, and turns chats into orders on WhatsApp — 24/7. Try with ₹100 free credits. No card needed.',
+    'ChatLogix answers product questions, quotes from your catalog, and turns chats into orders on WhatsApp — 24/7. Try with ₹50 free trial balance. No card needed.',
 };
 
 export const hero = {
@@ -28,7 +28,7 @@ export const hero = {
     },
   ],
   trustChip:
-    'Try with your own products · ₹100 free credits · No card required · Experience ChatLogix before you pay',
+    'Try with your own products · ₹50 free trial balance · No card required · Experience ChatLogix before you pay',
   primaryCta: 'Try Free',
   secondaryCta: 'See how it works',
   previewLabel: 'Your inbox now vs With ChatLogix',
@@ -579,7 +579,7 @@ export const tryWithProducts = {
   eyebrow: 'Try before you commit',
   headlineBefore: 'Do not take our word for it.',
   headlineHighlight: 'Try it with your own products.',
-  body: 'Create a demo account and get ₹100 in free credits. Add your products, set up your store, and experience how ChatLogix handles real customer conversations.',
+  body: 'Create a demo account and get ₹50 of free trial balance. Add your products, set up your store, and experience how ChatLogix handles real customer conversations.',
   journey: [
     { title: 'Create account', body: 'Sign up in minutes.' },
     { title: 'Add products', body: 'Upload your catalog and set up your store.' },
@@ -588,14 +588,14 @@ export const tryWithProducts = {
   ],
   note: 'Real conversations. Real confidence.',
   card: {
-    badge: 'Get ₹100 free credits',
-    body: 'Use your trial credit to upload your catalog and test the assistant. After approval, add a prepaid balance to serve live customers. Plan pricing will be shared when available.',
+    badge: 'Get ₹50 free trial balance',
+    body: 'Use your trial balance to upload your catalog and test the assistant. After approval, add a prepaid balance to serve live customers. Plan pricing will be shared when available.',
     checklist: ['Full feature access (limited)', 'Test with your own products', 'No commitment'],
     cta: 'Start my free demo',
     fineprint:
-      'When trial credit is used up, you can still submit for approval. Trial balance does not carry over after approval.',
+      'When your trial balance is used up, you can still submit for approval. Trial balance does not carry over after approval.',
   },
-  trustRow: ['Secure & private', 'No credit card required', 'Trusted by businesses'],
+  trustRow: ['Secure & private', 'No card required', 'Trusted by businesses'],
 };
 
 export const faq = {
@@ -622,10 +622,10 @@ export const faq = {
         {
           question: 'Can I try ChatLogix before paying?',
           answer:
-            'Yes. Sign up with your mobile number. No credit card. You get ₹100 in free credits to test with your own products.',
+            'Yes. Sign up with your mobile number. No card needed. You get ₹50 of free trial balance to test with your own products.',
         },
         {
-          question: 'What do the ₹100 free credits include?',
+          question: 'What does the ₹50 free trial balance include?',
           answer:
             'Trial balance for catalog reading and demo conversations, including text and voice in the private demo. You see usage in rupees as you test.',
         },
@@ -688,7 +688,7 @@ export const faq = {
   ],
   cta: {
     eyebrow: 'Ready to see it yourself?',
-    headline: 'Get ₹100 free credits and try ChatLogix today.',
+    headline: 'Get ₹50 free trial balance and try ChatLogix today.',
     body: 'No commitment. Experience it with your own products.',
     button: 'Start my free demo',
   },

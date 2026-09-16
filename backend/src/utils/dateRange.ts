@@ -72,9 +72,9 @@ export function getDateRange(preset: DateRangePreset, startDate?: string, endDat
       if (!startDate || !endDate) {
         throw new Error('startDate and endDate required for custom range');
       }
-      start = new Date(startDate);
+      start = parseLocalDate(startDate);
       start.setHours(0, 0, 0, 0);
-      end = new Date(endDate);
+      end = parseLocalDate(endDate);
       end.setHours(23, 59, 59, 999);
       
       // Validate: max 1 year range
@@ -95,6 +95,33 @@ export function getDateRange(preset: DateRangePreset, startDate?: string, endDat
   const label = formatDateRangeLabel(start, end, preset);
   
   return { start, end, preset, label };
+}
+
+/**
+ * Parse a YYYY-MM-DD string into a Date at local midnight.
+ *
+ * `new Date('2024-01-01')` is parsed as UTC midnight, which lands on the
+ * previous calendar day in any timezone west of UTC. Every other branch of
+ * getDateRange works in local time, so custom ranges must too.
+ */
+function parseLocalDate(value: string): Date {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value.trim());
+  if (!match) {
+    throw new Error(`Date must be in YYYY-MM-DD format, received "${value}"`);
+  }
+
+  const [, year, month, day] = match;
+  const parsed = new Date(Number(year), Number(month) - 1, Number(day));
+
+  if (
+    parsed.getFullYear() !== Number(year) ||
+    parsed.getMonth() !== Number(month) - 1 ||
+    parsed.getDate() !== Number(day)
+  ) {
+    throw new Error(`Date "${value}" is not a real calendar date`);
+  }
+
+  return parsed;
 }
 
 /**

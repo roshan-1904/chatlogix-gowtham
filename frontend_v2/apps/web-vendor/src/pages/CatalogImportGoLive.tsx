@@ -42,11 +42,11 @@ export function CatalogImportGoLive() {
           <h3 className="text-sm font-semibold text-gray-800">Next steps</h3>
           <ul className="mt-3 space-y-2 text-sm text-gray-700">
             <ChecklistItem
-              done={(vendor?.walletBalance ?? 0) > 0}
+              done={(vendor?.walletBalanceMilli ?? 0) > 0}
               title="Top up wallet"
-              hint="Credits pay for each customer message the AI handles."
-              to="/settings"
-              toLabel="Open billing"
+              hint="Your balance pays for each customer message the assistant handles."
+              to="/wallet"
+              toLabel="Add money"
             />
             <ChecklistItem
               done={!!summary}
@@ -73,7 +73,7 @@ export function CatalogImportGoLive() {
           {deferredCount} low-confidence product{deferredCount === 1 ? '' : 's'} are
           waiting for review. They won&apos;t sell until you finish them.
           <div className="mt-2">
-            <Button variant="secondary" size="sm" onClick={() => navigate(`/catalog/import?jobId=${jobId}`)}>
+            <Button variant="secondary" size="sm" onClick={() => void navigate(`/catalog/import?jobId=${jobId}`)}>
               Review now
             </Button>
           </div>

@@ -5,17 +5,20 @@ import { callVisionExtraction } from '../lib/visionClient.js';
 import { fetchAndValidate } from './fileIntakeService.js';
 import { visionRowToDraft, classifyRow } from './catalogNormalizationService.js';
 import { enrichKeywordsBatch, shopContextFromVendorProfile } from './catalogEnrichmentService.js';
-import { recordCatalogImportSpend } from './billingService.js';
+import { assertVendorWalletForAi } from './billingService.js';
+import {
+  aiCostMilliFromUsd,
+  chargeVendor,
+  InsufficientBalanceError
+} from './pricing/pricingService.js';
 
 export interface FastPhotoResult {
   draft: NormalizedProductDraft;
   bucket: 'auto_accept' | 'review' | 'needs_pricing' | 'blocked';
   warnings: string[];
   alternates: NormalizedProductDraft[];
-  costPaise: number;
+  costMilli: number;
 }
-
-const USD_TO_PAISE = 83 * 100;
 
 /**
  * Single-image synchronous extraction. Doesn't create a CatalogImportJob —
@@ -24,6 +27,13 @@ const USD_TO_PAISE = 83 * 100;
  */
 export async function fastPhoto(vendorId: string, imageKey: string): Promise<FastPhotoResult> {
   const startedAt = Date.now();
+
+  const wallet = await assertVendorWalletForAi(vendorId);
+  if (!wallet.allowed) {
+    logger.info({ vendorId, reason: wallet.reason }, 'fast_photo_wallet_denied');
+    throw new InsufficientBalanceError();
+  }
+
   const { buffer, contentType } = await fetchAndValidate(imageKey);
   const { products, vendorProfile, cost } = await callVisionExtraction({
     imageBuffer: buffer,
@@ -42,22 +52,31 @@ export async function fastPhoto(vendorId: string, imageKey: string): Promise<Fas
 
   // Cheap one-row enrichment — 1 batch of size 1. Worth the extra ~300 tokens
   // because the fast-path skips the review-grid enrichment pass entirely.
-  const { updated } = await enrichKeywordsBatch(
+  const { updated, costs: enrichmentCosts } = await enrichKeywordsBatch(
     [best],
     shopContextFromVendorProfile(vendorProfile)
   );
   const enriched = updated[0] ?? best;
 
   const classified = classifyRow(enriched);
-  const costPaise = Math.round(cost.costUsd * USD_TO_PAISE);
+  // Enrichment used to be omitted here, so the fast path silently ate the
+  // cost of its own keyword pass.
+  const aiCostMilli =
+    aiCostMilliFromUsd(cost.costUsd) +
+    enrichmentCosts.reduce((sum, c) => sum + aiCostMilliFromUsd(c.costUsd), 0);
 
   // Best-effort billing — log but don't fail the user-facing call on hiccup.
+  let costMilli = 0;
   try {
-    await recordCatalogImportSpend({
+    const charge = await chargeVendor({
       vendorId,
-      jobId: `fast:${randomUUID()}`,
-      paiseCost: costPaise
+      source: 'catalog_import',
+      cost: { aiCostMilli },
+      entityType: 'catalog_import_fast',
+      entityId: randomUUID(),
+      metadata: { phase: 'fast_photo' }
     });
+    costMilli = charge.deductedMilli;
   } catch (err) {
     logger.warn({ err, vendorId }, 'fast_photo_billing_failed');
   }
@@ -68,7 +87,7 @@ export async function fastPhoto(vendorId: string, imageKey: string): Promise<Fas
       phase: 'fast_photo',
       durationMs: Date.now() - startedAt,
       tokensUsed: cost.totalTokens,
-      costPaise,
+      costMilli,
       bucket: classified.bucket
     },
     'catalog_import_fast_photo_completed'
@@ -79,6 +98,6 @@ export async function fastPhoto(vendorId: string, imageKey: string): Promise<Fas
     bucket: classified.bucket,
     warnings: classified.warnings,
     alternates: alternates.slice(0, 4),
-    costPaise
+    costMilli
   };
 }

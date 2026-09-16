@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const vendorFindUnique = vi.fn();
 
@@ -15,67 +15,83 @@ vi.mock('../../logger.js', () => ({
 }));
 
 vi.mock('../../config/env.js', () => ({
+  env: { USD_TO_INR_RATE: '83' },
   numericEnv: {
-    textCreditsPerMessage: 1,
-    audioCreditsPerMessage: 3,
-    imageCreditsPerMessage: 2,
-    documentCreditsPerMessage: 1,
-    videoCreditsPerMessage: 10,
-    locationCreditsPerMessage: 1,
-    stickerCreditsPerMessage: 1,
-    contactCreditsPerMessage: 1,
-    interactiveCreditsPerMessage: 1,
-    reactionCreditsPerMessage: 1
+    trialGrantMilli: 50000,
+    trialExpiryDays: 30,
+    platformFeePerTurnMilli: 0,
+    platformFeeOutboundMediaMilli: 0
   }
 }));
 
-import { canProcessMessage, creditsForAssistantTurnWorstCase } from '../billingService.js';
+import { canProcessMessage } from '../billingService.js';
+import { computeTurnEstimate } from '../pricing/pricingService.js';
+import {
+  clearPlatformSettingsCache,
+  seedPlatformSettingsMemory
+} from '../platformSettingsService.js';
 
-describe('creditsForAssistantTurnWorstCase', () => {
-  it('is 1 text + max(3 images, 1 video) using env credit weights', () => {
-    // 1 + max(6, 10) = 11
-    expect(creditsForAssistantTurnWorstCase()).toBe(11);
-  });
-});
+const MODEL = 'gpt-4.1-mini';
+const worstCaseTurnMilli = computeTurnEstimate({
+  markupPercent: 50,
+  aiModel: MODEL,
+  includeWorstCaseMedia: true
+}).chargeMilli;
 
-describe('canProcessMessage assistantTurnWorstCaseMedia', () => {
+function vendorRow(walletBalanceMilli: number) {
+  return {
+    id: 'vendor-1',
+    walletBalanceMilli,
+    markupPercent: 50,
+    aiModel: MODEL,
+    trialExpiresAt: null,
+    registrationStatus: 'approved'
+  };
+}
+
+describe('canProcessMessage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vendorFindUnique.mockResolvedValue({
-      id: 'vendor-1',
-      walletBalance: creditsForAssistantTurnWorstCase(),
-      trialExpiresAt: null,
-      registrationStatus: 'approved'
+    seedPlatformSettingsMemory({
+      usdToInrRate: 83,
+      usdToInrOverride: null,
+      platformFeePerTurnPaise: 0,
+      platformFeeOutboundMediaPaise: 0
     });
+    vendorFindUnique.mockResolvedValue(vendorRow(worstCaseTurnMilli));
   });
 
-  it('allows when balance meets worst-case assistant turn cost', async () => {
+  afterEach(() => {
+    clearPlatformSettingsCache();
+  });
+
+  it('allows when the balance covers a worst-case assistant turn at the vendor markup', async () => {
     const result = await canProcessMessage('vendor-1', 'text', { assistantTurnWorstCaseMedia: true });
     expect(result).toEqual({ allowed: true });
   });
 
-  it('blocks when balance is below worst-case but still positive', async () => {
-    const required = creditsForAssistantTurnWorstCase();
-    vendorFindUnique.mockResolvedValue({
-      id: 'vendor-1',
-      walletBalance: required - 1,
-      trialExpiresAt: null,
-      registrationStatus: 'approved'
-    });
+  it('blocks a positive balance that cannot cover the estimated turn', async () => {
+    vendorFindUnique.mockResolvedValue(vendorRow(worstCaseTurnMilli - 1));
 
     const result = await canProcessMessage('vendor-1', 'text', { assistantTurnWorstCaseMedia: true });
     expect(result).toEqual({ allowed: false, reason: 'insufficient_balance' });
   });
 
-  it('default check only requires balance >= 1 credit', async () => {
+  it('blocks a near-empty wallet even without the worst-case media reservation', async () => {
+    vendorFindUnique.mockResolvedValue(vendorRow(1));
+
+    const result = await canProcessMessage('vendor-1', 'text');
+    expect(result).toEqual({ allowed: false, reason: 'insufficient_balance' });
+  });
+
+  it('blocks an expired trial before looking at the balance', async () => {
     vendorFindUnique.mockResolvedValue({
-      id: 'vendor-1',
-      walletBalance: 1,
-      trialExpiresAt: null,
-      registrationStatus: 'approved'
+      ...vendorRow(1_000_000),
+      trialExpiresAt: new Date(Date.now() - 1000),
+      registrationStatus: 'pending'
     });
 
     const result = await canProcessMessage('vendor-1', 'text');
-    expect(result).toEqual({ allowed: true });
+    expect(result).toEqual({ allowed: false, reason: 'trial_expired' });
   });
 });

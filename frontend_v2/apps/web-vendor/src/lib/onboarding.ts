@@ -1,13 +1,15 @@
 import { apiClient } from './api';
 import type { RegistrationStatus } from '@chatlogix/auth';
+import { formatWalletAmount, formatWalletRupees } from '../utils/currency';
 
-export function formatRupee(paise: number): string {
-  return `₹${(paise / 100).toFixed(2)}`;
+/** Trial money is wallet money: millirupees, not paise. */
+export function formatRupee(milli: number): string {
+  return formatWalletAmount(milli);
 }
 
 /** Wallet chrome shows whole rupees: "₹87 trial left", never "₹87.00 trial". */
-export function formatTrialLeft(paise: number): string {
-  return `₹${Math.max(0, Math.round(paise / 100))} trial left`;
+export function formatTrialLeft(milli: number): string {
+  return `${formatWalletRupees(Math.max(0, milli))} trial left`;
 }
 
 export interface ExtractedField<T = string> {
@@ -52,8 +54,8 @@ export interface OnboardingProfile {
   phone: string;
   email: string;
   category: string | null;
-  walletBalance: number;
-  trialGrantedPaise: number | null;
+  walletBalanceMilli: number;
+  trialGrantedMilli: number | null;
   trialExpiresAt: string | null;
   resumePath?: string;
   productCount?: number;
@@ -90,18 +92,20 @@ export async function submitForApproval(): Promise<{ registrationStatus: string;
 
 export async function sandboxChat(text: string): Promise<{
   response: string;
-  costPaise: number;
+  costMilli: number;
   durationMs: number;
 }> {
   return apiClient.post('/vendors/me/sandbox/chat', { text });
 }
 
-export async function sandboxVoice(audio: Blob): Promise<{
+export interface SandboxVoiceResponse {
   transcript?: string;
   response: string;
-  costPaise: number;
+  costMilli: number;
   durationMs: number;
-}> {
+}
+
+export async function sandboxVoice(audio: Blob): Promise<SandboxVoiceResponse> {
   const token = (await import('@chatlogix/auth')).tokenStorage.getToken();
   const base = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
   const res = await fetch(`${base}/vendors/me/sandbox/voice`, {
@@ -114,17 +118,17 @@ export async function sandboxVoice(audio: Blob): Promise<{
     body: audio,
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
+    const err = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
     throw new Error(err.message || err.error || 'Voice demo failed');
   }
-  return res.json();
+  return (await res.json()) as SandboxVoiceResponse;
 }
 
 export interface TrialWalletResponse {
-  balancePaise: number;
-  grantedPaise: number;
+  balanceMilli: number;
+  grantedMilli: number;
   expiresAt: string | null;
-  breakdown: Array<{ source: string; label: string; paise: number; count?: number; jobs?: number }>;
+  breakdown: Array<{ source: string; label: string; milli: number; count?: number; jobs?: number }>;
 }
 
 /** Intake-first funnel: catalog → clarify → confirm → demo → review */

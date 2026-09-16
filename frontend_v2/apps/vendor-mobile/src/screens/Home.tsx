@@ -16,8 +16,8 @@ export function Home() {
           <Text style={styles.cardValue}>0</Text>
         </View>
         <View style={styles.card}>
-          <Text style={styles.cardLabel}>Credits</Text>
-          <Text style={styles.cardValue}>0</Text>
+          <Text style={styles.cardLabel}>Wallet balance</Text>
+          <Text style={styles.cardValue}>₹0</Text>
         </View>
       </View>
     </ScrollView>

@@ -72,7 +72,7 @@ async function exportToMySQL() {
                     escapeMySQLString(vendor.email),
                     escapeMySQLString(vendor.subscriptionPlan),
                     escapeMySQLString(vendor.subscriptionStatus),
-                    vendor.walletBalance,
+                    vendor.walletBalanceMilli,
                     formatMySQLDate(vendor.createdAt),
                     formatMySQLDate(vendor.updatedAt),
                     escapeMySQLString(vendor.aiBotName),
@@ -87,7 +87,7 @@ async function exportToMySQL() {
                     escapeMySQLString(vendor.aiContentConversationRules),
                     escapeMySQLString(vendor.aiContentImportantInstructions),
                 ];
-                sqlStatements.push(`INSERT INTO \`Vendor\` (\`id\`, \`businessName\`, \`phone\`, \`email\`, \`subscriptionPlan\`, \`subscriptionStatus\`, \`walletBalance\`, \`createdAt\`, \`updatedAt\`, \`aiBotName\`, \`aiPersonality\`, \`aiSystemPrompt\`, \`aiProducts\`, \`aiGreeting\`, \`aiClosing\`, \`aiModel\`, \`aiPreparationTimeMinutes\`, \`aiContentResponsibilities\`, \`aiContentConversationRules\`, \`aiContentImportantInstructions\`) VALUES (${values.join(', ')});`);
+                sqlStatements.push(`INSERT INTO \`Vendor\` (\`id\`, \`businessName\`, \`phone\`, \`email\`, \`subscriptionPlan\`, \`subscriptionStatus\`, \`walletBalanceMilli\`, \`createdAt\`, \`updatedAt\`, \`aiBotName\`, \`aiPersonality\`, \`aiSystemPrompt\`, \`aiProducts\`, \`aiGreeting\`, \`aiClosing\`, \`aiModel\`, \`aiPreparationTimeMinutes\`, \`aiContentResponsibilities\`, \`aiContentConversationRules\`, \`aiContentImportantInstructions\`) VALUES (${values.join(', ')});`);
             }
             sqlStatements.push('');
             console.log(`   ✓ Exported ${vendors.length} vendors`);
@@ -162,11 +162,15 @@ async function exportToMySQL() {
                     escapeMySQLString(usage.id),
                     escapeMySQLString(usage.vendorId),
                     escapeMySQLString(usage.conversationId),
-                    usage.creditsConsumed,
+                    usage.chargedMilli,
                     formatMySQLDate(usage.usageDate),
+                    // NOT NULL since the millirupee cutover — a charge with no
+                    // conversation (catalog import, sandbox) is identified only by this.
+                    escapeMySQLString(usage.source),
                     escapeMySQLString(usage.conversationType),
+                    escapeMySQLString(usage.externalId),
                 ];
-                sqlStatements.push(`INSERT INTO \`CreditUsage\` (\`id\`, \`vendorId\`, \`conversationId\`, \`creditsConsumed\`, \`usageDate\`, \`conversationType\`) VALUES (${values.join(', ')});`);
+                sqlStatements.push(`INSERT INTO \`CreditUsage\` (\`id\`, \`vendorId\`, \`conversationId\`, \`chargedMilli\`, \`usageDate\`, \`source\`, \`conversationType\`, \`externalId\`) VALUES (${values.join(', ')});`);
             }
             sqlStatements.push('');
             console.log(`   ✓ Exported ${creditUsages.length} credit usages`);
@@ -203,12 +207,13 @@ async function exportToMySQL() {
                     escapeMySQLString(tx.id),
                     escapeMySQLString(tx.vendorId),
                     escapeMySQLString(tx.transactionType),
-                    tx.amount,
-                    tx.balanceBefore,
-                    tx.balanceAfter,
+                    tx.amountMilli,
+                    tx.balanceBeforeMilli,
+                    tx.balanceAfterMilli,
+                    formatMySQLJSON(tx.metadata),
                     formatMySQLDate(tx.transactionDate),
                 ];
-                sqlStatements.push(`INSERT INTO \`WalletTransaction\` (\`id\`, \`vendorId\`, \`transactionType\`, \`amount\`, \`balanceBefore\`, \`balanceAfter\`, \`transactionDate\`) VALUES (${values.join(', ')});`);
+                sqlStatements.push(`INSERT INTO \`WalletTransaction\` (\`id\`, \`vendorId\`, \`transactionType\`, \`amountMilli\`, \`balanceBeforeMilli\`, \`balanceAfterMilli\`, \`metadata\`, \`transactionDate\`) VALUES (${values.join(', ')});`);
             }
             sqlStatements.push('');
             console.log(`   ✓ Exported ${walletTransactions.length} wallet transactions`);

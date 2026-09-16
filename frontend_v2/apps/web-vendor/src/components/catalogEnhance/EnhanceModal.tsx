@@ -137,7 +137,7 @@ export function EnhanceModal({
                 </label>
               )}
               <p className="text-xs text-gray-500">
-                AI enhancement uses credits from your account balance.
+                AI enhancement is charged in rupees from your wallet balance.
               </p>
             </div>
             <div className="flex justify-end gap-2 shrink-0">

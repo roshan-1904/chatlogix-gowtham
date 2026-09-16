@@ -14,7 +14,7 @@ Enable vendors to:
 - Set their business category
 - Understand their account status and wallet balance
 
-> **Implementation status (verified against code, Sep 2026)**: `frontend_v2/apps/web-vendor/src/components/settings/tabs/AccountBusinessTab.tsx` implements Business Name, Phone Number (with a live OTP verification flow via `/verify-phone/send|confirm`), Email (with a live verification flow via `/verify-email/send|confirm`), and Category. Two things differ from the spec below: (1) **Category is a free-text field**, not the 4-option dropdown described in Section 1 — the backend schema (`businessInfoSchema` in both `backend/src/utils/validation/settingsSchemas.ts` and the frontend mirror) validates it as `z.string().max(100)`, not an enum; and (2) **Section 3 "Subscription Information" (plan badge, status badge, wallet balance, recharge link) was never built into this tab** — there's no such section in the shipped component. `GET /api/vendors/:id/config` does still return `plan`/`status`/`walletBalance` if another part of the UI wants to surface it.
+> **Implementation status (verified against code, Sep 2026)**: `frontend_v2/apps/web-vendor/src/components/settings/tabs/AccountBusinessTab.tsx` implements Business Name, Phone Number (with a live OTP verification flow via `/verify-phone/send|confirm`), Email (with a live verification flow via `/verify-email/send|confirm`), and Category. Two things differ from the spec below: (1) **Category is a free-text field**, not the 4-option dropdown described in Section 1 — the backend schema (`businessInfoSchema` in both `backend/src/utils/validation/settingsSchemas.ts` and the frontend mirror) validates it as `z.string().max(100)`, not an enum; and (2) **Section 3 "Subscription Information" (plan badge, status badge, wallet balance, recharge link) was never built into this tab** — there's no such section in the shipped component. `GET /api/vendors/:id/config` does still return `plan`/`status`/`walletBalanceMilli`/`markupPercent` if another part of the UI wants to surface it — though the vendor-facing balance and top-up now live on the dedicated `/wallet` page.
 
 ## Sections
 
@@ -107,10 +107,10 @@ Enable vendors to:
 - **Field Type**: Display (Currency)
 - **Editable**: No
 - **Display Format**: "₹1,234.56" (Indian Rupees)
-- **API Field**: `walletBalance` (stored in paise, displayed in rupees)
-- **Help Text**: "Your current wallet balance. This balance is used to pay for AI message processing. Each message costs approximately ₹0.002. Recharge through the Billing page."
-- **Tooltip**: "Your wallet balance is used to pay for AI message processing. Each message costs approximately ₹0.002. Recharge through the Billing page."
-- **Action**: Link to Billing page with button "Recharge Wallet"
+- **API Field**: `walletBalanceMilli` (stored in **millirupees** — 1 rupee = 1000 — displayed in rupees via `formatWalletAmount`). Note this is a different unit from `minimumOrderValue`, which is paise
+- **Help Text**: "Your current wallet balance. This balance is used to pay for AI message processing. A customer reply costs around ₹0.20. Top up on the Wallet page."
+- **Tooltip**: "Your wallet balance is used to pay for AI message processing. Top up on the Wallet page."
+- **Action**: Link to the Wallet page with button "Top up wallet"
 - **Note Component**: "ℹ️ Note: Low balance may affect AI message processing. Keep your wallet topped up to ensure uninterrupted service."
 
 ## Form Layout
@@ -204,10 +204,13 @@ export const businessInfoSchema = z.object({
   "email": "contact@browniebakery.com",
   "category": "food",
   "subscriptionPlan": "Pro",
+  "markupPercent": 50,
   "subscriptionStatus": "active",
-  "walletBalance": 500000
+  "walletBalanceMilli": 5000000
 }
 ```
+
+`walletBalanceMilli` is in millirupees, so `5000000` is ₹5,000. `subscriptionPlan` is bookkeeping only and does not affect billing — see [BILLING_AND_PRICING.md](../../../../docs/BILLING_AND_PRICING.md).
 
 ### PUT `/api/vendors/:id/business-info`
 **Purpose**: Update business information

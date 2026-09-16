@@ -85,7 +85,7 @@ beforeEach(() => {
 });
 
 describe('POST /auth/signup/verify', () => {
-  it('creates trial vendor with ₹100 wallet and returns JWT', async () => {
+  it('creates trial vendor with ₹50 wallet and returns JWT', async () => {
     verifyCodeMock.mockResolvedValue({
       userId: 'firebase-uid',
       phoneNumber: '+919876543210',
@@ -95,8 +95,8 @@ describe('POST /auth/signup/verify', () => {
       id: 'vendor-1',
       vendorId: 'vendor-1',
       registrationStatus: 'onboarding',
-      walletBalance: 10000,
-      trialGrantedPaise: 10000,
+      walletBalanceMilli: 50000,
+      trialGrantedMilli: 50000,
       trialExpiresAt: new Date('2026-10-05T00:00:00.000Z')
     });
 
@@ -114,13 +114,13 @@ describe('POST /auth/signup/verify', () => {
     const body = (await res.json()) as {
       token: string;
       user: { vendorId: string; registrationStatus: string };
-      trial: { grantedPaise: number; balancePaise: number };
+      trial: { grantedMilli: number; balanceMilli: number };
     };
     expect(body.token).toBe('jwt-token');
     expect(body.user.vendorId).toBe('vendor-1');
     expect(body.user.registrationStatus).toBe('onboarding');
-    expect(body.trial.grantedPaise).toBe(10000);
-    expect(body.trial.balancePaise).toBe(10000);
+    expect(body.trial.grantedMilli).toBe(50000);
+    expect(body.trial.balanceMilli).toBe(50000);
     expect(createTrialVendorMock).toHaveBeenCalledWith({
       phoneNumber: '+919876543210',
       firebaseUid: 'firebase-uid'

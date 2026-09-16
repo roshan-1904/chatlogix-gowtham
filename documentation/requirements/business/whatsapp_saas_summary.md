@@ -1,6 +1,10 @@
 # 📊 WhatsApp SaaS Startup — Business & Onboarding Summary
 
-## 1. Finalized Pricing & Credit Model
+> ⚠️ **Does not describe shipped behavior (checked 2026-09-16).** The plan-tier + included-credits + extra-conversation-rate model below was never implemented and the credit primitives it depends on are deleted. What ships today is a **single prepaid wallet in millirupees**, charged per billable action at `ceil(real cost × (1 + Vendor.markupPercent/100))` — no monthly quota, no "1 credit per conversation", no extra-usage rate. `Vendor.subscriptionPlan` exists but grants nothing.
+>
+> Treat this document as a **commercial proposal** for the future rate card (tracked as P2h), not as a spec of the running system. Shipped behavior: **[docs/BILLING_AND_PRICING.md](../../../docs/BILLING_AND_PRICING.md)**.
+
+## 1. Proposed Pricing & Credit Model (not implemented)
 
 ### Pricing Plans (Prepaid, Credit-based)
 - **Starter**: ₹99 → 100 conversations included → ₹1.00 per extra conversation

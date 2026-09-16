@@ -27,7 +27,7 @@ import {
 import {
   analyzeDailyRateLimit,
   analyzeHourlyRateLimit,
-  enforceDailyPaiseCap,
+  enforceDailyMilliCap,
   fastPathRateLimit
 } from '../middleware/catalogImportRateLimit.js';
 import { startAnalyze, commit as commitCatalog } from '../services/catalogImportService.js';
@@ -160,7 +160,7 @@ catalogImportRouter.post(
   requireCatalogImportEnabled,
   analyzeDailyRateLimit,
   analyzeHourlyRateLimit,
-  enforceDailyPaiseCap,
+  enforceDailyMilliCap,
   async (req, res) => {
     const parsed = AnalyzeRequestSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -454,7 +454,7 @@ catalogImportRouter.post(
   requireCatalogImportEnabled,
   fastPathRateLimit,
   // Vision is the costly call here — the daily paise cap must apply.
-  enforceDailyPaiseCap,
+  enforceDailyMilliCap,
   async (req, res) => {
     const parsed = FastPhotoSchema.safeParse(req.body);
     if (!parsed.success) {

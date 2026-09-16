@@ -9,7 +9,7 @@ interface VendorInfo {
   businessName: string;
   plan?: string;
   status?: string;
-  walletBalance?: number;
+  walletBalanceMilli?: number;
 }
 
 interface HeaderProps {
@@ -40,7 +40,7 @@ export function Header({ onMenuClick }: HeaderProps) {
       }
     };
 
-    fetchVendorInfo();
+    void fetchVendorInfo();
   }, [user?.vendorId]);
 
   // Close user menu when clicking outside
@@ -61,8 +61,8 @@ export function Header({ onMenuClick }: HeaderProps) {
   }, [isUserMenuOpen]);
 
   const handleLogout = () => {
-    logout();
-    navigate('/login');
+    void logout();
+    void navigate('/login');
     setIsUserMenuOpen(false);
   };
 

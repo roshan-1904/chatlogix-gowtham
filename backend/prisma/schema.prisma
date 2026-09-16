@@ -22,8 +22,9 @@ model Vendor {
   email                          String
   subscriptionPlan               String
   subscriptionStatus             String                @default("active")
-  walletBalance                  Int                   @default(0)
-  trialGrantedPaise              Int?
+  walletBalanceMilli             Int                   @default(0)
+  trialGrantedMilli              Int?
+  markupPercent                  Int                   @default(50)
   trialExpiresAt                 DateTime?
   onboardingStep                 Int                   @default(1)
   onboardingData                 Json?
@@ -77,6 +78,7 @@ model Vendor {
   qualityMetrics                 QualityMetrics[]
   stageExecutionLogs             StageExecutionLog[]
   walletTransactions             WalletTransaction[]
+  walletTopUpIntents             WalletTopUpIntent[]
   whatsappNumbers                WhatsAppNumber[]
   customerQueries                CustomerQuery[]
   productMedia                   ProductMedia[]
@@ -172,18 +174,24 @@ model Message {
   @@map("Message")
 }
 
+/// Vendor-facing spend ledger: one row per wallet debit, whatever produced it.
+/// `conversationId`/`conversationType` are only set for conversation charges —
+/// catalog import/enhance and sandbox charges have no conversation, so `source`
+/// is the field every spend breakdown groups by.
 model CreditUsage {
-  id               String       @id @default(uuid())
+  id               String        @id @default(uuid())
   vendorId         String
-  conversationId   String
-  creditsConsumed  Int
-  usageDate        DateTime     @default(now())
-  conversationType MessageType
-  externalId       String?      @unique
-  conversation     Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  vendor           Vendor       @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  conversationId   String?
+  chargedMilli     Int
+  usageDate        DateTime      @default(now())
+  source           String
+  conversationType MessageType?
+  externalId       String?       @unique
+  conversation     Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  vendor           Vendor        @relation(fields: [vendorId], references: [id], onDelete: Cascade)
 
   @@index([vendorId, usageDate(sort: Desc)], map: "idx_creditusage_vendor_date")
+  @@index([vendorId, source], map: "idx_creditusage_vendor_source")
   @@index([vendorId, conversationType], map: "idx_creditusage_vendor_type")
   @@map("CreditUsage")
 }
@@ -227,18 +235,72 @@ model BillingHistory {
 }
 
 model WalletTransaction {
-  id              String                @id @default(uuid())
-  vendorId        String
-  transactionType WalletTransactionType
-  amount          Int
-  balanceBefore   Int
-  balanceAfter    Int
-  metadata        Json?
-  transactionDate DateTime              @default(now())
-  vendor          Vendor                @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  id                 String                @id @default(uuid())
+  vendorId           String
+  transactionType    WalletTransactionType
+  amountMilli        Int
+  balanceBeforeMilli Int
+  balanceAfterMilli  Int
+  metadata           Json?
+  transactionDate    DateTime              @default(now())
+  vendor             Vendor                @relation(fields: [vendorId], references: [id], onDelete: Cascade)
 
   @@index([vendorId, transactionDate(sort: Desc)])
   @@map("WalletTransaction")
+}
+
+model WalletTopUpIntent {
+  id             String    @id @default(uuid())
+  vendorId       String
+  amountMilli    Int
+  status         String    @default("pending")
+  provider       String
+  idempotencyKey String    @unique
+  createdAt      DateTime  @default(now())
+  completedAt    DateTime?
+  expiresAt      DateTime
+  vendor         Vendor    @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@index([vendorId, status])
+  @@map("WalletTopUpIntent")
+}
+
+/// Singleton platform billing knobs (id = "default"). Money columns are paise.
+/// Live USD/INR is written by the daily Frankfurter refresh; admins may pin
+/// `usdToInrOverride`. Wallet charges still convert paise → milli at the boundary.
+model PlatformSettings {
+  id                            String    @id @default("default")
+  usdToInrRate                  Decimal   @db.Decimal(10, 4)
+  usdToInrSource                String
+  usdToInrFetchedAt             DateTime?
+  usdToInrOverride              Decimal?  @db.Decimal(10, 4)
+  platformFeePerTurnPaise       Int       @default(0)
+  platformFeeOutboundMediaPaise Int       @default(0)
+  trialGrantPaise               Int
+  trialExpiryDays               Int
+  catalogImportDailyPaiseCap    Int
+  catalogEnhanceDailyPaiseCap   Int
+  minWalletTopUpPaise           Int
+  maxWalletTopUpPaise           Int
+  walletTopUpPresetsPaise       Json
+  mockWalletTopUpEnabled        Boolean   @default(true)
+  updatedAt                     DateTime  @updatedAt
+  updatedBy                     String?
+
+  @@map("PlatformSettings")
+}
+
+/// Audit log of each successful USD/INR fetch (and any admin-triggered refresh).
+model FxRateHistory {
+  id        String   @id @default(uuid())
+  base      String
+  quote     String
+  rate      Decimal  @db.Decimal(10, 4)
+  source    String
+  fetchedAt DateTime @default(now())
+
+  @@index([fetchedAt(sort: Desc)])
+  @@map("FxRateHistory")
 }
 
 model WhatsAppNumber {

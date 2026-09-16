@@ -9,8 +9,8 @@ const navigation = [
   { name: 'FAQs', href: '/faqs', icon: '❓' },
   { name: 'Orders', href: '/orders', icon: '🛒' },
   { name: 'Templates', href: '/templates', icon: '📝' },
+  { name: 'Wallet', href: '/wallet', icon: '💳' },
   { name: 'Settings', href: '/settings', icon: '⚙️' },
-  { name: 'Billing', href: '/billing', icon: '💳' },
   { name: 'Support', href: '/support', icon: '💬' },
 ];
 

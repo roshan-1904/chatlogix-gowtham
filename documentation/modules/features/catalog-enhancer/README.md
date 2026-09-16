@@ -8,7 +8,7 @@ Vendor portal feature: chat-assisted enrichment of **product descriptions** and 
 
 - **Where:** `web-vendor` product edit and FAQ edit (after entity is saved).
 - **UX:** Modal with chat + live preview; mic in composer; **Use this** saves to DB.
-- **Billing:** Wallet debit at **2×** OpenAI API cost; UI shows credits note only (no meter).
+- **Billing:** Wallet debit at OpenAI API cost **× (1 + `Vendor.markupPercent`/100)**, default 1.5× (was a hardcoded 2× before the 2026-09-16 rework, so enhancer spend fell ~25%). Sources `catalog_enhance` / `catalog_enhance_transcribe`. UI shows a wallet note only, no meter. See [BILLING_AND_PRICING.md](../../../../docs/BILLING_AND_PRICING.md).
 - **Sessions:** Redis-backed resume for **24 hours** per product/FAQ (sliding TTL).
 
 ## Feature gate

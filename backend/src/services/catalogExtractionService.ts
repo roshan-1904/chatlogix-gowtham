@@ -21,6 +21,7 @@ import {
 } from './catalogNormalizationService.js';
 import { enrichKeywordsBatch, shopContextFromVendorProfile } from './catalogEnrichmentService.js';
 import { catalogImportEventBus } from './catalogImportEventBus.js';
+import { milliToPaise, usdToMilliFloat } from '../utils/money.js';
 import type { CostResult } from '../utils/costCalculator.js';
 
 const VISION_CONCURRENCY = 5;
@@ -35,10 +36,21 @@ export interface ExtractInput {
   maxProducts?: number;
 }
 
+/**
+ * The `*Paise` keys are deliberately kept: this object is persisted verbatim
+ * as `CatalogImportJob.tokenUsage` JSON and read back by billingService, so
+ * renaming them would silently orphan every pre-cutover row.
+ *
+ * The `*Milli` keys are additive and unrounded — they are what billing reads
+ * now (via `pricing/catalogTokenUsage.ts#tokenUsageTotalMilli`, which falls
+ * back to `totalPaise` for older rows). Promoting `totalPaise` instead would
+ * inherit its per-call rounding to whole paise.
+ */
 export interface TokenUsageSummary {
-  vision?: { promptTokens: number; completionTokens: number; totalTokens: number; costPaise: number };
-  enrichment?: { promptTokens: number; completionTokens: number; totalTokens: number; costPaise: number };
+  vision?: { promptTokens: number; completionTokens: number; totalTokens: number; costPaise: number; costMilli: number };
+  enrichment?: { promptTokens: number; completionTokens: number; totalTokens: number; costPaise: number; costMilli: number };
   totalPaise: number;
+  totalMilli: number;
 }
 
 export interface ExtractionResult {
@@ -57,9 +69,6 @@ export interface PageProgress {
   error?: string;
 }
 
-// 1 USD ≈ 83 INR; our cost cap is denominated in paise, so we convert here.
-// The cap table in costCalculator returns USD — promote to paise for billing.
-const USD_TO_PAISE = 83 * 100;
 const PROFILE_FIELDS = [
   'businessName',
   'category',
@@ -174,15 +183,16 @@ export function completeVendorProfile(
   return next;
 }
 
-const toPaise = (costUsd: number): number => Math.round(costUsd * USD_TO_PAISE);
+const toPaise = (costUsd: number): number => milliToPaise(usdToMilliFloat(costUsd));
 
 function sumCosts(costs: CostResult[]) {
-  const agg = { promptTokens: 0, completionTokens: 0, totalTokens: 0, costPaise: 0 };
+  const agg = { promptTokens: 0, completionTokens: 0, totalTokens: 0, costPaise: 0, costMilli: 0 };
   for (const c of costs) {
     agg.promptTokens += c.promptTokens;
     agg.completionTokens += c.completionTokens;
     agg.totalTokens += c.totalTokens;
     agg.costPaise += toPaise(c.costUsd);
+    agg.costMilli += usdToMilliFloat(c.costUsd);
   }
   return agg;
 }
@@ -294,7 +304,8 @@ export async function extract(input: ExtractInput): Promise<ExtractionResult> {
   const tokenUsage: TokenUsageSummary = {
     vision: visionAgg,
     enrichment: enrichmentAgg,
-    totalPaise: visionAgg.costPaise + enrichmentAgg.costPaise
+    totalPaise: visionAgg.costPaise + enrichmentAgg.costPaise,
+    totalMilli: visionAgg.costMilli + enrichmentAgg.costMilli
   };
 
   return {

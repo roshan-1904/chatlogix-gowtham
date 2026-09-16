@@ -6,8 +6,13 @@ import RedisStore from 'rate-limit-redis';
 import type { Request, Response, NextFunction } from 'express';
 import { getRedisClient } from '../utils/redis.js';
 import { env } from '../config/env.js';
-import { getTodaysCatalogImportPaiseSpent } from '../services/billingService.js';
+import {
+  assertVendorWalletForAi,
+  getTodaysCatalogImportMilliSpent
+} from '../services/billingService.js';
 import { logger } from '../logger.js';
+import { ensurePlatformSettings, getPlatformSettings } from '../services/platformSettingsService.js';
+import { paiseToMilli } from '../utils/money.js';
 
 const isCatalogImportRateLimitDisabled =
   env.CATALOG_IMPORT_DISABLE_RATE_LIMIT === 'true' || env.NODE_ENV !== 'production';
@@ -52,7 +57,7 @@ function rateLimitHandler(req: Request, res: Response) {
 }
 
 // /analyze: 1 per hour per vendor in production. Skipped in local/dev so
-// onboarding retries are not blocked. Daily paise cap still applies.
+// onboarding retries are not blocked. Daily millirupee cap still applies.
 export const analyzeHourlyRateLimit: RateLimitRequestHandler = isCatalogImportRateLimitDisabled
   ? passthroughRateLimit
   : rateLimit({
@@ -91,11 +96,16 @@ export const fastPathRateLimit: RateLimitRequestHandler = isCatalogImportRateLim
     });
 
 /**
- * Daily paise cap — independent of request counts. Sums actual OpenAI spend
- * today for this vendor and blocks when >= CATALOG_IMPORT_DAILY_PAISE_CAP.
- * Returns Retry-After = seconds until IST midnight.
+ * Two independent spend guards on the same middleware, because both `/analyze`
+ * and `/fast-photo` need both:
+ *
+ * 1. Wallet balance — catalog import had no pre-flight gate at all, so an
+ *    empty wallet still bought a full vision pass. Fails closed (402).
+ * 2. Daily millirupee cap — sums actual OpenAI spend today for this vendor and
+ *    blocks at PlatformSettings.catalogImportDailyPaiseCap (as milli), with Retry-After = seconds
+ *    until IST midnight. Fails open on infra hiccup.
  */
-export async function enforceDailyPaiseCap(
+export async function enforceDailyMilliCap(
   req: Request,
   res: Response,
   next: NextFunction
@@ -105,9 +115,20 @@ export async function enforceDailyPaiseCap(
     res.status(403).json({ error: 'vendor_context_missing' });
     return;
   }
+
+  const wallet = await assertVendorWalletForAi(vendorId);
+  if (!wallet.allowed) {
+    res.status(402).json({
+      error: wallet.reason === 'trial_expired' ? 'TRIAL_EXPIRED' : 'INSUFFICIENT_BALANCE',
+      message: 'Not enough wallet balance to run a catalog import. Please top up and try again.'
+    });
+    return;
+  }
+
   try {
-    const spent = await getTodaysCatalogImportPaiseSpent(vendorId);
-    const cap = Number(env.CATALOG_IMPORT_DAILY_PAISE_CAP);
+    await ensurePlatformSettings();
+    const spent = await getTodaysCatalogImportMilliSpent(vendorId);
+    const cap = paiseToMilli(getPlatformSettings().catalogImportDailyPaiseCap);
     if (Number.isFinite(cap) && spent >= cap) {
       const msUntilMidnightIST = msToNextISTMidnight();
       res
@@ -115,7 +136,7 @@ export async function enforceDailyPaiseCap(
         .setHeader('Retry-After', Math.ceil(msUntilMidnightIST / 1000).toString())
         .json({
           error: 'QUOTA_EXCEEDED',
-          message: `Daily AI spend cap reached (${spent} of ${cap} paise).`,
+          message: `Daily AI spend cap reached (${spent} of ${cap} millirupees).`,
           retryAfter: Math.ceil(msUntilMidnightIST / 1000)
         });
       return;

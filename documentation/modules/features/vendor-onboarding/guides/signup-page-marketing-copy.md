@@ -2,8 +2,10 @@
 
 **Route:** `/signup`  
 **App:** `frontend_v2/apps/web-vendor`  
-**Status:** **Implemented** (2026-09-05); **P4 copy lock** applied 2026-09-11 (job-first headline, ₹100 as helper only)  
-**Related:** [Public Signup & Trial Onboarding](./public-signup-onboarding.md) (flow, API, trial wallet)
+**Status:** **Implemented** (2026-09-05); **P4 copy lock** applied 2026-09-11 (job-first headline, the trial amount as helper only); **trial amount lowered ₹100 → ₹50** on 2026-09-16  
+**Related:** [Public Signup & Trial Onboarding](./public-signup-onboarding.md) (flow, API, trial wallet) · [Billing & Pricing](../../../../../docs/BILLING_AND_PRICING.md) (what a reply actually costs)
+
+> **Trial amount is ₹50, not ₹100.** The grant is `PlatformSettings.trialGrantPaise` = `5000` paise (`50000` millirupees), admin-editable at web-admin `/billing`. Shipped copy in `onboardingCopy.ts` and `web-marketing/src/copy.ts` says **₹50 free trial balance** — the wording is "trial balance", not "trial credit", since flat credits no longer exist. Every ₹100 in an older revision of this doc has been corrected below.
 
 ---
 
@@ -14,7 +16,7 @@ The signup page is the **primary conversion surface** for new vendors. It must:
 1. Speak to **non-IT shop owners** (home bakers, tailors, kirana sellers) in plain language
 2. Explain **what problem we solve** and **how ChatLogix helps** before asking for a phone number
 3. Build **trust** (safe demo, no card, no live WhatsApp during trial)
-4. Surface **₹100 free trial credit** clearly
+4. Surface the **₹50 free trial balance** clearly
 5. Support **SEO** with intentional headings and meta tags (without keyword stuffing)
 
 **Reference layout:** Mirror the 65% / 35% split already used on [`Login.tsx`](../../../../frontend_v2/apps/web-vendor/src/pages/Login.tsx). Current [`Signup.tsx`](../../../../frontend_v2/apps/web-vendor/src/pages/onboarding/Signup.tsx) is a centered single-column layout — to be upgraded.
@@ -33,7 +35,7 @@ The signup page is the **primary conversion surface** for new vendors. It must:
 │  Hero (H1 + subhead)                        │  Step title      │
 │  Problem block (H2 + bullets)               │  Phone / OTP     │
 │  Solution block (H2 + bullets)              │  (reuse auth     │
-│  ₹100 offer highlight box                   │   components)    │
+│  ₹50 offer highlight box                    │   components)    │
 │  Trust strip                                │  Log in link     │
 │  FAQ (optional, collapsible)                │                  │
 └─────────────────────────────────────────────┴──────────────────┘
@@ -51,7 +53,7 @@ The signup page is the **primary conversion surface** for new vendors. It must:
 
 - Hide the 65% marketing panel (`hidden lg:flex`)
 - Show compact **ChatLogix logo** + **trial pill** above the form:
-  - `₹100 free · No card · Safe demo — real customers not messaged`
+  - `₹50 free · No card · Safe demo — real customers not messaged`
 - Optional: collapsible “Why ChatLogix?” below the form (FAQ accordion)
 
 ### Heading hierarchy (one H1 per page)
@@ -86,7 +88,7 @@ Target shop owners searching for:
 | Secondary | automatic WhatsApp replies | H2 Solution, meta description |
 | Secondary | WhatsApp order management | Solution bullets |
 | Long-tail | answer customer questions on WhatsApp | Subhead, FAQ |
-| Local | ₹100 free trial, India, no credit card | Offer box, meta description |
+| Local | ₹50 free trial, India, no credit card | Offer box, meta description |
 
 ### Meta tags (`/signup` only)
 
@@ -95,7 +97,7 @@ Set per-route (not the generic `index.html` title). Suggested values:
 | Field | Copy | Max length |
 | --- | --- | --- |
 | **`<title>`** | `Free WhatsApp Shop Assistant for Small Business \| ChatLogix` | ~60 chars |
-| **`meta description`** | `Automate WhatsApp customer replies & orders for your shop. Start free with ₹100 trial credit — no card needed. Built for home businesses & local shops in India.` | ~155 chars |
+| **`meta description`** | `Automate WhatsApp customer replies & orders for your shop. Start free with ₹50 trial balance — no card needed. Built for home businesses & local shops in India.` | ~155 chars |
 | **OG title** | Same as `<title>` | — |
 | **OG description** | Emphasize trial + safe demo before live WhatsApp | — |
 
@@ -154,10 +156,10 @@ ChatLogix helps **small businesses and home shops** handle **WhatsApp customer m
 
 Visually distinct: white/10 background, border, optional wallet icon.
 
-**H2:** ₹100 free trial credit — start your WhatsApp automation today
+**H2:** ₹50 free trial balance — start your WhatsApp automation today
 
 **Body (paragraph):**  
-Create your account in minutes. We add **₹100 free** to your trial wallet so you can test **automatic WhatsApp replies**, upload your menu or product list, and chat with the assistant like a real customer.
+Create your account in minutes. We add **₹50 free** to your trial wallet so you can test **automatic WhatsApp replies**, upload your menu or product list, and chat with the assistant like a real customer.
 
 **Bold reassurance (second line):**  
 **No payment card. No setup fee. No message to your live WhatsApp until you choose to connect after approval.**
@@ -186,9 +188,9 @@ Collapsible on desktop; accordion on mobile. Each question is an **H3** inside t
 
 A tool that reads customer messages on WhatsApp and replies with your prices, products, and order details — automatically, in a natural way.
 
-#### Is the ₹100 trial really free?
+#### Is the ₹50 trial really free?
 
-Yes. Sign up with your mobile number. No credit card. Use ₹100 to test replies and demo chat before connecting live WhatsApp.
+Yes. Sign up with your mobile number. No credit card. Use ₹50 to test replies and demo chat before connecting live WhatsApp.
 
 #### Will my customers get messages during the trial?
 
@@ -207,7 +209,7 @@ Home businesses, bakeries, tailors, kirana sellers, and any small shop that gets
 **H2:** Start free — WhatsApp shop assistant trial
 
 **Subtext:**  
-Enter your mobile number. We’ll send a one-time OTP. You get **₹100 free credit** to test automatic replies — no card required.
+Enter your mobile number. We’ll send a one-time OTP. You get **₹50 free trial balance** to test automatic replies — no card required.
 
 ### OTP step
 
@@ -222,7 +224,7 @@ Already have an account? **[Log in](/login)**
 
 ### Mobile trial pill (when marketing panel hidden)
 
-`₹100 free · No card · Safe demo — real customers not messaged`
+`₹50 free · No card · Safe demo — real customers not messaged`
 
 ---
 
@@ -232,7 +234,7 @@ These strings from the current spec remain valid for **post-submit** and **error
 
 | Key | Copy |
 | --- | --- |
-| Success toast | Your trial shop is ready. You have ₹100.00 to test how ChatLogix answers customer questions. Nothing is sent to your real WhatsApp yet. |
+| Success toast | Your trial shop is ready. You have ₹50.00 to test how ChatLogix answers customer questions. Nothing is sent to your real WhatsApp yet. |
 | Phone already registered | This number already has an account. [Log in instead] |
 | OTP wrong | That code didn’t match. Check the SMS and try again. |
 | Firebase rate limit | Too many tries. Please wait {N} minutes, then try again. (+ countdown) |
@@ -266,7 +268,7 @@ From the [trust & conversion plan](./public-signup-onboarding.md#trust-reliabili
 | Do | Don't |
 | --- | --- |
 | “Your shop”, “customers on WhatsApp”, “automatic replies” | “Pipeline”, “webhook”, “LLM”, “API” |
-| “₹0.38 for this reply” (transparent) | “1 credit deducted” |
+| “₹0.39 for this reply” (transparent) | “1 credit deducted” |
 | “Try before going live” | “Sandbox test-message endpoint” |
 | Short sentences, one idea per line | Long paragraphs, legal tone |
 
@@ -278,3 +280,4 @@ From the [trust & conversion plan](./public-signup-onboarding.md#trust-reliabili
 | --- | --- |
 | 2026-09-05 | Initial marketing + SEO copy documented before UI implementation |
 | 2026-09-05 | UI implemented: 65/35 layout, SignupMarketingPanel, SignupFaq, usePageMeta |
+| 2026-09-16 | Trial amount corrected ₹100 → ₹50 throughout; "trial credit" → "trial balance" (flat credits removed); per-reply example ₹0.38 → ₹0.39 |

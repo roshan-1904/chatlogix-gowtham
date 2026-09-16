@@ -2,7 +2,7 @@ import { lazy, Suspense, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@chatlogix/ui';
 import { DashboardStatCard } from '../components/dashboard/DashboardStatCard';
-import { CreditsCard } from '../components/dashboard/CreditsCard';
+import { WalletBalanceCard } from '../components/dashboard/WalletBalanceCard';
 import { DateRangeFilter } from '../components/dashboard/DateRangeFilter';
 import { DashboardSkeleton } from '../components/dashboard/DashboardSkeleton';
 import { DashboardErrorBoundary } from '../components/dashboard/DashboardErrorBoundary';
@@ -14,8 +14,8 @@ import { useDashboardStats } from '../hooks/dashboard/useDashboardStats';
 import { formatAmountWithSymbol } from '../utils/currency';
 
 // Lazy load chart components for better performance
-const CreditsBreakdownChart = lazy(() => import('../components/dashboard/CreditsBreakdownChart').then(m => ({ default: m.CreditsBreakdownChart })));
-const CreditsUsageTrendChart = lazy(() => import('../components/dashboard/CreditsUsageTrendChart').then(m => ({ default: m.CreditsUsageTrendChart })));
+const SpendBreakdownChart = lazy(() => import('../components/dashboard/SpendBreakdownChart').then(m => ({ default: m.SpendBreakdownChart })));
+const SpendTrendChart = lazy(() => import('../components/dashboard/SpendTrendChart').then(m => ({ default: m.SpendTrendChart })));
 const OrderStatusChart = lazy(() => import('../components/dashboard/OrderStatusChart').then(m => ({ default: m.OrderStatusChart })));
 
 // Chart loading fallback
@@ -75,7 +75,7 @@ export function Dashboard() {
         <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 sm:mb-6">Dashboard</h1>
         <div className="bg-red-50 border border-red-200 rounded-lg p-3 sm:p-4">
           <p className="text-sm sm:text-base text-red-800">{error}</p>
-          <Button onClick={refetch} variant="primary" className="mt-3 sm:mt-4">
+          <Button onClick={() => void refetch()} variant="primary" className="mt-3 sm:mt-4">
             Retry
           </Button>
         </div>
@@ -114,7 +114,7 @@ export function Dashboard() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={refetch}
+                onClick={() => void refetch()}
                 isLoading={isLoading}
                 className="text-xs sm:text-sm"
                 aria-label="Refresh dashboard data"
@@ -132,29 +132,26 @@ export function Dashboard() {
             value={stats.orders.total}
             subValue={`Today: ${stats.orders.today} • Pending: ${stats.orders.pending}`}
             trend={stats.orders.trend?.direction}
-            onClick={() => navigate('/orders')}
+            onClick={() => void navigate('/orders')}
           />
           <DashboardStatCard
             label="Revenue"
             value={formattedRevenueTotal}
             subValue={`Today: ${formattedRevenueToday} • This Month: ${formattedRevenueThisMonth}`}
             trend={stats.revenue.trend?.direction}
-            onClick={() => navigate('/orders')}
+            onClick={() => void navigate('/orders')}
           />
-          <CreditsCard
-            planCredits={stats.credits.planCredits}
-            usedThisMonth={stats.credits.usedThisMonth}
-            remainingThisMonth={stats.credits.remainingThisMonth}
-            walletBalance={stats.credits.walletBalance}
-            planName={stats.credits.planName}
-            lowBalanceWarning={stats.credits.lowBalanceWarning}
-            billingCycleEnd={stats.credits.billingCycleEnd}
+          <WalletBalanceCard
+            balanceMilli={stats.billing.balanceMilli}
+            spentThisMonthMilli={stats.billing.spend.thisMonth}
+            lowBalanceWarning={stats.billing.lowBalanceWarning}
+            billingCycleEnd={stats.billing.billingCycleEnd}
           />
           <DashboardStatCard
             label="Products"
             value={stats.products.total}
             subValue={`Active: ${stats.products.active} • Out of Stock: ${stats.products.outOfStock}`}
-            onClick={() => navigate('/catalog')}
+            onClick={() => void navigate('/catalog')}
           />
         </section>
 
@@ -194,26 +191,26 @@ export function Dashboard() {
           </div>
         </section>
 
-        {/* Credits Visualizations */}
-        <section aria-label="Credits analytics" className="space-y-3">
+        {/* Wallet Spend Visualizations */}
+        <section aria-label="Wallet spend" className="space-y-3">
           <div className="border-b border-gray-200 pb-2 sm:pb-3 pt-2">
-            <h2 className="text-lg sm:text-xl font-semibold text-[#072349] mb-1">Credits Analytics</h2>
-            <p className="text-xs text-gray-500">Credit usage breakdown and trends</p>
+            <h2 className="text-lg sm:text-xl font-semibold text-[#072349] mb-1">Spending</h2>
+            <p className="text-xs text-gray-500">Where your wallet money goes, and how it is trending</p>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
             <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">Credits Breakdown by Type</h3>
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">What you spent on</h3>
               <Suspense fallback={<ChartSkeleton />}>
-                <CreditsBreakdownChart breakdown={stats.credits.breakdown} />
+                <SpendBreakdownChart breakdownBySource={stats.billing.breakdownBySource} />
               </Suspense>
             </div>
             <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">Usage Trend & Projection</h3>
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Spend per day</h3>
               <Suspense fallback={<ChartSkeleton />}>
-                <CreditsUsageTrendChart
-                  usageTrends={stats.credits.usageTrends}
-                  projectedMonthlyUsage={stats.credits.projectedMonthlyUsage}
-                  planCredits={stats.credits.planCredits}
+                <SpendTrendChart
+                  dailySpend={stats.billing.dailySpend}
+                  averagePerDayMilli={stats.billing.averagePerDayMilli}
+                  projectedMonthlySpendMilli={stats.billing.projectedMonthlySpendMilli}
                 />
               </Suspense>
             </div>
@@ -259,7 +256,7 @@ export function Dashboard() {
               <h2 className="text-lg sm:text-xl font-semibold text-[#072349] mb-1">Quick Actions</h2>
               <p className="text-xs text-gray-500">Common tasks and shortcuts</p>
             </div>
-            <QuickActionsPanel credits={stats.credits} />
+            <QuickActionsPanel billing={stats.billing} />
           </div>
         </section>
 
@@ -270,7 +267,7 @@ export function Dashboard() {
             <p className="text-yellow-800 text-xs sm:text-sm">
               ⚠️ {error} - Showing cached data
             </p>
-            <Button onClick={refetch} variant="ghost" size="sm" className="mt-2 text-xs sm:text-sm">
+            <Button onClick={() => void refetch()} variant="ghost" size="sm" className="mt-2 text-xs sm:text-sm">
               Retry
             </Button>
           </div>

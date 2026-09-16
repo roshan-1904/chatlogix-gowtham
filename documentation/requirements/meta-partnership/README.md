@@ -6,9 +6,37 @@
 
 ChatLogix aims to become a **Meta Solution Partner** for WhatsApp Business API, enabling us to serve enterprise customers and scale to millions of users through the Meta ecosystem. This document outlines all requirements, capabilities, and implementation details needed for Meta partnership certification.
 
-**Partnership Goal:** Meta Solution Partner for WhatsApp Business API
-**Target Timeline:** 6-10 weeks to partnership application
-**Business Impact:** Enterprise customers, global scale, Meta ecosystem access
+**Partnership Goal:** Meta Solution Partner for WhatsApp Business API  
+**Target Timeline:** 6-10 weeks to partnership application  
+**Business Impact:** Enterprise customers, global scale, Meta ecosystem access  
+
+**Billing model (locked — product):** ChatLogix **owns** Solution Partner status and a Meta **line of credit (INR)**. Vendors connect **their** WABA via Embedded Signup; we **share our credit line** onto each onboarded WABA so **Meta bills ChatLogix**, not the vendor. Vendors pay **only ChatLogix** via a **single prepaid wallet** (AI + WhatsApp usage). WhatsApp charges = Meta INR base + **per-vendor markup %** (admin-configurable — `Vendor.markupPercent`, shipped; the Meta base rate is **not billed yet**, see the status snapshot below). The **Tech Provider** path (vendor adds Meta payment method) is **not** the product default. See [vendor-onboarding-workflow.md](../../modules/whatsapp-integration/guides/vendor-onboarding-workflow.md) §6 and [public-signup-onboarding.md](../../modules/features/vendor-onboarding/guides/public-signup-onboarding.md).
+
+**Last reviewed against codebase:** 2026-09-16
+
+---
+
+## 📍 Project status snapshot (2026-09-16)
+
+What is **live in code today** vs what this document still targets for **Meta Solution Partner** certification.
+
+| Area | Status | Notes |
+| --- | --- | --- |
+| **Production WhatsApp pipeline** | ✅ Shipped | API Gateway `chatlogix-webhook-handler` → SQS → `chatlogix-incoming-response-generator` → `chatlogix-whatsapp-response-dispatcher`. Shared `webhookEventProcessor.ts` with Express `/webhook` (dev). See `backend/src/lambdas/README.md`, `docs/INCOMING_RESPONSE_GENERATOR_FLOW.md`. |
+| **Vendor self-serve signup & trial** | ✅ Shipped (P2a–P2f) | Phone OTP signup, **₹50** trial wallet, 5-step onboarding UI, production `pipeline.ts` sandbox, submit for approval, route guards. See [vendor-onboarding README](../../modules/features/vendor-onboarding/README.md). |
+| **Unified wallet billing (millirupees)** | ✅ Shipped 2026-09-16 | **Every** billable action — conversation turns, outbound media, catalog import/enhance, onboarding sandbox — debits `Vendor.walletBalanceMilli` through the single `pricingService.chargeVendor` path: `ceil((aiCost + whatsappCost + platformFee) × (1 + Vendor.markupPercent/100))`. Flat per-message credits and the monthly plan quota are **deleted**. Authority: [BILLING_AND_PRICING.md](../../../docs/BILLING_AND_PRICING.md). |
+| **Per-vendor markup %** | ✅ Shipped 2026-09-16 | `Vendor.markupPercent`, default **50**, range 0–500, admin-editable via `PATCH /api/vendors/:id/billing-config` and the web-admin vendor detail panel. This closes the "admin-configurable markup" item that was scoped into P2h. |
+| **WhatsApp message debits** | ❌ Not billed (P2h) | The `whatsappCostMilli` slot exists in the charge formula but is **always 0** (`PlatformSettings.platformFeePerTurnPaise = 0`) until the Meta rate card lands. **ChatLogix absorbs Meta conversation fees today** — a known, deliberate gap. Meta pricing reconciliation also not started. |
+| **WhatsApp tenant mapping** | ✅ Partial | `WhatsAppNumber` maps `phoneNumberId` → `vendorId` for webhooks. Outbound send still uses **global** `WHATSAPP_ACCESS_TOKEN` + per-message `phoneNumberId` when present (`whatsappClient.ts`) — not per-vendor encrypted tokens. |
+| **Embedded Signup + credit attach (INR)** | ❌ Not started (P2h) | No vendor settings UI, no token exchange, no `whatsapp_credit_sharing_and_attach`, no `primary_funding_id` verification in repo. |
+| **Wallet top-up (P2g)** | ✅ Shipped (mock v1) | `/wallet` page in `web-vendor` plus `GET /api/vendors/me/wallet`, `POST .../top-up-intent`, `POST .../confirm-mock`, all through one `creditWalletFromTopUp`. **Razorpay still stubbed** pending credentials — see [wallet-top-up-p2g.md](../../modules/features/vendor-onboarding/guides/wallet-top-up-p2g.md). Post-approval vendors still reset to ₹0 on approve. |
+| **Meta Solution Partner / line of credit** | 🔶 Product + ops | Billing model documented and locked; **partnership application and INR credit line** are business/Meta ops steps — not reflected as implemented features in application code. |
+| **Meta business verification (license/docs)** | ❌ Not started | Long-term requirements doc; v1 onboarding uses phone OTP only. |
+| **Partnership application package** | ❌ Not started | Technical docs exist in-repo; formal Meta submission not tracked as done. |
+
+**Recommended implementation order (engineering):** **Razorpay** for P2g v2 when credentials exist → **P2h** (Embedded Signup, per-vendor tokens, credit attach, and finally populating `whatsappCostMilli` from the Meta rate card) → partnership application collateral in parallel with Meta credit-line approval.
+
+✅ **Migrations:** the three millirupee migrations (`20250916120000_wallet_top_up_intent`, `20250916180000_wallet_milli_units`, `20250916210000_credit_usage_source`) plus `20250916220000_platform_settings` are **applied and recorded** as of 2026-09-16 evening, with zero drift from `schema.prisma`. Bootstrapping a fresh environment has caveats — see [BILLING_AND_PRICING.md](../../../docs/BILLING_AND_PRICING.md) §Migrations.
 
 ---
 
@@ -33,37 +61,47 @@ ChatLogix aims to become a **Meta Solution Partner** for WhatsApp Business API, 
 ## 📋 Meta Partnership Requirements
 
 ### **1. Technical Capabilities**
-- ✅ **WhatsApp Business API Integration** - Complete API implementation
-- ✅ **Webhook System** - Real-time message processing
-- ✅ **Message Templates** - Template management system
-- ⚠️ **Media Handling** - Text messages are fully supported; as of 2026-09, audio and image messages are silently dropped by the production webhook (no reply, nothing enqueued) and need fixing before this can be claimed as complete. See `docs/CONVERSATION_WORKER_GAPS.md`.
-- ⚠️ **Status Tracking** - Message delivery tracking is not currently implemented in production; delivery/read status webhooks and reactions are not processed. See `docs/CONVERSATION_WORKER_GAPS.md`.
-- ✅ **Multi-language Support** - Indian language support
+- ✅ **WhatsApp Business API Integration** — Send text, templates, typing indicators; Graph client in `backend/src/services/whatsappClient.ts`. Production path is Lambda-based (see snapshot above).
+- ✅ **Webhook System** — Real-time ingress via `webhookEventProcessor.ts` / `waParser.ts` (text, interactive, media placeholders, status, reactions).
+- 🔶 **Message Templates** — **Send** path + order-notification naming in `whatsappTemplateService.ts`; templates must exist in Meta BM. **No** in-app template create/submit/approval workflow or admin template library yet.
+- ✅ **Media Handling** — Inbound **audio, image, video, document, and sticker** messages are persisted via `webhookEventProcessor.ts`, fetched/transcribed or processed by **`chatlogix-media-fetcher`** (S3 + Whisper where applicable), and eligible traffic is enqueued to **`chatlogix-incoming-response-generator`** for AI replies. See `backend/src/lambdas/README.md` and `docs/INCOMING_RESPONSE_GENERATOR_FLOW.md`.
+- ✅ **Status Tracking** — Outbound delivery webhooks (`sent`, `delivered`, `read`, `failed`) are parsed in `waParser.ts`, handled in `webhookEventProcessor.ts#processStatus` (updates `Message.status`, appends `MessageStatusEvent`, stores failure reason). **Reactions** (`message_reaction_added` / `removed`) update `MessageReaction` in the same processor. Status/reaction events that arrive before the parent message is persisted are buffered in Redis and replayed on `message_created`. Same batch path for Express `/webhook` and `chatlogix-webhook-handler` Lambda via `processWebhookEventBatch`.
+- ✅ **Multi-language Support** — Conversation pipeline handles regional languages (LLM replies + product match telemetry); not the same as Meta-approved multi-language **message templates**.
 
 ### **2. Business Verification System**
+(Meta partnership / enterprise KYC — **not** the same as v1 vendor phone OTP signup.)
+
 - [ ] **Business License Verification** - Automated verification
 - [ ] **Address Verification** - Real-time address validation
-- [ ] **Phone Number Verification** - Phone authenticity check
+- 🔶 **Phone Number Verification** - **Vendor login/signup:** Firebase OTP on `Vendor.phone` (P2). **Not** Meta business phone or WABA verification automation.
 - [ ] **Document Verification** - Business document upload
-- [ ] **Verification Status Tracking** - Progress monitoring
+- 🔶 **Verification Status Tracking** - `registrationStatus` + admin manual approve (`onboarding` → `pending_approval` → `approved` / `rejected`); not Meta Business Verification API.
 
 ### **3. Advanced WhatsApp Features**
-- [ ] **Interactive Messages** - Quick reply buttons
-- [ ] **Call-to-Action Buttons** - Action-oriented messaging
-- [ ] **Rich Media Messages** - Enhanced media support
+- 🔶 **Interactive Messages** — **Inbound:** button/list replies parsed in `waParser.ts`, billed as `interactive`, enqueued for AI. **Outbound:** `sendWhatsAppInteractive()` exists but is **not** used by the conversation pipeline or vendor tools.
+- [ ] **Call-to-Action Buttons** - Action-oriented messaging (product/UI)
+- 🔶 **Rich Media Messages** — Inbound media pipeline ✅; outbound rich templates beyond text + basic template send not productized.
 - [ ] **Template Analytics** - Performance tracking
-- [ ] **Multi-language Templates** - Localized messaging
+- [ ] **Multi-language Templates** - Localized messaging (Meta template objects; separate from AI reply language)
 
 ### **4. Meta Business Manager Integration**
-- [ ] **Business Manager Connection** - Meta Business Manager
-- [ ] **Ad Account Integration** - Facebook/Instagram ads
-- [ ] **Pixel Integration** - Conversion tracking
-- [ ] **Catalog Synchronization** - Product catalog sync
-- [ ] **Business Insights** - Meta analytics integration
+- [ ] **Embedded Signup v4** — vendor connect in portal (Cloud API + Coexistence) — **planned P2h**; no frontend/backend implementation yet
+- 🔶 **Credit line (INR)** — **Product decision locked** in docs; **ops/Meta approval** not tracked as complete in this repo
+- [ ] **Credit attach automation** — `whatsapp_credit_sharing_and_attach` on each vendor WABA; verify `primary_funding_id`
+- [ ] **Credit revoke** on vendor offboarding
+- [ ] **Per-vendor business tokens** — encrypted storage; system user token for credit ops only (`WhatsAppNumber` has no token fields today)
+- [ ] **Wallet reconciliation** — webhook pricing metadata vs ChatLogix wallet debits (Meta base × per-vendor `markupPercent`)
+- 🔶 **Business Manager Connection** — Manual/ops onboarding for early vendors; **self-serve** connect flow not built
+- [ ] **Ad Account Integration** — Facebook/Instagram ads (future)
+- [ ] **Pixel Integration** — Conversion tracking (future)
+- [ ] **Catalog Synchronization** — Product catalog sync (future; ChatLogix catalog is in-app, not Meta Commerce sync)
+- [ ] **Business Insights** — Meta analytics integration (future)
 
 ---
 
 ## 🏗️ Technical Implementation
+
+> **Note:** The TypeScript sketches below describe **target services** for Meta partnership. They are **not** implemented as named modules today; use the [project status snapshot](#-project-status-snapshot-2026-09-16) and `backend/src/services/*` (e.g. `whatsappClient.ts`, `vendorOnboardingService.ts`, `billingService.ts`) for what exists.
 
 ### **Meta Verification Service**
 ```typescript
@@ -296,33 +334,31 @@ export class MetaBusinessManagerService {
 
 ## 🚀 Implementation Timeline
 
-### **Week 1-2: Business Verification System**
-- [ ] Business license verification
-- [ ] Address verification system
-- [ ] Phone number verification
-- [ ] Document verification
-- [ ] Verification status tracking
+Original 8-week plan assumed greenfield build. **As of 2026-09-16**, core WhatsApp + AI pipeline and vendor trial onboarding are largely done; remaining work clusters on **billing/connect** and **Meta partnership ops**.
 
-### **Week 3-4: Advanced WhatsApp Features**
-- [ ] Interactive message templates
-- [ ] Quick reply buttons
-- [ ] Call-to-action buttons
-- [ ] Rich media messages
-- [ ] Template analytics
+### **Done (2025–2026) — foundation for partnership demo**
+- ✅ Lambda webhook → conversation processor → response dispatcher
+- ✅ Media fetch/transcribe path; inbound interactive + status/reactions
+- ✅ Vendor public signup, trial wallet, onboarding wizard, admin approval gate (P2a–P2f)
+- ✅ **Unified millirupee AI billing** across the conversation pipeline, catalog import/enhance and the onboarding sandbox, with per-vendor markup (2026-09-16)
+- ✅ Wallet top-up (P2g v1, mock provider) + admin markup editing in `web-admin`
 
-### **Week 5-6: Meta Business Manager**
-- [ ] Business Manager integration
-- [ ] Ad account connection
-- [ ] Pixel integration
-- [ ] Catalog synchronization
-- [ ] Business insights
+### **Next — product engineering (sequenced)**
+| Phase | Scope | Status |
+| --- | --- | --- |
+| **P2g v2** | Razorpay replacing the mock wallet provider | Not started — needs account credentials |
+| **P2h** | Embedded Signup v4, token exchange, encrypted per-vendor tokens, webhook subscribe, INR credit attach + verify, WhatsApp wallet debits (populate `whatsappCostMilli`), outbound gating | Not started — **blocks self-serve Meta connect** and is the only thing left before ChatLogix stops absorbing Meta conversation fees |
+| **P2h+** | Credit revoke on offboard; pricing reconciliation from status webhooks; approval notification via real WhatsApp template (stub logs today) | Not started |
 
-### **Week 7-8: Meta Application**
-- [ ] Technical documentation
-- [ ] Business verification
-- [ ] Application submission
-- [ ] Meta review process
-- [ ] Partnership approval
+### **Parallel — Meta Solution Partner (business + compliance)**
+- [ ] Secure **extended line of credit (INR)** + accept Credit Allocation API terms
+- [ ] Business verification system (if required for application tier you target)
+- [ ] Partnership application package (architecture, security, case studies, financials)
+- [ ] Meta review → approval
+
+### **Later — enterprise WhatsApp feature depth**
+- [ ] Outbound interactive/CTA in product; template CRUD + analytics
+- [ ] Ads, pixel, Meta catalog sync, Business Insights (future rows in §4)
 
 ---
 
@@ -336,6 +372,9 @@ export class MetaBusinessManagerService {
 
 ### **Partnership Guidelines**
 - [Meta Solution Partner Program](https://developers.facebook.com/partners/)
+- [WhatsApp Solution Providers](https://developers.facebook.com/docs/whatsapp/solution-providers/) (Solution Partner vs Tech Provider billing)
+- [Embedded Signup](https://developers.facebook.com/docs/whatsapp/embedded-signup/)
+- [Share and revoke credit lines](https://developers.facebook.com/docs/whatsapp/embedded-signup/manage-accounts/share-and-revoke-credit-lines)
 - [Partnership Requirements](https://developers.facebook.com/partners/requirements)
 - [Application Process](https://developers.facebook.com/partners/apply)
 - [Best Practices](https://developers.facebook.com/partners/best-practices)
@@ -344,20 +383,32 @@ export class MetaBusinessManagerService {
 
 ## 🎯 Ready for Meta Partnership?
 
-### **Immediate Next Steps:**
-1. **Review Meta partnership requirements** and ensure compliance
-2. **Implement business verification system** for Meta compliance
-3. **Develop advanced WhatsApp features** for enterprise customers
-4. **Integrate Meta Business Manager** for complete ecosystem
-5. **Prepare Meta partnership application** with all required documentation
+### **Immediate next steps (aligned with repo, 2026-09-16)**
+
+**Engineering (unblocks self-serve WABA + locked billing model):**
+1. **P2g v2 — Razorpay** — mock provider v1 has shipped (see [wallet-top-up-p2g.md](../../modules/features/vendor-onboarding/guides/wallet-top-up-p2g.md)); swap in Razorpay when credentials exist so approved vendors can fund `walletBalanceMilli` with real money.
+2. **P2h — WhatsApp connect slice** — `/settings/whatsapp` (or wizard): Embedded Signup v4 (Cloud API + Coexistence), server-side code exchange, subscribe webhooks, `whatsapp_credit_sharing_and_attach` (`waba_currency=INR`), verify `primary_funding_id`, store **encrypted** per-vendor token on `WhatsAppNumber` (or related model), route **all** Graph sends through tenant credentials.
+3. **Wallet + WhatsApp usage** — Populate `whatsappCostMilli` on the **existing** charge from the Meta INR base rate; the `× (1 + markupPercent/100)` step, the `WalletTransaction.metadata` breakdown and the wallet gate already exist and should be reused, not reimplemented. See [BILLING_AND_PRICING.md](../../../docs/BILLING_AND_PRICING.md) §7.
+4. **Wire approval notification** — Replace `vendorApprovalNotificationService` stub with approved WhatsApp template or SMS.
+
+**Meta / business (parallel):**
+5. **Line of credit (INR)** — Meta ops: extended credit approval + Credit Allocation API terms (prerequisite for P2h attach in production).
+6. **Application collateral** — Export architecture from `docs/`, Lambda runbooks, security posture (RBAC in `authorize.ts`, encryption at rest for tokens once built), load/availability notes (`docs/LOAD_TESTING.md`).
+7. **Partnership submission** — After P2h is demonstrable end-to-end on a test WABA.
+
+**Defer until post-P2h unless partnership form explicitly requires them:**
+- Full business license/document verification automation (§2)
+- Ads, pixel, Meta catalog sync, template analytics (§3–§4 future rows)
 
 ### **Meta Partnership Checklist:**
-- [ ] Business verification system operational
-- [ ] Advanced WhatsApp features implemented
-- [ ] Meta Business Manager integrated
-- [ ] Security and compliance verified
-- [ ] Technical documentation complete
-- [ ] Business verification completed
+- [ ] Extended **line of credit** approved (INR) + Credit Allocation API terms
+- [ ] Embedded Signup + **credit attach** in vendor WhatsApp connect flow
+- [ ] Per-vendor tokens + Graph send/media on tenant credentials
+- 🔶 Wallet billing for WhatsApp (Meta base + per-vendor markup %) + AI — **AI billing ✅, per-vendor markup ✅; WhatsApp base rate / debits ❌**
+- 🔶 Business verification — **vendor approval workflow ✅; Meta/KYC automation ❌**
+- 🔶 Advanced WhatsApp features — **core API + inbound interactive ✅; outbound interactive + template ops ❌**
+- 🔶 Security and compliance — **auth/RBAC/logging ✅; token encryption + partnership audit pack ❌**
+- 🔶 Technical documentation — **pipeline docs ✅; formal partner submission bundle ❌**
 - [ ] Meta application submitted
 - [ ] Partnership approved
 

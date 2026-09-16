@@ -483,7 +483,7 @@ Send uses Graph `context.message_id`. If quoting fails (invalid/expired wamid), 
 
 ### 15.1 Summarizer
 
-One cheap model call (`gpt-4.1-mini`), vendor-dashboard English, **not** billed as a customer WhatsApp credit (see §24).
+One cheap model call (`gpt-4.1-mini`), vendor-dashboard English, **not** billed to the vendor wallet (see §24).
 
 Input: `questionOriginal`, `questionEn`, `vendorAnswerOriginal`, product name if `category = product`.
 
@@ -734,13 +734,13 @@ Helper copy on FAQ form and variant editor: “Stored in English so WhatsApp AI 
 
 | Call | Who pays |
 |------|----------|
-| LLM-1 / LLM-2 on the customer turn | Existing per-message credits |
+| LLM-1 / LLM-2 on the customer turn | The vendor's existing per-turn wallet charge (real token cost × markup — `docs/BILLING_AND_PRICING.md`) |
 | Embed for query dedup | Vendor wallet **or** absorb as platform cost — **recommend absorb** (tiny `text-embedding-3-small`, same as FAQ retrieval already paid on customer turns) |
 | `toVendorEnglish` on query insert | Absorb or fold into the customer turn (already used for `contentEn`) |
-| Promotion summarizer | **2× OpenAI USD → wallet**, same as catalog enhancer (D12 there), **or** free in v1 to encourage FAQ fill. **Recommend: free in v1** (one small completion per answered query; the payoff is fewer future customer tokens). Revisit if abused. |
+| Promotion summarizer | Marked-up OpenAI cost → wallet, same as catalog enhancer, **or** free in v1 to encourage FAQ fill. **Recommend: free in v1** (one small completion per answered query; the payoff is fewer future customer tokens). Revisit if abused. If it is ever billed, it must go through `pricingService.chargeVendor` with its own `ChargeSource`, not a bespoke calculation. |
 | FAQ embed on promote | Same as manual FAQ create (already unpaid beyond FAQ route) |
 
-Do **not** debit a second customer-message credit when the vendor replies.
+Do **not** debit a second turn charge when the vendor replies.
 
 ---
 

@@ -2,7 +2,9 @@
 
 ## Overview
 
-The Vendor Dashboard provides a comprehensive view of your business performance, including orders, revenue, products, conversations, and credit usage.
+The Vendor Dashboard provides a comprehensive view of your business performance, including orders, revenue, products, conversations, and wallet spend.
+
+> **How you're charged:** there is no monthly credit allowance. Each AI action costs what it actually costs to run, plus a fixed percentage. You pay from a prepaid wallet you top up on the **Wallet** page. Details: [Billing and Pricing](../../../../docs/BILLING_AND_PRICING.md).
 
 ## Accessing the Dashboard
 
@@ -24,11 +26,10 @@ Four key metrics displayed at the top:
    - Shows today's and this month's revenue
    - Click to view orders
 
-3. **Credits** - Credit usage and remaining balance
-   - Shows remaining credits vs plan limit
-   - Progress bar indicates usage percentage
-   - Wallet balance displayed separately
-   - Low balance warning if wallet < ₹100
+3. **Wallet** - Prepaid balance and this cycle's spend
+   - Shows your current balance and what you've spent this billing cycle
+   - Low balance warning if the balance drops below **₹20**
+   - Links to the Wallet page to top up
 
 4. **Products** - Product catalog statistics
    - Shows total, active, and out-of-stock products
@@ -43,18 +44,18 @@ Four key metrics displayed at the top:
   - Click any conversation to view details
   - Shows customer name, last message, and order status
 
-### Credits Analytics
+### Spend Analytics
 
-Two charts showing credit usage:
+Two charts showing where your wallet money goes:
 
-1. **Credits Breakdown by Type**
-   - Pie chart showing Text, Audio, Image, Document usage
+1. **Spend Breakdown by Source**
+   - Pie chart split by what caused the charge — customer replies, product media sends, catalog import, catalog enhancer, voice transcription, sandbox replies
    - Hover for detailed values
 
-2. **Usage Trend & Projection**
-   - Line chart showing daily usage over time
-   - Shows projected monthly usage
-   - Reference line for plan limit
+2. **Spend Trend & Projection**
+   - Line chart showing daily spend over the last 7 days
+   - Shows projected monthly spend
+   - No plan-limit line, because there is no plan limit
 
 ### Order Status Distribution
 
@@ -73,7 +74,7 @@ Two charts showing credit usage:
 Quick access buttons for:
 - Add Product
 - View Orders
-- Recharge Credits (shown if low balance)
+- Top up wallet (highlighted if your balance is low)
 - View Conversations
 
 ## Date Range Filtering
@@ -93,7 +94,7 @@ Use the date range filter to view data for different time periods:
    - Choose start and end dates
    - Maximum range: 1 year
 
-**Note:** Date filtering applies to Orders, Revenue, and Credits Trends. Products, Credits Status, and Conversations show current state.
+**Note:** Date filtering applies to Orders, Revenue, and the Spend Breakdown. Products, your wallet balance, the spend totals, the 7-day spend trend, and Conversations always show the current state.
 
 ## Data Refresh
 
@@ -104,12 +105,16 @@ Use the date range filter to view data for different time periods:
 
 ## Understanding Metrics
 
-### Credits
+### Wallet
 
-- **Plan Credits**: Monthly conversation allowance (resets monthly)
-- **Wallet Balance**: ₹ balance for extra usage (persists)
-- **Usage Percentage**: (Used / Plan Credits) × 100
-- **Projected Usage**: Estimated monthly usage based on trends
+- **Wallet Balance**: your prepaid ₹ balance. It carries over and never expires (a *trial* balance does expire)
+- **Spent this cycle**: what you've been charged since the start of the current calendar month
+- **Projected Monthly Spend**: an estimate from your recent daily spend
+- **Low balance warning**: appears under **₹20**. Below the cost of one reply, the AI stops answering customers and sends them a "we'll get back to you" message instead — so top up before you hit zero
+
+**What you're charged for:** each customer reply costs its real AI cost plus a fixed percentage. A reply on the default model works out to roughly **₹0.20**. Voice notes from customers cost more than text, because transcription is priced by how long the recording is. Sending product photos or videos is currently **free**. Catalog import and the AI catalog enhancer are charged per job.
+
+**What you are *not* charged for:** there is no monthly subscription quota, no per-message "credits", and no separate WhatsApp bill — ChatLogix covers WhatsApp's own conversation fees today.
 
 ### Orders
 
@@ -132,7 +137,7 @@ Use the date range filter to view data for different time periods:
 
 ## Tips
 
-1. **Monitor Credits**: Check usage trends to optimize plan selection
+1. **Monitor Spend**: Check the spend breakdown to see which feature is costing you most, and the trend to catch a jump early
 2. **Track Orders**: Use date filters to analyze performance over time
 3. **Quick Actions**: Use quick actions for common tasks
 4. **Recent Activity**: Monitor recent conversations and orders for timely responses

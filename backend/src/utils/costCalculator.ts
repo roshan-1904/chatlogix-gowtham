@@ -40,7 +40,21 @@ const MODEL_PRICING: Record<string, { input: number; output: number }> = {
   'gpt-3.5-turbo': { input: 0.50 / 1_000_000, output: 1.50 / 1_000_000 },
 };
 
+/**
+ * Speech-to-text models are billed per minute of **audio**, not per token, so
+ * they cannot live in MODEL_PRICING. Before this table existed,
+ * `calculateCost('gpt-4o-transcribe', ...)` fell through to the gpt-4.1-mini
+ * per-token rate applied to a made-up token count — a number with no relation
+ * to what OpenAI actually charges. Use `calculateAudioCost` instead.
+ */
+const AUDIO_MODEL_PRICING: Record<string, { perMinuteUsd: number }> = {
+  'gpt-4o-transcribe': { perMinuteUsd: 0.006 },
+  'gpt-4o-mini-transcribe': { perMinuteUsd: 0.003 },
+  'whisper-1': { perMinuteUsd: 0.006 },
+};
+
 const DEFAULT_MODEL = 'gpt-4.1-mini';
+const DEFAULT_AUDIO_MODEL = 'gpt-4o-transcribe';
 
 function getPricing(model: string): { input: number; output: number } {
   const pricing = MODEL_PRICING[model];
@@ -48,6 +62,36 @@ function getPricing(model: string): { input: number; output: number } {
 
   logger.warn({ model }, 'Unknown model for cost calculation, falling back to default pricing');
   return MODEL_PRICING[DEFAULT_MODEL];
+}
+
+export function isAudioModel(model: string): boolean {
+  return model in AUDIO_MODEL_PRICING;
+}
+
+/**
+ * Duration-based transcription cost. `durationSec` is an estimate from the
+ * encoded file size (see audioTranscription.ts) — OpenAI bills the real
+ * duration, so treat this as close-enough rather than exact.
+ *
+ * Billed per started minute would over-charge short voice notes, so this
+ * prorates by the second; the single ceil at the wallet charge boundary
+ * guarantees a non-zero charge for anything above zero.
+ */
+export function calculateAudioCost(model: string, durationSec: number): CostResult {
+  const pricing = AUDIO_MODEL_PRICING[model];
+  if (!pricing) {
+    logger.warn({ model }, 'Unknown audio model for cost calculation, falling back to default audio pricing');
+  }
+  const perMinuteUsd = (pricing ?? AUDIO_MODEL_PRICING[DEFAULT_AUDIO_MODEL]).perMinuteUsd;
+  const seconds = Number.isFinite(durationSec) && durationSec > 0 ? durationSec : 0;
+  return {
+    model,
+    promptTokens: 0,
+    completionTokens: 0,
+    totalTokens: 0,
+    costUsd: (seconds / 60) * perMinuteUsd,
+    isEstimated: true
+  };
 }
 
 /**

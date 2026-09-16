@@ -16,7 +16,8 @@ import { extract } from './catalogExtractionService.js';
 import { commit as commitProducts, type CommitSummary } from './catalogCommitService.js';
 import type { MergedVendorProfile } from '../lib/visionClient.js';
 import { assertKeyBelongsToVendor } from './fileIntakeService.js';
-import { recordCatalogImportSpend } from './billingService.js';
+import { assertVendorWalletForAi } from './billingService.js';
+import { chargeVendor, InsufficientBalanceError } from './pricing/pricingService.js';
 import { catalogImportEventBus } from './catalogImportEventBus.js';
 import { classifyRow } from './catalogNormalizationService.js';
 import {
@@ -33,6 +34,16 @@ export interface AnalyzeStart {
 export async function startAnalyze(vendorId: string, req: AnalyzeRequest): Promise<AnalyzeStart> {
   for (const key of req.brochureImageKeys) assertKeyBelongsToVendor(key, vendorId);
   if (req.tabularFileKey) assertKeyBelongsToVendor(req.tabularFileKey, vendorId);
+
+  // Catalog import had no wallet gate at all before the rewrite — it ran
+  // vision on every page and debited whatever it cost, even from an empty
+  // wallet. The route's rate-limit middleware checks this too; this is the
+  // backstop for any non-HTTP caller.
+  const wallet = await assertVendorWalletForAi(vendorId);
+  if (!wallet.allowed) {
+    logger.info({ vendorId, reason: wallet.reason }, 'catalog_import_wallet_denied');
+    throw new InsufficientBalanceError();
+  }
 
   const job = await createJob({
     vendorId,
@@ -81,13 +92,14 @@ async function runExtractionInBackground(
     });
 
     await recordTokenUsage(jobId, result.tokenUsage as unknown as Prisma.InputJsonValue);
-    if (result.tokenUsage.totalPaise > 0) {
-      await recordCatalogImportSpend({
-        vendorId,
-        jobId,
-        paiseCost: result.tokenUsage.totalPaise
-      });
-    }
+    await chargeVendor({
+      vendorId,
+      source: 'catalog_import',
+      cost: { aiCostMilli: result.tokenUsage.totalMilli },
+      entityType: 'catalog_import_job',
+      entityId: jobId,
+      metadata: { jobId, phase: 'analyze' }
+    });
 
     await mergeJobResult(jobId, {
       normalizedProducts: result.normalizedProducts,
@@ -113,13 +125,15 @@ async function runExtractionInBackground(
         tokensUsed:
           (result.tokenUsage.vision?.totalTokens ?? 0) +
           (result.tokenUsage.enrichment?.totalTokens ?? 0),
-        costPaise: result.tokenUsage.totalPaise
+        costMilli: result.tokenUsage.totalMilli
       },
       'catalog_import_analyze_completed'
     );
     catalogImportEventBus.emit(jobId, 'job.complete', {
       productCount: result.normalizedProducts.length,
+      // totalPaise stays on the wire until the vendor UI moves to millirupees (Phase D).
       totalPaise: result.tokenUsage.totalPaise,
+      totalMilli: result.tokenUsage.totalMilli,
       warnings: result.warnings.length
     });
   } catch (err) {
