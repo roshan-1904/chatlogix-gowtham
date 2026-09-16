@@ -1,0 +1,69 @@
+# One-shot / on-demand purge of GitHub Actions artifacts (and optional caches).
+# Needed when the account hits the Actions storage quota:
+#   Error: Failed to CreateArtifact: Artifact storage quota has been hit.
+#
+# Run from the Actions tab → "Cleanup artifacts" → Run workflow.
+# GitHub may take 6–12 hours to recalculate usage after deletes.
+name: Cleanup artifacts
+
+on:
+  workflow_dispatch:
+    inputs:
+      delete_caches:
+        description: Also delete Actions caches (npm caches also count toward storage)
+        type: boolean
+        default: false
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  purge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete all artifacts
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const artifacts = await github.paginate(
+              github.rest.actions.listArtifactsForRepo,
+              { owner, repo, per_page: 100 },
+            );
+            core.info(`Found ${artifacts.length} artifact(s)`);
+            let deleted = 0;
+            let bytes = 0;
+            for (const artifact of artifacts) {
+              core.info(`Deleting ${artifact.name} id=${artifact.id} bytes=${artifact.size_in_bytes} created=${artifact.created_at}`);
+              await github.rest.actions.deleteArtifact({
+                owner,
+                repo,
+                artifact_id: artifact.id,
+              });
+              deleted += 1;
+              bytes += artifact.size_in_bytes;
+            }
+            core.info(`Deleted ${deleted} artifact(s), ${bytes} bytes. Usage recalculates in 6–12 hours.`);
+
+      - name: Delete all caches
+        if: ${{ inputs.delete_caches }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const { data } = await github.rest.actions.getActionsCacheList({
+              owner,
+              repo,
+              per_page: 100,
+            });
+            const caches = data.actions_caches ?? [];
+            core.info(`Found ${caches.length} cache(s)`);
+            for (const cache of caches) {
+              core.info(`Deleting cache ${cache.key} id=${cache.id} bytes=${cache.size_in_bytes}`);
+              await github.rest.actions.deleteActionsCacheById({
+                owner,
+                repo,
+                cache_id: cache.id,
+              });
+            }

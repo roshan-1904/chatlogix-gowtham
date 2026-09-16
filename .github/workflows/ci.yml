@@ -34,7 +34,10 @@ jobs:
         working-directory: backend
         run: npm run build
 
+      # PRs only need a compile check. Artifact upload is Deploy-only so we
+      # don't spend the GitHub Actions storage quota on unused PR tarballs.
       - name: Stage backend artifact
+        if: ${{ github.event_name != 'pull_request' }}
         run: |
           mkdir -p _artifact/backend
           cp -a backend/dist _artifact/backend/dist
@@ -53,11 +56,12 @@ jobs:
           ls -lh "$GITHUB_WORKSPACE/_artifact/backend/node_modules.tar.gz"
 
       - name: Upload backend artifact
+        if: ${{ github.event_name != 'pull_request' }}
         uses: actions/upload-artifact@v4
         with:
           name: backend-dist
           path: _artifact/
-          retention-days: 7
+          retention-days: 1
           include-hidden-files: false
 
   build-frontend:
@@ -109,6 +113,7 @@ jobs:
         run: npm run build
 
       - name: Stage frontend artifact
+        if: ${{ github.event_name != 'pull_request' }}
         run: |
           mkdir -p _artifact/frontend_v2/apps/web-vendor
           mkdir -p _artifact/frontend_v2/apps/web-admin
@@ -123,9 +128,10 @@ jobs:
           done
 
       - name: Upload frontend artifact
+        if: ${{ github.event_name != 'pull_request' }}
         uses: actions/upload-artifact@v4
         with:
           name: frontend-dist
           path: _artifact/
-          retention-days: 7
+          retention-days: 1
           include-hidden-files: false

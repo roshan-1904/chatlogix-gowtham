@@ -160,3 +160,33 @@ jobs:
               -o ServerAliveInterval=30 -o ServerAliveCountMax=10 \
               "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" \
               "export DEPLOY_SHA='${{ github.sha }}'; bash -s" < scripts/deployment/deploy-ec2.sh
+
+  # node_modules.tar.gz is 100MB+ and was filling the GitHub Actions storage
+  # quota (free accounts get 500MB shared). Drop this run's artifacts as soon
+  # as Lambda + EC2 have consumed them.
+  cleanup-artifacts:
+    needs: [build, deploy-lambdas, deploy-ec2]
+    if: always() && needs.build.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Delete backend-dist and frontend-dist artifacts
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const artifacts = await github.paginate(
+              github.rest.actions.listArtifactsForRepo,
+              { owner, repo, per_page: 100 },
+            );
+            const names = new Set(['backend-dist', 'frontend-dist']);
+            for (const artifact of artifacts) {
+              if (!names.has(artifact.name)) continue;
+              core.info(`Deleting ${artifact.name} id=${artifact.id} bytes=${artifact.size_in_bytes}`);
+              await github.rest.actions.deleteArtifact({
+                owner,
+                repo,
+                artifact_id: artifact.id,
+              });
+            }
