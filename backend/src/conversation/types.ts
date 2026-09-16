@@ -37,7 +37,13 @@ export type CartOp =
   | { type: 'knowledge_gap'; question: string; category?: 'product' | 'policy' | 'other' | null; productId?: string | null }
   // Product media (docs/PRODUCT_MEDIA.md PM5): LLM signals intent only; pipeline
   // resolves files from ProductMedia (PM6 caps). CartEngine no-op.
-  | { type: 'send_product_media'; productId: string; kind?: 'image' | 'video' | null }
+  | {
+      type: 'send_product_media';
+      productId: string;
+      kind?: 'image' | 'video' | null;
+      /** When the customer asked for a specific variant's photo, echo that variant's sku from PRODUCT VARIANTS. */
+      variantSku?: string | null;
+    }
   | { type: 'noop' };
 
 /**
@@ -112,6 +118,8 @@ export interface ProductVariant {
   price: number; // paise
   isDivisible: boolean;
   isActive: boolean;
+  /** True when the vendor uploaded a variant-scoped catalog image (compact catalog only). */
+  hasImage?: boolean;
 }
 
 /**

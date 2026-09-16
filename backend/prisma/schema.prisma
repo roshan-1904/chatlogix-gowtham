@@ -788,6 +788,8 @@ model ProductMedia {
   height                   Int?
   durationSec              Int?
   label                    String?          @db.VarChar(120)
+  /// When set, this row is the single catalog image for that variant SKU (see Product.variants).
+  variantSku               String?          @db.VarChar(80)
   sortOrder                Int              @default(0)
   isActive                 Boolean          @default(true)
   whatsappMediaId          String?          @db.VarChar(255)
@@ -800,6 +802,7 @@ model ProductMedia {
   messages                 Message[]
 
   @@index([productId, isActive, sortOrder])
+  @@index([productId, variantSku, isActive])
   @@index([vendorId])
   @@map("ProductMedia")
 }

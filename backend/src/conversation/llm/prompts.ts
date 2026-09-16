@@ -86,7 +86,8 @@ export function buildVariantsTable(catalog: CompactCatalogEntry[]): string {
         sku: v.sku,
         label: v.label,
         attrs: Object.entries(v.attributes).map(([k, val]) => `${k}=${val}`).join(';'),
-        price: (v.price / 100).toFixed(2)
+        price: (v.price / 100).toFixed(2),
+        hasImg: v.hasImage ? 'yes' : 'no'
       });
     }
   }
@@ -236,7 +237,10 @@ function buildStaticBlock(hotSet: HotSet): string {
     '- When the customer asks to see a product photo, picture, image, or video (e.g. "show me", "photo irukka", "send pic"), emit "send_product_media" with the matched productId from PRODUCT CATALOG and optional kind "image" or "video" (null if either is fine). Never invent URLs or S3 keys. needsVerify: false. intent: "send_media" when this is the main action.'
   );
   parts.push(
-    '- If the catalog "media" column is empty for that product, do NOT emit send_product_media — reply honestly that no photos/videos are uploaded yet; you may also emit knowledge_gap (category "product") asking the vendor to add catalog media.'
+    '- When they ask for a photo of a specific size/variant (e.g. "10x10 kadai photo"), include that row\'s exact "sku" as variantSku on send_product_media (from PRODUCT VARIANTS). If that row\'s hasImg is "no" but the product has general gallery media, omit variantSku so the pipeline can send product-level photos.'
+  );
+  parts.push(
+    '- If the catalog "media" column is empty for that product AND no variant row has hasImg "yes", do NOT emit send_product_media — reply honestly that no photos/videos are uploaded yet; you may also emit knowledge_gap (category "product") asking the vendor to add catalog media.'
   );
   parts.push(
     '- NEVER emit send_product_media on order-status / tracking turns — answer from RECENT ORDERS only.'
@@ -418,9 +422,10 @@ const cartOpSchema = {
       properties: {
         type: { type: 'string', enum: ['send_product_media'] },
         productId: { type: 'string' },
-        kind: { type: ['string', 'null'], enum: ['image', 'video', null] }
+        kind: { type: ['string', 'null'], enum: ['image', 'video', null] },
+        variantSku: { type: ['string', 'null'] }
       },
-      required: ['type', 'productId', 'kind'],
+      required: ['type', 'productId', 'kind', 'variantSku'],
       additionalProperties: false
     },
     {

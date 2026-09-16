@@ -351,6 +351,11 @@ export function ProductForm({
           variants={formData.variants || []}
           onChange={(variants) => updateField('variants', variants)}
           error={fieldErrors.variants}
+          productId={mode === 'edit' && product?.id ? product.id : undefined}
+          productMedia={product?.media ?? []}
+          onVariantMediaChange={() => {
+            void onMediaSaved?.();
+          }}
         />
       </div>
 

@@ -190,9 +190,10 @@ export function ProductMediaGallery({
   disabled = false,
   onMediaChange,
 }: ProductMediaGalleryProps) {
-  const [items, setItems] = useState<ProductMedia[]>(() =>
-    [...initialMedia].sort((a, b) => a.sortOrder - b.sortOrder),
-  );
+  const productLevelMedia = (list: ProductMedia[]) =>
+    list.filter((m) => !m.variantSku).sort((a, b) => a.sortOrder - b.sortOrder);
+
+  const [items, setItems] = useState<ProductMedia[]>(() => productLevelMedia(initialMedia));
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const [dragOver, setDragOver] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -201,7 +202,7 @@ export function ProductMediaGallery({
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    setItems([...initialMedia].sort((a, b) => a.sortOrder - b.sortOrder));
+    setItems(productLevelMedia(initialMedia));
   }, [initialMedia]);
 
   const sync = useCallback(

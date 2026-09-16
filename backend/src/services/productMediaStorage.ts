@@ -20,6 +20,7 @@ import { env } from '../config/env.js';
 import { logger } from '../logger.js';
 import { getWaMediaS3Client } from '../utils/waMediaS3.js';
 import { readS3ObjectBody } from '../utils/s3Body.js';
+import { findActiveVariant, normalizeVariants } from '../conversation/cart/variants.js';
 import { invalidateCompactCatalog } from '../conversation/prefetch.js';
 
 export type ProductMediaKind = 'image' | 'video';
@@ -61,6 +62,7 @@ export interface ProductMediaActor {
 export interface ProductMediaDto {
   id: string;
   productId: string;
+  variantSku: string | null;
   kind: ProductMediaKind;
   mimeType: string;
   fileSizeBytes: number;
@@ -88,6 +90,7 @@ interface ProductMediaRecord {
   height: number | null;
   durationSec: number | null;
   label: string | null;
+  variantSku: string | null;
   sortOrder: number;
   isActive: boolean;
   createdAt: Date;
@@ -214,10 +217,11 @@ function isNotFound(err: unknown): boolean {
   return s3HttpStatus(err) === 404 || text.includes('notfound') || text.includes('nosuchkey');
 }
 
-export function toProductMediaDto(row: ProductMediaRecord): ProductMediaDto {
+export function toProductMediaDto(row: ProductMediaRecord & { variantSku?: string | null }): ProductMediaDto {
   return {
     id: row.id,
     productId: row.productId,
+    variantSku: row.variantSku ?? null,
     kind: row.kind === 'video' ? 'video' : 'image',
     mimeType: row.mimeType,
     fileSizeBytes: row.fileSizeBytes,
@@ -260,12 +264,30 @@ export async function requireProductForActor(
   return product;
 }
 
-async function countActiveMedia(productId: string): Promise<number> {
-  return prisma.productMedia.count({ where: { productId, isActive: true } });
+/** PM6 cap applies to product-level gallery rows only (not per-variant images). */
+async function countActiveProductLevelMedia(productId: string): Promise<number> {
+  return prisma.productMedia.count({
+    where: { productId, isActive: true, variantSku: null }
+  });
+}
+
+async function assertVariantSkuOnProduct(productId: string, variantSku: string): Promise<void> {
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+    select: { variants: true }
+  });
+  const variants = normalizeVariants(product?.variants).filter((v) => v.isActive);
+  if (!findActiveVariant(variants, variantSku)) {
+    throw new ProductMediaError(
+      400,
+      'INVALID_VARIANT_SKU',
+      'variantSku does not match an active variant on this product'
+    );
+  }
 }
 
 async function assertActiveCapacity(productId: string): Promise<void> {
-  const active = await countActiveMedia(productId);
+  const active = await countActiveProductLevelMedia(productId);
   if (active >= MAX_ACTIVE_MEDIA_PER_PRODUCT) {
     throw new ProductMediaError(
       409,
@@ -281,6 +303,8 @@ export interface CreateUploadUrlInput {
   filename: string;
   contentType: string;
   sizeBytes: number;
+  /** When set, upload is a single image for that variant (not counted toward PM6 gallery cap). */
+  variantSku?: string | null;
 }
 
 export interface PlannedProductMediaUpload {
@@ -310,7 +334,20 @@ export async function planProductMediaUpload(
   const contentType = normalizeContentType(input.contentType);
   const kind = assertAllowedContentType(contentType);
   assertAllowedSize(kind, input.sizeBytes);
-  await assertActiveCapacity(input.productId);
+
+  const variantSku = input.variantSku?.trim() || null;
+  if (variantSku) {
+    if (kind !== 'image') {
+      throw new ProductMediaError(
+        415,
+        'VARIANT_MEDIA_IMAGE_ONLY',
+        'Variant media must be an image (JPG, PNG, or WebP)'
+      );
+    }
+    await assertVariantSkuOnProduct(input.productId, variantSku);
+  } else {
+    await assertActiveCapacity(input.productId);
+  }
 
   const uploadId = randomUUID();
   const s3Key = buildProductMediaKey(input.vendorId, input.productId, input.filename, uploadId);
@@ -404,6 +441,7 @@ export interface CommitUploadInput {
   productId: string;
   s3Key: string;
   label?: string | null;
+  variantSku?: string | null;
   sortOrder?: number;
   width?: number;
   height?: number;
@@ -452,9 +490,32 @@ export async function commitProductMediaUpload(input: CommitUploadInput): Promis
   const fileSizeBytes = head.ContentLength ?? 0;
   assertAllowedSize(kind, fileSizeBytes);
 
-  await assertActiveCapacity(input.productId);
+  const variantSku = input.variantSku?.trim() || null;
+  if (variantSku) {
+    if (kind !== 'image') {
+      throw new ProductMediaError(
+        415,
+        'VARIANT_MEDIA_IMAGE_ONLY',
+        'Variant media must be an image (JPG, PNG, or WebP)'
+      );
+    }
+    await assertVariantSkuOnProduct(input.productId, variantSku);
+  } else {
+    await assertActiveCapacity(input.productId);
+  }
 
-  const sortOrder = input.sortOrder ?? (await nextSortOrder(input.productId));
+  const sortOrder =
+    variantSku ? 0 : input.sortOrder ?? (await nextSortOrder(input.productId));
+
+  if (variantSku) {
+    const prior = await prisma.productMedia.findFirst({
+      where: { productId: input.productId, variantSku, isActive: true },
+      select: { id: true, s3Key: true }
+    });
+    if (prior && prior.s3Key !== input.s3Key) {
+      await deleteProductMedia(input.vendorId, input.productId, prior.id);
+    }
+  }
 
   const created = await prisma.productMedia.create({
     data: {
@@ -469,6 +530,7 @@ export async function commitProductMediaUpload(input: CommitUploadInput): Promis
       height: input.height ?? null,
       durationSec: input.durationSec ?? null,
       label: input.label ?? null,
+      variantSku,
       sortOrder,
       isActive: true
     }
@@ -503,7 +565,7 @@ export async function commitProductMediaUpload(input: CommitUploadInput): Promis
 
 async function nextSortOrder(productId: string): Promise<number> {
   const last = await prisma.productMedia.findFirst({
-    where: { productId },
+    where: { productId, variantSku: null },
     orderBy: { sortOrder: 'desc' },
     select: { sortOrder: true }
   });
@@ -515,7 +577,10 @@ export async function listProductMedia(
   options: { includeInactive?: boolean } = {}
 ): Promise<ProductMediaDto[]> {
   const rows = await prisma.productMedia.findMany({
-    where: { productId, ...(options.includeInactive ? {} : { isActive: true }) },
+    where: {
+      productId,
+      ...(options.includeInactive ? {} : { isActive: true })
+    },
     orderBy: MEDIA_ORDER_BY
   });
   return rows.map(toProductMediaDto);
@@ -571,7 +636,7 @@ export async function updateProductMedia(
 ): Promise<ProductMediaDto> {
   const media = await getProductMedia(productId, mediaId);
 
-  if (patch.isActive === true && !media.isActive) {
+  if (patch.isActive === true && !media.isActive && !media.variantSku) {
     await assertActiveCapacity(productId);
   }
 
@@ -598,7 +663,7 @@ export async function reorderProductMedia(
   orderedIds: string[]
 ): Promise<ProductMediaDto[]> {
   const rows = await prisma.productMedia.findMany({
-    where: { productId },
+    where: { productId, variantSku: null },
     select: { id: true }
   });
 

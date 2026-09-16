@@ -46,14 +46,16 @@ beforeEach(() => {
 });
 
 describe('collectSendProductMediaOps', () => {
-  it('dedupes by productId (first wins)', () => {
+  it('dedupes by productId + variantSku (first wins)', () => {
     const ops = collectSendProductMediaOps([
-      { type: 'send_product_media', productId: 'p1', kind: 'image' },
-      { type: 'send_product_media', productId: 'p1', kind: 'video' },
-      { type: 'send_product_media', productId: 'p2', kind: null }
+      { type: 'send_product_media', productId: 'p1', kind: 'image', variantSku: null },
+      { type: 'send_product_media', productId: 'p1', kind: 'video', variantSku: null },
+      { type: 'send_product_media', productId: 'p1', kind: 'image', variantSku: 'SS-7X7' },
+      { type: 'send_product_media', productId: 'p2', kind: null, variantSku: null }
     ]);
-    expect(ops).toHaveLength(2);
-    expect(ops[0]).toMatchObject({ productId: 'p1', kind: 'image' });
+    expect(ops).toHaveLength(3);
+    expect(ops[0]).toMatchObject({ productId: 'p1', kind: 'image', variantSku: null });
+    expect(ops[1]).toMatchObject({ productId: 'p1', variantSku: 'SS-7X7' });
   });
 });
 

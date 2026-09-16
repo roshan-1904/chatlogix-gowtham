@@ -183,13 +183,29 @@ async function loadCompactCatalog(vendorId: string): Promise<CompactCatalogEntry
 
   const productIds = rows.map((p) => p.id);
   const mediaSummaryByProduct = new Map<string, { imageCount: number; videoCount: number; mediaLabels: string[] }>();
+  const variantImagesByProduct = new Map<string, Set<string>>();
   if (productIds.length > 0) {
     const mediaRows = await prisma.productMedia.findMany({
       where: { vendorId, productId: { in: productIds }, isActive: true },
-      select: { productId: true, kind: true, label: true, sortOrder: true, createdAt: true },
+      select: {
+        productId: true,
+        kind: true,
+        label: true,
+        sortOrder: true,
+        createdAt: true,
+        variantSku: true
+      },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }]
     });
     for (const m of mediaRows) {
+      if (m.variantSku) {
+        if (m.kind === 'image') {
+          const set = variantImagesByProduct.get(m.productId) ?? new Set<string>();
+          set.add(m.variantSku);
+          variantImagesByProduct.set(m.productId, set);
+        }
+        continue;
+      }
       const cur = mediaSummaryByProduct.get(m.productId) ?? { imageCount: 0, videoCount: 0, mediaLabels: [] };
       if (m.kind === 'video') cur.videoCount += 1;
       else cur.imageCount += 1;
@@ -203,6 +219,7 @@ async function loadCompactCatalog(vendorId: string): Promise<CompactCatalogEntry
 
   const value: CompactCatalogEntry[] = rows.map((p) => {
     const media = mediaSummaryByProduct.get(p.id) ?? { imageCount: 0, videoCount: 0, mediaLabels: [] };
+    const variantImgSkus = variantImagesByProduct.get(p.id);
     return {
       id: p.id,
       name: p.name,
@@ -215,7 +232,12 @@ async function loadCompactCatalog(vendorId: string): Promise<CompactCatalogEntry
       fulfillmentType: p.fulfillmentType,
       inStock: p.inStock,
       stockQuantity: p.stockQuantity !== null ? Number(p.stockQuantity) : null,
-      variants: normalizeVariants(p.variants).filter((v) => v.isActive),
+      variants: normalizeVariants(p.variants)
+        .filter((v) => v.isActive)
+        .map((v) => ({
+          ...v,
+          hasImage: variantImgSkus?.has(v.sku) ?? false
+        })),
       description: p.description ?? '',
       isDivisible: p.isDivisible,
       imageCount: media.imageCount,

@@ -9,6 +9,7 @@ export type ProductMediaKind = 'image' | 'video';
 export interface ProductMedia {
   id: string;
   productId: string;
+  variantSku: string | null;
   kind: ProductMediaKind;
   mimeType: string;
   fileSizeBytes: number;
@@ -39,6 +40,7 @@ export interface ProductMediaUploadUrlResponse {
 export interface ProductMediaCommitInput {
   s3Key: string;
   label?: string | null;
+  variantSku?: string;
   sortOrder?: number;
   width?: number;
   height?: number;

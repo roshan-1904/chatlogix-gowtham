@@ -102,11 +102,19 @@ export function validateProductIds(
       continue;
     }
     if (op.type === 'send_product_media') {
-      if (!catalogById.has(op.productId)) {
+      const product = catalogById.get(op.productId);
+      if (!product) {
         invalid.push(op);
-      } else {
-        valid.push(op);
+        continue;
       }
+      if (op.variantSku) {
+        const skus = variantSkusByProduct.get(op.productId);
+        if (!skus?.has(op.variantSku)) {
+          invalid.push(op);
+          continue;
+        }
+      }
+      valid.push(op);
       continue;
     }
     const referencesProduct = op.type === 'add' || op.type === 'set_qty' || op.type === 'remove';

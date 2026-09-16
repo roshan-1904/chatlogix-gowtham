@@ -460,7 +460,7 @@ export function uploadProductMediaToS3(
 
 export async function requestProductMediaUploadUrl(
   productId: string,
-  params: { filename: string; contentType: string; sizeBytes: number },
+  params: { filename: string; contentType: string; sizeBytes: number; variantSku?: string },
 ): Promise<ProductMediaUploadUrlResponse> {
   return apiClient.post<ProductMediaUploadUrlResponse>(
     `/products/${productId}/media/upload-url`,

@@ -32,12 +32,14 @@ export const productMediaRouter = express.Router();
 const UploadUrlSchema = z.object({
   filename: z.string().min(1).max(255),
   contentType: z.string().min(1).max(127),
-  sizeBytes: z.number().int().positive().max(MAX_VIDEO_BYTES)
+  sizeBytes: z.number().int().positive().max(MAX_VIDEO_BYTES),
+  variantSku: z.string().trim().min(1).max(80).optional()
 });
 
 const CommitSchema = z.object({
   s3Key: z.string().min(1).max(1024),
   label: z.string().trim().max(120).nullish(),
+  variantSku: z.string().trim().min(1).max(80).optional(),
   sortOrder: z.number().int().min(0).max(MAX_ACTIVE_MEDIA_PER_PRODUCT - 1).optional(),
   width: z.number().int().positive().max(100000).optional(),
   height: z.number().int().positive().max(100000).optional(),
@@ -127,7 +129,8 @@ productMediaRouter.post('/:id/media/upload-url', requireRole('vendor', 'admin'),
       productId: product.id,
       filename: body.filename,
       contentType: body.contentType,
-      sizeBytes: body.sizeBytes
+      sizeBytes: body.sizeBytes,
+      ...(body.variantSku ? { variantSku: body.variantSku } : {})
     });
     res.json({
       uploadId: planned.uploadId,
@@ -154,6 +157,7 @@ productMediaRouter.post('/:id/media/commit', requireRole('vendor', 'admin'), asy
       productId: product.id,
       s3Key: body.s3Key,
       label: body.label ?? null,
+      ...(body.variantSku ? { variantSku: body.variantSku } : {}),
       ...(body.sortOrder !== undefined ? { sortOrder: body.sortOrder } : {}),
       ...(body.width !== undefined ? { width: body.width } : {}),
       ...(body.height !== undefined ? { height: body.height } : {}),

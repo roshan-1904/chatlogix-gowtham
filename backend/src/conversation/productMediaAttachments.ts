@@ -16,16 +16,29 @@ export type OutboundMediaAttachment = ResolvedOutboundAttachment & {
   messageId: string;
 };
 
+function mediaOpKey(op: Extract<CartOp, { type: 'send_product_media' }>): string {
+  return `${op.productId}:${op.variantSku ?? ''}`;
+}
+
 export function collectSendProductMediaOps(ops: CartOp[]): Extract<CartOp, { type: 'send_product_media' }>[] {
   const seen = new Set<string>();
   const out: Extract<CartOp, { type: 'send_product_media' }>[] = [];
   for (const op of ops) {
     if (op.type !== 'send_product_media') continue;
-    if (seen.has(op.productId)) continue;
-    seen.add(op.productId);
+    const key = mediaOpKey(op);
+    if (seen.has(key)) continue;
+    seen.add(key);
     out.push(op);
   }
   return out;
+}
+
+function mediaScopeWhere(
+  op: Extract<CartOp, { type: 'send_product_media' }>
+): { variantSku: string | null } | Record<string, never> {
+  const sku = op.variantSku?.trim();
+  if (sku) return { variantSku: sku };
+  return { variantSku: null };
 }
 
 function truncateCaption(text: string | undefined): string | undefined {
@@ -61,7 +74,8 @@ export async function resolveProductMediaAttachments(
           vendorId,
           productId: op.productId,
           isActive: true,
-          kind: 'video'
+          kind: 'video',
+          ...mediaScopeWhere(op)
         },
         orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
         select: { id: true, kind: true }
@@ -84,17 +98,34 @@ export async function resolveProductMediaAttachments(
     const kindFilter = op.kind === 'video' ? 'video' : 'image';
     if (kindFilter === 'video') continue;
 
-    const rows = await prisma.productMedia.findMany({
+    const scope = mediaScopeWhere(op);
+    let rows = await prisma.productMedia.findMany({
       where: {
         vendorId,
         productId: op.productId,
         isActive: true,
-        kind: 'image'
+        kind: 'image',
+        ...scope
       },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
       take: imageBudget,
       select: { id: true, kind: true }
     });
+
+    if (rows.length === 0 && op.variantSku?.trim()) {
+      rows = await prisma.productMedia.findMany({
+        where: {
+          vendorId,
+          productId: op.productId,
+          isActive: true,
+          kind: 'image',
+          variantSku: null
+        },
+        orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+        take: imageBudget,
+        select: { id: true, kind: true }
+      });
+    }
 
     for (const row of rows) {
       resolved.push({
@@ -117,7 +148,8 @@ export async function resolveProductMediaAttachments(
         vendorId,
         productId: op.productId,
         isActive: true,
-        kind: 'video'
+        kind: 'video',
+        ...mediaScopeWhere(op)
       },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
       select: { id: true, kind: true }

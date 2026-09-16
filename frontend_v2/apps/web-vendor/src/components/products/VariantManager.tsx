@@ -4,13 +4,25 @@
  * can ground answers on exact size/material pricing.
  */
 
+import { useEffect, useState } from 'react';
 import { Button, Input } from '@chatlogix/ui';
-import type { Variant } from '../../types/product';
+import type { ProductMedia, Variant } from '../../types/product';
+import { VariantImageUpload } from './VariantImageUpload';
 
 interface VariantManagerProps {
   variants: Variant[];
   onChange: (variants: Variant[]) => void;
   error?: string;
+  /** When set (edit product), enables one photo per variant. */
+  productId?: string;
+  productMedia?: ProductMedia[];
+  onVariantMediaChange?: () => void;
+}
+
+/** Stable SKU for uploads — matches backend normalizeVariants synthetic ids. */
+export function effectiveVariantSku(variant: Variant, index: number): string {
+  const trimmed = variant.sku?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : `v${index}`;
 }
 
 type AttrPair = { key: string; value: string };
@@ -28,7 +40,33 @@ function pairsToAttrs(pairs: AttrPair[]): Record<string, string> | undefined {
   return out;
 }
 
-export function VariantManager({ variants, onChange, error }: VariantManagerProps) {
+export function VariantManager({
+  variants,
+  onChange,
+  error,
+  productId,
+  productMedia = [],
+  onVariantMediaChange,
+}: VariantManagerProps) {
+  const [variantMediaMap, setVariantMediaMap] = useState(() => {
+    const map = new Map<string, ProductMedia>();
+    for (const m of productMedia) {
+      if (m.variantSku && m.kind === 'image' && m.isActive) {
+        map.set(m.variantSku, m);
+      }
+    }
+    return map;
+  });
+
+  useEffect(() => {
+    const map = new Map<string, ProductMedia>();
+    for (const m of productMedia) {
+      if (m.variantSku && m.kind === 'image' && m.isActive) {
+        map.set(m.variantSku, m);
+      }
+    }
+    setVariantMediaMap(map);
+  }, [productMedia]);
   const addVariant = () => {
     onChange([
       ...variants,
@@ -105,6 +143,8 @@ export function VariantManager({ variants, onChange, error }: VariantManagerProp
         <div className="space-y-4">
           {variants.map((variant, index) => {
             const pairs = attrsToPairs(variant.attributes);
+            const sku = effectiveVariantSku(variant, index);
+            const variantMedia = variantMediaMap.get(sku) ?? null;
             return (
               <div key={index} className="border border-gray-200 rounded-lg bg-white p-4 space-y-3">
                 <div className="flex items-start gap-2">
@@ -139,6 +179,26 @@ export function VariantManager({ variants, onChange, error }: VariantManagerProp
                     ×
                   </button>
                 </div>
+
+                {productId ? (
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Variant photo (WhatsApp)</label>
+                    <VariantImageUpload
+                      productId={productId}
+                      variantSku={sku}
+                      media={variantMedia}
+                      onChange={(next) => {
+                        setVariantMediaMap((prev) => {
+                          const copy = new Map(prev);
+                          if (next) copy.set(sku, next);
+                          else copy.delete(sku);
+                          return copy;
+                        });
+                        onVariantMediaChange?.();
+                      }}
+                    />
+                  </div>
+                ) : null}
 
                 <div className="grid grid-cols-12 gap-3">
                   <div className="col-span-3">

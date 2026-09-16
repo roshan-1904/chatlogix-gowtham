@@ -377,7 +377,7 @@ describe('llm1JsonSchema', () => {
   it('send_product_media op schema is strict with nullable kind', () => {
     const opsSchema = (llm1JsonSchema.properties as any).ops.items.anyOf as any[];
     const media = opsSchema.find((s) => s.properties.type.enum[0] === 'send_product_media');
-    expect(media.required).toEqual(['type', 'productId', 'kind']);
+    expect(media.required).toEqual(['type', 'productId', 'kind', 'variantSku']);
     expect(media.properties.kind.enum).toEqual(['image', 'video', null]);
     expect(media.additionalProperties).toBe(false);
   });
