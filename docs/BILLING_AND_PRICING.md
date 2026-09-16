@@ -229,6 +229,8 @@ billing: {
 
 `refreshUsdInrRate()` in `backend/src/services/platformSettingsService.ts` GETs `https://api.frankfurter.app/latest?from=USD&to=INR` (ECB, no API key). The PM2 API process starts a 24h interval from `backend/src/index.ts` (runs immediately when `usdToInrFetchedAt` is older than 24h). Optional Lambda: `backend/src/lambdas/handlers/fxRateRefresh.ts` — **not** one of the five hardcoded `deploy.yml` names. Suggested EventBridge rule: `cron(30 18 * * ? *)` UTC = 00:00 IST.
 
+**That in-process loop is gated by `FX_REFRESH_ENABLED`** (`resolveFxRefreshEnabled` in `backend/src/config/env.ts`): unset means production only, `true` forces it on, `false` forces it off even in production. Local dev shares the remote database, so an ungated boot tick would write `PlatformSettings` + an `FxRateHistory` row on every restart. The flag covers **only** the loop — `POST /api/admin/settings/refresh-fx` and the EventBridge Lambda call `refreshUsdInrRate()` directly and always refresh. With the loop off, billing uses the stored (or env-seeded) rate and the API logs that once at boot.
+
 ---
 
 ## 7. Known gap: WhatsApp conversation fees are not billed

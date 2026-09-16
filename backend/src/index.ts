@@ -3,7 +3,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import { env } from './config/env.js';
+import { env, isFxRefreshLoopEnabled } from './config/env.js';
 import { logger, requestLogger } from './logger.js';
 import { webhookRouter } from './routes/webhook.js';
 import { vendorsRouter } from './routes/vendors.js';
@@ -145,7 +145,16 @@ async function bootstrap() {
   const server = app.listen(port, () => {
     logger.info({ port }, 'HTTP server started');
     if (env.NODE_ENV !== 'test') {
-      fxRefreshTimer = startFxRateRefreshLoop();
+      if (isFxRefreshLoopEnabled) {
+        fxRefreshTimer = startFxRateRefreshLoop();
+      } else {
+        logger.info(
+          { nodeEnv: env.NODE_ENV, fxRefreshEnabled: env.FX_REFRESH_ENABLED ?? null },
+          'FX refresh loop disabled — billing will use the stored/seeded USD/INR rate. ' +
+            'Set FX_REFRESH_ENABLED=true to refresh from this process; ' +
+            'POST /api/admin/settings/refresh-fx works either way.'
+        );
+      }
     }
     process.send?.('ready');
   });

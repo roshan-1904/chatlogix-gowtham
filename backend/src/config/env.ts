@@ -111,6 +111,10 @@ const EnvSchema = z.object({
   USD_TO_INR_RATE: z.string().default('83'),
   PLATFORM_FEE_PER_TURN_MILLI: z.string().default('0'),
   PLATFORM_FEE_OUTBOUND_MEDIA_MILLI: z.string().default('0'),
+  // Boot-time + 24h background USD/INR refresh. Unset = production only, so a
+  // local process pointed at the shared database never writes PlatformSettings
+  // or FxRateHistory. Never gates the admin refresh or the EventBridge Lambda.
+  FX_REFRESH_ENABLED: z.string().optional(),
 
   // Feature flags
   USE_STRUCTURED_AI_RESPONSES: z.string().optional(),
@@ -217,6 +221,26 @@ export const walletEnv = {
   presetsMilli: parsePresetsMilli(env.WALLET_TOPUP_PRESETS_MILLI || '500000,1000000,2000000,5000000'),
   mockTopUpEnabled: env.MOCK_WALLET_TOPUP_ENABLED !== 'false'
 };
+
+/**
+ * Explicit 'true'/'false' wins; otherwise the loop runs in production only.
+ * Applies to the automatic loop started in index.ts — `refreshUsdInrRate()`
+ * itself stays callable, so POST /api/admin/settings/refresh-fx and the
+ * EventBridge fxRateRefresh Lambda are unaffected.
+ */
+export function resolveFxRefreshEnabled(
+  flag: string | undefined,
+  nodeEnv: string
+): boolean {
+  if (flag === 'true') return true;
+  if (flag === 'false') return false;
+  return nodeEnv === 'production';
+}
+
+export const isFxRefreshLoopEnabled = resolveFxRefreshEnabled(
+  env.FX_REFRESH_ENABLED,
+  env.NODE_ENV
+);
 
 /**
  * Product Matching Configuration

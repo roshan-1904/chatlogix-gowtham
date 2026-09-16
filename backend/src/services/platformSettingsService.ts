@@ -494,6 +494,11 @@ export async function maybeRefreshUsdInrRate(): Promise<FxRefreshResult | null> 
   return refreshUsdInrRate();
 }
 
+/**
+ * Ticks immediately, then every 24h. Callers must gate on
+ * `isFxRefreshLoopEnabled` (FX_REFRESH_ENABLED) — a local process sharing the
+ * production database should not write PlatformSettings on every restart.
+ */
 export function startFxRateRefreshLoop(): NodeJS.Timeout {
   const tick = () => {
     void maybeRefreshUsdInrRate().catch((err) => {

@@ -7,6 +7,9 @@ import { refreshUsdInrRate } from '../../services/platformSettingsService.js';
  * outside this repo (same as order-recovery). Do **not** add this function
  * to the five hardcoded names in `.github/workflows/deploy.yml`.
  *
+ * `FX_REFRESH_ENABLED` does not apply here — it gates only the in-process loop
+ * the API starts at boot. An EventBridge invocation always refreshes.
+ *
  * Suggested EventBridge rule: `cron(30 18 * * ? *)` UTC = 00:00 IST.
  */
 export const handler = async (): Promise<void> => {
