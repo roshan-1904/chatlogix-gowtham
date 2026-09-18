@@ -1,32 +1,45 @@
 import { lazy, Suspense, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { getWhatsAppStatus } from '../lib/whatsappConnect';
+import { useAuth } from '@chatlogix/auth';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@chatlogix/ui';
-import { DashboardStatCard } from '../components/dashboard/DashboardStatCard';
+import { DashboardMetricTile } from '../components/dashboard/DashboardMetricTile';
 import { WalletBalanceCard } from '../components/dashboard/WalletBalanceCard';
-import { DateRangeFilter } from '../components/dashboard/DateRangeFilter';
 import { DashboardSkeleton } from '../components/dashboard/DashboardSkeleton';
 import { DashboardErrorBoundary } from '../components/dashboard/DashboardErrorBoundary';
 import { EmptyOrders, EmptyConversations } from '../components/dashboard/EmptyStates';
 import { RecentConversationsWidget } from '../components/dashboard/RecentConversationsWidget';
 import { RecentOrdersWidget } from '../components/dashboard/RecentOrdersWidget';
 import { QuickActionsPanel } from '../components/dashboard/QuickActionsPanel';
+import { DashboardCommandBar } from '../components/dashboard/DashboardCommandBar';
+import { ConnectWhatsAppPromo } from '../components/dashboard/ConnectWhatsAppPromo';
+import { NeedsAttentionPanel } from '../components/dashboard/NeedsAttentionPanel';
+import { DashboardSectionCard } from '../components/dashboard/DashboardSectionCard';
+import { buildNeedsAttentionItems } from '../components/dashboard/buildNeedsAttentionItems';
+import { IconChat, IconOrders, IconRevenue, IconWallet } from '../components/dashboard/dashboardIcons';
 import { useDashboardStats } from '../hooks/dashboard/useDashboardStats';
-import { formatAmountWithSymbol } from '../utils/currency';
+import { useVendorConfig } from '../hooks/useVendorConfig';
+import { formatAmountWithSymbol, formatWalletAmount } from '../utils/currency';
 
-// Lazy load chart components for better performance
-const SpendBreakdownChart = lazy(() => import('../components/dashboard/SpendBreakdownChart').then(m => ({ default: m.SpendBreakdownChart })));
-const SpendTrendChart = lazy(() => import('../components/dashboard/SpendTrendChart').then(m => ({ default: m.SpendTrendChart })));
-const OrderStatusChart = lazy(() => import('../components/dashboard/OrderStatusChart').then(m => ({ default: m.OrderStatusChart })));
+const SpendBreakdownChart = lazy(() =>
+  import('../components/dashboard/SpendBreakdownChart').then((m) => ({ default: m.SpendBreakdownChart }))
+);
+const SpendTrendChart = lazy(() =>
+  import('../components/dashboard/SpendTrendChart').then((m) => ({ default: m.SpendTrendChart }))
+);
+const OrderStatusChart = lazy(() =>
+  import('../components/dashboard/OrderStatusChart').then((m) => ({ default: m.OrderStatusChart }))
+);
 
-// Chart loading fallback
 const ChartSkeleton = () => (
-  <div className="flex items-center justify-center h-64 bg-gray-50 rounded-lg border border-gray-200 animate-pulse">
-    <p className="text-sm text-gray-500">Loading chart...</p>
+  <div className="flex h-[240px] items-center justify-center rounded-lg border border-gray-200 bg-gray-50 animate-pulse">
+    <p className="text-sm text-gray-500">Loading chart…</p>
   </div>
 );
 
 function formatTimeAgo(date: Date | null): string {
-  if (!date) return 'Never';
+  if (!date) return 'never';
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
   if (seconds < 60) return `${seconds}s ago`;
   const minutes = Math.floor(seconds / 60);
@@ -39,6 +52,15 @@ function formatTimeAgo(date: Date | null): string {
 
 export function Dashboard() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const vendorConfig = useVendorConfig();
+  const whatsappQuery = useQuery({
+    queryKey: ['whatsapp-status', user?.vendorId],
+    queryFn: getWhatsAppStatus,
+    enabled: !!user?.vendorId,
+    staleTime: 60_000,
+  });
+
   const {
     stats,
     isLoading,
@@ -51,19 +73,52 @@ export function Dashboard() {
     setDateRange,
   } = useDashboardStats();
 
-  // All hooks must be called before any conditional returns
-  const isStale = useMemo(() => lastUpdated ? Date.now() - lastUpdated.getTime() > 60000 : false, [lastUpdated]);
-  
-  // Memoize formatted values to avoid recalculation on every render
-  // Use optional chaining and provide defaults to handle undefined stats
-  const formattedRevenueTotal = useMemo(() => stats ? formatAmountWithSymbol(stats.revenue.total) : '', [stats?.revenue.total]);
-  const formattedRevenueToday = useMemo(() => stats ? formatAmountWithSymbol(stats.revenue.today) : '', [stats?.revenue.today]);
-  const formattedRevenueThisMonth = useMemo(() => stats ? formatAmountWithSymbol(stats.revenue.thisMonth) : '', [stats?.revenue.thisMonth]);
+  const isStale = useMemo(
+    () => (lastUpdated ? Date.now() - lastUpdated.getTime() > 60000 : false),
+    [lastUpdated]
+  );
+
+  const whatsappLive = whatsappQuery.data?.connectStatus === 'live';
+
+  const formattedRevenueTotal = useMemo(
+    () => (stats ? formatAmountWithSymbol(stats.revenue.total) : ''),
+    [stats?.revenue.total]
+  );
+  const formattedRevenueToday = useMemo(
+    () => (stats ? formatAmountWithSymbol(stats.revenue.today) : ''),
+    [stats?.revenue.today]
+  );
+
+  const needsAttentionItems = useMemo(() => {
+    if (!stats) return [];
+    return buildNeedsAttentionItems({
+      pendingOrders: stats.orders.pending,
+      whatsappLive,
+      lowBalanceWarning: stats.billing.lowBalanceWarning,
+      aiPaused: stats.conversations.aiPaused,
+    });
+  }, [stats, whatsappLive]);
+
+  const showAnalytics = useMemo(() => {
+    if (!stats) return false;
+    const spendTotal = stats.billing.breakdownBySource.reduce((sum, row) => sum + row.milli, 0);
+    return spendTotal > 0 || stats.orders.statusBreakdown.length > 1;
+  }, [stats]);
+
+  const conversionRateLabel = useMemo(() => {
+    if (!stats) return undefined;
+    if (stats.conversations.total < 10) {
+      return 'Conversion rate: — (need at least 10 conversations)';
+    }
+    return `Conversion rate: ${stats.conversations.conversionRate.toFixed(1)}% (${stats.conversations.withOrders} with orders)`;
+  }, [stats]);
+
+  const hideWalletAddMoney = needsAttentionItems.some((item) => item.id === 'low-wallet');
 
   if (isLoading && !stats) {
     return (
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 sm:mb-6">Dashboard</h1>
+      <div className="space-y-4">
+        <h1 className="text-xl font-bold text-primary-500 sm:text-2xl">Dashboard</h1>
         <DashboardSkeleton />
       </div>
     );
@@ -71,11 +126,11 @@ export function Dashboard() {
 
   if (error && !stats) {
     return (
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4 sm:mb-6">Dashboard</h1>
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3 sm:p-4">
-          <p className="text-sm sm:text-base text-red-800">{error}</p>
-          <Button onClick={() => void refetch()} variant="primary" className="mt-3 sm:mt-4">
+      <div className="space-y-4">
+        <h1 className="text-xl font-bold text-primary-500 sm:text-2xl">Dashboard</h1>
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+          <p className="text-sm text-red-800">{error}</p>
+          <Button onClick={() => void refetch()} variant="primary" className="mt-3">
             Retry
           </Button>
         </div>
@@ -89,188 +144,147 @@ export function Dashboard() {
 
   return (
     <DashboardErrorBoundary>
-      <main className="space-y-3 sm:space-y-4 pb-4" role="main" aria-label="Vendor dashboard">
-        {/* Header */}
-        <header className="flex flex-col gap-3">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-[#072349] mb-0.5">Dashboard</h1>
-            <p className="text-xs sm:text-sm text-gray-500">Overview of your business performance</p>
-          </div>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
-            <DateRangeFilter
-              preset={dateRangePreset}
-              startDate={startDate}
-              endDate={endDate}
-              onDateRangeChange={setDateRange}
-              dateRangeLabel={stats.dateRange.label}
-            />
-            <div className="flex flex-wrap items-center gap-2">
-              {isStale && (
-                <span className="text-xs text-yellow-600 bg-yellow-50 px-2 py-0.5 rounded whitespace-nowrap">⚠️ Data may be stale</span>
-              )}
-              <span className="text-xs text-gray-500 whitespace-nowrap">
-                Updated {formatTimeAgo(lastUpdated)}
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => void refetch()}
-                isLoading={isLoading}
-                className="text-xs sm:text-sm"
-                aria-label="Refresh dashboard data"
-              >
-                <span aria-hidden="true">🔄</span> Refresh
-              </Button>
-            </div>
-          </div>
-        </header>
+      <main className="space-y-4 pb-6 sm:space-y-5" role="main" aria-label="Vendor dashboard">
+        <DashboardCommandBar
+          vendorName={vendorConfig.data?.businessName}
+          dateRangePreset={dateRangePreset}
+          startDate={startDate}
+          endDate={endDate}
+          onDateRangeChange={setDateRange}
+          lastUpdatedLabel={formatTimeAgo(lastUpdated)}
+          isStale={isStale}
+          isRefreshing={isLoading}
+          onRefresh={() => void refetch()}
+        />
 
-        {/* Top Metrics Cards */}
-        <section aria-label="Key metrics" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-5">
-          <DashboardStatCard
-            label="Total Orders"
-            value={stats.orders.total}
-            subValue={`Today: ${stats.orders.today} • Pending: ${stats.orders.pending}`}
-            trend={stats.orders.trend?.direction}
-            onClick={() => void navigate('/orders')}
+        {!whatsappLive && (
+          <ConnectWhatsAppPromo showLowBalanceLink={stats.billing.lowBalanceWarning} />
+        )}
+
+        <section aria-label="Pulse metrics" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <DashboardMetricTile
+            label="Pending orders"
+            value={stats.orders.pending}
+            subValue={`Today: ${stats.orders.today}`}
+            icon={<IconOrders className="h-4 w-4" />}
+            onClick={() => void navigate('/orders?status=pending')}
           />
-          <DashboardStatCard
+          <DashboardMetricTile
             label="Revenue"
             value={formattedRevenueTotal}
-            subValue={`Today: ${formattedRevenueToday} • This Month: ${formattedRevenueThisMonth}`}
+            caption={`In period: ${stats.dateRange.label}`}
+            subValue={`Today: ${formattedRevenueToday}`}
             trend={stats.revenue.trend?.direction}
+            icon={<IconRevenue className="h-4 w-4" />}
             onClick={() => void navigate('/orders')}
           />
-          <WalletBalanceCard
-            balanceMilli={stats.billing.balanceMilli}
-            spentThisMonthMilli={stats.billing.spend.thisMonth}
-            lowBalanceWarning={stats.billing.lowBalanceWarning}
-            billingCycleEnd={stats.billing.billingCycleEnd}
+          <DashboardMetricTile
+            label="Active conversations"
+            value={stats.conversations.active}
+            subValue={`Total: ${stats.conversations.total}`}
+            icon={<IconChat className="h-4 w-4" />}
+            onClick={() => void navigate('/conversations')}
           />
-          <DashboardStatCard
-            label="Products"
-            value={stats.products.total}
-            subValue={`Active: ${stats.products.active} • Out of Stock: ${stats.products.outOfStock}`}
-            onClick={() => void navigate('/catalog')}
+          <DashboardMetricTile
+            label="Wallet"
+            value={formatWalletAmount(stats.billing.balanceMilli)}
+            subValue={stats.billing.lowBalanceWarning ? 'Balance is low' : undefined}
+            highlight={stats.billing.lowBalanceWarning}
+            icon={<IconWallet className="h-4 w-4" />}
+            onClick={() => void navigate('/wallet')}
           />
         </section>
 
-        {/* Conversation Insights Section */}
-        <section aria-label="Conversation insights" className="space-y-3">
-          <div className="border-b border-gray-200 pb-2 sm:pb-3 pt-2">
-            <h2 className="text-lg sm:text-xl font-semibold text-[#072349] mb-1">Conversation Insights</h2>
-            <p className="text-xs text-gray-500">Track your customer engagement metrics</p>
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 sm:gap-4">
-            {/* Left Side - 40% (2 columns out of 5) */}
-            <div className="lg:col-span-2 space-y-2 sm:space-y-3">
-              <DashboardStatCard
-                label="Total Conversations"
-                value={stats.conversations.total}
-              />
-              <DashboardStatCard
-                label="Active Conversations"
-                value={stats.conversations.active}
-                subValue={`Today: ${stats.conversations.today}`}
-              />
-              <DashboardStatCard
-                label="Conversion Rate"
-                value={`${stats.conversations.conversionRate.toFixed(1)}%`}
-                subValue={`${stats.conversations.withOrders} with orders`}
-              />
-            </div>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-5">
+          <div className="space-y-4 lg:col-span-8">
+            <NeedsAttentionPanel items={needsAttentionItems} />
 
-            {/* Right Side - 60% (3 columns out of 5) */}
-            <div className="lg:col-span-3 flex flex-col">
+            <DashboardSectionCard
+              title="Recent conversations"
+              subtitle="Latest customer chats"
+              footerLabel="View all conversations"
+              footerTo="/conversations"
+            >
               {stats.conversations.recentActivity.length > 0 ? (
-                <RecentConversationsWidget conversations={stats.conversations.recentActivity} />
+                <RecentConversationsWidget
+                  conversations={stats.conversations.recentActivity}
+                  conversionRateLabel={conversionRateLabel}
+                />
               ) : (
                 <EmptyConversations />
               )}
-            </div>
-          </div>
-        </section>
+            </DashboardSectionCard>
 
-        {/* Wallet Spend Visualizations */}
-        <section aria-label="Wallet spend" className="space-y-3">
-          <div className="border-b border-gray-200 pb-2 sm:pb-3 pt-2">
-            <h2 className="text-lg sm:text-xl font-semibold text-[#072349] mb-1">Spending</h2>
-            <p className="text-xs text-gray-500">Where your wallet money goes, and how it is trending</p>
+            <DashboardSectionCard
+              title="Recent orders"
+              subtitle="Latest customer orders"
+              footerLabel="View all orders"
+              footerTo="/orders"
+            >
+              {stats.recentOrders.length > 0 ? <RecentOrdersWidget orders={stats.recentOrders} /> : <EmptyOrders />}
+            </DashboardSectionCard>
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
-            <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">What you spent on</h3>
-              <Suspense fallback={<ChartSkeleton />}>
-                <SpendBreakdownChart breakdownBySource={stats.billing.breakdownBySource} />
-              </Suspense>
-            </div>
-            <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">Spend per day</h3>
-              <Suspense fallback={<ChartSkeleton />}>
-                <SpendTrendChart
-                  dailySpend={stats.billing.dailySpend}
-                  averagePerDayMilli={stats.billing.averagePerDayMilli}
-                  projectedMonthlySpendMilli={stats.billing.projectedMonthlySpendMilli}
-                />
-              </Suspense>
-            </div>
-          </div>
-        </section>
 
-        {/* Order Status Chart */}
-        {stats.orders.statusBreakdown.length > 0 && (
-          <section aria-label="Order status distribution" className="space-y-3">
-            <div className="border-b border-gray-200 pb-2 sm:pb-3 pt-2">
-              <h2 className="text-lg sm:text-xl font-semibold text-[#072349] mb-1">Order Status Distribution</h2>
-              <p className="text-xs text-gray-500">Orders by status within selected date range</p>
+          <aside className="space-y-4 lg:col-span-4">
+            <WalletBalanceCard
+              balanceMilli={stats.billing.balanceMilli}
+              spentThisMonthMilli={stats.billing.spend.thisMonth}
+              lowBalanceWarning={stats.billing.lowBalanceWarning}
+              billingCycleEnd={stats.billing.billingCycleEnd}
+              hideAddMoney={hideWalletAddMoney}
+            />
+            <DashboardSectionCard title="Quick actions">
+              <QuickActionsPanel billing={stats.billing} whatsappLive={whatsappLive} />
+            </DashboardSectionCard>
+          </aside>
+        </div>
+
+        {showAnalytics && (
+          <DashboardSectionCard
+            title="Usage and orders"
+            subtitle="Wallet spend and order mix for the selected period"
+          >
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <div>
+                <h3 className="mb-2 text-xs font-semibold text-gray-600">What you spent on</h3>
+                <Suspense fallback={<ChartSkeleton />}>
+                  <div className="h-[240px]">
+                    <SpendBreakdownChart breakdownBySource={stats.billing.breakdownBySource} />
+                  </div>
+                </Suspense>
+              </div>
+              <div>
+                <h3 className="mb-2 text-xs font-semibold text-gray-600">Spend per day</h3>
+                <Suspense fallback={<ChartSkeleton />}>
+                  <div className="h-[240px]">
+                    <SpendTrendChart
+                      dailySpend={stats.billing.dailySpend}
+                      averagePerDayMilli={stats.billing.averagePerDayMilli}
+                      projectedMonthlySpendMilli={stats.billing.projectedMonthlySpendMilli}
+                    />
+                  </div>
+                </Suspense>
+              </div>
+              {stats.orders.statusBreakdown.length > 1 && (
+                <div className="lg:col-span-2">
+                  <h3 className="mb-2 text-xs font-semibold text-gray-600">Orders by status</h3>
+                  <Suspense fallback={<ChartSkeleton />}>
+                    <div className="h-[240px]">
+                      <OrderStatusChart statusBreakdown={stats.orders.statusBreakdown} />
+                    </div>
+                  </Suspense>
+                </div>
+              )}
             </div>
-            <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4">
-              <Suspense fallback={<ChartSkeleton />}>
-                <OrderStatusChart statusBreakdown={stats.orders.statusBreakdown} />
-              </Suspense>
-            </div>
-          </section>
+          </DashboardSectionCard>
         )}
 
-        {/* Recent Orders & Quick Actions */}
-        <section aria-label="Recent orders and quick actions" className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4">
-          {stats.recentOrders.length > 0 ? (
-            <div className="lg:col-span-2 space-y-2">
-              <div className="border-b border-gray-200 pb-2 sm:pb-3 pt-2">
-                <h2 className="text-lg sm:text-xl font-semibold text-[#072349] mb-1">Recent Orders</h2>
-                <p className="text-xs text-gray-500">Latest customer orders</p>
-              </div>
-              <RecentOrdersWidget orders={stats.recentOrders} />
-            </div>
-          ) : (
-            <div className="lg:col-span-2">
-              <div className="border-b border-gray-200 pb-2 sm:pb-3 pt-2 mb-2">
-                <h2 className="text-lg sm:text-xl font-semibold text-[#072349] mb-1">Recent Orders</h2>
-                <p className="text-xs text-gray-500">Latest customer orders</p>
-              </div>
-              <EmptyOrders />
-            </div>
-          )}
-          <div className="space-y-2">
-            <div className="border-b border-gray-200 pb-2 sm:pb-3 pt-2">
-              <h2 className="text-lg sm:text-xl font-semibold text-[#072349] mb-1">Quick Actions</h2>
-              <p className="text-xs text-gray-500">Common tasks and shortcuts</p>
-            </div>
-            <QuickActionsPanel billing={stats.billing} />
-          </div>
-        </section>
-
-        {/* Error Banner */}
-        {error && stats && (
-          <div role="alert" aria-live="polite">
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 sm:p-4">
-            <p className="text-yellow-800 text-xs sm:text-sm">
-              ⚠️ {error} - Showing cached data
-            </p>
-            <Button onClick={() => void refetch()} variant="ghost" size="sm" className="mt-2 text-xs sm:text-sm">
+        {error && (
+          <div role="alert" aria-live="polite" className="rounded-lg border border-yellow-200 bg-yellow-50 p-4">
+            <p className="text-xs text-yellow-800 sm:text-sm">{error} — showing cached data</p>
+            <Button onClick={() => void refetch()} variant="ghost" size="sm" className="mt-2">
               Retry
             </Button>
-          </div>
           </div>
         )}
       </main>

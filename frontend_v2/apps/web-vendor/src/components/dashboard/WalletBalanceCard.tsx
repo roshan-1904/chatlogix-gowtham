@@ -7,13 +7,15 @@ interface WalletBalanceCardProps {
   spentThisMonthMilli: number;
   lowBalanceWarning: boolean;
   billingCycleEnd?: string;
+  hideAddMoney?: boolean;
 }
 
 export function WalletBalanceCard({
   balanceMilli,
   spentThisMonthMilli,
   lowBalanceWarning,
-  billingCycleEnd
+  billingCycleEnd,
+  hideAddMoney = false,
 }: WalletBalanceCardProps) {
   const navigate = useNavigate();
   const balanceLabel = formatWalletAmount(balanceMilli);
@@ -22,43 +24,32 @@ export function WalletBalanceCard({
     : 'This month';
 
   return (
-    <Card className="p-3 sm:p-4 lg:p-5 bg-gradient-to-br from-white to-[#25D366]/5 border-[#25D366]/10 flex flex-col min-h-[120px] sm:min-h-[140px]">
-      <h3 className="text-[9px] sm:text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2 sm:mb-3">
-        Wallet balance
-      </h3>
-      <p
-        className="text-2xl sm:text-3xl font-bold text-[#072349] mb-2 leading-tight"
-        aria-label={`Wallet balance is ${balanceLabel}`}
-      >
+    <Card className="rounded-xl border-gray-200/80 p-4 shadow-sm">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">Wallet</p>
+      <p className="mt-1 text-2xl font-bold text-primary-500" aria-label={`Wallet balance is ${balanceLabel}`}>
         {balanceLabel}
       </p>
-
-      <div className="flex-1 flex flex-col justify-end gap-2">
-        <div className="space-y-0.5">
-          <p className="text-[10px] sm:text-xs text-gray-500 leading-relaxed">
-            Spent {formatWalletAmount(spentThisMonthMilli)}
-          </p>
-          <p className="text-[10px] sm:text-xs text-gray-400 leading-relaxed">{cycleLabel}</p>
-        </div>
-
-        {lowBalanceWarning && (
-          <p className="text-[10px] sm:text-xs font-medium text-yellow-700" role="status">
-            Running low. Add money so replies keep going out.
-          </p>
-        )}
-
+      <p className="mt-2 text-xs text-gray-500">
+        Spent {formatWalletAmount(spentThisMonthMilli)} · {cycleLabel}
+      </p>
+      {lowBalanceWarning && (
+        <p className="mt-2 text-xs font-medium text-amber-700" role="status">
+          Balance is low — replies may stop when it runs out.
+        </p>
+      )}
+      {!hideAddMoney && (
         <button
           type="button"
           onClick={() => void navigate('/wallet')}
-          className={`w-full rounded-lg py-1.5 text-xs font-semibold transition-colors ${
+          className={`mt-3 w-full rounded-lg py-2 text-xs font-semibold transition-colors ${
             lowBalanceWarning
-              ? 'bg-[#25D366] text-white hover:bg-[#25D366]/90'
-              : 'border border-[#072349]/15 text-[#072349] hover:bg-[#072349]/5'
+              ? 'bg-secondary-500 text-white hover:bg-secondary-500/90'
+              : 'border border-primary-500/15 text-primary-500 hover:bg-primary-500/5'
           }`}
         >
           Add money
         </button>
-      </div>
+      )}
     </Card>
   );
 }

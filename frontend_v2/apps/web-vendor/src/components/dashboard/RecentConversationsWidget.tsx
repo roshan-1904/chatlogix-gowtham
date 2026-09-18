@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import { Card } from '@chatlogix/ui';
 import { useNavigate } from 'react-router-dom';
 import { formatPhone, truncateMessage } from '../../lib/format';
 import { InsightBadge } from '../conversations/InsightBadge';
@@ -7,6 +6,7 @@ import type { DashboardStats } from '../../types/dashboard';
 
 interface RecentConversationsWidgetProps {
   readonly conversations: DashboardStats['conversations']['recentActivity'];
+  readonly conversionRateLabel?: string;
 }
 
 function getInitials(nameOrPhone: string): string {
@@ -42,72 +42,61 @@ function getOrderBadgeKind(status?: string): 'placed-order' | 'order-ready' | 'o
   }
 }
 
-export function RecentConversationsWidget({ conversations }: RecentConversationsWidgetProps) {
+export function RecentConversationsWidget({
+  conversations,
+  conversionRateLabel,
+}: RecentConversationsWidgetProps) {
   const navigate = useNavigate();
 
-  // Sort conversations by minutesSinceLastMessage (most recent first)
   const sortedConversations = useMemo(() => {
-    return [...conversations].sort((a, b) => {
-      return a.minutesSinceLastMessage - b.minutesSinceLastMessage;
-    });
+    return [...conversations].sort((a, b) => a.minutesSinceLastMessage - b.minutesSinceLastMessage);
   }, [conversations]);
 
   if (sortedConversations.length === 0) {
     return null;
   }
 
+  const rows = sortedConversations.slice(0, 5);
+
   return (
-    <Card className="p-3 sm:p-4 flex flex-col w-full">
-      <h3 className="text-sm sm:text-base font-semibold text-[#072349] mb-2 sm:mb-3 flex-shrink-0">Recent Conversations</h3>
-      <div 
-        className="overflow-y-auto pr-1 sm:pr-2 space-y-1.5 sm:space-y-2 conversation-scrollbar"
-        style={{ height: 'min(390px, calc(100vh - 400px))', maxHeight: '390px' }}
-        role="list"
-        aria-label="Recent conversations list"
-      >
-        {sortedConversations.slice(0, 10).map((conv) => {
+    <div className="space-y-2">
+      {conversionRateLabel && (
+        <p className="text-xs text-gray-500">{conversionRateLabel}</p>
+      )}
+      <div className="space-y-1.5" role="list" aria-label="Recent conversations list">
+        {rows.map((conv) => {
           const displayName = conv.customerName || formatPhone(conv.customerPhone);
           const secondaryText = conv.customerName ? formatPhone(conv.customerPhone) : '';
-          
-          const handleClick = () => navigate(`/conversations?conversationId=${conv.id}`);
 
           return (
             <button
               key={conv.id}
               type="button"
-              className="w-full text-left flex items-start space-x-2 sm:space-x-3 p-2 sm:p-3 hover:bg-gray-50 rounded-lg cursor-pointer transition-all duration-200 border border-transparent hover:border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#072349] focus:ring-offset-1"
-              onClick={handleClick}
+              className="flex w-full items-start gap-2 rounded-lg border border-transparent p-2 text-left transition-colors hover:border-gray-200 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500/30 sm:gap-3 sm:p-2.5"
+              onClick={() => navigate(`/conversations?conversationId=${conv.id}`)}
               role="listitem"
-              aria-label={`Conversation with ${displayName}${conv.hasActiveOrder ? `, active order status: ${conv.orderStatus}` : ''}. Last message: ${conv.lastMessage || 'none'}. ${formatTimeAgo(conv.minutesSinceLastMessage)}`}
+              aria-label={`Conversation with ${displayName}`}
             >
-              <div className="flex-shrink-0">
-                <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-green-200 flex items-center justify-center text-[10px] sm:text-xs font-semibold text-green-900">
-                  {getInitials(displayName)}
-                </div>
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary-500/15 text-[10px] font-semibold text-primary-500 sm:h-10 sm:w-10">
+                {getInitials(displayName)}
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-0.5 sm:mb-1">
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-xs sm:text-sm font-semibold text-gray-900 truncate">
-                      {displayName}
-                    </span>
-                    {secondaryText && (
-                      <span className="text-[10px] sm:text-xs text-gray-500 truncate">
-                        {secondaryText}
-                      </span>
-                    )}
-                  </div>
-                  <span className="text-[10px] sm:text-xs text-gray-500 whitespace-nowrap ml-1 sm:ml-2">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate text-xs font-semibold text-gray-900 sm:text-sm">{displayName}</span>
+                  <span className="shrink-0 text-[10px] text-gray-500 sm:text-xs">
                     {formatTimeAgo(conv.minutesSinceLastMessage)}
                   </span>
                 </div>
+                {secondaryText && (
+                  <p className="truncate text-[10px] text-gray-500 sm:text-xs">{secondaryText}</p>
+                )}
                 {conv.lastMessage && (
-                  <p className="text-[10px] sm:text-xs text-gray-600 truncate mb-0.5 sm:mb-1">
+                  <p className="truncate text-[10px] text-gray-600 sm:text-xs">
                     {truncateMessage(conv.lastMessage, 50)}
                   </p>
                 )}
                 {conv.hasActiveOrder && conv.orderStatus && (
-                  <div className="flex items-center mt-0.5 sm:mt-1">
+                  <div className="mt-1">
                     <InsightBadge kind={getOrderBadgeKind(conv.orderStatus)} label={conv.orderStatus} />
                   </div>
                 )}
@@ -116,7 +105,6 @@ export function RecentConversationsWidget({ conversations }: RecentConversations
           );
         })}
       </div>
-    </Card>
+    </div>
   );
 }
-

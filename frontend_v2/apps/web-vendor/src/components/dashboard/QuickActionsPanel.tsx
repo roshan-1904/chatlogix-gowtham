@@ -1,57 +1,42 @@
-import { Card } from '@chatlogix/ui';
-import { Button } from '@chatlogix/ui';
 import { useNavigate } from 'react-router-dom';
+import { IconCatalog, IconChat, IconOrders, IconWallet } from './dashboardIcons';
 import type { DashboardStats } from '../../types/dashboard';
 
 interface QuickActionsPanelProps {
   billing: DashboardStats['billing'];
+  whatsappLive?: boolean;
 }
 
-export function QuickActionsPanel({ billing }: QuickActionsPanelProps) {
+const actionClass =
+  'flex flex-col items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white p-4 text-center transition-colors hover:border-primary-500/20 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500/30';
+
+export function QuickActionsPanel({ billing, whatsappLive = false }: QuickActionsPanelProps) {
   const navigate = useNavigate();
 
   return (
-    <Card className="p-4">
-      <h3 className="text-base font-semibold text-[#072349] mb-3">Quick Actions</h3>
-      <nav className="space-y-2" aria-label="Quick actions navigation">
-        <Button
-          variant="primary"
-          onClick={() => void navigate('/catalog/new')}
-          className="w-full justify-center py-2 font-medium text-sm"
-          aria-label="Add a new product to catalog"
-        >
-          <span aria-hidden="true">➕</span> Add Product
-        </Button>
-        <Button
-          variant="secondary"
-          onClick={() => void navigate('/orders')}
-          className="w-full justify-center py-2 font-medium text-sm"
-          aria-label="View all orders"
-        >
-          <span aria-hidden="true">📋</span> View Orders
-        </Button>
-        <Button
-          variant="secondary"
-          onClick={() => void navigate('/wallet')}
-          className={`w-full justify-center py-2 font-medium text-sm ${
-            billing.lowBalanceWarning
-              ? 'bg-[#25D366] hover:bg-[#25D366]/90 text-white border-0'
-              : ''
-          }`}
-          aria-label="Add money to your wallet"
-        >
-          <span aria-hidden="true">💳</span> Add Money
-        </Button>
-        <Button
-          variant="ghost"
-          onClick={() => void navigate('/conversations')}
-          className="w-full justify-center py-2 font-medium text-sm hover:bg-gray-100"
-          aria-label="View all conversations"
-        >
-          <span aria-hidden="true">💬</span> View Conversations
-        </Button>
-      </nav>
-    </Card>
+    <nav className="grid grid-cols-2 gap-2 sm:gap-3" aria-label="Quick actions">
+      <button type="button" className={actionClass} onClick={() => void navigate('/catalog/new')}>
+        <IconCatalog className="h-5 w-5 text-primary-500" />
+        <span className="text-xs font-medium text-gray-800">Add product</span>
+      </button>
+      <button type="button" className={actionClass} onClick={() => void navigate('/orders')}>
+        <IconOrders className="h-5 w-5 text-primary-500" />
+        <span className="text-xs font-medium text-gray-800">View orders</span>
+      </button>
+      <button type="button" className={actionClass} onClick={() => void navigate('/settings/whatsapp')}>
+        <IconChat className="h-5 w-5 text-secondary-500" />
+        <span className="text-xs font-medium text-gray-800">
+          {whatsappLive ? 'WhatsApp' : 'Connect WhatsApp'}
+        </span>
+      </button>
+      <button
+        type="button"
+        className={`${actionClass} ${billing.lowBalanceWarning ? 'border-secondary-500/30 bg-secondary-500/5' : ''}`}
+        onClick={() => void navigate('/wallet')}
+      >
+        <IconWallet className={`h-5 w-5 ${billing.lowBalanceWarning ? 'text-secondary-500' : 'text-primary-500'}`} />
+        <span className="text-xs font-medium text-gray-800">Add money</span>
+      </button>
+    </nav>
   );
 }
-

@@ -18,6 +18,7 @@ import {
   getIntakeSnapshot,
   persistThinProductsForDemo
 } from '../services/onboardingIntakeService.js';
+import { completeOnboarding } from '../services/vendorOnboardingService.js';
 
 export const vendorOnboardingRouter = Router();
 
@@ -384,42 +385,16 @@ vendorOnboardingRouter.post(
   })
 );
 
-vendorOnboardingRouter.post(
-  '/me/submit-for-approval',
-  requireRole('vendor'),
-  asyncHandler(async (req, res) => {
-    const vendorId = requireVendorId(req);
-    const vendor = await prisma.vendor.findUnique({
-      where: { id: vendorId },
-      select: { registrationStatus: true, businessName: true, email: true }
-    });
-    if (!vendor) {
-      return res.status(404).json({ error: 'vendor_not_found' });
-    }
-    if (vendor.registrationStatus === 'approved') {
-      return res.status(400).json({ error: 'already_approved' });
-    }
+const completeOnboardingHandler = asyncHandler(async (req, res) => {
+  const vendorId = requireVendorId(req);
+  const result = await completeOnboarding(vendorId);
+  return res.json(result);
+});
 
-    const updated = await prisma.vendor.update({
-      where: { id: vendorId },
-      data: {
-        registrationStatus: 'pending_approval',
-        submittedAt: new Date(),
-        onboardingStep: 5
-      },
-      select: {
-        registrationStatus: true,
-        submittedAt: true,
-        businessName: true,
-        phone: true
-      }
-    });
+vendorOnboardingRouter.post('/me/complete-onboarding', requireRole('vendor'), completeOnboardingHandler);
 
-    logOnboardingFunnelEvent('submitted', { vendorId });
-
-    return res.json(updated);
-  })
-);
+/** @deprecated Prefer POST /me/complete-onboarding */
+vendorOnboardingRouter.post('/me/submit-for-approval', requireRole('vendor'), completeOnboardingHandler);
 
 vendorOnboardingRouter.get(
   '/me',

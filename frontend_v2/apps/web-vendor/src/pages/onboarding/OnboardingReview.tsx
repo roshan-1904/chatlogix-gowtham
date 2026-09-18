@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '@chatlogix/auth';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -9,10 +10,10 @@ import { OnboardingActionSkeleton } from '../../components/onboarding/Onboarding
 import { onboardingCopy } from '../../components/onboarding/onboardingCopy';
 import { mapOnboardingError } from '../../components/onboarding/mapOnboardingError';
 import {
+  completeOnboarding,
   fetchOnboardingProfile,
   logClientFunnelEvent,
   patchOnboarding,
-  submitForApproval,
   type OnboardingProfile,
 } from '../../lib/onboarding';
 
@@ -32,11 +33,11 @@ function productLabel(count: number): string {
 
 export function OnboardingReview() {
   const navigate = useNavigate();
+  const { refreshAuth } = useAuth();
   const [profile, setProfile] = useState<OnboardingProfile | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [confirmation, setConfirmation] = useState<string | null>(null);
 
   const emailForm = useForm<{ email: string }>({
     resolver: zodResolver(emailSchema),
@@ -61,7 +62,6 @@ export function OnboardingReview() {
   const handleSubmit = async () => {
     if (!profile) return;
     setError(null);
-    setConfirmation(null);
 
     let nextProfile = profile;
     if (showEmailForm) {
@@ -87,10 +87,10 @@ export function OnboardingReview() {
     }
 
     try {
-      await submitForApproval();
-      logClientFunnelEvent('review_submitted', { vendor: nextProfile.businessName });
-      setConfirmation(onboardingCopy.review.submittedInline);
-      void navigate('/onboarding/submitted');
+      await completeOnboarding();
+      logClientFunnelEvent('review_completed', { vendor: nextProfile.businessName });
+      await refreshAuth();
+      void navigate('/dashboard', { replace: true });
     } catch (err) {
       setError(mapOnboardingError(err));
     } finally {
@@ -148,7 +148,6 @@ export function OnboardingReview() {
           <p className="mb-6 text-sm leading-relaxed text-gray-600">{onboardingCopy.step5.promise}</p>
 
           {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
-          {confirmation && <p className="mb-3 text-sm text-gray-700">{confirmation}</p>}
 
           <Button className="w-full" disabled={submitting} isLoading={submitting} onClick={() => void handleSubmit()}>
             {onboardingCopy.step5.submitCta}

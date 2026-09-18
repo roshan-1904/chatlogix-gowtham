@@ -26,10 +26,10 @@ export function mapOnboardingError(error: unknown): string {
     return 'We could not read that menu. Try a clearer photo, or add items by hand.';
   }
   if (lower.includes('trial') && lower.includes('expired')) {
-    return 'Your trial has expired. You can still submit for approval or contact support.';
+    return 'Your trial has expired. You can still finish setup or add funds from your wallet later.';
   }
   if (lower.includes('insufficient') || lower.includes('balance')) {
-    return 'Your trial balance is used up. You can still submit for approval.';
+    return 'Your trial balance is used up. You can still finish setup — top up from your wallet when you need more demo replies.';
   }
 
   return 'Something went wrong. Please try again. If this keeps happening, contact us using the link below.';

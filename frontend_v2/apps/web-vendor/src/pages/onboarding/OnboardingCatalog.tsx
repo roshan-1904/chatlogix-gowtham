@@ -340,7 +340,7 @@ export function OnboardingCatalog() {
           ) : null}
           {!walletOk && (
             <p className="mb-4 text-sm text-amber-800">
-              Trial balance is used up. Skip and submit for approval.
+              Trial balance is used up. Skip and finish setup — you can top up from your wallet later.
             </p>
           )}
           {reviewing ? (

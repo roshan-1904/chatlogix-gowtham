@@ -1,10 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { fetchMock, envState } = vi.hoisted(() => ({
+const { fetchMock, envState, prismaMock } = vi.hoisted(() => ({
   fetchMock: vi.fn(),
   envState: {
     WHATSAPP_ACCESS_TOKEN: 'test-token' as string | undefined,
     WHATSAPP_PHONE_NUMBER_ID: 'default-phone-id' as string | undefined
+  },
+  prismaMock: {
+    whatsAppNumber: { findUnique: vi.fn() }
   }
 }));
 
@@ -14,6 +17,12 @@ vi.mock('node-fetch', () => ({
 
 vi.mock('../../config/env.js', () => ({
   env: envState
+}));
+
+vi.mock('../../db/prisma.js', () => ({ prisma: prismaMock }));
+
+vi.mock('../../utils/whatsappTokenCrypto.js', () => ({
+  decryptWhatsAppToken: vi.fn((enc: string) => enc.replace(/^enc:/, ''))
 }));
 
 vi.mock('../../logger.js', () => ({
@@ -32,6 +41,7 @@ describe('sendTypingIndicator', () => {
     vi.clearAllMocks();
     envState.WHATSAPP_ACCESS_TOKEN = 'test-token';
     envState.WHATSAPP_PHONE_NUMBER_ID = 'default-phone-id';
+    prismaMock.whatsAppNumber.findUnique.mockResolvedValue(null);
   });
 
   it('POSTs v21 read + typing_indicator with Bearer token', async () => {
@@ -91,6 +101,27 @@ describe('sendTypingIndicator', () => {
 
   it('returns ok: false when credentials are missing', async () => {
     envState.WHATSAPP_ACCESS_TOKEN = undefined;
+
+    await expect(sendTypingIndicator('wamid.abc123', 'phone-99')).resolves.toEqual({ ok: false });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('uses the decrypted tenant token when the number has one', async () => {
+    prismaMock.whatsAppNumber.findUnique.mockResolvedValue({
+      phoneNumberId: 'phone-99',
+      accessTokenEncrypted: 'enc:tenant-secret',
+      connectStatus: 'live'
+    });
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => ({ success: true }) });
+
+    await sendTypingIndicator('wamid.abc123', 'phone-99');
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer tenant-secret');
+  });
+
+  it('returns ok: false when the credential lookup throws', async () => {
+    prismaMock.whatsAppNumber.findUnique.mockRejectedValue(new Error('db unavailable'));
 
     await expect(sendTypingIndicator('wamid.abc123', 'phone-99')).resolves.toEqual({ ok: false });
     expect(fetchMock).not.toHaveBeenCalled();

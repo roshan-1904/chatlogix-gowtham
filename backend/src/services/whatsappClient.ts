@@ -1,6 +1,8 @@
 import fetch from 'node-fetch';
 import { env } from '../config/env.js';
+import { prisma } from '../db/prisma.js';
 import { logger } from '../logger.js';
+import { decryptWhatsAppToken } from '../utils/whatsappTokenCrypto.js';
 import {
   isInvalidQuoteContextError,
   parseGraphErrorBody,
@@ -19,12 +21,62 @@ export interface WhatsAppSendResult {
   messageId: string;
 }
 
-async function postToGraph(targetPhoneNumberId: string, body: any): Promise<WhatsAppSendResult> {
+export interface ResolvedWhatsAppCredentials {
+  accessToken: string;
+  phoneNumberId: string;
+}
+
+/**
+ * Tenant token when WhatsAppNumber.accessTokenEncrypted is set; otherwise the
+ * legacy global WHATSAPP_ACCESS_TOKEN fallback for pre-P2h numbers.
+ */
+export async function resolveCredentials(
+  phoneNumberId?: string
+): Promise<ResolvedWhatsAppCredentials | null> {
+  const targetId = phoneNumberId || env.WHATSAPP_PHONE_NUMBER_ID;
+  if (!targetId) {
+    return null;
+  }
+
+  if (phoneNumberId) {
+    const row = await prisma.whatsAppNumber.findUnique({
+      where: { phoneNumberId },
+      select: { accessTokenEncrypted: true, connectStatus: true, phoneNumberId: true }
+    });
+    if (row?.accessTokenEncrypted) {
+      try {
+        return {
+          accessToken: decryptWhatsAppToken(row.accessTokenEncrypted),
+          phoneNumberId: row.phoneNumberId
+        };
+      } catch (err) {
+        logger.error({ err, phoneNumberId }, 'Failed to decrypt tenant WhatsApp token');
+        throw new Error('WhatsApp send failed: could not decrypt tenant access token');
+      }
+    }
+    if (row && (row.connectStatus === 'credit_attached' || row.connectStatus === 'live')) {
+      throw new Error(
+        'WhatsApp send failed: tenant token missing for connected number (no silent global fallback)'
+      );
+    }
+  }
+
+  if (!env.WHATSAPP_ACCESS_TOKEN) {
+    return null;
+  }
+  return { accessToken: env.WHATSAPP_ACCESS_TOKEN, phoneNumberId: targetId };
+}
+
+async function postToGraph(
+  targetPhoneNumberId: string,
+  body: Record<string, unknown>,
+  accessToken: string
+): Promise<WhatsAppSendResult> {
   const url = `${BASE_URL}/${targetPhoneNumberId}/messages`;
   const res = await fetch(url, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${env.WHATSAPP_ACCESS_TOKEN}`,
+      Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json'
     },
     body: JSON.stringify(body)
@@ -56,40 +108,29 @@ async function postToGraph(targetPhoneNumberId: string, body: any): Promise<What
   return { messageId };
 }
 
-function resolveTargetPhoneNumberId(phoneNumberId?: string): string | null {
-  const target = phoneNumberId || env.WHATSAPP_PHONE_NUMBER_ID;
-  if (!env.WHATSAPP_ACCESS_TOKEN || !target) {
-    logger.error(
-      {
-        hasToken: !!env.WHATSAPP_ACCESS_TOKEN,
-        hasPhoneNumberId: !!target,
-        providedPhoneNumberId: phoneNumberId
-      },
-      'WhatsApp credentials missing; cannot send'
+async function requireTargetCredentials(phoneNumberId?: string): Promise<ResolvedWhatsAppCredentials> {
+  const creds = await resolveCredentials(phoneNumberId);
+  if (!creds) {
+    throw new Error(
+      'WhatsApp send failed: credentials not configured (missing access token, or no phoneNumberId from the message and no WHATSAPP_PHONE_NUMBER_ID env fallback)'
     );
-    return null;
   }
-  return target;
+  return creds;
 }
 
 /**
- * Same resolution as resolveTargetPhoneNumberId, but throws instead of
+ * Same resolution as resolveCredentials, but throws instead of
  * returning null. Every actual message-send function below uses this one so
  * a missing phoneNumberId fails loudly -- callers (e.g. responseProcessor.ts)
  * already catch send errors, mark the message failed, and let SQS retry.
  * Silently returning undefined here previously let a failed send get logged
  * and deleted from the queue as if it had succeeded. sendTypingIndicator is
  * the one deliberate exception (see its docstring) and keeps calling
- * resolveTargetPhoneNumberId directly.
+ * resolveCredentials directly.
  */
-function requireTargetPhoneNumberId(phoneNumberId?: string): string {
-  const target = resolveTargetPhoneNumberId(phoneNumberId);
-  if (!target) {
-    throw new Error(
-      'WhatsApp send failed: credentials not configured (missing access token, or no phoneNumberId from the message and no WHATSAPP_PHONE_NUMBER_ID env fallback)'
-    );
-  }
-  return target;
+async function requireTargetPhoneNumberId(phoneNumberId?: string): Promise<string> {
+  const creds = await requireTargetCredentials(phoneNumberId);
+  return creds.phoneNumberId;
 }
 
 /**
@@ -101,10 +142,19 @@ export async function sendTypingIndicator(
   whatsappMessageId: string,
   phoneNumberId?: string
 ): Promise<{ ok: boolean }> {
-  const target = resolveTargetPhoneNumberId(phoneNumberId);
-  if (!target) {
+  let creds: ResolvedWhatsAppCredentials | null = null;
+  try {
+    creds = await resolveCredentials(phoneNumberId);
+  } catch (error) {
+    // Credential resolution hits the DB since P2h; a lookup failure must not
+    // escape this never-throws helper.
+    logger.warn({ err: error, whatsappMessageId, phoneNumberId }, 'Typing indicator credential lookup failed');
     return { ok: false };
   }
+  if (!creds) {
+    return { ok: false };
+  }
+  const target = creds.phoneNumberId;
 
   const url = `${TYPING_GRAPH_BASE}/${target}/messages`;
   const body = {
@@ -118,7 +168,7 @@ export async function sendTypingIndicator(
     const res = await fetch(url, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${env.WHATSAPP_ACCESS_TOKEN}`,
+        Authorization: `Bearer ${creds.accessToken}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(body),
@@ -173,7 +223,7 @@ export async function sendWhatsAppText(
   phoneNumberId?: string,
   options?: { replyToWhatsappMessageId?: string }
 ): Promise<WhatsAppSendResult | undefined> {
-  const target = requireTargetPhoneNumberId(phoneNumberId);
+  const creds = await requireTargetCredentials(phoneNumberId);
   const payload: Record<string, unknown> = {
     messaging_product: 'whatsapp',
     to,
@@ -183,7 +233,7 @@ export async function sendWhatsAppText(
   if (options?.replyToWhatsappMessageId) {
     payload.context = { message_id: options.replyToWhatsappMessageId };
   }
-  return postToGraph(target, payload);
+  return postToGraph(creds.phoneNumberId, payload, creds.accessToken);
 }
 
 interface MediaSendInput {
@@ -224,8 +274,8 @@ export async function uploadWhatsAppMedia(
   body: Buffer,
   filename: string
 ): Promise<{ mediaId: string }> {
-  const target = requireTargetPhoneNumberId(phoneNumberId);
-  const url = `${BASE_URL}/${target}/media`;
+  const creds = await requireTargetCredentials(phoneNumberId);
+  const url = `${BASE_URL}/${creds.phoneNumberId}/media`;
   const form = new FormData();
   form.append('messaging_product', 'whatsapp');
   form.append('type', mimeType);
@@ -234,7 +284,7 @@ export async function uploadWhatsAppMedia(
   const res = await fetch(url, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${env.WHATSAPP_ACCESS_TOKEN}`
+      Authorization: `Bearer ${creds.accessToken}`
     },
     body: form
   });
@@ -242,7 +292,13 @@ export async function uploadWhatsAppMedia(
   if (!res.ok) {
     const errBody = await res.text();
     logger.error(
-      { status: res.status, body: errBody, mimeType, sizeBytes: body.byteLength, phoneNumberId: target },
+      {
+        status: res.status,
+        body: errBody,
+        mimeType,
+        sizeBytes: body.byteLength,
+        phoneNumberId: creds.phoneNumberId
+      },
       'Failed to upload WhatsApp media'
     );
     throw new WhatsAppSendError(`WhatsApp media upload failed: ${res.status}`, res.status, {
@@ -260,28 +316,28 @@ export async function uploadWhatsAppMedia(
 }
 
 export async function sendWhatsAppImage(input: MediaSendInput): Promise<WhatsAppSendResult | undefined> {
-  const target = requireTargetPhoneNumberId(input.phoneNumberId);
-  return postToGraph(target, buildMediaPayload('image', input));
+  const creds = await requireTargetCredentials(input.phoneNumberId);
+  return postToGraph(creds.phoneNumberId, buildMediaPayload('image', input), creds.accessToken);
 }
 
 export async function sendWhatsAppAudio(input: MediaSendInput): Promise<WhatsAppSendResult | undefined> {
-  const target = requireTargetPhoneNumberId(input.phoneNumberId);
-  return postToGraph(target, buildMediaPayload('audio', input));
+  const creds = await requireTargetCredentials(input.phoneNumberId);
+  return postToGraph(creds.phoneNumberId, buildMediaPayload('audio', input), creds.accessToken);
 }
 
 export async function sendWhatsAppVideo(input: MediaSendInput): Promise<WhatsAppSendResult | undefined> {
-  const target = requireTargetPhoneNumberId(input.phoneNumberId);
-  return postToGraph(target, buildMediaPayload('video', input));
+  const creds = await requireTargetCredentials(input.phoneNumberId);
+  return postToGraph(creds.phoneNumberId, buildMediaPayload('video', input), creds.accessToken);
 }
 
 export async function sendWhatsAppDocument(input: MediaSendInput): Promise<WhatsAppSendResult | undefined> {
-  const target = requireTargetPhoneNumberId(input.phoneNumberId);
-  return postToGraph(target, buildMediaPayload('document', input));
+  const creds = await requireTargetCredentials(input.phoneNumberId);
+  return postToGraph(creds.phoneNumberId, buildMediaPayload('document', input), creds.accessToken);
 }
 
 export async function sendWhatsAppSticker(input: MediaSendInput): Promise<WhatsAppSendResult | undefined> {
-  const target = requireTargetPhoneNumberId(input.phoneNumberId);
-  return postToGraph(target, buildMediaPayload('sticker', input));
+  const creds = await requireTargetCredentials(input.phoneNumberId);
+  return postToGraph(creds.phoneNumberId, buildMediaPayload('sticker', input), creds.accessToken);
 }
 
 export interface LocationSendInput {
@@ -294,18 +350,22 @@ export interface LocationSendInput {
 }
 
 export async function sendWhatsAppLocation(input: LocationSendInput): Promise<WhatsAppSendResult | undefined> {
-  const target = requireTargetPhoneNumberId(input.phoneNumberId);
-  return postToGraph(target, {
-    messaging_product: 'whatsapp',
-    to: input.to,
-    type: 'location',
-    location: {
-      latitude: input.latitude,
-      longitude: input.longitude,
-      name: input.name,
-      address: input.address
-    }
-  });
+  const creds = await requireTargetCredentials(input.phoneNumberId);
+  return postToGraph(
+    creds.phoneNumberId,
+    {
+      messaging_product: 'whatsapp',
+      to: input.to,
+      type: 'location',
+      location: {
+        latitude: input.latitude,
+        longitude: input.longitude,
+        name: input.name,
+        address: input.address
+      }
+    },
+    creds.accessToken
+  );
 }
 
 export interface ContactSendInput {
@@ -315,13 +375,17 @@ export interface ContactSendInput {
 }
 
 export async function sendWhatsAppContacts(input: ContactSendInput): Promise<WhatsAppSendResult | undefined> {
-  const target = requireTargetPhoneNumberId(input.phoneNumberId);
-  return postToGraph(target, {
-    messaging_product: 'whatsapp',
-    to: input.to,
-    type: 'contacts',
-    contacts: input.contacts
-  });
+  const creds = await requireTargetCredentials(input.phoneNumberId);
+  return postToGraph(
+    creds.phoneNumberId,
+    {
+      messaging_product: 'whatsapp',
+      to: input.to,
+      type: 'contacts',
+      contacts: input.contacts
+    },
+    creds.accessToken
+  );
 }
 
 export interface InteractiveSendInput {
@@ -331,13 +395,17 @@ export interface InteractiveSendInput {
 }
 
 export async function sendWhatsAppInteractive(input: InteractiveSendInput): Promise<WhatsAppSendResult | undefined> {
-  const target = requireTargetPhoneNumberId(input.phoneNumberId);
-  return postToGraph(target, {
-    messaging_product: 'whatsapp',
-    to: input.to,
-    type: 'interactive',
-    interactive: input.interactive
-  });
+  const creds = await requireTargetCredentials(input.phoneNumberId);
+  return postToGraph(
+    creds.phoneNumberId,
+    {
+      messaging_product: 'whatsapp',
+      to: input.to,
+      type: 'interactive',
+      interactive: input.interactive
+    },
+    creds.accessToken
+  );
 }
 
 /**
@@ -360,17 +428,9 @@ export async function sendWhatsAppTemplate(
   },
   phoneNumberId?: string
 ): Promise<{ messageId: string }> {
-  const targetPhoneNumberId = phoneNumberId || env.WHATSAPP_PHONE_NUMBER_ID;
-  
-  if (!env.WHATSAPP_ACCESS_TOKEN || !targetPhoneNumberId) {
-    logger.error({ 
-      hasToken: !!env.WHATSAPP_ACCESS_TOKEN, 
-      hasPhoneNumberId: !!targetPhoneNumberId,
-      providedPhoneNumberId: phoneNumberId 
-    }, 'WhatsApp credentials missing; skipping template send');
-    throw new Error('WhatsApp credentials not configured');
-  }
-  
+  const creds = await requireTargetCredentials(phoneNumberId);
+  const targetPhoneNumberId = creds.phoneNumberId;
+
   const url = `${BASE_URL}/${targetPhoneNumberId}/messages`;
   
   const components: any[] = [];
@@ -420,7 +480,7 @@ export async function sendWhatsAppTemplate(
   const res = await fetch(url, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${env.WHATSAPP_ACCESS_TOKEN}`,
+      Authorization: `Bearer ${creds.accessToken}`,
       'Content-Type': 'application/json'
     },
     body: JSON.stringify(payload)

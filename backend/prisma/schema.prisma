@@ -304,13 +304,26 @@ model FxRateHistory {
 }
 
 model WhatsAppNumber {
-  id            String   @id @default(uuid())
-  vendorId      String
-  phoneNumberId String   @unique
-  wabaId        String
-  createdAt     DateTime @default(now())
-  vendor        Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  id                    String    @id @default(uuid())
+  vendorId              String
+  phoneNumberId         String    @unique
+  wabaId                String
+  accessTokenEncrypted  String?
+  tokenExpiresAt        DateTime?
+  connectStatus         String?
+  connectPath           String?
+  displayPhone          String?
+  displayName           String?
+  primaryFundingId      String?
+  lastErrorCode         String?
+  lastErrorMessage      String?
+  connectedAt           DateTime?
+  liveAt                DateTime?
+  metaBusinessId        String?
+  createdAt             DateTime  @default(now())
+  vendor                Vendor    @relation(fields: [vendorId], references: [id], onDelete: Cascade)
 
+  @@index([vendorId, connectStatus])
   @@map("WhatsAppNumber")
 }
 

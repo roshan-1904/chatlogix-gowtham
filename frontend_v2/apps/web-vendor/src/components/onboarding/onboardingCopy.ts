@@ -95,7 +95,7 @@ export const onboardingCopy = {
       trust: [
         'No card required',
         'Customers are not messaged during the trial',
-        'A person reviews your shop in 1–2 days',
+        'Finish setup anytime — no waiting on us',
       ],
     },
     faq: {
@@ -114,7 +114,7 @@ export const onboardingCopy = {
         {
           question: 'Will my customers get messages during the trial?',
           answer:
-            'No. The demo runs in a safe test environment. Live WhatsApp connects only after you\'re approved and ready.',
+            'No. The demo runs in a safe test environment. Live WhatsApp connects when you finish setup and connect your number.',
         },
         {
           question: 'Who is ChatLogix for?',
@@ -149,7 +149,7 @@ export const onboardingCopy = {
     fieldNotes: {
       businessName: 'Used in greetings and order confirmations.',
       ownerName: 'If a customer asks who runs the shop.',
-      email: 'Where we send approval updates. Optional until you submit.',
+      email: 'Where we send account updates. Optional until you finish setup.',
       city: 'Helps answer “do you deliver to my area?”',
       address: 'Quoted for pickup and where orders ship from.',
       deliveryNotes: 'Delivery areas, charges, and hours.',
@@ -240,7 +240,7 @@ export const onboardingCopy = {
     trustBanner: 'Demo only — your customers are not messaged',
     loading: 'Replying…',
     emptyWallet:
-      'Your trial balance is used up. You can still submit for approval.',
+      'Your trial balance is used up. You can still finish setup and top up from your wallet later.',
     suggestedPrompts: ['What are your prices?', 'I want to order 2 kg', 'Do you deliver?'],
     whyWeAsk: 'Demo chat spends your trial balance so you can see reply quality and cost before going live.',
     guide: {
@@ -252,22 +252,22 @@ export const onboardingCopy = {
     },
   },
   step5: {
-    headline: 'Submit for review',
-    explainer: 'A person checks this in 1–2 days. Then you connect WhatsApp.',
-    submitCta: 'Submit for review',
-    promise: 'A person checks this in 1–2 days. Then you connect WhatsApp.',
-    whyWeAsk: 'We review shops to keep WhatsApp quality high for real customers.',
+    headline: 'Finish setup',
+    explainer: 'You go straight to your dashboard. Connect WhatsApp when you are ready.',
+    submitCta: 'Finish setup',
+    promise: 'Your trial balance carries forward. Top up anytime from your wallet.',
+    whyWeAsk: 'One last check that your shop name and email look right before you open the dashboard.',
     guide: {
-      kicker: 'Submit',
-      h1: 'Ready for a human review',
-      actionTitle: 'Submit for review',
-      subhead: 'A person checks this in 1–2 days. Then you connect WhatsApp.',
+      kicker: 'Finish',
+      h1: 'Ready to open your shop dashboard',
+      actionTitle: 'Finish setup',
+      subhead: 'You land on your dashboard right away — connect WhatsApp when you are ready.',
       howTo: [
-        { title: 'We read your details', body: 'Name, catalog, and greeting get a quick check.' },
-        { title: 'You get a message', body: 'We notify you on your phone when you are approved.' },
-        { title: 'Then go live', body: 'Connect WhatsApp only after approval.' },
+        { title: 'We save your details', body: 'Name, catalog, and greeting are ready for customers.' },
+        { title: 'Trial balance stays', body: 'Whatever is left from your ₹50 trial comes with you.' },
+        { title: 'Connect WhatsApp next', body: 'From your dashboard when you want to go live.' },
       ],
-      footnote: 'Email is for approval updates. Live customers are not messaged until you connect.',
+      footnote: 'Email is for account updates. Live customers are not messaged until you connect WhatsApp.',
     },
   },
   clarify: {
@@ -303,8 +303,8 @@ export const onboardingCopy = {
     shopName: 'Shop name',
     shopFacts: 'Shop facts',
     howItSounds: 'How it sounds',
-    emailOptional: 'Where should we send approval?',
-    emailNote: 'Optional now. We use this for approval updates, not customer messages.',
+    emailOptional: 'Where should we send updates?',
+    emailNote: 'Optional now. We use this for account updates, not customer messages.',
     city: 'City (optional)',
     category: 'Category',
     assistantName: 'Assistant name',
@@ -326,7 +326,7 @@ export const onboardingCopy = {
         { title: 'Greeting', body: 'The first message a customer sees. Keep it short.' },
         { title: 'Category', body: 'So the assistant talks like your kind of shop.' },
       ],
-      footnote: 'You can change this later after approval.',
+      footnote: 'You can change this later from your dashboard.',
     },
   },
   demoPhone: {
@@ -351,15 +351,14 @@ export const onboardingCopy = {
     menuLabel: 'Menu',
   },
   review: {
-    emailRequired: 'Add your email so we can notify you when your shop is approved.',
-    emailLabel: 'Where should we send approval?',
+    emailRequired: 'Add your email so we can send shop updates.',
+    emailLabel: 'Where should we send updates?',
     emailMissing: 'Email not added yet',
     products: '{count} products',
     productOne: '1 product',
     noProducts: 'No products yet',
     greetingFallback: 'No greeting saved yet',
     editDetails: 'Edit',
-    submittedInline: 'Submitted for review',
   },
   submitted: {
     headline: "We're reviewing your shop",
@@ -421,7 +420,7 @@ export const onboardingCopy = {
   },
   wallet: {
     lowBalance: 'Your trial balance is running low.',
-    expired: 'Your trial has expired. You can still submit for approval or contact support.',
+    expired: 'Your trial has expired. Finish setup and top up from your wallet when you need more.',
   },
   help: {
     prefix: 'Questions?',

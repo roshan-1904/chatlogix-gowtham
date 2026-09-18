@@ -531,6 +531,67 @@ export const openApiSpec: any = {
         }
       }
     },
+    '/api/vendors/me/whatsapp': {
+      get: {
+        tags: ['Vendors'],
+        summary: 'WhatsApp connect status for the signed-in vendor',
+        responses: {
+          '200': { description: 'Connect status, wa.me link, test inbound timestamp' },
+          '403': { description: 'Vendor not approved' }
+        }
+      }
+    },
+    '/api/vendors/me/whatsapp/config': {
+      get: {
+        tags: ['Vendors'],
+        summary: 'Public Meta Embedded Signup config (app id + config id)',
+        responses: {
+          '200': { description: 'Embedded Signup public fields' },
+          '403': { description: 'Vendor not approved' }
+        }
+      }
+    },
+    '/api/vendors/me/whatsapp/complete-connect': {
+      post: {
+        tags: ['Vendors'],
+        summary: 'Finish Embedded Signup (exchange token, subscribe, credit attach)',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['code', 'waba_id', 'phone_number_id', 'connectPath'],
+                properties: {
+                  code: { type: 'string' },
+                  waba_id: { type: 'string' },
+                  phone_number_id: { type: 'string' },
+                  business_id: { type: 'string' },
+                  connectPath: { type: 'string', enum: ['cloud', 'coexistence'] }
+                }
+              }
+            }
+          }
+        },
+        responses: {
+          '200': { description: 'Updated connect status' },
+          '403': { description: 'Vendor not approved' },
+          '409': { description: 'phone_number_id owned by another vendor' },
+          '422': { description: 'Meta / Graph error (vendor-safe message)' }
+        }
+      }
+    },
+    '/api/vendors/me/whatsapp/retry-attach': {
+      post: {
+        tags: ['Vendors'],
+        summary: 'Retry INR credit attach without Meta popup',
+        responses: {
+          '200': { description: 'Updated connect status' },
+          '403': { description: 'Vendor not approved' },
+          '422': { description: 'Credit attach failed' }
+        }
+      }
+    },
     '/api/admin/settings': {
       get: {
         tags: ['Admin'],

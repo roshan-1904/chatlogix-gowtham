@@ -81,6 +81,16 @@ const EnvSchema = z.object({
   WHATSAPP_GRAPH_BASE_URL: z.string().default('https://graph.facebook.com/v18.0'),
   WHATSAPP_TYPING_GRAPH_BASE_URL: z.string().default('https://graph.facebook.com/v21.0'),
 
+  // Meta Embedded Signup + P2h connect (server secrets; app id + config id exposed via GET /me/whatsapp/config)
+  META_APP_ID: z.string().optional(),
+  META_APP_SECRET: z.string().optional(),
+  META_EMBEDDED_SIGNUP_CONFIG_ID: z.string().optional(),
+  META_SYSTEM_USER_TOKEN: z.string().optional(),
+  META_EXTENDED_CREDIT_LINE_ID: z.string().optional(),
+  WHATSAPP_TOKEN_ENCRYPTION_KEY: z.string().optional(),
+  /** Local/staging only: skip credit attach when credit line id is unset. Default false. */
+  CHATLOGIX_SKIP_CREDIT_ATTACH: z.string().optional(),
+
   // AI
   OPENAI_API_KEY: z.string().optional(),
   VISION_EXTRACTION_MODEL: z.string().default('gpt-4.1'),
@@ -220,6 +230,17 @@ export const walletEnv = {
   maxTopUpMilli: Number(env.MAX_WALLET_TOPUP_MILLI || '50000000'),
   presetsMilli: parsePresetsMilli(env.WALLET_TOPUP_PRESETS_MILLI || '500000,1000000,2000000,5000000'),
   mockTopUpEnabled: env.MOCK_WALLET_TOPUP_ENABLED !== 'false'
+};
+
+/** Meta WhatsApp connect / Embedded Signup infrastructure (not PlatformSettings). */
+export const metaConnectEnv = {
+  appId: env.META_APP_ID,
+  appSecret: env.META_APP_SECRET,
+  embeddedSignupConfigId: env.META_EMBEDDED_SIGNUP_CONFIG_ID,
+  systemUserToken: env.META_SYSTEM_USER_TOKEN,
+  extendedCreditLineId: env.META_EXTENDED_CREDIT_LINE_ID,
+  skipCreditAttach: env.CHATLOGIX_SKIP_CREDIT_ATTACH === 'true',
+  graphBaseUrl: env.WHATSAPP_GRAPH_BASE_URL ?? 'https://graph.facebook.com/v18.0'
 };
 
 /**

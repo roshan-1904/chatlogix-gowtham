@@ -416,4 +416,6 @@ Portal-level, verifiable after the P0 sprint:
 - Customer Queries (shipped portal feature): `docs/CUSTOMER_QUERIES.md`
 - Catalog enhancer: `docs/VENDOR_CATALOG_ENHANCER.md`
 - Product media (planning — S3 upload + WhatsApp image/video): `docs/PRODUCT_MEDIA.md`
+- Wallet top-up (P2g): `documentation/modules/features/vendor-onboarding/guides/wallet-top-up-p2g.md`
+- WhatsApp connect (P2h, planned): `documentation/modules/features/vendor-onboarding/guides/whatsapp-connect-p2h.md`
 - Design rule: `.cursor/rules/21st-mcp-design.mdc`, `.21st/DESIGN.md`

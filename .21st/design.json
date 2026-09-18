@@ -307,6 +307,31 @@
       "id": "admin-billing-settings",
       "decision": "web-admin /billing is stacked white Cards (FX, platform fees, trial, catalog caps, wallet top-up) using @chatlogix/ui Card/Button/Badge, MarkupEditor input chrome, navy headings, green save/refresh. Money is typed and shown in rupees; GET/PATCH stay in paise. 21st get_inspiration peaked at 61%, so no external component was pulled.",
       "date": "2026-09-16"
+    },
+    {
+      "id": "dashboard-operations-bento",
+      "decision": "Vendor dashboard is operations-first bento: command bar with single period label, pulse metric tiles (pending, period revenue, active chats, wallet), needs-attention list (max 5), 8/4 main grid for recent activity + wallet/quick actions, and collapsible usage analytics only when spend or multi-status orders exist. Inline dashboardIcons replace emoji; KPI tiles use DashboardMetricTile without gradients.",
+      "date": "2026-09-19"
+    },
+    {
+      "id": "whatsapp-connect-wizard-guide",
+      "decision": "Settings WhatsApp Connect matches onboarding quality: horizontal stepper, selectable coexistence/cloud path cards, preflight checklist with green Connect with Meta CTA, status panel with Badge + wa.me test block, and a sticky guide column on lg (wallet billing, pop-ups, OTP). Connect logic stays in the page; shared ChecklistItem extracted for go-live.",
+      "date": "2026-09-19"
+    },
+    {
+      "id": "grid-app-shell",
+      "decision": "The vendor shell is an h-dvh grid (grid-rows-[auto_1fr]) with no viewport arithmetic — the h-[calc(100vh-120px)] on main and the sidebar are gone, and main is flex-1 min-h-0 overflow-y-auto p-4 lg:p-6 so page bodies get a definite height for h-full. Layering is header z-30, mobile backdrop z-40, drawer z-50. The footer is removed from the shell; its copyright and version moved into the sidebar base. Conversations cancels the shell padding with -m-4 lg:-m-6 and must track any change to that padding.",
+      "date": "2026-09-19"
+    },
+    {
+      "id": "header-wallet-and-page-context",
+      "decision": "Header is one h-14 row at every breakpoint: hamburger (lg:hidden), BrandLogo, then page context from pageTitles.ts (longest route prefix wins, so /settings/whatsapp beats /settings; unknown routes render no label). On the right, a wallet chip reading formatWalletAmount(walletBalanceMilli) linking to /wallet — amber under ₹20 — and one avatar-initials menu (business name, phone, Settings, Support, Logout). The three responsive copies of the user block and the standalone Logout button are gone, and vendor data comes from the cached useVendorConfig query instead of a per-mount fetch.",
+      "date": "2026-09-19"
+    },
+    {
+      "id": "sidebar-grouped-icon-rail",
+      "decision": "Sidebar nav is grouped into Operations / Catalog / Account with currentColor SVG icons from components/icons (emoji cannot tint with the active state). Active items get bg-primary-500/5, navy label, a 2px left rail and aria-current=page. Templates and Support have no route, so they render as non-navigating aria-disabled spans with a Soon badge instead of falling through to the 404. A base-block toggle collapses the desktop sidebar to a 16-unit icon rail, persisted in localStorage under chatlogix:sidebar-collapsed and read during useState init to avoid a first-paint flash; the Queries badge becomes a dot in rail mode.",
+      "date": "2026-09-19"
     }
   ],
   "evidence": [
@@ -324,5 +349,5 @@
     }
   ],
   "generatedAt": "2026-09-05T17:29:11.983Z",
-  "updatedAt": "2026-09-16T17:00:00.000Z"
+  "updatedAt": "2026-09-19T00:00:00.000Z"
 }

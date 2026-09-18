@@ -212,8 +212,10 @@ export function Conversations() {
 
   const combinedError = error || conversationsError || messagesError;
 
+  // The negative margins cancel the `p-4 lg:p-6` padding on the shell's <main>
+  // so the chat runs full-bleed. They must stay in step with Layout.tsx.
   return (
-    <div className="-m-2 h-[calc(100%+1rem)] overflow-hidden lg:-m-3 lg:h-[calc(100%+1.5rem)]">
+    <div className="-m-4 h-[calc(100%+2rem)] overflow-hidden lg:-m-6 lg:h-[calc(100%+3rem)]">
       <div className="flex h-full w-full flex-col overflow-hidden bg-white lg:flex-row">
         {/* Conversation List - Hidden on mobile when conversation is selected */}
         <div className={`${selectedConversation ? 'hidden lg:flex' : 'flex'} h-full w-full min-h-0 flex-col lg:w-[30%] lg:max-w-md`}>

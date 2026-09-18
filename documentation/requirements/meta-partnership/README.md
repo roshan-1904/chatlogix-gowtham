@@ -28,13 +28,14 @@ What is **live in code today** vs what this document still targets for **Meta So
 | **Per-vendor markup %** | ✅ Shipped 2026-09-16 | `Vendor.markupPercent`, default **50**, range 0–500, admin-editable via `PATCH /api/vendors/:id/billing-config` and the web-admin vendor detail panel. This closes the "admin-configurable markup" item that was scoped into P2h. |
 | **WhatsApp message debits** | ❌ Not billed (P2h) | The `whatsappCostMilli` slot exists in the charge formula but is **always 0** (`PlatformSettings.platformFeePerTurnPaise = 0`) until the Meta rate card lands. **ChatLogix absorbs Meta conversation fees today** — a known, deliberate gap. Meta pricing reconciliation also not started. |
 | **WhatsApp tenant mapping** | ✅ Partial | `WhatsAppNumber` maps `phoneNumberId` → `vendorId` for webhooks. Outbound send still uses **global** `WHATSAPP_ACCESS_TOKEN` + per-message `phoneNumberId` when present (`whatsappClient.ts`) — not per-vendor encrypted tokens. |
-| **Embedded Signup + credit attach (INR)** | ❌ Not started (P2h) | No vendor settings UI, no token exchange, no `whatsapp_credit_sharing_and_attach`, no `primary_funding_id` verification in repo. |
-| **Wallet top-up (P2g)** | ✅ Shipped (mock v1) | `/wallet` page in `web-vendor` plus `GET /api/vendors/me/wallet`, `POST .../top-up-intent`, `POST .../confirm-mock`, all through one `creditWalletFromTopUp`. **Razorpay still stubbed** pending credentials — see [wallet-top-up-p2g.md](../../modules/features/vendor-onboarding/guides/wallet-top-up-p2g.md). Post-approval vendors still reset to ₹0 on approve. |
+| **Embedded Signup + credit attach (INR)** | ❌ Not started (P2h) | No vendor settings UI, no token exchange, no `whatsapp_credit_sharing_and_attach`, no `primary_funding_id` verification in repo. **Plan:** [whatsapp-connect-p2h.md](../../modules/features/vendor-onboarding/guides/whatsapp-connect-p2h.md) (2026-09-17). |
+| **Wallet top-up (P2g)** | ✅ Shipped (mock v1) | `/wallet`, mock top-up. Trial **carries forward** after onboarding (target). **No min top-up to go live** — wallet gate only. Razorpay parallel; **P2h built on mock wallet first**. |
+| **Onboarding gate** | 🔶 Target vs shipped | **Target:** auto-approve on submit (24/7). **Shipped:** `pending_approval` + ops SQL/script. |
 | **Meta Solution Partner / line of credit** | 🔶 Product + ops | Billing model documented and locked; **partnership application and INR credit line** are business/Meta ops steps — not reflected as implemented features in application code. |
 | **Meta business verification (license/docs)** | ❌ Not started | Long-term requirements doc; v1 onboarding uses phone OTP only. |
 | **Partnership application package** | ❌ Not started | Technical docs exist in-repo; formal Meta submission not tracked as done. |
 
-**Recommended implementation order (engineering):** **Razorpay** for P2g v2 when credentials exist → **P2h** (Embedded Signup, per-vendor tokens, credit attach, and finally populating `whatsappCostMilli` from the Meta rate card) → partnership application collateral in parallel with Meta credit-line approval.
+**Recommended implementation order (engineering):** **P2h** (Embedded Signup onto a vendor-owned WABA, per-vendor tokens, credit attach, then `whatsappCostMilli`) — full plan [whatsapp-connect-p2h.md](../../modules/features/vendor-onboarding/guides/whatsapp-connect-p2h.md). **Razorpay** for P2g v2 when credentials exist (does not block P2h). Partnership application collateral in parallel with Meta credit-line approval.
 
 ✅ **Migrations:** the three millirupee migrations (`20250916120000_wallet_top_up_intent`, `20250916180000_wallet_milli_units`, `20250916210000_credit_usage_source`) plus `20250916220000_platform_settings` are **applied and recorded** as of 2026-09-16 evening, with zero drift from `schema.prisma`. Bootstrapping a fresh environment has caveats — see [BILLING_AND_PRICING.md](../../../docs/BILLING_AND_PRICING.md) §Migrations.
 
@@ -75,7 +76,7 @@ What is **live in code today** vs what this document still targets for **Meta So
 - [ ] **Address Verification** - Real-time address validation
 - 🔶 **Phone Number Verification** - **Vendor login/signup:** Firebase OTP on `Vendor.phone` (P2). **Not** Meta business phone or WABA verification automation.
 - [ ] **Document Verification** - Business document upload
-- 🔶 **Verification Status Tracking** - `registrationStatus` + admin manual approve (`onboarding` → `pending_approval` → `approved` / `rejected`); not Meta Business Verification API.
+- 🔶 **Verification Status Tracking** - `registrationStatus` + **target auto-approve** on onboarding complete; **shipped** manual approve (`pending_approval` → ops). Not Meta Business Verification API.
 
 ### **3. Advanced WhatsApp Features**
 - 🔶 **Interactive Messages** — **Inbound:** button/list replies parsed in `waParser.ts`, billed as `interactive`, enqueued for AI. **Outbound:** `sendWhatsAppInteractive()` exists but is **not** used by the conversation pipeline or vendor tools.
@@ -347,7 +348,7 @@ Original 8-week plan assumed greenfield build. **As of 2026-09-16**, core WhatsA
 | Phase | Scope | Status |
 | --- | --- | --- |
 | **P2g v2** | Razorpay replacing the mock wallet provider | Not started — needs account credentials |
-| **P2h** | Embedded Signup v4, token exchange, encrypted per-vendor tokens, webhook subscribe, INR credit attach + verify, WhatsApp wallet debits (populate `whatsappCostMilli`), outbound gating | Not started — **blocks self-serve Meta connect** and is the only thing left before ChatLogix stops absorbing Meta conversation fees |
+| **P2h** | Embedded Signup v4, token exchange, encrypted per-vendor tokens, webhook subscribe, INR credit attach + verify, WhatsApp wallet debits (populate `whatsappCostMilli`), outbound gating | Not started — **blocks self-serve Meta connect**. Plan: [whatsapp-connect-p2h.md](../../modules/features/vendor-onboarding/guides/whatsapp-connect-p2h.md) |
 | **P2h+** | Credit revoke on offboard; pricing reconciliation from status webhooks; approval notification via real WhatsApp template (stub logs today) | Not started |
 
 ### **Parallel — Meta Solution Partner (business + compliance)**
@@ -387,7 +388,7 @@ Original 8-week plan assumed greenfield build. **As of 2026-09-16**, core WhatsA
 
 **Engineering (unblocks self-serve WABA + locked billing model):**
 1. **P2g v2 — Razorpay** — mock provider v1 has shipped (see [wallet-top-up-p2g.md](../../modules/features/vendor-onboarding/guides/wallet-top-up-p2g.md)); swap in Razorpay when credentials exist so approved vendors can fund `walletBalanceMilli` with real money.
-2. **P2h — WhatsApp connect slice** — `/settings/whatsapp` (or wizard): Embedded Signup v4 (Cloud API + Coexistence), server-side code exchange, subscribe webhooks, `whatsapp_credit_sharing_and_attach` (`waba_currency=INR`), verify `primary_funding_id`, store **encrypted** per-vendor token on `WhatsAppNumber` (or related model), route **all** Graph sends through tenant credentials.
+2. **P2h — WhatsApp connect slice** — Full plan: [whatsapp-connect-p2h.md](../../modules/features/vendor-onboarding/guides/whatsapp-connect-p2h.md). `/settings/whatsapp`: Embedded Signup v4 (Cloud API + Coexistence), server-side code exchange, subscribe webhooks, `whatsapp_credit_sharing_and_attach` (`waba_currency=INR`), verify `primary_funding_id`, store **encrypted** per-vendor token on `WhatsAppNumber`, route Graph sends through tenant credentials with global-token fallback for existing mapped numbers. Vendor number lives on the **vendor’s WABA**, not ChatLogix’s.
 3. **Wallet + WhatsApp usage** — Populate `whatsappCostMilli` on the **existing** charge from the Meta INR base rate; the `× (1 + markupPercent/100)` step, the `WalletTransaction.metadata` breakdown and the wallet gate already exist and should be reused, not reimplemented. See [BILLING_AND_PRICING.md](../../../docs/BILLING_AND_PRICING.md) §7.
 4. **Wire approval notification** — Replace `vendorApprovalNotificationService` stub with approved WhatsApp template or SMS.
 

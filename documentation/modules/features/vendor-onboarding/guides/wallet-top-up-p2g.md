@@ -13,9 +13,11 @@
 
 ## 1. Context (discussion summary)
 
-After **P2a–P2f**, vendors can sign up, use a **₹50 trial wallet** during onboarding, submit for approval, and be approved by ops. On approval, the product spec **resets `walletBalanceMilli` to ₹0** — the trial balance is not carried over. Approved vendors need a **self-serve way to add prepaid balance** (OpenAI-style: pay ₹1,000 → UI shows ₹1,000) before live AI and (later) WhatsApp usage.
+After **P2a–P2f**, vendors sign up with a **₹50 trial wallet** during onboarding. When they **finish setup** (auto-approve target), **remaining trial carries forward**. **Go live** when wallet balance passes the normal gate — **no mandatory top-up minimum**. Voluntary top-ups use mock wallet first (**P2g v1**); Razorpay does not block P2h.
 
-**Engineering priority:** Implement **P2g before P2h**. Live WhatsApp connect and wallet gating assume vendors can fund the same `Vendor.walletBalanceMilli` without admin SQL or `POST /api/vendors/:id/recharge-wallet` (admin-only today).
+**Shipped code note (2026-09-17):** submit still sets `pending_approval` and legacy ops approve still zeros wallet — see [public-signup-onboarding.md](./public-signup-onboarding.md#implementation-gaps-doc-vs-code-2026-09-17).
+
+**Engineering priority:** Implement **P2g before P2h**. Live WhatsApp connect assumes vendors can fund `Vendor.walletBalanceMilli` (carried trial + top-up) without admin SQL.
 
 **Payment gateway decision (2026-09-16):**
 
@@ -73,7 +75,7 @@ After **P2a–P2f**, vendors can sign up, use a **₹50 trial wallet** during on
 | Preset amounts | ₹500, ₹1,000, ₹2,000, ₹5,000 (`PlatformSettings.walletTopUpPresetsPaise`) |
 | Minimum top-up | ₹100 (`minWalletTopUpPaise`, `10000` paise) |
 | Maximum top-up | ₹50,000 (`maxWalletTopUpPaise`, `5000000` paise) |
-| After approval | Balance already `0` per approval runbook; first top-up is vendor-initiated |
+| After onboarding complete | Balance reflects carried trial; top-up **optional** — min **₹100 per txn** only when they add money |
 
 ---
 
@@ -296,7 +298,7 @@ Implement without changing `creditWalletFromTopUp`.
 
 ## 10. What comes after P2g
 
-**P2h** — WhatsApp Embedded Signup, per-vendor tokens, INR credit attach, WhatsApp debits, inbound-always / outbound gated on wallet. See [vendor-onboarding-workflow.md](../../../whatsapp-integration/guides/vendor-onboarding-workflow.md) §5–6.
+**P2h** — WhatsApp Embedded Signup onto a **vendor-owned WABA**, per-vendor tokens, INR credit attach, WhatsApp debits, inbound-always / outbound gated on wallet. Full plan: [whatsapp-connect-p2h.md](./whatsapp-connect-p2h.md).
 
 The admin markup % originally bundled into P2h **already shipped** (`Vendor.markupPercent`, `PATCH /api/vendors/:id/billing-config`). What P2h still owes billing is populating `whatsappCostMilli` from the Meta rate card — `PlatformSettings.platformFeePerTurnPaise` is `0` today and ChatLogix absorbs Meta conversation fees.
 
@@ -309,6 +311,8 @@ Optional parallel small ticket: wire [vendorApprovalNotificationService.ts](../.
 | Date | Decision |
 | --- | --- |
 | 2026-09-16 | P2g is next engineering epic after P2f; precedes P2h. |
+| 2026-09-17 | P2g v1 shipped; next product epic is [P2h WhatsApp connect](./whatsapp-connect-p2h.md). Razorpay still waits on credentials. |
 | 2026-09-16 | Ship wallet top-up with **mock payment provider** first; **Razorpay** when account credentials are available. |
 | 2026-09-16 | Single internal `creditWalletFromTopUp` for mock, admin recharge (optional refactor), and Razorpay webhook. |
+| 2026-09-18 | No min top-up to go live; mock wallet is the path for P2h testing — see [public-signup-onboarding.md](./public-signup-onboarding.md). |
 | 2026-09-16 | Wallet money converted from **paise to millirupees** (1 rupee = 1000). All amounts, env vars and API fields renamed `*Milli`. Order/product money stays in paise. Authority: [BILLING_AND_PRICING.md](../../../../../docs/BILLING_AND_PRICING.md). |

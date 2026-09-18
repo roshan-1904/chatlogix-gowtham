@@ -13,6 +13,7 @@ vendor-onboarding/
 ├── guides/
 │   ├── public-signup-onboarding.md
 │   ├── wallet-top-up-p2g.md
+│   ├── whatsapp-connect-p2h.md
 │   ├── signup-page-marketing-copy.md
 │   └── approval-runbook.md
 └── status/
@@ -28,6 +29,7 @@ vendor-onboarding/
 - **[Signup Page — Marketing Copy & Layout](./guides/signup-page-marketing-copy.md)** - Copy & layout spec for `/signup`; job-first headline and trust-line copy lock implemented in P4 (2026-09-11)
 - **[Approval Runbook](./guides/approval-runbook.md)** - Manual vendor approval ops, plus the billing knobs ops can change
 - **[P2g — Wallet top-up](./guides/wallet-top-up-p2g.md)** - Post-approval prepaid wallet; **mock payments v1 shipped**, Razorpay v2 when credentials exist
+- **[P2h — WhatsApp connect](./guides/whatsapp-connect-p2h.md)** - Self-serve Embedded Signup onto a **vendor-owned WABA**; planned 2026-09-17 (not shipped)
 - **[Billing and Pricing](../../../../docs/BILLING_AND_PRICING.md)** - Single source of truth for the millirupee wallet, the charge formula, and per-vendor markup
 
 ### Status
@@ -37,9 +39,11 @@ vendor-onboarding/
 
 The vendor onboarding system enables automated, self-service vendor registration with minimal manual intervention.
 
-**Shipped:** P2a–P2f (public signup, trial wallet, onboarding wizard, sandbox, approval gate) — see [public-signup-onboarding.md](./guides/public-signup-onboarding.md) — plus **P2g v1** [wallet top-up](./guides/wallet-top-up-p2g.md) with the mock payment provider, and the unified **millirupee billing** rework (every charge is real cost × the vendor's `markupPercent`; no more flat per-message credits).
+**Shipped:** P2a–P2f (public signup, trial wallet, onboarding wizard, sandbox) — see [public-signup-onboarding.md](./guides/public-signup-onboarding.md) — plus **P2g v1** [wallet top-up](./guides/wallet-top-up-p2g.md), and the unified **millirupee billing** rework.
 
-**Current engineering priority:** Razorpay for P2g v2 when credentials exist, then **P2h** Meta Embedded Signup + credit line attach — [WhatsApp vendor connect workflow](../../whatsapp-integration/guides/vendor-onboarding-workflow.md). P2h is also what unblocks billing WhatsApp conversation fees; ChatLogix absorbs them today.
+**Funnel policy (2026-09-18):** auto-approve on **Finish setup**, trial carry-forward, **no min top-up to go live**, P2h on **mock wallet first** — [public-signup-onboarding.md](./guides/public-signup-onboarding.md#implementation-gaps-doc-vs-code-2026-09-17).
+
+**Current engineering priority:** **P2h** self-serve WhatsApp — [whatsapp-connect-p2h.md](./guides/whatsapp-connect-p2h.md). Razorpay (P2g v2) when credentials exist.
 
 The long-term requirements doc targets **90%+ automation** and complete onboarding in under **30 minutes** (documents, Meta verification, etc.).
 

@@ -1,10 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { fetchMock, envState } = vi.hoisted(() => ({
+const { fetchMock, envState, prismaMock } = vi.hoisted(() => ({
   fetchMock: vi.fn(),
   envState: {
     WHATSAPP_ACCESS_TOKEN: 'test-token' as string | undefined,
     WHATSAPP_PHONE_NUMBER_ID: 'default-phone-id' as string | undefined
+  },
+  prismaMock: {
+    whatsAppNumber: { findUnique: vi.fn() }
   }
 }));
 
@@ -14,6 +17,12 @@ vi.mock('node-fetch', () => ({
 
 vi.mock('../../config/env.js', () => ({
   env: envState
+}));
+
+vi.mock('../../db/prisma.js', () => ({ prisma: prismaMock }));
+
+vi.mock('../../utils/whatsappTokenCrypto.js', () => ({
+  decryptWhatsAppToken: vi.fn((enc: string) => enc.replace(/^enc:/, ''))
 }));
 
 vi.mock('../../logger.js', () => ({
@@ -37,6 +46,7 @@ describe('sendWhatsAppText', () => {
     vi.clearAllMocks();
     envState.WHATSAPP_ACCESS_TOKEN = 'test-token';
     envState.WHATSAPP_PHONE_NUMBER_ID = 'default-phone-id';
+    prismaMock.whatsAppNumber.findUnique.mockResolvedValue(null);
   });
 
   it('sends via the Graph API when a phoneNumberId is available', async () => {
@@ -92,6 +102,61 @@ describe('sendWhatsAppText', () => {
     envState.WHATSAPP_ACCESS_TOKEN = undefined;
 
     await expect(sendWhatsAppText('919000000000', 'hello', 'phone-99')).rejects.toThrow(/phoneNumberId/i);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('uses decrypted tenant token when WhatsAppNumber has encrypted token', async () => {
+    prismaMock.whatsAppNumber.findUnique.mockResolvedValue({
+      phoneNumberId: 'tenant-phone',
+      accessTokenEncrypted: 'enc:tenant-secret',
+      connectStatus: 'live'
+    });
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ messages: [{ id: 'wamid.tenant' }] })
+    });
+
+    await sendWhatsAppText('919000000000', 'hello', 'tenant-phone');
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const auth =
+      init.headers instanceof Headers
+        ? init.headers.get('Authorization')
+        : (init.headers as Record<string, string>).Authorization;
+    expect(auth).toContain('tenant-secret');
+    expect(auth).not.toContain('test-token');
+  });
+
+  it('uses the global token for a legacy row that has no tenant token', async () => {
+    prismaMock.whatsAppNumber.findUnique.mockResolvedValue({
+      phoneNumberId: 'legacy-phone',
+      accessTokenEncrypted: null,
+      connectStatus: null
+    });
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ messages: [{ id: 'wamid.legacy' }] })
+    });
+
+    await sendWhatsAppText('919000000000', 'hello', 'legacy-phone');
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain('legacy-phone');
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer test-token');
+  });
+
+  it('throws when P2h row is live but tenant token is missing', async () => {
+    prismaMock.whatsAppNumber.findUnique.mockResolvedValue({
+      phoneNumberId: 'tenant-phone',
+      accessTokenEncrypted: null,
+      connectStatus: 'live'
+    });
+
+    await expect(sendWhatsAppText('919000000000', 'hello', 'tenant-phone')).rejects.toThrow(
+      /tenant token missing/i
+    );
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

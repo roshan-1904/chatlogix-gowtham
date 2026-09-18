@@ -7,6 +7,7 @@ import { env, getTextQueueUrl } from '../config/env.js';
 import { logger, StepLogger, createOperationId, logDbOperation, logAIOperation, logBillingOperation, logQueueOperation, logConversation, logErrorWithContext, logDatabaseFailure } from '../logger.js';
 import { EventOrchestrator } from './eventProcessors/eventOrchestrator.js';
 import { EventProcessingContext } from '../types/aiResponse.js';
+import { resolveVendorSendingNumber } from './whatsapp/vendorSendingNumber.js';
 
 const ai = new AIService();
 const eventOrchestrator = new EventOrchestrator();
@@ -348,10 +349,7 @@ export async function processIncomingTextMessage(data: any) {
     if (!phoneNumberId && data.vendorId) {
       stepLogger.step('⚠️ phoneNumberId missing - attempting to retrieve from database', { vendorId: data.vendorId });
       try {
-        const waNumber = await prisma.whatsAppNumber.findFirst({
-          where: { vendorId: data.vendorId },
-          orderBy: { createdAt: 'desc' }
-        });
+        const waNumber = await resolveVendorSendingNumber(data.vendorId);
         if (waNumber) {
           phoneNumberId = waNumber.phoneNumberId;
           stepLogger.step('Retrieved phoneNumberId from database', { phoneNumberId });
@@ -521,10 +519,7 @@ export async function processBatchIncomingMessages(messages: Array<{
     if (!phoneNumberId && messages[0].vendorId) {
       stepLogger.step('⚠️ phoneNumberId missing - attempting to retrieve from database', { vendorId: messages[0].vendorId });
       try {
-        const waNumber = await prisma.whatsAppNumber.findFirst({
-          where: { vendorId: messages[0].vendorId },
-          orderBy: { createdAt: 'desc' }
-        });
+        const waNumber = await resolveVendorSendingNumber(messages[0].vendorId);
         if (waNumber) {
           phoneNumberId = waNumber.phoneNumberId;
           stepLogger.step('Retrieved phoneNumberId from database', { phoneNumberId });

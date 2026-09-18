@@ -1,7 +1,7 @@
 # Public Signup & Trial Onboarding (Page-by-Page Spec)
 
-**Status:** Implemented (P2a–P2f, 2026-09-05); **intake-first funnel (P3b–P3e)** frontend shipped 2026-09-06; **P4 conversion UX overhaul** shipped and browser-verified 2026-09-11; **millirupee billing rework + ₹50 trial grant** shipped 2026-09-16  
-**Last updated:** 2026-09-16  
+**Status:** Implemented (P2a–P2f, 2026-09-05); **intake-first funnel (P3b–P3e)** frontend shipped 2026-09-06; **P4 conversion UX overhaul** shipped and browser-verified 2026-09-11; **millirupee billing rework + ₹50 trial grant** shipped 2026-09-16. **Phase A frontend (Finish setup → dashboard)** shipped 2026-09-18; **Phase A backend** (`POST .../complete-onboarding`, auto-approve, wallet carry-forward on approve script) may still be in flight — see [Implementation gaps](#implementation-gaps-doc-vs-code-2026-09-17). **Funnel policy locked 2026-09-18:** auto-complete on **Finish setup**, trial carry-forward, **no min top-up to go live** (wallet gate only), P2h on **mock wallet first**.
+**Last updated:** 2026-09-18  
 **App:** `frontend_v2/apps/web-vendor` (vendor portal only)  
 **Related:** [Billing and Pricing](../../../../../docs/BILLING_AND_PRICING.md) (**authority** for money), [Authentication](../../authentication/guides/authentication.md), [Vendor Onboarding Requirements](../requirements/VENDOR_ONBOARDING_REQUIREMENTS.md), [WhatsApp onboarding workflow](../../../whatsapp-integration/guides/vendor-onboarding-workflow.md)
 
@@ -9,9 +9,24 @@
 
 ## Executive summary
 
-New vendors sign up in the **vendor portal** with **real phone OTP**. They receive a **₹50 one-time trial wallet** to explore catalog import, AI sandbox chat, and voice-note simulation **before** admin approval. Until approved, they stay inside **onboarding routes only** (even on re-login). After manual admin approval, the trial wallet resets; the vendor loads prepaid balance (OpenAI-style: pay ₹1,000 → show ₹1,000). **WhatsApp connection** happens **after approval**, not during trial.
+New vendors sign up in the **vendor portal** with **real phone OTP**. They receive a **₹50 one-time trial wallet** to explore catalog import, AI sandbox chat, and voice-note simulation **during onboarding only**. When they **finish onboarding** (primary CTA: **“Finish setup”** / **Complete onboarding** — not “Submit for approval”), they continue **immediately — including at midnight** — with **no human approval queue**. They land on the **dashboard** with **whatever trial balance remains** (carry forward, not reset). **Live WhatsApp + AI** work when they have **wallet balance** (carried trial counts); there is **no separate minimum top-up rule to go live**. Optional top-up at `/wallet` when balance runs low (mock wallet today; Razorpay later). **WhatsApp connect** (P2h) is self-serve after onboarding; build P2h against **mock wallet first**. ChatLogix ops does not set up the number.
 
 This document captures product decisions from the 2026-09-05 planning discussion and maps them **page by page** for implementation.
+
+### End-to-end funnel (locked 2026-09-17)
+
+| # | Step | 24/7? | Wallet |
+| --- | --- | --- | --- |
+| 1 | Signup OTP | Yes | Grant **₹50** trial (`50000` milli) |
+| 2 | Catalog → clarify → confirm → demo | Yes | Debits trial (sandbox / import) |
+| 3 | **Finish setup** (complete onboarding) | Yes | **Auto-`approved`** → dashboard; **carry forward** remaining trial |
+| 4 | **Top up** (optional) | Yes (**mock wallet first**; Razorpay later) | Not required to go live if carried trial still covers the wallet gate |
+| 5 | **Connect WhatsApp** (P2h) | Yes (Meta popup) | Connect at ₹0 OK; **live** = connect + **wallet balance** for AI + test inbound |
+| 6 | Customers message shop number | Yes | AI/outbound gated on wallet |
+
+**Not in the default path:** waiting on ops SQL approval, GST/document upload to ChatLogix, resetting trial to ₹0, or ops pasting WhatsApp tokens.
+
+**Ops still:** suspend / `rejected` for abuse; optional legacy manual approve script for exceptions only — see [approval-runbook.md](./approval-runbook.md).
 
 > **Business-critical:** Onboarding is our primary conversion surface. A micro-vendor who lands from marketing must feel *understood*, *safe*, and *delighted* within the first 60 seconds — before they ever connect WhatsApp. There is **no room for confusing errors, dead ends, or “tech product” language**. See [Trust, reliability & conversion](#trust-reliability--conversion-expert-plan) below.
 
@@ -25,7 +40,7 @@ After OTP, vendors **upload catalog first**. We extract products and shop facts,
 | 2 | `/onboarding/clarify` | Details | One gap question at a time (chips + text); auto-skip if already ≥80% |
 | 3 | `/onboarding/confirm` | Confirm | Pre-filled shop + AI greeting; email optional |
 | 4 | `/onboarding/demo-chat` | Demo | WhatsApp phone demo (sandbox pipeline); wallet cost outside bubbles |
-| 5 | `/onboarding/review` | Submit | Summary + email if still empty → submit for approval |
+| 5 | `/onboarding/review` | Finish setup | Summary + email if still empty → **complete onboarding** (auto-approve) |
 
 **Legacy redirects:** `/onboarding/welcome` → catalog (or confirm if products exist); `/onboarding/ai-setup` → `/onboarding/confirm`.
 
@@ -210,7 +225,7 @@ Each step includes a **“Why we ask this”** panel (collapsible on mobile) and
 
 **Loading:** “Your assistant is thinking…” (never blank > 3s without feedback)
 
-**Empty wallet:** “Your trial balance is used up. You can still **submit for approval** — our team will review your shop.”
+**Empty wallet:** “Your trial balance is used up. You can still **finish setup** and go to your dashboard — add money anytime to reply to customers.”
 
 **Slow / error:** “Something went wrong. Your message was saved — [Try again]. If this keeps happening, [contact us].” (Log full error server-side; user never sees `500` or `RATE_LIMIT_429`.)
 
@@ -221,9 +236,7 @@ Each step includes a **“Why we ask this”** panel (collapsible on mobile) and
 **Headline:** “Ready for us to review?”
 
 **Explainer:**
-> A ChatLogix team member checks your shop details (usually 1–2 business days). After approval, you can connect WhatsApp and go live.
-
-**Submit CTA:** “Submit my shop for approval” (not “Complete onboarding workflow”)
+**Finish setup CTA:** “Finish setup” / “Go to dashboard” (not “Submit my shop for approval”)
 
 ---
 
@@ -345,26 +358,27 @@ This alone converts anxious vendors who would otherwise bounce on any friction.
 | Topic | Decision |
 | --- | --- |
 | Host app | Vendor portal (`web-vendor`) only |
-| Login phone vs WhatsApp number | **Different** — WhatsApp Business number connected **after approval** |
+| Login phone vs WhatsApp number | **Different** — WhatsApp Business number connected **after onboarding** (P2h) |
 | Accounts per phone | **One vendor account per phone** globally |
 | Multiple businesses per person | **No** |
 | Auth | Real Firebase OTP (same as login); dev OTP `123456` when `FIREBASE_API_KEY` unset |
-| Until admin approves | **Onboarding screens only** — no dashboard, orders, conversations |
-| Re-login while pending | Resume onboarding or land on “submitted” screen |
-| Admin approval v1 | **Manual DB update** (`registrationStatus`, `approvedAt`, `approvedBy`) |
-| Edit while pending | **Yes** — vendor can return to wizard steps |
-| Approval notification | **Yes** — WhatsApp or SMS to login phone |
+| Until onboarding complete | **Onboarding screens only** — no dashboard, orders, conversations |
+| After submit (target) | **Auto-approve** → `/dashboard` **same session**, any hour — **no ops queue** |
+| Human admin approval | **Not required** for go-live. Ops **suspend/reject** only for abuse. Legacy SQL approve script remains for exceptions |
+| `pending_approval` | **Legacy** — shipped code still uses it; remove when auto-approve is implemented |
 | Trial grant | **₹50** (`PlatformSettings.trialGrantPaise = 5000`, i.e. `50000` millirupees) one-time per phone |
-| Trial expiry | **30 days** (`PlatformSettings.trialExpiryDays`) — editable on the web-admin `/billing` page |
+| Trial after onboarding complete | **Carry forward** remaining balance. **Do not** reset `walletBalanceMilli` to 0 |
+| Trial expiry | **During onboarding only** — once `approved`, remaining balance is normal wallet money (clear or stop enforcing `trialExpiresAt` on portal AI) |
 | Demo / test chat | **Browser sandbox only** — uses **production `conversation/pipeline.ts`** (same quality as live WhatsApp; no customer messages sent) |
-| Submit for approval at ₹0 | **Allowed** |
-| After approval | Trial balance **not** carried over; wallet **reset to ₹0** until payment |
-| Paid wallet | Prepaid like OpenAI: client pays ₹X → balance shows **₹X** |
+| Pay to go live | **No minimum top-up rule.** Live when `walletBalanceMilli` covers the existing wallet gate (`canProcessMessage` worst-case turn). Carried trial is enough if balance remains |
+| Top-up when adding money | Voluntary `/wallet`; **₹100 minimum per transaction** when they top up (`minWalletTopUpPaise`) — not a go-live threshold |
+| Finish onboarding CTA | **“Finish setup”** / **Complete onboarding** — avoid “Submit for approval”. API target: `POST .../complete-onboarding` (alias legacy `submit-for-approval` until renamed) |
+| Paid wallet | Prepaid like OpenAI: pay ₹X → balance shows **₹X** (plus any carried trial) |
 | Usage deduction | **Actual AI cost × the vendor's `markupPercent`** (default 50%), in millirupees — not flat “1 credit per message” |
 | Usage UI | Breakdown by feature so vendors see cost per reply / import |
-| WhatsApp Embedded Signup | **After approval** (separate slice; not part of trial onboarding) |
+| WhatsApp Embedded Signup | **After onboarding complete** (not during trial wizard). Plan: [whatsapp-connect-p2h.md](./whatsapp-connect-p2h.md) |
 | Meta partnership | **ChatLogix owns** Meta **Solution Partner** status + **line of credit** (no long-term upstream BSP for billing) |
-| Vendor Meta assets | Vendor connects **their** Business Manager / WABA via Embedded Signup; guided steps if they have no Meta account yet |
+| Vendor Meta assets | Vendor connects **their** Business Manager / WABA via Embedded Signup; the flow **creates** portfolio + WABA if they have none. Number is **not** mapped onto a ChatLogix WABA |
 | Who pays Meta (API usage) | **ChatLogix** via **credit line sharing** on the vendor’s WABA (`waba_currency=INR`); vendor does **not** add a Meta payment method |
 | Vendor commercial model | **Wallet-only** — one ChatLogix balance for **AI + WhatsApp** (no separate subscription line for WA in v1) |
 | WhatsApp message pricing | Meta INR base rate + **per-vendor % markup**. The markup shipped (`Vendor.markupPercent`, admin-editable); the Meta base rate has **not** — WhatsApp conversation fees are absorbed by ChatLogix until P2h |
@@ -378,10 +392,10 @@ This alone converts anxious vendors who would otherwise bounce on any friction.
 Platforms like Wati, Interakt, AiSensy, Gallabox, and DoubleTick all use **Meta Embedded Signup** for WhatsApp — the hard part is identical everywhere. ChatLogix uses the same Meta connect mechanics but bills through **our** Solution Partner credit line so vendors see **one ChatLogix wallet**, not a separate Meta invoice. We differentiate by front-loading **catalog + AI demo** before Meta signup:
 
 ```
-Account + OTP → Business profile → Catalog + AI setup → Sandbox demo → Submit → Admin approve → Top up wallet → WhatsApp connect → Go live
+Account + OTP → Catalog + demo → Finish setup → Dashboard → (optional top-up) → WhatsApp connect → Go live
 ```
 
-Competitors often push Meta signup or payment first; we let micro-vendors **see AI value on a ₹50 trial** before approval and WhatsApp.
+Competitors often push Meta signup or payment first; we let micro-vendors **see AI value on a ₹50 trial**, then connect WhatsApp when they have **balance**, without waiting for ops or business hours.
 
 ---
 
@@ -389,19 +403,19 @@ Competitors often push Meta signup or payment first; we let micro-vendors **see 
 
 Use `Vendor.registrationStatus` (field exists in schema; wiring TBD):
 
-| Status | Meaning | Vendor can access |
+| Status | Meaning | Vendor can access (target) |
 | --- | --- | --- |
 | `onboarding` | Filling wizard steps | `/onboarding/*` only |
-| `pending_approval` | Submitted, waiting for ops | `/onboarding/submitted` + edit wizard |
-| `approved` | Admin approved | Full vendor portal |
-| `rejected` | Admin declined | `/onboarding/rejected` (optional v1) |
+| `pending_approval` | **Legacy (shipped today)** — submitted, waiting for ops | `/onboarding/submitted` — **remove from happy path** |
+| `approved` | Onboarding complete | Full vendor portal (`/dashboard`, `/wallet`, future `/settings/whatsapp`) |
+| `rejected` | Ops suspended / declined | Block portal; show reason |
 
 Additional fields (recommended):
 
 | Field | Purpose |
 | --- | --- |
 | `registeredAt` | Signup timestamp (exists) |
-| `approvedAt`, `approvedBy` | Manual approval audit (exist) |
+| `approvedAt`, `approvedBy` | Set on auto-approve at submit (`approvedBy: system` or null); ops override still possible |
 | `trialGrantedMilli` | Original trial amount (`50000`) for “₹32 of ₹50” UI |
 | `trialExpiresAt` | Trial wallet expiry |
 | `onboardingStep` or JSON `onboardingData` | Resume last incomplete step |
@@ -469,21 +483,22 @@ After go-live, **all** billable usage debits the same `Vendor.walletBalanceMilli
 - When WhatsApp billing lands, it should populate `whatsappCostMilli` on the existing charge rather than introduce a parallel debit path, so the breakdown stays in one `WalletTransaction.metadata`.
 - **Low balance:** the wallet gate requires enough to cover a **worst-case turn at the vendor's markup**, not merely a non-zero balance. Inbound messages are still persisted to the inbox; the AI pipeline sends `WALLET_EMPTY_TEMPLATE` and runs no LLM and no debit. Vendor copy: “Top up to reply to customers.”
 
-### After approval
+### After onboarding complete (auto-approve — target)
 
-1. Ops sets `registrationStatus = 'approved'`, `approvedAt`, `approvedBy`.
-2. **Reset** `walletBalanceMilli = 0` (trial not carried over).
-3. Vendor pays ₹X via wallet top-up ([P2g](./wallet-top-up-p2g.md): mock v1 shipped, Razorpay v2) → `walletBalanceMilli += X * 1000`.
-4. Send approval notification with login / payment instructions.
+1. On successful **complete onboarding**: `registrationStatus = 'approved'`, `approvedAt = now`, `submittedAt = now`. **Do not** change `walletBalanceMilli` except what onboarding already debited.
+2. Redirect to `/dashboard` with banner: remaining trial balance + **Connect WhatsApp** when ready. If balance is 0: “Add money to reply to customers” (not a fixed ₹100 go-live rule).
+3. Optional notification to login phone: “You’re in — connect WhatsApp when ready.”
+4. Top-up via [P2g](./wallet-top-up-p2g.md) **mock wallet first**; Razorpay does not block P2h.
 
-### Trial expiry
+**Live WhatsApp (P2h):** status `live` when connect succeeded, credit attached (prod), **`walletBalanceMilli` > 0** and passes **`canProcessMessage`** for a worst-case turn (same gate as live pipeline today), and test inbound received. No `minWalletTopUpPaise` check for go-live. See [whatsapp-connect-p2h.md](./whatsapp-connect-p2h.md).
 
-When `now > trialExpiresAt` and status is not `approved`:
+### Trial expiry (during onboarding only)
 
-- Block catalog import and sandbox chat (even if balance &gt; 0), **or**
-- Zero out remaining trial balance (product choice at implement time)
+While `registrationStatus === 'onboarding'` and `now > trialExpiresAt`:
 
-Recommend: **block AI-paid actions** and show “Trial expired — submit for approval or contact support.”
+- Block catalog import and sandbox chat; show “Finish setup or contact support.”
+
+Once **approved**, do **not** zero trial or block the portal solely on `trialExpiresAt` — remaining balance is prepaid wallet.
 
 ---
 
@@ -678,7 +693,11 @@ Vendor.create({
 
 ### Step 5 — `/onboarding/review` (Submit)
 
-**Purpose:** Summary cards, email field if empty, submit for approval.
+**Purpose:** Summary cards, email field if empty, **finish setup** (complete onboarding).
+
+**CTA:** **Finish setup** → auto-approve → `/dashboard`.
+
+**Target API:** `POST /api/vendors/me/complete-onboarding` (alias `submit-for-approval` until renamed).
 
 **Progress:** Step 5 of 5 · **Submit**
 
@@ -815,22 +834,22 @@ Vendor.create({
 
 ---
 
-### Page — `/onboarding/submitted` (Waiting for approval)
+### Page — `/onboarding/submitted` (Legacy — pending ops approval)
 
-**Purpose:** Terminal holding state until ops approves.
+**Status:** Shipped today; **not** the target happy path after 2026-09-17. Remove when submit auto-approves.
+
+**Purpose (legacy):** Holding state until ops approves.
 
 **UI:**
 
 - Status illustration + copy: “We’re reviewing your application”
-- Expected timeline (e.g. 1–2 business days)
+- Expected timeline (e.g. 1–2 business days) — **this blocks midnight signup; avoid in target funnel**
 - Summary card (business name, phone, submitted date)
 - Trial wallet widget (read-only if exhausted)
-- **Edit application** → returns to wizard (status stays `pending_approval`; edits allowed per product decision)
+- **Edit application** → returns to wizard
 - Log out
 
-**Re-login behavior:** Always lands here until `approved`.
-
-**Credits consumed:** None (unless user edits and uses sandbox/import again)
+**Target behavior:** Submit → `/dashboard` immediately; this page unused.
 
 ---
 
@@ -845,17 +864,27 @@ Vendor.create({
 
 ---
 
-## Post-approval experience
+## Post-onboarding experience (dashboard)
 
-### Manual approval (v1)
+### Auto-approve on finish setup
 
-Ops runs SQL or the approval script:
+**Target API:** `POST /api/vendors/me/complete-onboarding` (alias `submit-for-approval` until renamed). Sets `registrationStatus = 'approved'`, preserves `walletBalanceMilli`, sets `approvedAt` / `submittedAt`.
+
+**Frontend (shipped 2026-09-18):** Review step CTA **Finish setup** → `completeOnboarding()` → `refreshAuth()` → `/dashboard` with next-steps banner (Connect WhatsApp → `/settings/whatsapp`, low balance → `/wallet`).
+
+**Backend (pending until Phase A backend PR):** Handler still sets `pending_approval` on the legacy route — finish setup will 404 or behave incorrectly until `completeOnboarding` is wired. Legacy `/onboarding/submitted` remains for in-flight `pending_approval` vendors.
+
+### Legacy manual approval (exceptions only)
+
+For ops overrides (e.g. unstick a vendor), use the script **without zeroing wallet** once carry-forward is implemented:
 
 ```bash
 cd backend && npx tsx scripts/approve-vendor.ts +919876543210 ops@chatlogix.in
 ```
 
-Or SQL:
+**Shipped script today still sets `walletBalanceMilli: 0`** — change when implementing carry-forward.
+
+Or SQL (do **not** zero wallet in target model):
 
 ```sql
 UPDATE "Vendor"
@@ -863,39 +892,34 @@ SET
   "registrationStatus" = 'approved',
   "approvedAt" = NOW(),
   "approvedBy" = 'ops@chatlogix.in',
-  "subscriptionStatus" = 'active',
-  "walletBalanceMilli" = 0     -- trial not carried over
+  "subscriptionStatus" = 'active'
+  -- do NOT set walletBalanceMilli = 0; carry forward trial
 WHERE phone = '+919876543210';
 ```
 
-Then call notification (logged stub until WhatsApp template wired):
+See [approval-runbook.md](./approval-runbook.md).
 
-```typescript
-// backend/src/services/vendorApprovalNotificationService.ts — notifyVendorApproved()
-```
+### Completion notification (optional)
 
-### Approval notification
+WhatsApp template or SMS to **login phone**:
 
-Send WhatsApp template or SMS to **login phone**:
+> You’re set up on ChatLogix. Connect WhatsApp when you’re ready — keep wallet balance so customers get replies.
 
-> Your ChatLogix account is approved. Log in at {url} to load your wallet and connect WhatsApp.
+(Stub: `vendorApprovalNotificationService`.)
 
-(Implementation: `whatsappTemplateService` or SMS provider — future ticket.)
-
-### First login after approval
+### First visit after onboarding complete
 
 - Redirect → `/dashboard`
-- Onboarding routes no longer accessible
-- Wallet shows **₹0.00** until top-up
-- Prompt: “Load wallet to enable live AI” / “Connect WhatsApp”
+- Onboarding routes redirect away
+- Wallet shows **carried trial** (e.g. ₹32 of ₹50)
+- Primary CTAs: **Connect WhatsApp** (P2h) and **Add money** (`/wallet`) when balance is low — mock top-up today
 
-### Wallet top-up (future slice)
+### Wallet top-up (P2g shipped)
 
-- Pay ₹1,000 → `walletBalanceMilli += 1000000`
-- `WalletTransaction` type `topup`
-- UI shows **₹1,000.00** balance
+- Minimum **₹100 per top-up transaction** when they choose to add money (`minWalletTopUpPaise`) — not required to go live if carried trial suffices
+- Mock provider v1; Razorpay v2 when credentials exist — [wallet-top-up-p2g.md](./wallet-top-up-p2g.md)
 
-### WhatsApp connection (after approval, separate slice)
+### WhatsApp connection (P2h — planned)
 
 - Route: `/settings/whatsapp` or dedicated connect wizard
 - Meta **Embedded Signup** (same popup flow as Wati/Interakt); if vendor has no Business Manager, the flow **creates** portfolio / WABA inside Embedded Signup with step-by-step UI copy before/after the Meta popup
@@ -903,7 +927,7 @@ Send WhatsApp template or SMS to **login phone**:
 - Login phone ≠ WhatsApp number — business WA number entered during Meta flow
 - **Server-side after signup:** exchange token → register number → subscribe app webhooks → **`whatsapp_credit_sharing_and_attach`** with `waba_currency=INR` → verify `primary_funding_id` → store encrypted token + `WhatsAppNumber` row
 - Vendor messaging: *“WhatsApp message charges are deducted from your ChatLogix balance; you don’t pay Meta separately.”*
-- See [vendor-onboarding-workflow.md](../../../whatsapp-integration/guides/vendor-onboarding-workflow.md) §5–§6
+- **Full plan (authority):** [whatsapp-connect-p2h.md](./whatsapp-connect-p2h.md) — vendor-owned WABA, no ChatLogix ops setup, conversion/risks, slices P2h-a–i. The older [vendor-onboarding-workflow.md](../../../whatsapp-integration/guides/vendor-onboarding-workflow.md) §6 still describes Graph call order.
 
 ---
 
@@ -917,7 +941,7 @@ Send WhatsApp template or SMS to **login phone**:
 | `GET` | `/api/vendors/me` | Profile incl. `registrationStatus`, onboarding step |
 | `PATCH` | `/api/vendors/me/onboarding` | Save step data + advance step |
 | `GET` | `/api/vendors/me/trial-wallet` | Balance + breakdown |
-| `POST` | `/api/vendors/me/submit-for-approval` | `pending_approval` |
+| `POST` | `/api/vendors/me/submit-for-approval` | **Shipped:** `pending_approval`. **Target:** `approved` + carry trial |
 | `POST` | `/api/catalog-import/...` | Existing; gated for trial vendors |
 | `POST` | `/api/vendors/me/sandbox/chat` | Sandbox chat via **production pipeline** (`sandbox: true`); charge the wallet in millirupees; return reply + `costMilli` |
 
@@ -941,9 +965,10 @@ Send WhatsApp template or SMS to **login phone**:
 | **P2c** | Steps 3–4 (AI setup + sandbox) + wallet deduction + wallet widget |
 | **P2d** | Step 5 + submitted page + submit API |
 | **P2e** | Cost-based billing refactor (replace flat credits for sandbox/live). **Superseded 2026-09-16** by the millirupee + per-vendor-markup model — [BILLING_AND_PRICING.md](../../../../../docs/BILLING_AND_PRICING.md) |
-| **P2f** | Approval notification + ops runbook |
+| **P2f** | Completion notification + ops runbook (legacy approve path) |
+| **P2f+** | **Auto-approve on submit**, trial carry-forward, dashboard CTA for min top-up — [gaps](#implementation-gaps-doc-vs-code-2026-09-17) |
 | **P2g** | Post-approval wallet top-up — **mock provider v1**, [detailed plan](./wallet-top-up-p2g.md); Razorpay v2 when credentials exist |
-| **P2h** | WhatsApp Embedded Signup (Cloud API + Coexistence), credit attach (INR), per-vendor tokens, admin markup %, wallet gating for AI/outbound |
+| **P2h** | WhatsApp Embedded Signup onto a **vendor-owned WABA** (Cloud API + Coexistence), INR credit attach, per-vendor tokens, live gating, WhatsApp rate card — [detailed plan](./whatsapp-connect-p2h.md). Markup already shipped. |
 
 ---
 
@@ -966,17 +991,46 @@ The two trial knobs are edited in production on the web-admin `/billing` page, n
 3. **Complete steps 1–3** → resume on re-login at correct step.
 4. **Catalog import** → balance decreases by the marked-up job cost.
 5. **Sandbox chat** → per-reply cost (`costMilli`) shown and deducted.
-6. **Balance ₹0** → sandbox/import blocked; submit still works.
-7. **Submit** → `pending_approval`; re-login → submitted page.
-8. **Edit while pending** → wizard accessible; changes saved.
-9. **Manual approve in DB** → login → dashboard; balance ₹0.
-10. **Approved vendor** → `/onboarding/*` redirects to dashboard.
+6. **Balance ₹0** → sandbox/import blocked; finish setup still works.
+7. **Finish setup** → **target:** `approved` + dashboard with carried balance; **frontend shipped:** `POST .../complete-onboarding`, `refreshAuth()`, `/dashboard`; **backend:** wire `completeOnboarding` service (legacy `pending_approval` until merged).
+8. **Optional top-up** adds to carried trial (min **₹100 per txn** when topping up — not a go-live rule).
+9. **Approved vendor** → `/onboarding/*` redirects to dashboard.
+
+---
+
+## Implementation gaps (doc vs code, 2026-09-17)
+
+Docs now reflect the **target funnel**. The repo still implements parts of the **old** funnel.
+
+| Gap | Target | Shipped today | Fix |
+| --- | --- | --- | --- |
+| Submit outcome | Auto-`approved`, dashboard | **Frontend:** Finish setup copy, `completeOnboarding()` → `POST .../complete-onboarding`, `refreshAuth()` + `/dashboard`. **Backend:** still `pending_approval` on legacy handler until Phase A backend merges | Land `completeOnboarding` in `vendorOnboardingService` + route alias |
+| Trial wallet | Carry forward on complete | `approve-vendor.ts` zeros wallet; runbook SQL zeros wallet | Stop resetting on approve; auto-approve never zeros |
+| 24/7 go-live | No ops queue | Ops SQL / script required for legacy rows; new vendors blocked on backend until auto-approve | Auto-approve backend |
+| Min top-up to go live | **No** — live when wallet gate passes | Top-up exists; dashboard banner links to `/wallet`; go-live should use `canProcessMessage`, not `minWalletTopUpPaise` | P2h live gate |
+| P2h WhatsApp | Self-serve `/settings/whatsapp` | Dashboard CTA links to route; wizard **not built** | P2h-a–i (not P2h-h in Phase A) |
+| Razorpay | Real payments | Mock stub | P2g v2 |
+| Meta credit line (INR) | Production attach | Not in app | Meta ops + P2h-e |
+| `whatsappCostMilli` | Bill Meta usage | Always 0 | P2h-h |
+| Completion SMS/WhatsApp | Optional nurture | Stub logs only | Wire template |
+| Per-vendor Graph token | Tenant send | Global `WHATSAPP_ACCESS_TOKEN` | P2h-f |
+| Admin approval queue UI | Not required | web-admin lists vendors; no queue | Optional suspend only |
+
+**Not gaps (working):** OTP signup, intake onboarding, sandbox pipeline, millirupee billing, `/wallet` mock top-up, webhook routing by `phoneNumberId` for ops-mapped numbers.
 
 ---
 
 ## Open items (future)
 
-- Admin portal: approval queue, trial expiry days setting, rejection with reason
+### Decision log (funnel)
+
+| Date | Decision |
+| --- | --- |
+| 2026-09-18 | **No minimum top-up to go live** — only existing wallet balance / `canProcessMessage` gate. ₹100 min applies to voluntary top-up txns only. |
+| 2026-09-18 | **Finish setup** wording + `complete-onboarding` API; auto-approve on that action (not “submit for approval”). |
+| 2026-09-18 | **Build P2h on mock wallet first** — Razorpay does not block P2h. |
+
+- Admin portal: **suspend/reject** vendor (not approval queue for happy path)
 - Razorpay wallet top-up
 - Re-apply flow after rejection
 - Email notification in addition to WhatsApp/SMS

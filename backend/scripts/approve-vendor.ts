@@ -27,8 +27,7 @@ await prisma.vendor.update({
     registrationStatus: 'approved',
     approvedAt: new Date(),
     approvedBy,
-    subscriptionStatus: 'active',
-    walletBalanceMilli: 0
+    subscriptionStatus: 'active'
   }
 });
 

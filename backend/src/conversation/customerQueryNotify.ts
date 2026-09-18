@@ -4,6 +4,10 @@ import { logger } from '../logger.js';
 import { publishToQueue } from '../queue/sqsClient.js';
 import { getRedisClient } from '../utils/redis.js';
 import { logCount } from './metrics.js';
+import {
+  pickVendorSendingNumber,
+  VENDOR_SENDING_NUMBER_SELECT
+} from '../services/whatsapp/vendorSendingNumber.js';
 
 const THROTTLE_SECONDS = 15 * 60;
 
@@ -29,9 +33,7 @@ export async function notifyVendorOfKnowledgeGap(input: {
       select: {
         phone: true,
         whatsappNumbers: {
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-          select: { phoneNumberId: true }
+          select: VENDOR_SENDING_NUMBER_SELECT
         }
       }
     });
@@ -54,7 +56,7 @@ export async function notifyVendorOfKnowledgeGap(input: {
       text,
       vendorId: input.vendorId,
       conversationId: input.conversationId,
-      phoneNumberId: vendor.whatsappNumbers[0]?.phoneNumberId,
+      phoneNumberId: pickVendorSendingNumber(vendor.whatsappNumbers)?.phoneNumberId,
       metadata: { notificationType: 'customer_query', queryId: input.queryId }
     });
   } catch (error) {

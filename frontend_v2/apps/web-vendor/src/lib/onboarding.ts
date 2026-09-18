@@ -86,8 +86,20 @@ export async function patchOnboarding(body: {
   return apiClient.patch<OnboardingProfile>('/vendors/me/onboarding', body);
 }
 
-export async function submitForApproval(): Promise<{ registrationStatus: string; submittedAt: string }> {
-  return apiClient.post('/vendors/me/submit-for-approval', {});
+/** Idempotent: an already-approved vendor gets 200 with the original timestamps. */
+export interface CompleteOnboardingResponse {
+  registrationStatus: RegistrationStatus;
+  submittedAt: string | null;
+  approvedAt: string | null;
+}
+
+export async function completeOnboarding(): Promise<CompleteOnboardingResponse> {
+  return apiClient.post<CompleteOnboardingResponse>('/vendors/me/complete-onboarding', {});
+}
+
+/** @deprecated Use completeOnboarding — kept for legacy call sites during rollout */
+export async function submitForApproval(): Promise<CompleteOnboardingResponse> {
+  return completeOnboarding();
 }
 
 export async function sandboxChat(text: string): Promise<{
@@ -140,7 +152,7 @@ export const STEP_ROUTES: Record<number, string> = {
   5: '/onboarding/review',
 };
 
-export const ONBOARDING_STEP_LABELS = ['Catalog', 'Details', 'Confirm', 'Demo', 'Submit'] as const;
+export const ONBOARDING_STEP_LABELS = ['Catalog', 'Details', 'Confirm', 'Demo', 'Finish setup'] as const;
 
 export function redirectPathForStatus(
   status: RegistrationStatus | undefined,

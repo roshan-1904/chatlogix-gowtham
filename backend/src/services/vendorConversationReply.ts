@@ -18,6 +18,10 @@ import {
   resolveQuoteWamid,
   type ResolvedQuoteTarget
 } from './quotedReplyHelpers.js';
+import {
+  pickVendorSendingNumber,
+  VENDOR_SENDING_NUMBER_SELECT
+} from './whatsapp/vendorSendingNumber.js';
 
 export interface VendorReplyUser {
   vendorId?: string | null;
@@ -52,8 +56,7 @@ export async function sendVendorConversationReply(input: {
       vendor: {
         include: {
           whatsappNumbers: {
-            orderBy: { createdAt: 'desc' },
-            take: 1
+            select: VENDOR_SENDING_NUMBER_SELECT
           }
         }
       }
@@ -75,7 +78,8 @@ export async function sendVendorConversationReply(input: {
     );
   }
 
-  const phoneNumberId = conversation.vendor.whatsappNumbers[0]?.phoneNumberId || undefined;
+  const phoneNumberId =
+    pickVendorSendingNumber(conversation.vendor.whatsappNumbers)?.phoneNumberId || undefined;
 
   let quoteTarget: ResolvedQuoteTarget | null = null;
   const intro = quotedReplyFallbackIntro();

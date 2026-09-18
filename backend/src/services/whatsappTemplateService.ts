@@ -2,6 +2,10 @@ import { prisma } from '../db/prisma.js';
 import { publishToQueue } from '../queue/sqsClient.js';
 import { env } from '../config/env.js';
 import { logger } from '../logger.js';
+import {
+  resolveVendorSendingNumber,
+  resolveVendorSendingPhoneNumberId
+} from './whatsapp/vendorSendingNumber.js';
 
 export class WhatsAppTemplateService {
   /**
@@ -190,11 +194,7 @@ export class WhatsAppTemplateService {
    */
   private async getVendorPhoneNumberId(vendorId: string): Promise<string | undefined> {
     try {
-      const whatsappNumber = await prisma.whatsAppNumber.findFirst({
-        where: { vendorId },
-        select: { phoneNumberId: true }
-      });
-      return whatsappNumber?.phoneNumberId;
+      return await resolveVendorSendingPhoneNumberId(vendorId);
     } catch (error) {
       logger.error({ error, vendorId }, 'Failed to get vendor phone number ID');
       return undefined;
@@ -530,10 +530,7 @@ export class WhatsAppTemplateService {
         return { success: false, queued: false, error: 'No vendor phone' };
       }
 
-      const vendorWhatsApp = await prisma.whatsAppNumber.findFirst({
-        where: { vendorId },
-        select: { phoneNumberId: true }
-      });
+      const vendorWhatsApp = await resolveVendorSendingNumber(vendorId);
 
       const orderItems = Array.isArray(order.items)
         ? (order.items as any[]).map((item: any) => `• ${item.name || item.productName} x${item.quantity}`).join('\n')

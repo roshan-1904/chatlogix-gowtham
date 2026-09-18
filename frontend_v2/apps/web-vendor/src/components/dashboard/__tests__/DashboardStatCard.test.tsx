@@ -24,7 +24,7 @@ describe('DashboardStatCard', () => {
   it('should render trend indicator when provided', () => {
     render(<DashboardStatCard label="Test" value={100} trend="up" />);
     
-    expect(screen.getByText('vs yesterday')).toBeInTheDocument();
+    expect(screen.getByText(/vs yesterday/)).toBeInTheDocument();
   });
 
   it('should call onClick when clicked', async () => {

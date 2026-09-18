@@ -19,6 +19,7 @@ import { invalidateConversationCache, getCachedProductCatalog } from '../utils/c
 import { ValidationResult } from './dataValidationService.js';
 import { OrderService } from './orderService.js';
 import { CustomerInsightsService } from './customerInsightsService.js';
+import { resolveVendorSendingNumber } from './whatsapp/vendorSendingNumber.js';
 import { publishToQueue } from '../queue/sqsClient.js';
 import { env } from '../config/env.js';
 import {
@@ -312,12 +313,14 @@ async function notifyVendorPostSales(
   messageText: string
 ): Promise<void> {
   try {
-    const vendorWhatsApp = await prisma.whatsAppNumber.findFirst({
-      where: { vendorId },
-      select: { phoneNumberId: true, vendor: { select: { phone: true } } }
-    });
+    const [vendorWhatsApp, vendor] = await Promise.all([
+      resolveVendorSendingNumber(vendorId),
+      prisma.vendor.findUnique({ where: { id: vendorId }, select: { phone: true } })
+    ]);
 
-    const vendorPhone = vendorWhatsApp?.vendor?.phone;
+    // Kept from the old vendor-relation lookup: no sending number means the
+    // ping has no sender account, so there is nothing to queue.
+    const vendorPhone = vendorWhatsApp ? vendor?.phone : null;
     if (!vendorPhone) {
       logger.warn({ vendorId, alertType }, 'notifyVendorPostSales: no vendor phone configured');
       return;

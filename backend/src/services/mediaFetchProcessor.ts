@@ -18,6 +18,7 @@ import {
   pickUsableTranscript,
   isTranscriptTooThin
 } from './audioTranscription.js';
+import { resolveCredentials } from './whatsappClient.js';
 
 export interface MediaFetchJob {
   type: 'MediaFetchJob';
@@ -92,17 +93,21 @@ function buildS3Key(
   return `vendor/${vendorId}/conversations/${customerId}/${yyyymm}/${messageId}.${ext}`;
 }
 
-async function fetchWhatsAppMediaUrl(mediaId: string): Promise<{
+async function fetchWhatsAppMediaUrl(
+  mediaId: string,
+  phoneNumberId?: string
+): Promise<{
   url: string;
   mimeType?: string;
   fileSize?: number;
   sha256?: string;
 }> {
-  if (!env.WHATSAPP_ACCESS_TOKEN) {
+  const creds = await resolveCredentials(phoneNumberId);
+  if (!creds) {
     throw new Error('WHATSAPP_ACCESS_TOKEN not configured');
   }
   const res = await fetch(`${WA_GRAPH_BASE}/${mediaId}`, {
-    headers: { Authorization: `Bearer ${env.WHATSAPP_ACCESS_TOKEN}` }
+    headers: { Authorization: `Bearer ${creds.accessToken}` }
   });
   if (!res.ok) {
     throw new Error(`WhatsApp media metadata fetch failed: ${res.status} ${await res.text()}`);
@@ -122,9 +127,13 @@ async function fetchWhatsAppMediaUrl(mediaId: string): Promise<{
   };
 }
 
-async function downloadMediaBytes(url: string): Promise<Buffer> {
+async function downloadMediaBytes(url: string, phoneNumberId?: string): Promise<Buffer> {
+  const creds = await resolveCredentials(phoneNumberId);
+  if (!creds) {
+    throw new Error('WHATSAPP_ACCESS_TOKEN not configured');
+  }
   const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${env.WHATSAPP_ACCESS_TOKEN}` }
+    headers: { Authorization: `Bearer ${creds.accessToken}` }
   });
   if (!res.ok) {
     throw new Error(`WhatsApp media download failed: ${res.status}`);
@@ -472,10 +481,10 @@ export async function processJob(job: MediaFetchJob, stepLogger: StepLogger): Pr
 
   try {
     stepLogger.step('Fetching media metadata from WhatsApp');
-    const meta = await fetchWhatsAppMediaUrl(job.whatsappMediaId);
+    const meta = await fetchWhatsAppMediaUrl(job.whatsappMediaId, job.phoneNumberId);
 
     stepLogger.step('Downloading media bytes');
-    const bytes = await downloadMediaBytes(meta.url);
+    const bytes = await downloadMediaBytes(meta.url, job.phoneNumberId);
 
     const key = buildS3Key(
       message.conversation.vendorId,

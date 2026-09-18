@@ -24,6 +24,7 @@ import { openApiSpec } from './docs/openapi.js';
 import { authRouter } from './routes/auth.js';
 import { vendorOnboardingRouter } from './routes/vendorOnboarding.js';
 import { vendorWalletRouter } from './routes/vendorWallet.js';
+import { vendorWhatsAppRouter } from './routes/vendorWhatsApp.js';
 import { adminSettingsRouter } from './routes/adminSettings.js';
 import { startFxRateRefreshLoop } from './services/platformSettingsService.js';
 import { 
@@ -90,6 +91,7 @@ async function bootstrap() {
   app.use('/api/vendors', authenticate, vendorsRouter);
   app.use('/api/vendors', authenticate, vendorOnboardingRouter);
   app.use('/api/vendors', authenticate, vendorWalletRouter);
+  app.use('/api/vendors', authenticate, vendorWhatsAppRouter);
   app.use('/api/conversations', authenticate, conversationsRouter);
   app.use('/api/messages', authenticate, messagesRouter);
   app.use('/api/usage', authenticate, usageRouter);

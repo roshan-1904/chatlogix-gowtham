@@ -158,7 +158,7 @@ Trial and sandbox charges pass `floorAtZero: true` so a trial wallet never goes 
 
 ### Migrations — all applied
 
-Verified 2026-09-16 against the dev database: `prisma migrate status` reports "Database schema is up to date!" for all 7 migrations.
+Verified 2026-09-18 against the dev database: `prisma migrate status` reports "Database schema is up to date!" for all 8 migrations.
 
 - `20250916120000_wallet_top_up_intent`
 - `20250916180000_wallet_milli_units`
@@ -235,7 +235,7 @@ billing: {
 
 ## 7. Known gap: WhatsApp conversation fees are not billed
 
-Platform fees default to `0` paise (`platformFeePerTurnPaise` / `platformFeeOutboundMediaPaise`), and `whatsappCostMilli` is never populated. The slot is scaffolded in `ChargeCostInput` but stays zero **until the P2h Meta rate card lands**.
+Platform fees default to `0` paise (`platformFeePerTurnPaise` / `platformFeeOutboundMediaPaise`), and `whatsappCostMilli` is never populated. The slot is scaffolded in `ChargeCostInput` but stays zero **until the P2h Meta rate card lands** (slice **P2h-h** in [whatsapp-connect-p2h.md](../documentation/modules/features/vendor-onboarding/guides/whatsapp-connect-p2h.md)). Connect itself (Embedded Signup, tenant tokens, credit attach) is the rest of that plan and must exist before the rate card is worth turning on.
 
 **ChatLogix absorbs Meta conversation fees today.** This is a deliberate, known gap — not an oversight. The consequence is that sending outbound product media is currently **free** to the vendor, a deliberate drop from the old flat 2/10-credit charge, which was revenue unconnected to any real cost.
 
@@ -252,6 +252,8 @@ Platform fees default to `0` paise (`platformFeePerTurnPaise` / `platformFeeOutb
 The trial grant was **lowered from ₹100 to ₹50**. Any doc or UI copy claiming "₹100 free trial/credits" is stale.
 
 A conversation reply now works out to roughly **₹0.20** on `gpt-4.1-mini`, so a ₹50 trial is **roughly 250 replies**. The warning threshold must stay under the grant, or every trial vendor starts out warned.
+
+**Onboarding complete (target, 2026-09-18):** remaining trial **carries forward**. **Go live** when wallet passes **`canProcessMessage`** — no separate minimum top-up rule. **`minWalletTopUpPaise`** (default ₹100) applies only when the vendor initiates a top-up. See [public-signup-onboarding.md](../documentation/modules/features/vendor-onboarding/guides/public-signup-onboarding.md).
 
 `getTrialWalletSummary` (`billingService.ts`) returns `balanceMilli`, `grantedMilli` (falling back to `paiseToMilli(trialGrantPaise)`), `expiresAt` and a per-source `breakdown[]`. It reads the last 500 `deduction` ledger rows and, if no `catalog_import` bucket appears, backfills one from `CatalogImportJob.tokenUsage`.
 
@@ -340,10 +342,11 @@ Renamed: `getTodaysCatalogImportPaiseSpent` → `getTodaysCatalogImportMilliSpen
 - [PRODUCT_MEDIA.md](./PRODUCT_MEDIA.md) §14 — outbound media billing
 - [public-signup-onboarding.md](../documentation/modules/features/vendor-onboarding/guides/public-signup-onboarding.md) §"Billing model" — trial wallet in the signup flow
 - [wallet-top-up-p2g.md](../documentation/modules/features/vendor-onboarding/guides/wallet-top-up-p2g.md) — top-up flow and the Razorpay migration
+- [whatsapp-connect-p2h.md](../documentation/modules/features/vendor-onboarding/guides/whatsapp-connect-p2h.md) — P2h connect + when `whatsappCostMilli` gets populated
 - [vendor-dashboard/API.md](../documentation/modules/features/vendor-dashboard/API.md) — the `billing` block contract
 - [vendor-dashboard/USER_GUIDE.md](../documentation/modules/features/vendor-dashboard/USER_GUIDE.md) — what the vendor sees
 - [approval-runbook.md](../documentation/modules/features/vendor-onboarding/guides/approval-runbook.md) — ops billing knobs
-- [meta-partnership README](../documentation/requirements/meta-partnership/README.md) — P2h WhatsApp rate card
+- [meta-partnership README](../documentation/requirements/meta-partnership/README.md) — Solution Partner + credit-line ops; P2h rate card is specified in [whatsapp-connect-p2h.md](../documentation/modules/features/vendor-onboarding/guides/whatsapp-connect-p2h.md) §12 P2h-h
 
 ### Documents deliberately left stale
 

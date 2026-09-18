@@ -1,5 +1,9 @@
 # Vendor Onboarding Workflow — Direct Meta API (Centralized Dashboard)
 
+> **P2h product authority (2026-09-17):** [whatsapp-connect-p2h.md](../../features/vendor-onboarding/guides/whatsapp-connect-p2h.md) — vendor-owned WABA, Embedded Signup, no ChatLogix ops setup, conversion/risks, implementation slices P2h-a–i.
+>
+> This file remains a Meta API playbook. Use §6 for Graph call order. **Do not implement §5 C–D (GST/document wizard) or §8 (ops-assisted as the default path) for P2h v1** — those contradict the locked no-support connect journey.
+
 > Detailed step-by-step onboarding playbook for vendors to connect their WhatsApp number to our SaaS using Direct Meta Cloud API, with a centralized dashboard that automates 70%+ of the process.
 
 ---

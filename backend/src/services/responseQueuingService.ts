@@ -9,6 +9,7 @@ import { logger } from '../logger.js';
 import { publishToQueue } from '../queue/sqsClient.js';
 import { env } from '../config/env.js';
 import { prisma } from '../db/prisma.js';
+import { resolveVendorSendingNumber } from './whatsapp/vendorSendingNumber.js';
 
 /**
  * Queue response to response worker
@@ -73,10 +74,7 @@ export async function queueResponse(
     // the sending WhatsApp number and falls back to a global env var that
     // isn't set in production, which previously failed silently (see
     // whatsappClient.ts) instead of retrying or marking the message failed.
-    const waNumber = await prisma.whatsAppNumber.findFirst({
-      where: { vendorId },
-      orderBy: { createdAt: 'desc' }
-    });
+    const waNumber = await resolveVendorSendingNumber(vendorId);
 
     await publishToQueue(env.RESPONSE_QUEUE_URL, {
       to: conversation.customer.phone,

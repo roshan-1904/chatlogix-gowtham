@@ -32,6 +32,7 @@ const appTitles: ReadonlyArray<readonly [string, string]> = [
   ['/catalog', 'Catalog'],
   ['/faqs/new', 'Add an FAQ'],
   ['/faqs', 'FAQs'],
+  ['/settings/whatsapp', 'Connect WhatsApp'],
   ['/settings', 'Settings'],
 ];
 
@@ -42,7 +43,7 @@ const onboardingTitles: ReadonlyArray<readonly [string, string]> = [
   ['/onboarding/confirm', 'Review your shop'],
   ['/onboarding/ai-setup', 'Set up your assistant'],
   ['/onboarding/demo-chat', 'Try the assistant'],
-  ['/onboarding/review', 'Submit for review'],
+  ['/onboarding/review', 'Finish setup'],
   ['/onboarding/submitted', 'Submitted'],
   ['/onboarding/rejected', 'Application update'],
 ];

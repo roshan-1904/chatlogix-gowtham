@@ -1,15 +1,25 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@chatlogix/ui';
 import { getJob } from '../lib/catalogImport';
+import { getWhatsAppStatus } from '../lib/whatsappConnect';
 import { useCatalogImportEnabled, useVendorConfig } from '../hooks/useVendorConfig';
+import { useAuth } from '@chatlogix/auth';
+import { useQuery } from '@tanstack/react-query';
 import { TestMessageConsole } from '../components/catalogImport/TestMessageConsole';
+import { ChecklistItem } from '../components/checklist/ChecklistItem';
 import type { CatalogImportJob } from '../types/catalogImport';
 
 export function CatalogImportGoLive() {
   const { jobId } = useParams<{ jobId: string }>();
   const enabled = useCatalogImportEnabled();
   const { data: vendor } = useVendorConfig();
+  const { user } = useAuth();
+  const whatsappQuery = useQuery({
+    queryKey: ['whatsapp-status', user?.vendorId],
+    queryFn: getWhatsAppStatus,
+    enabled: !!user?.vendorId
+  });
   const navigate = useNavigate();
   const [job, setJob] = useState<CatalogImportJob | null>(null);
 
@@ -56,11 +66,11 @@ export function CatalogImportGoLive() {
               toLabel="Open catalog"
             />
             <ChecklistItem
-              done={false}
-              title="Share your WhatsApp number"
-              hint="Send the wa.me link or QR to a test customer and place a sample order."
-              to="/settings"
-              toLabel="Get link & QR"
+              done={whatsappQuery.data?.connectStatus === 'live'}
+              title="Connect your WhatsApp number"
+              hint="Link the number customers will message, then send a test Hi."
+              to="/settings/whatsapp"
+              toLabel="Connect WhatsApp"
             />
           </ul>
         </section>
@@ -80,34 +90,5 @@ export function CatalogImportGoLive() {
         </div>
       )}
     </div>
-  );
-}
-
-interface ItemProps {
-  readonly done: boolean;
-  readonly title: string;
-  readonly hint: string;
-  readonly to: string;
-  readonly toLabel: string;
-}
-
-function ChecklistItem({ done, title, hint, to, toLabel }: Readonly<ItemProps>) {
-  return (
-    <li className="flex items-start gap-3">
-      <span
-        className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full text-[10px] ${
-          done ? 'bg-primary-500 text-white' : 'border border-gray-300 text-gray-400'
-        }`}
-      >
-        {done ? '✓' : ''}
-      </span>
-      <div className="flex-1">
-        <div className="font-medium">{title}</div>
-        <div className="text-xs text-gray-500">{hint}</div>
-      </div>
-      <Link to={to} className="text-xs font-medium text-primary-500 hover:underline">
-        {toLabel}
-      </Link>
-    </li>
   );
 }

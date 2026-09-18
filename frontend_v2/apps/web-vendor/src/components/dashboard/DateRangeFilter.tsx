@@ -6,7 +6,6 @@ interface DateRangeFilterProps {
   startDate?: string;
   endDate?: string;
   onDateRangeChange: (preset: DateRangePreset, startDate?: string, endDate?: string) => void;
-  dateRangeLabel?: string;
 }
 
 export function DateRangeFilter({
@@ -14,7 +13,6 @@ export function DateRangeFilter({
   startDate,
   endDate,
   onDateRangeChange,
-  dateRangeLabel
 }: DateRangeFilterProps) {
   const presets: Array<{ value: DateRangePreset; label: string }> = [
     { value: 'thisWeek', label: 'This Week' },
@@ -47,7 +45,6 @@ export function DateRangeFilter({
         onChange={handlePresetChange}
         className="min-w-[180px] px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
         aria-label="Date range preset"
-        aria-describedby={dateRangeLabel ? "date-range-label" : undefined}
       >
         {presets.map((p) => (
           <option key={p.value} value={p.value}>
@@ -55,13 +52,7 @@ export function DateRangeFilter({
           </option>
         ))}
       </select>
-      
-      {dateRangeLabel && (
-        <span id="date-range-label" className="text-sm text-gray-600" aria-live="polite">
-          {dateRangeLabel}
-        </span>
-      )}
-      
+
       {preset === 'custom' && (
         <Button
           variant="ghost"
@@ -73,7 +64,7 @@ export function DateRangeFilter({
           }}
           aria-label="Open custom date range picker"
         >
-          <span aria-hidden="true">📅</span> Select Dates
+          Select dates
         </Button>
       )}
     </div>

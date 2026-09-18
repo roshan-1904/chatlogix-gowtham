@@ -198,10 +198,22 @@ export async function patchOnboarding(
   return getOnboardingState(vendorId);
 }
 
-export async function submitForApproval(vendorId: string): Promise<OnboardingState> {
+export interface CompleteOnboardingResult {
+  registrationStatus: RegistrationStatus;
+  submittedAt: string | null;
+  approvedAt: string | null;
+}
+
+export async function completeOnboarding(vendorId: string): Promise<CompleteOnboardingResult> {
   const vendor = await prisma.vendor.findUnique({
     where: { id: vendorId },
-    select: { registrationStatus: true, businessName: true, email: true }
+    select: {
+      registrationStatus: true,
+      businessName: true,
+      email: true,
+      submittedAt: true,
+      approvedAt: true
+    }
   });
   if (!vendor) {
     throw new CustomError('Vendor not found', 404, ErrorType.NOT_FOUND, ErrorSeverity.LOW);
@@ -209,10 +221,11 @@ export async function submitForApproval(vendorId: string): Promise<OnboardingSta
 
   const status = vendor.registrationStatus ?? 'onboarding';
   if (status === 'approved') {
-    throw new CustomError('Already approved', 400, ErrorType.VALIDATION, ErrorSeverity.LOW);
-  }
-  if (status === 'pending_approval') {
-    return getOnboardingState(vendorId);
+    return {
+      registrationStatus: 'approved',
+      submittedAt: vendor.submittedAt?.toISOString() ?? null,
+      approvedAt: vendor.approvedAt?.toISOString() ?? null
+    };
   }
 
   if (!vendor.businessName?.trim() || !vendor.email?.trim()) {
@@ -226,16 +239,35 @@ export async function submitForApproval(vendorId: string): Promise<OnboardingSta
     );
   }
 
-  await prisma.vendor.update({
+  const now = new Date();
+  const updated = await prisma.vendor.update({
     where: { id: vendorId },
     data: {
-      registrationStatus: 'pending_approval',
-      submittedAt: new Date(),
-      onboardingStep: 5
+      registrationStatus: 'approved',
+      approvedAt: now,
+      approvedBy: 'system',
+      subscriptionStatus: 'active',
+      onboardingStep: 5,
+      submittedAt: now
+    },
+    select: {
+      registrationStatus: true,
+      submittedAt: true,
+      approvedAt: true
     }
   });
 
-  logOnboardingFunnelEvent('submitted', { vendorId });
+  logOnboardingFunnelEvent('approved', { vendorId, approvedBy: 'system' });
 
+  return {
+    registrationStatus: (updated.registrationStatus ?? 'approved') as RegistrationStatus,
+    submittedAt: updated.submittedAt?.toISOString() ?? null,
+    approvedAt: updated.approvedAt?.toISOString() ?? null
+  };
+}
+
+/** @deprecated Use completeOnboarding — kept for callers that need full OnboardingState */
+export async function submitForApproval(vendorId: string): Promise<OnboardingState> {
+  await completeOnboarding(vendorId);
   return getOnboardingState(vendorId);
 }
