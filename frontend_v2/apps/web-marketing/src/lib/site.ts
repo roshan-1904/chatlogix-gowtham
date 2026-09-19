@@ -10,6 +10,13 @@ const siteOrigin = (
 
 const supportWhatsApp = import.meta.env.VITE_SUPPORT_WHATSAPP?.trim() ?? '';
 
+/**
+ * Trial grant shown on the marketing site (rupees). Live wallet grant is
+ * `PlatformSettings.trialGrantPaise` (docs/BILLING_AND_PRICING.md). The try-box
+ * copy currently hardcodes the same figure — keep them aligned.
+ */
+export const TRIAL_GRANT_RUPEES = 50;
+
 export const site = {
   vendorOrigin,
   siteOrigin,

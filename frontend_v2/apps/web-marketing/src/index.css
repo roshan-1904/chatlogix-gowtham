@@ -173,22 +173,48 @@ html.marketing-snap-active #root {
 }
 
 /**
- * Trust gained a two-path strip and FAQ gained extra in-flow answers. At `xl+` those
- * two can outgrow one viewport — grow them instead of clipping, and drop them as
- * snap points so a tall block cannot strand its own bottom. Other sections still snap.
+ * Trust, Pricing (the estimate calculator — three sliders plus a result card), and FAQ
+ * can outgrow one viewport at `xl+`, so let them grow instead of clipping. `#pricing`
+ * is that calculator, not the trial section (`#try`).
+ *
+ * They keep their `scroll-snap-align: start`. Removing it instead — so a tall block
+ * could not strand its own bottom — made `#faq`, the *last* section, unreachable:
+ * under `snap-mandatory` every resting position must be a snap point, and with no
+ * snap point at or after the FAQ the scroller fell back to `#pricing`. Measured at
+ * 1920x1080: `scrollTo(7841)` landed on 6721, a full section short, so the FAQ and
+ * the footer under it could not be reached at all.
  */
 @media (min-width: 1280px) {
   #trust.marketing-snap-section.marketing-snap-section,
+  #pricing.marketing-snap-section.marketing-snap-section,
   #faq.marketing-snap-section.marketing-snap-section {
     height: auto;
     min-height: calc(100dvh - var(--marketing-header-h));
-    scroll-snap-align: none;
   }
 
   #trust.marketing-snap-section > .marketing-section-inner,
+  #pricing.marketing-snap-section > .marketing-section-inner,
   #faq.marketing-snap-section > .marketing-section-inner {
     flex: 0 0 auto;
     min-height: 0;
+  }
+}
+
+/**
+ * Same invariant as the release band above: a section may only outgrow the scroller
+ * where snapping is off, because mandatory snap cannot rest between snap points.
+ *
+ * Trust is the tallest of these at ~892px of content, so it starts overflowing once
+ * the scroller drops under that — a viewport below roughly 980px once the header is
+ * taken off. Above that height every section fits and the designed one-viewport snap
+ * still holds, which is why this is keyed on height rather than applied at all `xl+`.
+ *
+ * `proximity` is not an alternative here: measured at 1440x900 it still left the last
+ * 51px unreachable *and* pulled a mid-section `scrollTo(5300)` back to 5032.
+ */
+@media (min-width: 1280px) and (max-height: 980px) {
+  .marketing-snap-scroll.marketing-snap-scroll {
+    scroll-snap-type: none;
   }
 }
 

@@ -7,6 +7,7 @@ import { HowItWorksSection } from '../components/sections/HowItWorksSection';
 import { CustomerExperienceSection } from '../components/sections/CustomerExperienceSection';
 import { TrustSection } from '../components/sections/TrustSection';
 import { TryWithProductsSection } from '../components/sections/TryWithProductsSection';
+import { PricingCalculatorSection } from '../components/sections/PricingCalculatorSection';
 import { FaqCtaSection } from '../components/sections/FaqCtaSection';
 import { homeMeta } from '../copy';
 import { site } from '../lib/site';
@@ -27,6 +28,7 @@ export function Home() {
       <CustomerExperienceSection />
       <TrustSection />
       <TryWithProductsSection />
+      <PricingCalculatorSection />
       <FaqCtaSection />
     </MarketingLayout>
   );

@@ -59,14 +59,6 @@ export function TryChevronIcon({ className = 'h-4 w-4' }: IconProps) {
   );
 }
 
-export function TryFilledArrowIcon({ className = 'h-5 w-6' }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 24 16" fill="currentColor" aria-hidden>
-      <path d="M1.25 6.15h11.4V3.55c0-.72.82-1.14 1.4-.72l8.55 5.17c.55.33.55 1.11 0 1.44l-8.55 5.17c-.58.42-1.4 0-1.4-.72V9.85H1.25A1.25 1.25 0 0 1 0 8.6V7.4c0-.69.56-1.25 1.25-1.25z" />
-    </svg>
-  );
-}
-
 export function TryCardIcon({ className = 'h-4 w-4' }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>

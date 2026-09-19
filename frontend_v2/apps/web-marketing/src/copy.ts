@@ -4,6 +4,9 @@ export const homeMeta = {
     'ChatLogix answers product questions, quotes from your catalog, and turns chats into orders on WhatsApp — 24/7. Try with ₹50 free trial balance. No card needed.',
 };
 
+/** Shared by hero.trustWhatsApp and the pricing included list. TODO(owner B6): confirm. */
+export const shopNumberClaim = 'Customers use the same shop number as before';
+
 export const hero = {
   eyebrow: 'Turn WhatsApp chats into sales',
   headlineLine1: 'Still typing the same WhatsApp replies?',
@@ -29,8 +32,7 @@ export const hero = {
   ],
   trustChip:
     'Try with your own products · ₹50 free trial balance · No card required',
-  trustWhatsApp:
-    'Customers keep your shop WhatsApp. ChatLogix replies through it after you connect.',
+  trustWhatsApp: `${shopNumberClaim}. ChatLogix replies through it after you connect.`,
   primaryCta: 'Try Free',
   secondaryCta: 'See how it works',
   previewLabel: 'Your inbox now vs With ChatLogix',
@@ -639,12 +641,72 @@ export const tryWithProducts = {
   note: 'Real conversations. Real confidence.',
   card: {
     badge: 'Get ₹50 free trial balance',
+    // TODO(owner B4): "about 250 test chats" (~₹0.20) vs the calculator ~₹0.40–₹0.70
+    // per message on ChatLogix's share. Do not edit this try-box until the owner explains
+    // (sandbox chats vs a "chat" = one exchange) or aligns the two.
     body: 'Finish setup and you are in — no review queue. ₹50 covers catalog upload and about 250 test chats. Then pay as you go; leftover trial stays in your wallet.',
     checklist: ['Full feature access (limited)', 'Test with your own products', 'No commitment'],
     cta: 'Start my free demo',
     fineprint: 'Pay-as-you-go wallet after the trial. No monthly plan. Unused trial balance stays.',
   },
   trustRow: ['Secure & private', 'No card required'],
+};
+
+export const pricingCalculator = {
+  eyebrow: 'What it costs',
+  headlineBefore: 'See what a typical month costs.',
+  headlineHighlight: 'No monthly plan.',
+  body: "Top up a prepaid wallet and pay only for what you use. Slide to match your shop. It's an estimate, not a fixed price.",
+  included: {
+    label: "What's included",
+    items: [
+      { id: 'instant' as const, text: 'Customers get replies in seconds, 24 hours a day' },
+      { id: 'orders' as const, text: 'See all your orders in one place' },
+      { id: 'control' as const, text: 'See every chat, and reply yourself any time' },
+      { id: 'catalog' as const, text: 'Change a price or product, and chats use it right away' },
+      { id: 'whatsapp' as const, text: shopNumberClaim },
+    ],
+  },
+  period: {
+    label: 'Show volume as',
+    daily: 'Daily',
+    monthly: 'Monthly',
+  },
+  presets: {
+    label: 'Typical shops',
+    'home-seller': { label: 'Home seller', sublabel: 'about 30 messages a day' },
+    'small-shop': { label: 'Small shop', sublabel: 'about 100 messages a day' },
+    'busy-store': { label: 'Busy store', sublabel: 'about 500 messages a day' },
+  },
+  sliders: {
+    incoming: 'Customer messages',
+    voice: 'Voice notes (share of customer messages)',
+    voiceHelper: 'Voice notes cost a bit more to process.',
+  },
+  sliderValue: {
+    incomingDaily: (value: string) => `${value} / day`,
+    incomingMonthly: (value: string) => `${value} / month`,
+    voice: (value: string) => `${value}%`,
+  },
+  /** Spoken value for screen readers — `aria-valuetext` on each slider. */
+  sliderValueText: {
+    incomingDaily: (value: string) => `${value} customer messages a day`,
+    incomingMonthly: (value: string) => `${value} customer messages a month`,
+    voice: (value: string) => `${value} percent of messages are voice notes`,
+  },
+  result: {
+    label: 'Typical month',
+    amount: (low: string, high: string) => `₹${low}-₹${high}`,
+    suffix: '/ month',
+    perDay: (low: string, high: string) => `≈ ₹${low}–₹${high} a day`,
+  },
+  stripOverAllowance: (messages: string, allowance: string) =>
+    `${messages} messages a month. WhatsApp's fee applies after the first ${allowance} replies each month.`,
+  stripWithinAllowance: (messages: string, allowance: string) =>
+    `${messages} messages a month. That's within the first ${allowance} replies each month, which carry no WhatsApp fee.`,
+  cta: (rupees: number) => `Try free with ₹${rupees}`,
+  footnote: (effectiveLabel: string, allowance: string) =>
+    `Estimate based on WhatsApp's rates from ${effectiveLabel}, which WhatsApp can change each quarter. The first ${allowance} replies to customers each month have no WhatsApp fee. Pay as you go. No monthly plan.`,
 };
 
 export const faq = {
@@ -745,7 +807,7 @@ export const faq = {
         {
           question: 'How does pricing work?',
           answer:
-            'There is no monthly plan. You add money to a prepaid wallet and pay as you go — about ₹0.20 per reply.',
+            'There is no monthly plan. You add money to a prepaid wallet and pay as you go. Typically ₹A–₹B from the calculator. After the first 1,000 customer replies, a text reply is about ₹0.38–₹0.50 (AI + WhatsApp). See /#pricing.',
         },
         {
           question: 'What is advance payment?',

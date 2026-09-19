@@ -1,6 +1,7 @@
 import { HandDrawnUnderline } from '../solution/HandDrawnUnderline';
 import { SectionShell } from '../SectionShell';
 import { PortalCta } from '../PortalCta';
+import { MarketingArrow } from '../marketing/MarketingArrow';
 import { TrustLockIcon } from '../trust/TrustIcons';
 import {
   TryBoxIcon,
@@ -8,7 +9,6 @@ import {
   TryChatIcon,
   TryCheckCircleIcon,
   TryChevronIcon,
-  TryFilledArrowIcon,
   TryGiftIcon,
   TryPersonAddIcon,
   TrySparkleIcon,
@@ -95,7 +95,7 @@ function OfferCard() {
         <ul className="mt-4 space-y-2.5 rounded-xl bg-[#e7f6f1] px-3.5 py-3">
           {tryWithProducts.card.checklist.map((item) => (
             <li key={item} className="flex items-center gap-2.5">
-              <TryFilledArrowIcon className="h-4 w-[1.35rem] shrink-0 text-[#128C7E] sm:h-5 sm:w-7" />
+              <MarketingArrow className="h-3 w-5 shrink-0 text-[#128C7E] sm:h-3.5 sm:w-6" />
               <span className="text-[12px] font-medium text-primary-500 sm:text-[13px]">{item}</span>
             </li>
           ))}
@@ -135,7 +135,7 @@ function TrustRow() {
 export function TryWithProductsSection() {
   return (
     <SectionShell
-      id="pricing"
+      id="try"
       viewport
       className="bg-white !py-3 sm:!py-4 lg:!py-5"
       innerClassName="max-lg:!justify-start overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"

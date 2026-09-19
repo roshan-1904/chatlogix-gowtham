@@ -17,12 +17,13 @@ function BrandMark() {
   );
 }
 
-function HeaderTryFree({ className = '' }: { className?: string }) {
+/** `lg+` only — below that the fixed `StickyCta` is the persistent Try Free. */
+function HeaderTryFree() {
   return (
     <PortalCta
       href={site.urls.tryFree}
       size="md"
-      className={`!min-h-11 gap-1.5 rounded-full px-5 text-[15px] font-semibold ${className}`}
+      className="!min-h-11 gap-1.5 rounded-full px-5 text-[15px] font-semibold"
     >
       Try Free
       <span aria-hidden>→</span>
@@ -103,27 +104,24 @@ export function MarketingHeader({ pinned = false }: { pinned?: boolean }) {
             </PortalCta>
             <HeaderTryFree />
           </div>
-          <div className="flex items-center gap-2 lg:hidden">
-            <HeaderTryFree className="!px-4" />
-            <button
-              type="button"
-              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-primary-500 hover:bg-[#e7f6f1] focus:outline-none focus:ring-2 focus:ring-primary-500"
-              aria-expanded={menuOpen}
-              aria-controls="mobile-nav"
-              aria-label={menuOpen ? 'Close menu' : 'Open menu'}
-              onClick={() => setMenuOpen((open) => !open)}
-            >
-              {menuOpen ? (
-                <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              ) : (
-                <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M4 7h16M4 12h16M4 17h16" />
-                </svg>
-              )}
-            </button>
-          </div>
+          <button
+            type="button"
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-primary-500 hover:bg-[#e7f6f1] focus:outline-none focus:ring-2 focus:ring-primary-500 lg:hidden"
+            aria-expanded={menuOpen}
+            aria-controls="mobile-nav"
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+            onClick={() => setMenuOpen((open) => !open)}
+          >
+            {menuOpen ? (
+              <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            ) : (
+              <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M4 7h16M4 12h16M4 17h16" />
+              </svg>
+            )}
+          </button>
         </div>
       </div>
 
