@@ -51,7 +51,7 @@ export function FaqCategoryColumn({
                 type="button"
                 id={buttonId}
                 onClick={() => onToggleItem(itemIndex)}
-                className={`flex min-h-[40px] w-full items-center justify-between gap-3 border px-3.5 py-2.5 text-left text-[12px] font-semibold text-primary-500 transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500 sm:text-[13px] ${
+                className={`flex min-h-[44px] w-full items-center justify-between gap-3 border px-3.5 py-2.5 text-left text-[12px] font-semibold text-primary-500 transition-colors focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500 sm:text-[13px] ${
                   isOpen ? `${active} rounded-b-none rounded-t-xl` : 'rounded-xl border-gray-200 bg-white'
                 }`}
                 aria-expanded={isOpen}

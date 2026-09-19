@@ -173,6 +173,26 @@ html.marketing-snap-active #root {
 }
 
 /**
+ * Trust gained a two-path strip and FAQ gained extra in-flow answers. At `xl+` those
+ * two can outgrow one viewport — grow them instead of clipping, and drop them as
+ * snap points so a tall block cannot strand its own bottom. Other sections still snap.
+ */
+@media (min-width: 1280px) {
+  #trust.marketing-snap-section.marketing-snap-section,
+  #faq.marketing-snap-section.marketing-snap-section {
+    height: auto;
+    min-height: calc(100dvh - var(--marketing-header-h));
+    scroll-snap-align: none;
+  }
+
+  #trust.marketing-snap-section > .marketing-section-inner,
+  #faq.marketing-snap-section > .marketing-section-inner {
+    flex: 0 0 auto;
+    min-height: 0;
+  }
+}
+
+/**
  * A fixed-height snap section centres its inner, so content that outgrows the box
  * overflows *both* ways and `overflow-hidden` eats the top — the eyebrow and the first
  * headline line — before anything else. `safe` centring falls back to start alignment in

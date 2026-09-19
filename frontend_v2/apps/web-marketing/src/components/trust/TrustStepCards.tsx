@@ -168,45 +168,96 @@ const visualById = {
   reply: ReplyVisual,
 };
 
-export function TrustStepCards() {
+function QueriesPathIcon({ className = 'h-5 w-5' }: { className?: string }) {
   return (
-    // Four across needs both width and height: at `xl` there is room by width alone,
-    // and on a short laptop (<=860px tall) four across is also the *shortest* layout,
-    // so it is the one that keeps the section inside one viewport at 1024-1279.
-    <ol className="grid grid-cols-1 items-stretch gap-4 pt-5 sm:grid-cols-2 sm:gap-6 xl:grid-cols-4 xl:gap-10 [@media(min-width:1024px)_and_(max-height:860px)]:grid-cols-4">
-      {trust.steps.map((step, index) => {
-        const Visual = visualById[step.id];
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <path d="M21 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M9.5 9.5a2.5 2.5 0 1 1 3.6 2.25c-.7.4-1.1.9-1.1 1.75" strokeLinecap="round" />
+      <path d="M12 16.2h.01" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function PausePathIcon({ className = 'h-5 w-5' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <rect x="6" y="5" width="4" height="14" rx="1" />
+      <rect x="14" y="5" width="4" height="14" rx="1" />
+    </svg>
+  );
+}
+
+const pathIconById = {
+  queries: { Icon: QueriesPathIcon, wrap: 'bg-amber-50 text-amber-700' },
+  pause: { Icon: PausePathIcon, wrap: 'bg-blue-50 text-blue-600' },
+};
+
+function DontKnowPaths() {
+  return (
+    <ul className="mt-5 divide-y divide-gray-100 overflow-hidden rounded-2xl border border-gray-200 bg-white">
+      {trust.dontKnowPaths.map((path) => {
+        const config = pathIconById[path.id];
+        const { Icon, wrap } = config;
         return (
-          <li key={step.id} className="flex h-full min-w-0 flex-col">
-            <div className="relative flex min-h-0 flex-1 flex-col">
-              {index > 0 ? (
-                <div
-                  className="pointer-events-none absolute left-[-1.25rem] top-1/2 z-10 hidden -translate-x-1/2 -translate-y-1/2 text-[#0f6b5c] xl:block"
-                  aria-hidden
-                >
-                  <TrustArrowIcon />
-                </div>
-              ) : null}
-              <StepCard id={step.id} number={step.number} title={step.title} body={step.body}>
-                <Visual />
-              </StepCard>
-            </div>
-            {/* Single column has no neighbour to line up with, so the empty note slot
-                only reserves height from `sm`, where the cards sit in a row. */}
-            <div
-              className={`mt-2.5 sm:mt-3 sm:min-h-[3.75rem] lg:min-h-[4.25rem] ${
-                step.note ? '' : 'hidden sm:block'
-              }`}
-            >
-              {step.note ? (
-                <p className="max-w-full origin-left -rotate-[4deg] whitespace-pre-line px-1 font-handwritten text-[1rem] font-bold leading-snug text-[#0f6b5c] sm:text-[1.2rem] lg:text-[1.35rem]">
-                  {step.note}
-                </p>
-              ) : null}
+          <li key={path.id} className="flex items-start gap-3 px-4 py-3 sm:px-5 sm:py-3.5">
+            <span className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${wrap}`}>
+              <Icon className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[13px] font-bold text-primary-500 sm:text-[14px]">{path.title}</p>
+              <p className="mt-0.5 text-[12px] leading-5 text-slate-600 sm:text-[13px]">{path.body}</p>
             </div>
           </li>
         );
       })}
-    </ol>
+    </ul>
+  );
+}
+
+export function TrustStepCards() {
+  return (
+    <div>
+      {/*
+        Four across needs both width and height: at `xl` there is room by width alone,
+        and on a short laptop (<=860px tall) four across is also the *shortest* layout,
+        so it is the one that keeps the section inside one viewport at 1024-1279.
+      */}
+      <ol className="grid grid-cols-1 items-stretch gap-4 pt-5 sm:grid-cols-2 sm:gap-6 xl:grid-cols-4 xl:gap-10 [@media(min-width:1024px)_and_(max-height:860px)]:grid-cols-4">
+        {trust.steps.map((step, index) => {
+          const Visual = visualById[step.id];
+          return (
+            <li key={step.id} className="flex h-full min-w-0 flex-col">
+              <div className="relative flex min-h-0 flex-1 flex-col">
+                {index > 0 ? (
+                  <div
+                    className="pointer-events-none absolute left-[-1.25rem] top-1/2 z-10 hidden -translate-x-1/2 -translate-y-1/2 text-[#0f6b5c] xl:block"
+                    aria-hidden
+                  >
+                    <TrustArrowIcon />
+                  </div>
+                ) : null}
+                <StepCard id={step.id} number={step.number} title={step.title} body={step.body}>
+                  <Visual />
+                </StepCard>
+              </div>
+              {/* Single column has no neighbour to line up with, so the empty note slot
+                  only reserves height from `sm`, where the cards sit in a row. */}
+              <div
+                className={`mt-2.5 sm:mt-3 sm:min-h-[3.75rem] lg:min-h-[4.25rem] ${
+                  step.note ? '' : 'hidden sm:block'
+                }`}
+              >
+                {step.note ? (
+                  <p className="max-w-full origin-left -rotate-[4deg] whitespace-pre-line px-1 font-handwritten text-[1rem] font-bold leading-snug text-[#0f6b5c] sm:text-[1.2rem] lg:text-[1.35rem]">
+                    {step.note}
+                  </p>
+                ) : null}
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+      <DontKnowPaths />
+    </div>
   );
 }

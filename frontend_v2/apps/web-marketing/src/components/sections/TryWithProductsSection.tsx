@@ -1,7 +1,7 @@
 import { HandDrawnUnderline } from '../solution/HandDrawnUnderline';
 import { SectionShell } from '../SectionShell';
 import { PortalCta } from '../PortalCta';
-import { TrustLockIcon, TrustShieldIcon } from '../trust/TrustIcons';
+import { TrustLockIcon } from '../trust/TrustIcons';
 import {
   TryBoxIcon,
   TryCardIcon,
@@ -18,7 +18,7 @@ import { site } from '../../lib/site';
 import { handwrittenCalloutClass, sectionBodyClass, sectionEyebrowClass, sectionHeadingClass } from '../../lib/pageLayout';
 
 const stepIcons = [TryPersonAddIcon, TryBoxIcon, TryChatIcon, TryCheckCircleIcon];
-const trustRowIcons = [TrustLockIcon, TryCardIcon, TrustShieldIcon];
+const trustRowIcons = [TrustLockIcon, TryCardIcon];
 
 function TryEyebrow() {
   return (

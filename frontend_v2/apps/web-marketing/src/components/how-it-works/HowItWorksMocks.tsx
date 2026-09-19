@@ -60,7 +60,7 @@ export function WhatsAppStartMock() {
     <div className={cardClass}>
       <div className="flex items-center gap-2 bg-[#008069] px-2 py-1.5 text-white">
         <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/20 text-[10px] font-semibold">
-          R
+          {chatCard.name.slice(0, 1)}
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-[11px] font-semibold leading-tight">{chatCard.name}</p>
@@ -143,7 +143,7 @@ export function OrdersDashboardMock() {
           <div key={row.id} className="flex flex-1 items-center gap-1.5 border-b border-gray-50 px-2 py-1 last:border-0">
             <span className="h-4 w-4 shrink-0 rounded-sm bg-[#dfe5e7]" />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[11px] font-medium text-primary-500">{row.id}</p>
+              <p className="truncate text-[11px] font-medium text-primary-500">{row.product}</p>
               <p className="truncate text-[10px] text-slate-500">{row.amount}</p>
             </div>
             <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${statusTone[row.status] ?? 'bg-gray-50 text-gray-600'}`}>

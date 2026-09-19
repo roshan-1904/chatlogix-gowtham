@@ -19,7 +19,7 @@ export function TrustSection() {
       id="trust"
       viewport
       className="bg-white !py-3 sm:!py-4 lg:!py-5"
-      innerClassName="max-lg:!justify-start overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+      innerClassName="max-lg:!justify-start"
     >
       <div className="flex w-full flex-col gap-4 sm:gap-5 lg:h-full lg:min-h-0 lg:justify-center lg:gap-5 xl:gap-6">
         <header className="mx-auto w-full max-w-5xl text-center">

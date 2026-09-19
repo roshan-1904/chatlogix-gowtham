@@ -23,7 +23,10 @@ function HeroTrustChip({ className }: { className: string }) {
       <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#25D366]/12 text-[#128C7E]">
         <GiftIcon className="h-4 w-4" />
       </span>
-      <p className="min-w-0 leading-relaxed">{hero.trustChip}</p>
+      <div className="min-w-0 leading-relaxed">
+        <p>{hero.trustChip}</p>
+        <p className="mt-1">{hero.trustWhatsApp}</p>
+      </div>
     </div>
   );
 }

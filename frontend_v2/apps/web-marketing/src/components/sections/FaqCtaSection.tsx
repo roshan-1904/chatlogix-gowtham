@@ -72,7 +72,7 @@ export function FaqCtaSection() {
       className="bg-gray-50 !py-0"
       // No `lg:overflow-hidden`: the accordion now grows the column in flow, and a
       // clipping inner would cut the answer (and the CTA banner under it) off.
-      innerClassName="max-lg:!justify-start overflow-x-hidden overflow-y-auto py-3 sm:py-4 lg:py-5 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+      innerClassName="max-lg:!justify-start overflow-x-hidden py-3 sm:py-4 lg:py-5"
       footer={<MarketingFooter />}
     >
       <div className="flex w-full flex-col gap-4 sm:gap-5 lg:h-full lg:min-h-0 lg:justify-center lg:gap-6 xl:gap-5">

@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react';
-import { solution } from '../../copy';
+import { useState, type ReactNode } from 'react';
+import { solution, solutionDemo, type SolutionDemoTab } from '../../copy';
 import { CartOrderIcon } from '../hero/HeroIcons';
 import { HandDrawnUnderline } from './HandDrawnUnderline';
 import { SolutionPhoneDemo } from './SolutionPhoneDemo';
@@ -142,8 +142,48 @@ function ArrowStock() {
   );
 }
 
+function SolutionDemoTabs({
+  tab,
+  onChange,
+}: {
+  tab: SolutionDemoTab;
+  onChange: (next: SolutionDemoTab) => void;
+}) {
+  const tabs = [
+    { id: 'readyMade' as const, label: solutionDemo.tabs.readyMade },
+    { id: 'custom' as const, label: solutionDemo.tabs.custom },
+  ];
+
+  return (
+    <div
+      role="tablist"
+      aria-label="Catalog demo type"
+      className="mb-3 grid w-full grid-cols-2 gap-1 rounded-xl bg-[#072349]/[0.06] p-1"
+    >
+      {tabs.map((item) => {
+        const isActive = tab === item.id;
+        return (
+          <button
+            key={item.id}
+            type="button"
+            role="tab"
+            aria-selected={isActive}
+            onClick={() => onChange(item.id)}
+            className={`min-h-11 rounded-lg px-2 text-[13px] font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#25D366] focus-visible:ring-offset-2 ${
+              isActive ? 'bg-[#072349] text-white' : 'bg-transparent text-[#072349]'
+            }`}
+          >
+            {item.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function SolutionVisual() {
   const { callouts } = solution;
+  const [tab, setTab] = useState<SolutionDemoTab>('readyMade');
 
   return (
     // The horizontal padding reserves a handwriting gutter on each side of the phone.
@@ -164,56 +204,62 @@ export function SolutionVisual() {
       />
 
       <div className="relative mx-auto w-fit">
-        <PhoneDemoFrame className="phone-demo-section">
-          <SolutionPhoneDemo />
-        </PhoneDemoFrame>
-
+        <SolutionDemoTabs tab={tab} onChange={setTab} />
         {/*
-          Below `xl` there is no room beside the phone for handwriting, and the three
-          flanking notes repeat what the benefit list already says, so they only render
-          from `xl` up. The "Happy customers. More orders." payoff has no bullet
-          equivalent, so it stays at every width — in normal flow under the phone.
+          Notes stay positioned against the phone, not the tab row above it.
         */}
-        <div
-          data-solution-note="instant"
-          className={`pointer-events-none absolute top-[10%] hidden rotate-[-3deg] xl:block ${NOTE_OFFSET_LEFT} ${NOTE_WIDTH}`}
-        >
-          <p className={NOTE_CLASS}>
-            {callouts.instantLine1}
-            <br />
-            {callouts.instantLine2}
-          </p>
-          <ArrowInstant />
-        </div>
+        <div className="relative">
+          <PhoneDemoFrame className="phone-demo-section">
+            <SolutionPhoneDemo thread={solutionDemo[tab]} />
+          </PhoneDemoFrame>
 
-        <div
-          data-solution-note="orders"
-          className={`pointer-events-none absolute top-[52%] hidden rotate-[-2deg] xl:block ${NOTE_OFFSET_LEFT} ${NOTE_WIDTH}`}
-        >
-          <IconChip>
-            <CartOrderIcon className="h-[26px] w-[26px]" />
-          </IconChip>
-          <p className={NOTE_CLASS}>
-            {callouts.ordersLine1}
-            <br />
-            {callouts.ordersLine2}
-          </p>
-          <ArrowOrders />
-        </div>
+          {/*
+            Below `xl` there is no room beside the phone for handwriting, and the three
+            flanking notes repeat what the benefit list already says, so they only render
+            from `xl` up. The "Happy customers. More orders." payoff has no bullet
+            equivalent, so it stays at every width — in normal flow under the phone.
+          */}
+          <div
+            data-solution-note="instant"
+            className={`pointer-events-none absolute top-[10%] hidden rotate-[-3deg] xl:block ${NOTE_OFFSET_LEFT} ${NOTE_WIDTH}`}
+          >
+            <p className={NOTE_CLASS}>
+              {callouts.instantLine1}
+              <br />
+              {callouts.instantLine2}
+            </p>
+            <ArrowInstant />
+          </div>
 
-        <div
-          data-solution-note="stock"
-          className={`pointer-events-none absolute top-[12%] hidden flex-col items-end rotate-[4deg] text-right xl:flex ${NOTE_OFFSET_RIGHT} ${NOTE_WIDTH}`}
-        >
-          <IconChip>
-            <CubeIcon className="h-[26px] w-[26px]" />
-          </IconChip>
-          <p className={NOTE_CLASS}>
-            {callouts.stockLine1}
-            <br />
-            {callouts.stockLine2}
-          </p>
-          <ArrowStock />
+          <div
+            data-solution-note="orders"
+            className={`pointer-events-none absolute top-[52%] hidden rotate-[-2deg] xl:block ${NOTE_OFFSET_LEFT} ${NOTE_WIDTH}`}
+          >
+            <IconChip>
+              <CartOrderIcon className="h-[26px] w-[26px]" />
+            </IconChip>
+            <p className={NOTE_CLASS}>
+              {callouts.ordersLine1}
+              <br />
+              {callouts.ordersLine2}
+            </p>
+            <ArrowOrders />
+          </div>
+
+          <div
+            data-solution-note="stock"
+            className={`pointer-events-none absolute top-[12%] hidden flex-col items-end rotate-[4deg] text-right xl:flex ${NOTE_OFFSET_RIGHT} ${NOTE_WIDTH}`}
+          >
+            <IconChip>
+              <CubeIcon className="h-[26px] w-[26px]" />
+            </IconChip>
+            <p className={NOTE_CLASS}>
+              {callouts.stockLine1}
+              <br />
+              {callouts.stockLine2}
+            </p>
+            <ArrowStock />
+          </div>
         </div>
 
         <div

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { solutionDemo } from '../../copy';
+import type { SolutionDemoThread } from '../../copy';
 import { wa } from '../hero/whatsapp/whatsappChrome';
 
 function BlueTicks() {
@@ -37,12 +37,12 @@ function SolutionBubble({
   );
 }
 
-export function SolutionPhoneDemo() {
+export function SolutionPhoneDemo({ thread }: { thread: SolutionDemoThread }) {
   return (
     <div
       data-solution-phone
       className="flex h-full w-full flex-col overflow-hidden rounded-[2rem] border-[6px] border-[#1a1a1a] bg-white shadow-[0_12px_32px_rgba(7,35,73,0.14)]"
-      aria-label="ChatLogix catalog-backed reply example"
+      aria-label={`${thread.shopName} catalog-backed reply example`}
     >
       <div className="flex shrink-0 items-center gap-2 bg-[#008069] px-2.5 py-2.5 text-white">
         <span className="flex h-8 w-6 shrink-0 items-center justify-center" aria-hidden>
@@ -51,13 +51,13 @@ export function SolutionPhoneDemo() {
           </svg>
         </span>
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#dfe5e7] text-sm font-semibold text-[#54656f]">
-          {solutionDemo.avatar}
+          {thread.avatar}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[15px] font-medium leading-tight" title={solutionDemo.shopName}>
-            {solutionDemo.shopName}
+          <p className="truncate text-[15px] font-medium leading-tight" title={thread.shopName}>
+            {thread.shopName}
           </p>
-          <p className="text-[12px] leading-tight text-white/80">{solutionDemo.subtitle}</p>
+          <p className="text-[12px] leading-tight text-white/80">{thread.subtitle}</p>
         </div>
         <span className="flex shrink-0 items-center gap-2.5 pr-1 text-white/95" aria-hidden>
           <svg className="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="currentColor">
@@ -74,7 +74,7 @@ export function SolutionPhoneDemo() {
 
       {/* The bubbles fill the screen and sit at the bottom, as in a real chat. */}
       <div className="flex min-h-0 flex-1 flex-col justify-end space-y-2.5 overflow-hidden bg-[#e5ddd5] px-2.5 py-3">
-        {solutionDemo.messages.map((msg, i) => (
+        {thread.messages.map((msg, i) => (
           <SolutionBubble key={i} from={msg.from} time={msg.time}>
             {'text' in msg ? (
               msg.text

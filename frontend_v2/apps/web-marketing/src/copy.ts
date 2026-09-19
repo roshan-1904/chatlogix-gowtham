@@ -28,7 +28,9 @@ export const hero = {
     },
   ],
   trustChip:
-    'Try with your own products · ₹50 free trial balance · No card required · Experience ChatLogix before you pay',
+    'Try with your own products · ₹50 free trial balance · No card required',
+  trustWhatsApp:
+    'Customers keep your shop WhatsApp. ChatLogix replies through it after you connect.',
   primaryCta: 'Try Free',
   secondaryCta: 'See how it works',
   previewLabel: 'Your inbox now vs With ChatLogix',
@@ -52,36 +54,36 @@ export const heroPreviewBefore = {
   unreadTotal: '99+',
   chats: [
     { id: 'priya', name: '98765 xxxxx', preview: 'Hello? Need this for tonight', time: '9:48', unread: 4 },
-    { id: 'rahul', name: '91234 xxxxx', preview: 'Can you confirm cotton or blend?', time: '9:22', unread: 2 },
+    { id: 'rahul', name: '91234 xxxxx', preview: 'Is the shampoo sulphate free?', time: '9:22', unread: 2 },
     { id: 'c3', name: '87654 xxxxx', preview: 'Delivery today possible?', time: '8:55', unread: 22 },
-    { id: 'c4', name: '99887 xxxxx', preview: 'Price for 3 pieces?', time: '8:41', unread: 7 },
+    { id: 'c4', name: '99887 xxxxx', preview: 'Price for 3 soaps?', time: '8:41', unread: 7 },
     { id: 'c5', name: '95432 xxxxx', preview: 'Hello? Anyone there?', time: '8:12', unread: 31 },
     { id: 'c6', name: '88776 xxxxx', preview: '0:12', time: '8:08', unread: 18, isVoice: true },
-    { id: 'c7', name: '90123 xxxxx', preview: 'Bulk order for 20 pcs?', time: '7:54', unread: 5 },
-    { id: 'c8', name: '96543 xxxxx', preview: 'Size chart please', time: '7:41', unread: 11 },
+    { id: 'c7', name: '90123 xxxxx', preview: 'Bulk for my salon — 20 pcs?', time: '7:54', unread: 5 },
+    { id: 'c8', name: '96543 xxxxx', preview: '100ml or 200ml?', time: '7:41', unread: 11 },
     { id: 'c9', name: '88221 xxxxx', preview: 'COD available in 560001?', time: '7:28', unread: 8 },
     { id: 'c10', name: '93456 xxxxx', preview: 'Need by tomorrow morning', time: '7:15', unread: 15 },
     { id: 'c11', name: '97890 xxxxx', preview: '0:06', time: '7:02', unread: 6, isVoice: true },
-    { id: 'c12', name: '94567 xxxxx', preview: 'Any discount on 5 pieces?', time: '6:48', unread: 12 },
+    { id: 'c12', name: '94567 xxxxx', preview: 'Any discount on 5 soaps?', time: '6:48', unread: 12 },
   ],
   threads: {
     priya: {
       name: '98765 xxxxx',
       messages: [
-        { type: 'text' as const, from: 'customer' as const, text: 'Hi, do you have the black shirt in XL?', time: '8:12 am' },
-        { type: 'text' as const, from: 'customer' as const, text: 'What’s the price for 2 pieces?', time: '8:34 am' },
+        { type: 'text' as const, from: 'customer' as const, text: 'Hi, is the coconut hair oil available in 200ml?', time: '8:12 am' },
+        { type: 'text' as const, from: 'customer' as const, text: 'What’s the price for 2 bottles?', time: '8:34 am' },
         { type: 'voice' as const, from: 'customer' as const, duration: '0:06', time: '9:05 am' },
         { type: 'text' as const, from: 'customer' as const, text: 'Hello? Need this for tonight', time: '9:48 am' },
       ],
-      manualReply: 'Yes XL is available, ₹1,499 each',
+      manualReply: 'Yes 200ml is available, ₹349 each',
     },
     rahul: {
       name: '91234 xxxxx',
       messages: [
         { type: 'voice' as const, from: 'customer' as const, duration: '0:08', time: '8:28 am' },
-        { type: 'text' as const, from: 'customer' as const, text: 'Can you confirm cotton or blend?', time: '9:22 am' },
+        { type: 'text' as const, from: 'customer' as const, text: 'Is the shampoo sulphate free?', time: '9:22 am' },
       ],
-      manualReply: 'It is 100% cotton',
+      manualReply: 'Yes, it is sulphate free',
     },
   },
   typingCharsPerTick: 1,
@@ -141,36 +143,36 @@ export const heroPreviewAfter = {
   ],
   simScript: [
     { atMs: 400, action: 'appear', chatId: 'rahul', preview: '0:08', time: '10:21', unread: 1, isVoice: true },
-    { atMs: 1000, action: 'appear', chatId: 'priya', preview: 'Black shirt XL — need 2 pcs', time: '10:22', unread: 1 },
+    { atMs: 1000, action: 'appear', chatId: 'priya', preview: 'Hair oil 200ml — need 2', time: '10:22', unread: 1 },
     { atMs: 1400, action: 'appear', chatId: 'meera', preview: 'Hello? Anyone there?', time: '10:17', unread: 1 },
-    { atMs: 3200, action: 'reply', chatId: 'rahul', preview: '100% cotton, ₹1,499/pc. Delivery tomorrow.' },
-    { atMs: 2100, action: 'appear', chatId: 'karan', preview: 'Do you have blue in L?', time: '10:16', unread: 1 },
-    { atMs: 2400, action: 'appear', chatId: 'vikram', preview: 'Price for 3 pieces?', time: '10:18', unread: 1 },
-    { atMs: 3800, action: 'reply', chatId: 'priya', preview: 'Yes! Classic Black Shirt XL — ₹1,499. Add to order?' },
-    { atMs: 2900, action: 'appear', chatId: 'ananya', preview: 'Delivery today possible?', time: '10:19', unread: 1 },
+    { atMs: 3200, action: 'reply', chatId: 'rahul', preview: 'Sulphate free, ₹449 for 250ml. Delivery tomorrow.' },
+    { atMs: 2100, action: 'appear', chatId: 'karan', preview: 'Aloe face cream in stock?', time: '10:16', unread: 1 },
+    { atMs: 2400, action: 'appear', chatId: 'vikram', preview: 'Price for 3 soaps?', time: '10:18', unread: 1 },
+    { atMs: 3800, action: 'reply', chatId: 'priya', preview: 'Yes! Coconut Hair Oil 200ml — ₹349. Add to order?' },
+    { atMs: 2900, action: 'appear', chatId: 'ananya', preview: 'Need the neem soap today?', time: '10:19', unread: 1 },
     { atMs: 4200, action: 'reply', chatId: 'meera', preview: 'Hi! Yes, we’re here. What are you looking for?' },
     { atMs: 3400, action: 'appear', chatId: 'divya', preview: '0:05', time: '10:15', unread: 1, isVoice: true },
-    { atMs: 3700, action: 'appear', chatId: 'arjun', preview: 'Bulk order for office — 20 pcs', time: '10:14', unread: 1 },
-    { atMs: 5100, action: 'reply', chatId: 'karan', preview: 'Blue in L is in stock — ₹1,499.' },
-    { atMs: 5300, action: 'reply', chatId: 'vikram', preview: '3 pieces — ₹4,047 with 10% bundle off.' },
+    { atMs: 3700, action: 'appear', chatId: 'arjun', preview: 'Bulk for my salon — 20 pcs', time: '10:14', unread: 1 },
+    { atMs: 5100, action: 'reply', chatId: 'karan', preview: 'Aloe Face Cream 50g in stock — ₹299.' },
+    { atMs: 5300, action: 'reply', chatId: 'vikram', preview: '3 neem soaps — ₹267 with 10% bundle off.' },
     { atMs: 4200, action: 'customer', chatId: 'rahul', preview: 'Can I pay on delivery?', unread: 1 },
-    { atMs: 5700, action: 'reply', chatId: 'ananya', preview: 'Same-day delivery available in your area.' },
-    { atMs: 6200, action: 'reply', chatId: 'divya', preview: 'Got your voice note — cotton kurta ₹899, all sizes.' },
-    { atMs: 6500, action: 'reply', chatId: 'arjun', preview: '20 pcs bulk — ₹28,480 with 5% off. Confirm?' },
+    { atMs: 5700, action: 'reply', chatId: 'ananya', preview: 'Handmade batches go out Tuesdays — earliest is Tuesday.' },
+    { atMs: 6200, action: 'reply', chatId: 'divya', preview: 'Got your voice note — hair oil 100ml ₹249, 200ml ₹349.' },
+    { atMs: 6500, action: 'reply', chatId: 'arjun', preview: '20 × Rosemary Shampoo — ₹8,531 with 5% off. Confirm?' },
     { atMs: 6800, action: 'reply', chatId: 'rahul', preview: 'Yes, COD available in your pin code.' },
     { atMs: 5000, action: 'customer', chatId: 'priya', preview: 'Yes, add 2 please', unread: 1 },
     { atMs: 5300, action: 'customer', chatId: 'vikram', preview: 'Book it for me', unread: 1 },
-    { atMs: 5400, action: 'customer', chatId: 'meera', preview: 'Need 1 white shirt M', unread: 1 },
-    { atMs: 7800, action: 'reply', chatId: 'priya', preview: 'Done — 2× Classic Black Shirt (XL), ₹2,998.', countsAsOrder: true },
+    { atMs: 5400, action: 'customer', chatId: 'meera', preview: 'Need 1 rosemary shampoo', unread: 1 },
+    { atMs: 7800, action: 'reply', chatId: 'priya', preview: 'Done — 2× Coconut Hair Oil (200ml), ₹698.', countsAsOrder: true },
     { atMs: 8000, action: 'reply', chatId: 'vikram', preview: 'Order noted! Share delivery address.', countsAsOrder: true },
-    { atMs: 8100, action: 'reply', chatId: 'meera', preview: 'White shirt M — ₹1,299. Adding to your order?' },
-    { atMs: 6200, action: 'customer', chatId: 'karan', preview: 'Add 1 blue L', unread: 1 },
+    { atMs: 8100, action: 'reply', chatId: 'meera', preview: 'Rosemary Shampoo 250ml — ₹449. Adding to your order?' },
+    { atMs: 6200, action: 'customer', chatId: 'karan', preview: 'Add 1 face cream', unread: 1 },
     { atMs: 6300, action: 'customer', chatId: 'ananya', preview: 'Perfect, sending address', unread: 1 },
-    { atMs: 6600, action: 'customer', chatId: 'divya', preview: 'Size M please', unread: 1 },
-    { atMs: 8600, action: 'reply', chatId: 'karan', preview: 'Added 1× Blue Shirt (L) — ₹1,499.', countsAsOrder: true },
-    { atMs: 8700, action: 'reply', chatId: 'ananya', preview: 'Great — share when ready, we’ll confirm slot.' },
+    { atMs: 6600, action: 'customer', chatId: 'divya', preview: '200ml please', unread: 1 },
+    { atMs: 8600, action: 'reply', chatId: 'karan', preview: 'Added 1× Aloe Face Cream (50g) — ₹299.', countsAsOrder: true },
+    { atMs: 8700, action: 'reply', chatId: 'ananya', preview: 'Tuesday dispatch noted — share address when ready.' },
     { atMs: 7000, action: 'customer', chatId: 'arjun', preview: 'Confirm bulk order', unread: 1 },
-    { atMs: 9000, action: 'reply', chatId: 'divya', preview: 'Size M noted — ₹899. Ready to checkout?', countsAsOrder: true },
+    { atMs: 9000, action: 'reply', chatId: 'divya', preview: '200ml noted — ₹349. Ready to checkout?', countsAsOrder: true },
     { atMs: 9200, action: 'reply', chatId: 'arjun', preview: 'Bulk order confirmed — invoice on the way.', countsAsOrder: true },
   ],
   timing: {
@@ -193,16 +195,16 @@ export const problem = {
       id: 'repeat' as const,
       tone: 'rose' as const,
       title: 'The same questions, all day',
-      body: 'Price for XL? In stock? Delivery today? You already know the answer. You still type it again.',
-      tags: ['Size?', 'Price?', 'Delivery?', 'Stock?'] as const,
+      body: 'Price for 200ml? In stock? Delivery today? You already know the answer. You still type it again.',
+      tags: ['200ml?', 'Price?', 'Delivery?', 'Stock?'] as const,
       chat: {
         name: '+91 98765 43210',
         messages: [
-          { from: 'customer' as const, text: 'Hi, do you have this in XL?' },
+          { from: 'customer' as const, text: 'Hi, do you have this in 200ml?' },
           { from: 'shop' as const, text: 'Yes, available!' },
           { from: 'customer' as const, text: 'How much is it?' },
           { from: 'customer' as const, text: 'Do you deliver today?' },
-          { from: 'customer' as const, text: 'Can I get 2 pieces?' },
+          { from: 'customer' as const, text: 'Can I get 2 bottles?' },
         ],
       },
     },
@@ -219,16 +221,16 @@ export const problem = {
       ] as const,
       chats: [
         { name: '98765 43210', preview: 'Hello? Need this today?', time: '9:48', unread: '4' },
-        { name: '91234 56789', preview: 'Price for 3 pieces?', time: '9:22', unread: '12' },
+        { name: '91234 56789', preview: 'Price for 3 soaps?', time: '9:22', unread: '12' },
         { name: '87654 32109', preview: 'Delivery possible?', time: '8:55', unread: '7' },
-        { name: '99887 66554', preview: 'Is it available in L?', time: '8:30', unread: '5' },
+        { name: '99887 66554', preview: 'Is the 200ml in stock?', time: '8:30', unread: '5' },
       ],
     },
     {
       id: 'lost' as const,
       tone: 'blue' as const,
       title: 'The order is in the chat — somewhere',
-      body: '2 pcs, black XL, the pin code, “so total is…?” — split across messages. Easy to miss. Hard to pack.',
+      body: '2 bottles, 200ml, the pin code, “so total is…?” — split across messages. Easy to miss. Hard to pack.',
       note: 'Order details spread across multiple messages',
       fragments: [
         'Address here…',
@@ -239,7 +241,7 @@ export const problem = {
       chat: {
         name: '+91 98765 43210',
         messages: [
-          { text: 'Need 2 pcs black XL' },
+          { text: 'Need 2 × hair oil 200ml' },
           { text: 'MG Road, pin 560001' },
           { text: 'So total is…?' },
         ],
@@ -253,7 +255,7 @@ export const solution = {
   headlineBefore: 'Reply from your catalog ',
   headlineHighlight: 'in seconds',
   headlineAfter: ' — while you run the shop.',
-  body: 'ChatLogix understands customer questions, finds the right products from your catalog, remembers the conversation, and helps customers move toward an order — automatically, on WhatsApp.',
+  body: 'ChatLogix understands all of your products — ready-made or custom. It answers customer questions from your catalog, remembers the conversation, and helps customers move toward an order — automatically, on WhatsApp.',
   bullets: [
     {
       id: 'catalog' as const,
@@ -286,43 +288,79 @@ export const solution = {
 };
 
 export const solutionDemo = {
-  shopName: 'Classic Wear',
-  subtitle: 'Online',
-  avatar: 'C',
-  messages: [
-    {
-      from: 'customer' as const,
-      time: '10:21 AM',
-      text: 'Hi, do you have the black shirt in XL?',
-    },
-    {
-      from: 'shop' as const,
-      time: '10:21 AM',
-      text: 'Yes! Classic Black Shirt in XL is available for ₹1,499. Would you like me to add it to your order?',
-    },
-    {
-      from: 'customer' as const,
-      time: '10:22 AM',
-      text: 'Great! Add 2 pieces. Also, can you deliver to MG Road today?',
-    },
-    {
-      from: 'shop' as const,
-      time: '10:22 AM',
-      lines: [
-        { text: 'Sure! ✅' },
-        { text: '2 × Classic Black Shirt (XL)', bold: true },
-        { text: 'Delivery to MG Road today.' },
-        { text: 'Shall I confirm the order?' },
-      ],
-    },
-  ],
+  tabs: {
+    readyMade: 'Ready-made',
+    custom: 'Custom order',
+  },
+  readyMade: {
+    shopName: 'Glow Naturals',
+    subtitle: 'Online',
+    avatar: 'G',
+    messages: [
+      {
+        from: 'customer' as const,
+        time: '10:21 AM',
+        text: 'Hi, is the coconut hair oil available in 200ml?',
+      },
+      {
+        from: 'shop' as const,
+        time: '10:21 AM',
+        text: 'Yes! Coconut Hair Oil 200ml is available for ₹349. Would you like me to add it to your order?',
+      },
+      {
+        from: 'customer' as const,
+        time: '10:22 AM',
+        text: 'Great! Add 2 bottles. Also, can you deliver to MG Road today?',
+      },
+      {
+        from: 'shop' as const,
+        time: '10:22 AM',
+        lines: [
+          { text: 'Sure! ✅' },
+          { text: '2 × Coconut Hair Oil (200ml)', bold: true },
+          { text: 'Delivery to MG Road today.' },
+          { text: 'Shall I confirm the order?' },
+        ],
+      },
+    ],
+  },
+  custom: {
+    shopName: 'Sweet Crumb',
+    subtitle: 'Online',
+    avatar: 'S',
+    messages: [
+      {
+        from: 'customer' as const,
+        time: '10:21 AM',
+        text: '1 kg chocolate cake for 25 Sep, please.',
+      },
+      {
+        from: 'shop' as const,
+        time: '10:21 AM',
+        text: '₹850. What should we write on it?',
+      },
+      {
+        from: 'customer' as const,
+        time: '10:22 AM',
+        text: 'Happy Birthday Aanya',
+      },
+      {
+        from: 'shop' as const,
+        time: '10:22 AM',
+        text: 'Noted. Cakes need 1 day advance notice.',
+      },
+    ],
+  },
 };
+
+export type SolutionDemoThread = (typeof solutionDemo)['readyMade'] | (typeof solutionDemo)['custom'];
+export type SolutionDemoTab = keyof typeof solutionDemo.tabs;
 
 export const howItWorks = {
   eyebrow: 'How ChatLogix works',
   headlineBefore: 'You stay in control. ',
   headlineHighlight: 'ChatLogix handles the conversations.',
-  body: 'You provide your catalog and business rules, review everything, and go live. ChatLogix then handles thousands of customer conversations on WhatsApp — while you manage products, orders, payments, shipping and conversations from one dashboard.',
+  body: 'You provide your catalog and business rules, review everything, and go live. ChatLogix understands all of your products, then handles 20 chats a day or 2,000 on WhatsApp — while you manage products, orders, payments, shipping and conversations from one dashboard.',
   steps: [
     {
       id: 'catalog' as const,
@@ -349,23 +387,23 @@ export const howItWorks = {
     title: 'Upload your catalog',
     badge: 'Extracted',
     products: [
-      { name: 'Classic Black Shirt', price: '₹1,499', swatch: '#1a1a1a' },
-      { name: 'Blue Shirt', price: '₹1,299', swatch: '#3b6ea8' },
-      { name: 'White T-Shirt', price: '₹899', swatch: '#e8e8e8' },
+      { name: 'Coconut Hair Oil', price: '200ml · ₹349', swatch: '#c9a227' },
+      { name: 'Rosemary Shampoo', price: '250ml · ₹449', swatch: '#4f7942' },
+      { name: 'Aloe Face Cream', price: '50g · ₹299', swatch: '#e3ded0' },
     ],
   },
   chatCard: {
-    name: 'Rahul M.',
+    name: 'Ananya S.',
     subtitle: 'Online',
-    customer: 'Do you have the black shirt in XL?',
-    shop: 'Yes! Classic Black Shirt in XL is available for ₹1,499. Would you like me to add it to your order?',
+    customer: 'Diwali hamper — 3 soaps + hair oil, gift wrapped?',
+    shop: 'Yes — ₹649 with gift wrap. Handmade batches dispatch Tuesday.',
   },
   inboxCard: {
-    title: 'Live conversations (1,247)',
+    title: 'Live conversations',
     chats: [
-      { name: 'Priya K.', preview: 'Black shirt XL — need 2 pcs', time: '10:22', unread: 2 },
-      { name: 'Meera R.', preview: 'Hello? Anyone there?', time: '10:17', unread: 1 },
-      { name: 'Karan S.', preview: 'Do you have blue in L?', time: '10:16', unread: 3 },
+      { name: 'Priya K.', preview: 'Hair oil 200ml — need 2', time: '10:22', unread: 2 },
+      { name: 'Ananya S.', preview: 'Diwali hamper — 3 soaps + oil', time: '10:19', unread: 1 },
+      { name: 'Karan S.', preview: 'Aloe face cream in stock?', time: '10:16', unread: 3 },
       { name: 'Sneha T.', preview: 'Delivery to MG Road today?', time: '10:14', unread: 1 },
     ],
   },
@@ -374,10 +412,10 @@ export const howItWorks = {
     active: 'Orders',
     heading: 'Orders',
     rows: [
-      { id: 'CW-1042', product: 'Classic Black Shirt', amount: '₹2,998', status: 'Confirmed' },
-      { id: 'CW-1041', product: 'Blue Shirt', amount: '₹1,299', status: 'Packing' },
-      { id: 'CW-1040', product: 'White T-Shirt', amount: '₹899', status: 'Shipped' },
-      { id: 'CW-1039', product: 'Classic Black Shirt', amount: '₹1,499', status: 'Delivered' },
+      { id: 'GN-1042', product: 'Coconut Hair Oil', amount: '₹698', status: 'Confirmed' },
+      { id: 'GN-1043', product: 'Diwali Gift Hamper', amount: '₹649', status: 'Packing' },
+      { id: 'GN-1040', product: 'Rosemary Shampoo', amount: '₹449', status: 'Shipped' },
+      { id: 'GN-1039', product: 'Aloe Face Cream', amount: '₹299', status: 'Delivered' },
     ],
   },
   trustLine: 'AI assists. Your business stays in control.',
@@ -386,7 +424,7 @@ export const howItWorks = {
   highlights: [
     {
       id: 'scale' as const,
-      title: '1000s of conversations at once',
+      title: '20 chats a day or 2,000',
       body: 'Handle more customers without hiring more people.',
     },
     {
@@ -408,7 +446,7 @@ export const customerExperience = {
   headlineHighlight: 'ChatLogix understands everything.',
   body: 'Text, voice notes, or messages in their preferred language — ChatLogix understands what they mean and responds in seconds. No forms. No button menus.',
   exampleLabel: 'Example WhatsApp conversation',
-  shopName: 'Sweet Crumb Bakery',
+  shopName: 'Glow Naturals',
   shopSubtitle: 'online',
   benefits: [
     {
@@ -423,8 +461,8 @@ export const customerExperience = {
     },
     {
       id: 'scale' as const,
-      title: 'Thousands of customers at once',
-      body: 'Handle thousands of conversations simultaneously without making customers wait for a manual reply.',
+      title: '20 chats a day or 2,000',
+      body: 'Handle 20 chats a day or 2,000 without making customers wait for a manual reply.',
     },
     {
       id: 'reliable' as const,
@@ -441,25 +479,25 @@ export const customerExperience = {
     {
       role: 'customer' as const,
       lang: 'Tanglish',
-      text: 'Hi, 10 perukku birthday cake venum.',
+      text: 'Hi, coconut hair oil irukka?',
       time: '10:24 am',
     },
     {
       role: 'assistant' as const,
       lang: 'Tanglish',
-      text: 'Sure! Chocolate, red velvet, black forest cakes irukku. Options paaka venuma?',
+      text: 'Irukku! 100ml ₹249, 200ml ₹349 rendum stock la irukku. Options paaka venuma?',
       time: '10:24 am',
     },
     {
       role: 'customer' as const,
       lang: 'Hinglish',
-      text: 'Chocolate wala chahiye bhai.',
+      text: '200ml wala chahiye bhai.',
       time: '10:25 am',
     },
     {
       role: 'assistant' as const,
       lang: 'Hinglish',
-      text: 'Great choice! 1 kg chocolate cake ₹850 hai, 8–10 logon ke liye. Order mein add karu?',
+      text: 'Great choice! Coconut Hair Oil 200ml ₹349 hai, cold-pressed. Order mein add karu?',
       time: '10:25 am',
     },
     {
@@ -495,7 +533,7 @@ export const customerExperience = {
     {
       role: 'assistant' as const,
       lang: 'Kannada',
-      text: 'ಸರಿ! Order confirm ಆಗಿದೆ. ನಾಳೆ MG Road ಗೆ chocolate cake deliver ಮಾಡುತ್ತೇವೆ.',
+      text: 'ಸರಿ! Order confirm ಆಗಿದೆ. ನಾಳೆ MG Road ಗೆ hair oil deliver ಮಾಡುತ್ತೇವೆ.',
       time: '10:28 am',
     },
   ],
@@ -508,7 +546,7 @@ export const customerExperience = {
   ],
   stats: [
     { id: 'always' as const, value: '24/7', body: 'Always on for your customers.' },
-    { id: 'volume' as const, value: '1000s', body: 'Conversations at the same time.' },
+    { id: 'volume' as const, value: '20–2,000', body: 'Chats a day — you set the pace.' },
     { id: 'speed' as const, value: 'Instant', body: 'Replies in seconds.' },
   ],
 };
@@ -566,13 +604,25 @@ export const trust = {
   ],
   validateFooter: 'No invented product details, prices, stock or promises.',
   replyChat: {
-    customer: '2 kg cake price enna?',
+    customer: 'Will this oil stop hair fall?',
     customerTime: '10:21 AM',
     assistant:
-      'Our 2 kg chocolate cake is ₹1,450 and serves 15–20 people. Same day delivery is available in your area. Would you like to add it to your order?',
+      'I can’t promise that — it isn’t claimed in our product details. What we list: Coconut Hair Oil, cold-pressed, 200ml, ₹349. I’ve passed your question to the owner.',
     assistantTime: '10:22 AM',
   },
   storeLine: 'Conversation and response are stored in your dashboard for your reference.',
+  dontKnowPaths: [
+    {
+      id: 'queries' as const,
+      title: 'Queries',
+      body: 'Unknown facts go to the owner. The chat stays open. Nothing is invented.',
+    },
+    {
+      id: 'pause' as const,
+      title: 'Pause AI',
+      body: 'Pause any chat and reply yourself. You stay in control.',
+    },
+  ],
 };
 
 export const tryWithProducts = {
@@ -584,18 +634,17 @@ export const tryWithProducts = {
     { title: 'Create account', body: 'Sign up in minutes.' },
     { title: 'Add products', body: 'Upload your catalog and set up your store.' },
     { title: 'Test conversations', body: 'Try real customer questions and see AI replies.' },
-    { title: 'Decide with confidence', body: 'Explore, test and see the value before you upgrade.' },
+    { title: 'Decide with confidence', body: 'Finish setup and you are in. No review queue.' },
   ],
   note: 'Real conversations. Real confidence.',
   card: {
     badge: 'Get ₹50 free trial balance',
-    body: 'Use your trial balance to upload your catalog and test the assistant. After approval, add a prepaid balance to serve live customers. Plan pricing will be shared when available.',
+    body: 'Finish setup and you are in — no review queue. ₹50 covers catalog upload and about 250 test chats. Then pay as you go; leftover trial stays in your wallet.',
     checklist: ['Full feature access (limited)', 'Test with your own products', 'No commitment'],
     cta: 'Start my free demo',
-    fineprint:
-      'When your trial balance is used up, you can still submit for approval. Trial balance does not carry over after approval.',
+    fineprint: 'Pay-as-you-go wallet after the trial. No monthly plan. Unused trial balance stays.',
   },
-  trustRow: ['Secure & private', 'No card required', 'Trusted by businesses'],
+  trustRow: ['Secure & private', 'No card required'],
 };
 
 export const faq = {
@@ -627,7 +676,12 @@ export const faq = {
         {
           question: 'What does the ₹50 free trial balance include?',
           answer:
-            'Trial balance for catalog reading and demo conversations, including text and voice in the private demo. You see usage in rupees as you test.',
+            '₹50 covers catalog upload and about 250 test chats. You see usage in rupees as you test.',
+        },
+        {
+          question: 'Do I need a new WhatsApp number?',
+          answer:
+            'No. Customers keep messaging your existing shop WhatsApp. ChatLogix replies through that number after you connect.',
         },
       ],
     },
@@ -656,6 +710,11 @@ export const faq = {
           answer:
             'From the catalog you add during onboarding or later in the dashboard, including names, prices, variants, and descriptions.',
         },
+        {
+          question: 'What happens when the AI does not know something?',
+          answer:
+            'Unknown facts go to Queries for the owner. The chat stays open and nothing is invented. You can also pause AI on any chat and reply yourself.',
+        },
       ],
     },
     {
@@ -682,6 +741,16 @@ export const faq = {
           question: 'Does AI make decisions on its own?',
           answer:
             'AI understands and responds, but product facts come from your catalog and orders follow validation. Important actions stay under your control.',
+        },
+        {
+          question: 'How does pricing work?',
+          answer:
+            'There is no monthly plan. You add money to a prepaid wallet and pay as you go — about ₹0.20 per reply.',
+        },
+        {
+          question: 'What is advance payment?',
+          answer:
+            'Advance payment means you prepaid your ChatLogix wallet. There is no monthly invoice.',
         },
       ],
     },
