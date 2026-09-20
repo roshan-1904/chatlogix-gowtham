@@ -765,7 +765,7 @@ export const faq = {
         {
           question: 'Can customers use different languages or voice notes?',
           answer:
-            'Yes. Customers can write in Tamil, Hindi, or English, or send a voice note — ChatLogix transcribes it and replies in the same language.',
+            'Yes. Customers can write in English, Tamil, Tanglish, Hindi, Hinglish, Malayalam, Kannada, or Telugu, or send a voice note — ChatLogix transcribes it and replies in the same language.',
         },
         {
           question: 'How does ChatLogix know about my products?',
