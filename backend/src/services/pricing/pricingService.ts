@@ -21,6 +21,9 @@ import { logger } from '../../logger.js';
 import { ceilMilli, paiseToMilli, usdToMilliFloat } from '../../utils/money.js';
 import { calculateAudioCost, calculateCost } from '../../utils/costCalculator.js';
 import { DEFAULT_CONVERSATION_MODEL } from '../../conversation/context/catalogContextConfig.js';
+import {
+  maxCompletionTokensForModel
+} from '../../conversation/llm/openaiSampling.js';
 import type { MessageKind } from '../billingService.js';
 import { ensurePlatformSettings, getPlatformSettings } from '../platformSettingsService.js';
 
@@ -168,16 +171,18 @@ export function aiCostMilliForAudio(model: string, durationSec: number): number 
 // -- pre-flight estimate --------------------------------------------------
 
 /**
- * Worst-case token budget for one assistant turn. The completion numbers are
- * the hard `max_completion_tokens` caps in llm1.ts (400) and llm2.ts (300);
- * the prompt numbers are generous hot-set/snapshot sizes. Over-estimating is
- * the safe direction: this only gates *entry* to a turn, and a vendor whose
- * balance clears the estimate can always finish the turn.
+ * Worst-case token budget for one assistant turn. Completion caps follow
+ * openaiSampling.ts (400/300 classic; 2500/1200 for gpt-5.* / o* reasoning models).
  */
 const ESTIMATE_LLM1_PROMPT_TOKENS = 4000;
-const ESTIMATE_LLM1_COMPLETION_TOKENS = 400;
 const ESTIMATE_LLM2_PROMPT_TOKENS = 1500;
-const ESTIMATE_LLM2_COMPLETION_TOKENS = 300;
+
+function estimateCompletionTokens(model: string): { llm1: number; llm2: number } {
+  return {
+    llm1: maxCompletionTokensForModel(model, 'llm1'),
+    llm2: maxCompletionTokensForModel(model, 'llm2')
+  };
+}
 
 /** PM6 worst case for one turn: 1 assistant text plus 3 images (or 1 video). */
 const WORST_CASE_MEDIA_ATTACHMENTS = 3;
@@ -191,9 +196,10 @@ export interface TurnEstimateOptions {
 /** Pre-markup components of the worst-case turn. */
 export function turnEstimateCost(options: TurnEstimateOptions = {}): ChargeCostInput {
   const model = options.aiModel || DEFAULT_CONVERSATION_MODEL;
+  const caps = estimateCompletionTokens(model);
   const aiCostMilli =
-    aiCostMilliForTokens(model, ESTIMATE_LLM1_PROMPT_TOKENS, ESTIMATE_LLM1_COMPLETION_TOKENS) +
-    aiCostMilliForTokens(model, ESTIMATE_LLM2_PROMPT_TOKENS, ESTIMATE_LLM2_COMPLETION_TOKENS);
+    aiCostMilliForTokens(model, ESTIMATE_LLM1_PROMPT_TOKENS, caps.llm1) +
+    aiCostMilliForTokens(model, ESTIMATE_LLM2_PROMPT_TOKENS, caps.llm2);
 
   const settings = getPlatformSettings();
   const platformFeeMilli =

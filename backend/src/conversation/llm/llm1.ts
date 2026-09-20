@@ -6,7 +6,7 @@ import { buildLlm1SystemPrompt, llm1JsonSchema } from './prompts.js';
 import { validateProductIds } from '../cart/productResolve.js';
 import type { CompactCatalogEntry, HotSet, Llm1Result } from '../types.js';
 import { logCount } from '../metrics.js';
-import { openaiSamplingParams } from './openaiSampling.js';
+import { openaiChatCompletionParams } from './openaiSampling.js';
 
 // Module-level singleton, same pattern as every other OpenAI call site in
 // the codebase (e.g. unifiedAIProcessorService.ts).
@@ -57,8 +57,7 @@ export async function runLlm1(input: Llm1Input): Promise<Llm1Output> {
       { role: 'system', content: systemPrompt },
       { role: 'user', content: mergedContent }
     ],
-    ...openaiSamplingParams(model, 'llm1'),
-    max_completion_tokens: 400, // spec §13: draftReply <=~120 words, cap completion tokens (~400)
+    ...openaiChatCompletionParams(model, 'llm1'),
     response_format: {
       type: 'json_schema',
       json_schema: { name: 'llm1_result', schema: llm1JsonSchema, strict: true }
@@ -71,7 +70,24 @@ export async function runLlm1(input: Llm1Input): Promise<Llm1Output> {
   }
   const content = choice?.message?.content;
   if (!content) {
-    throw new Error('LLM-1 returned no content');
+    const reasoningTokens =
+      (completion.usage as { completion_tokens_details?: { reasoning_tokens?: number } } | undefined)
+        ?.completion_tokens_details?.reasoning_tokens ?? null;
+    logger.error(
+      {
+        traceId,
+        vendorId,
+        model,
+        finishReason: choice?.finish_reason,
+        completionTokens: completion.usage?.completion_tokens,
+        reasoningTokens,
+        promptTokens: completion.usage?.prompt_tokens
+      },
+      'LLM-1 returned no message content — often gpt-5.* used entire max_completion_tokens on reasoning (finish_reason=length)'
+    );
+    throw new Error(
+      `LLM-1 returned no content (finish_reason=${choice?.finish_reason ?? 'unknown'}, completion_tokens=${completion.usage?.completion_tokens ?? 0})`
+    );
   }
 
   const parsed = JSON.parse(content) as Llm1Result;

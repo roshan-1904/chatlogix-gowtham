@@ -142,6 +142,8 @@ describe('runLlm1', () => {
 
     const call = createMock.mock.calls[0][0];
     expect(call.temperature).toBeUndefined();
+    expect(call.max_completion_tokens).toBe(2500);
+    expect(call.reasoning_effort).toBe('low');
   });
 
   it('puts voice-note instructions in the system prompt when sourceMessageType is audio', async () => {

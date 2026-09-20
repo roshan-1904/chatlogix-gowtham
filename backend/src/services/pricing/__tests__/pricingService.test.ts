@@ -430,7 +430,9 @@ describe('computeTurnEstimate', () => {
   it('uses gpt-5.6-luna when aiModel is omitted', () => {
     const luna = computeTurnEstimate({ markupPercent: 50 });
     const mini = computeTurnEstimate({ markupPercent: 50, aiModel: 'gpt-4.1-mini' });
-    expect(luna.chargeMilli).toBeLessThan(mini.chargeMilli);
+    // Luna list rates are lower, but worst-case completion budget is 2500+1200 vs 400+300.
+    expect(luna.chargeMilli).toBeGreaterThan(mini.chargeMilli);
+    expect(luna.chargeMilli).toBeGreaterThan(0);
   });
 
   it('reserves more when worst-case outbound media is included', () => {

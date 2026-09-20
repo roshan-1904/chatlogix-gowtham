@@ -4,7 +4,7 @@ import { logger } from '../../logger.js';
 import { isEnglishLanguage, type CustomerLanguage } from '../language.js';
 import type { CartOp, CartSnapshot, CompactCatalogEntry } from '../types.js';
 import type { ApplyOpsResult } from '../cart/engine.js';
-import { openaiSamplingParams } from './openaiSampling.js';
+import { openaiChatCompletionParams } from './openaiSampling.js';
 
 // Module-level singleton, same pattern as llm1.ts / every other OpenAI call
 // site in the codebase.
@@ -105,8 +105,7 @@ export async function runLlm2(input: Llm2Input): Promise<Llm2Output> {
   const completion = await openai.chat.completions.create({
     model: input.model,
     messages: [{ role: 'system', content: buildLlm2Prompt(input) }],
-    ...openaiSamplingParams(input.model, 'llm2'),
-    max_completion_tokens: 300, // §8: LLM-2 budget is <=1.2s; keep the completion small
+    ...openaiChatCompletionParams(input.model, 'llm2'),
     response_format: {
       type: 'json_schema',
       json_schema: { name: 'llm2_result', schema: llm2JsonSchema, strict: true }
