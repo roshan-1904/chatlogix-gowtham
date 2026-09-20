@@ -1,9 +1,9 @@
 # Incoming Response Generator — How We Prepare a WhatsApp Reply
 
 <!-- DOC_SYNC
-  last_verified_commit: b54bbdcc56cda764213d334c9e39dfb5f410ae69
+  last_verified_commit: 66e920a601e6b172d9ffc373f072c54b112be98a
   last_verified_at: 2026-09-20
-  scope: As-implemented incoming-response-generator pipeline; catalog context slicing (flags off until fleet rollout) + gpt-5.6-luna default in code
+  scope: As-implemented incoming-response-generator pipeline; customer insights read/enrich; gpt-5/o* temperature omit via openaiSampling
 -->
 
 **Living document.** This describes the **as-implemented** text path in `chatlogix-incoming-response-generator`, not the locked design spec. When the pipeline in `backend/src/conversation/` changes, update this file in the same change (see `.cursor/rules/incoming-response-generator-flow.mdc`).
@@ -155,7 +155,8 @@ flowchart TD
   PMEDIA --> PUB[publish RESPONSE_QUEUE text + attachments[] ★ SLA stop]
   PUB --> DEBIT["debitAfterEnqueue → pricingService.chargeVendor<br/>ceil((LLM-1 + LLM-2 + upstream transcription + fee) × markup)<br/>fail here does NOT retry the LLM"]
   DEBIT --> KG[12b. persistKnowledgeGapIfNeeded<br/>after publish; no aiPaused]
-  KG --> NOTIFY[13. if confirm succeeded:<br/>notifyVendorNewOrder fire-and-forget]
+  KG --> ENRICH[12c. enrichCustomerInsightsIfNeeded<br/>extractKeyFacts → CustomerInsights; absorbed cost]
+  ENRICH --> NOTIFY[13. if confirm succeeded:<br/>notifyVendorNewOrder fire-and-forget]
   NOTIFY --> UNLOCK[finally: releaseLock]
   DUP --> UNLOCK
   STORE --> UNLOCK
@@ -243,11 +244,11 @@ flowchart TD
   P --> VC[vendor config<br/>name, prompts, tone, aiModel]
   P --> CAT[compact catalog<br/>active products + variants]
   P --> MEM[conversation memory]
-  P --> INS[customer insights<br/>name, address, language]
+  P --> INS[customer insights<br/>full profile for LLM-1 prompt]
   P --> REC[last 6 messages]
   P --> HIST[last 10 orders for this customer+vendor]
   P --> FAQ[FAQ lexical + optional vector search]
-  INS --> PO[pending Order snapshot<br/>needs insights.name]
+  INS --> PO[pending Order snapshot<br/>needs insights.customerName]
   VC & CAT & MEM & INS & REC & HIST & FAQ & PO --> HOT[HotSet]
 ```
 
@@ -262,13 +263,17 @@ FAQ path:
 
 Pending cart is **prompt context only**. `CartEngine.apply` always re-reads Postgres. The 60s pending-order cache must never be trusted for a write.
 
-After persist writes name/address, `invalidateCustomerContext` drops the insights + pending-order caches so the next turn does not re-ask.
+After persist writes name/address (or order-level specialRequests/deliveryInstructions), `invalidateCustomerContext` drops the insights + pending-order caches so the next turn does not re-ask.
+
+LLM-1's dynamic prompt includes a **CUSTOMER INSIGHTS** block (`CustomerInsightsService.formatInsightsForAI`, long text fields capped at 400 chars) when the profile is not empty — in addition to the short CUSTOMER name/address lines.
+
+Post-publish, `enrichCustomerInsightsIfNeeded` may call `extractKeyFacts` (same helper as legacy memory extraction) and merge into `CustomerInsights` via `updateInsights`. Skipped for sandbox, handoff, and order-status-only turns; idempotent on `whatsappMessageId` (Redis). **Not billed separately** — absorbed platform cost, same as knowledge-gap persist timing (after WhatsApp queue publish).
 
 ---
 
 ## 7. LLM-1 — ops + draft, never the cart
 
-One OpenAI call with strict structured output (`llm1JsonSchema`). Model = `Vendor.aiModel` (fallback **`gpt-5.6-luna`** via `DEFAULT_CONVERSATION_MODEL` in `catalogContextConfig.ts` — [BILLING_AND_PRICING.md](./BILLING_AND_PRICING.md) §2). Temperature 0.3, `max_completion_tokens` 400.
+One OpenAI call with strict structured output (`llm1JsonSchema`). Model = `Vendor.aiModel` (fallback **`gpt-5.6-luna`** via `DEFAULT_CONVERSATION_MODEL` in `catalogContextConfig.ts` — [BILLING_AND_PRICING.md](./BILLING_AND_PRICING.md) §2). Temperature **0.3** when supported; **`gpt-5.*` / `o*` models omit `temperature`** (`openaiSampling.ts`). `max_completion_tokens` 400.
 
 System prompt (`buildLlm1SystemPrompt`):
 
@@ -485,10 +490,10 @@ flowchart TD
   P --> M[create assistant text Message content=finalText]
   P --> PM[persistPendingOutboundMedia<br/>pending image/video rows + productMediaId]
   M --> EN2[ensureMessageContentEn → contentEn if needed]
-  P --> I[upsert CustomerInsights name/address/language]
+  P --> I[upsert CustomerInsights<br/>name/address/language + order notes]
   P --> MEM[upsert ConversationMemory stage + turn++]
   P --> MP[upsert MessageProcessing status=applied]
-  M --> INV[if name/address written:<br/>invalidate insights + pending-order Redis]
+  M --> INV[if insights fields written:<br/>invalidate insights + pending-order Redis]
   INV --> Q[publish RESPONSE_QUEUE]
   Q --> SLA[publishedAt = Date.now ★ SLA clock stop]
   SLA --> Q2[MessageProcessing status=queued]

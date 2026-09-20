@@ -37,6 +37,7 @@ const {
   ensureMessageContentEnMock,
   normalizeSetFieldOpsMock,
   persistKnowledgeGapIfNeededMock,
+  enrichCustomerInsightsIfNeededMock,
   resolveProductMediaAttachmentsMock,
   persistPendingOutboundMediaMock,
   collectSendProductMediaOpsMock
@@ -76,6 +77,7 @@ const {
     ensureMessageContentEnMock: vi.fn(),
     normalizeSetFieldOpsMock: vi.fn(),
     persistKnowledgeGapIfNeededMock: vi.fn(),
+    enrichCustomerInsightsIfNeededMock: vi.fn(),
     resolveProductMediaAttachmentsMock: vi.fn(),
     persistPendingOutboundMediaMock: vi.fn(),
     collectSendProductMediaOpsMock: vi.fn()
@@ -136,6 +138,9 @@ vi.mock('../handoff.js', () => ({ triggerHandoff: (...args: unknown[]) => trigge
 vi.mock('../customerQuery.js', () => ({
   persistKnowledgeGapIfNeeded: (...args: unknown[]) => persistKnowledgeGapIfNeededMock(...args)
 }));
+vi.mock('../customerInsightsEnrichment.js', () => ({
+  enrichCustomerInsightsIfNeeded: (...args: unknown[]) => enrichCustomerInsightsIfNeededMock(...args)
+}));
 vi.mock('../postSalesAlert.js', () => ({ notifyVendorOfPostSalesEvent: (...args: unknown[]) => notifyVendorOfPostSalesEventMock(...args) }));
 vi.mock('../../services/whatsappTemplateService.js', () => ({
   WhatsAppTemplateService: vi.fn().mockImplementation(() => ({
@@ -187,6 +192,7 @@ beforeEach(() => {
   renderRejectedOpsReplyMock.mockReturnValue('rejected-ops reply');
   ensureMessageContentEnMock.mockResolvedValue(undefined);
   persistPendingOutboundMediaMock.mockResolvedValue([]);
+  enrichCustomerInsightsIfNeededMock.mockResolvedValue(undefined);
 });
 
 describe('finalizeTurn', () => {
@@ -350,6 +356,7 @@ describe('processMessage', () => {
     normalizeSetFieldOpsMock.mockImplementation(async (ops: unknown[]) => ops);
     ensureMessageContentEnMock.mockResolvedValue(undefined);
     persistKnowledgeGapIfNeededMock.mockResolvedValue(null);
+    enrichCustomerInsightsIfNeededMock.mockResolvedValue(undefined);
     collectSendProductMediaOpsMock.mockReturnValue([]);
     resolveProductMediaAttachmentsMock.mockResolvedValue([]);
   });

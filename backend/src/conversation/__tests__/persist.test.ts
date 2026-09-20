@@ -4,6 +4,7 @@ const messageCreate = vi.fn();
 const customerInsightsUpsert = vi.fn();
 const conversationMemoryUpsert = vi.fn();
 const messageProcessingUpsert = vi.fn();
+const orderFindUnique = vi.fn();
 
 vi.mock('../../db/prisma.js', () => ({
   prisma: {
@@ -11,6 +12,7 @@ vi.mock('../../db/prisma.js', () => ({
     customerInsights: { upsert: (...args: unknown[]) => customerInsightsUpsert(...args) },
     conversationMemory: { upsert: (...args: unknown[]) => conversationMemoryUpsert(...args) },
     messageProcessing: { upsert: (...args: unknown[]) => messageProcessingUpsert(...args) },
+    order: { findUnique: (...args: unknown[]) => orderFindUnique(...args) },
     // The real Prisma array-form $transaction just awaits every operation
     // together; each `prisma.x.y(...)` call above already returns a Promise
     // from the mock, so Promise.all reproduces the same ordered-results
@@ -58,6 +60,7 @@ beforeEach(() => {
   customerInsightsUpsert.mockResolvedValue({});
   conversationMemoryUpsert.mockResolvedValue({});
   messageProcessingUpsert.mockResolvedValue({});
+  orderFindUnique.mockResolvedValue(null);
   ensureMessageContentEn.mockResolvedValue(undefined);
 });
 

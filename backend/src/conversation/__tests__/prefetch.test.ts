@@ -291,7 +291,12 @@ describe('prefetchHotSet', () => {
 
     const hotSet = await prefetchHotSet(VENDOR_ID, CONVERSATION_ID, CUSTOMER_ID, MESSAGE_TEXT);
 
-    expect(hotSet.insights).toEqual({ name: 'Priya', address: '123 Main St', language: 'ta' });
+    expect(hotSet.insights).toMatchObject({
+      customerName: 'Priya',
+      primaryDeliveryAddress: '123 Main St',
+      preferredLanguage: 'ta',
+      isNewCustomer: false
+    });
   });
 
   it('returns recent messages in chronological order, mapping senderType to role', async () => {

@@ -81,6 +81,17 @@ export async function persistTurn(input: PersistInput): Promise<PersistResult> {
   const cost = calculateCost(tokenMeta.model, tokenMeta.promptTokens, tokenMeta.completionTokens);
   const stage = deriveConversationStage(snapshot);
 
+  let orderSpecialRequests: string | null = null;
+  let orderDeliveryInstructions: string | null = null;
+  if (snapshot.orderId) {
+    const orderExtras = await prisma.order.findUnique({
+      where: { id: snapshot.orderId },
+      select: { specialRequests: true, deliveryInstructions: true }
+    });
+    orderSpecialRequests = orderExtras?.specialRequests ?? null;
+    orderDeliveryInstructions = orderExtras?.deliveryInstructions ?? null;
+  }
+
   const [assistantMessage] = await prisma.$transaction([
     prisma.message.create({
       data: {
@@ -104,12 +115,16 @@ export async function persistTurn(input: PersistInput): Promise<PersistResult> {
         customerName: snapshot.customerName ?? undefined,
         deliveryAddress: snapshot.address ?? undefined,
         primaryDeliveryAddress: snapshot.address ?? undefined,
-        preferredLanguage: language
+        preferredLanguage: language,
+        ...(orderSpecialRequests ? { specialRequests: orderSpecialRequests } : {}),
+        ...(orderDeliveryInstructions ? { deliveryInstructions: orderDeliveryInstructions } : {})
       },
       update: {
         ...(snapshot.customerName ? { customerName: snapshot.customerName } : {}),
         ...(snapshot.address ? { deliveryAddress: snapshot.address, primaryDeliveryAddress: snapshot.address } : {}),
-        preferredLanguage: language
+        preferredLanguage: language,
+        ...(orderSpecialRequests ? { specialRequests: orderSpecialRequests } : {}),
+        ...(orderDeliveryInstructions ? { deliveryInstructions: orderDeliveryInstructions } : {})
       }
     }),
     prisma.conversationMemory.upsert({
@@ -142,7 +157,7 @@ export async function persistTurn(input: PersistInput): Promise<PersistResult> {
   // cache derived from it) would keep serving the pre-capture null snapshot
   // to LLM-1 for the rest of that window, making the AI re-ask for details
   // the customer already gave (see prefetch.ts's invalidateCustomerContext).
-  if (snapshot.customerName || snapshot.address) {
+  if (snapshot.customerName || snapshot.address || orderSpecialRequests || orderDeliveryInstructions) {
     await invalidateCustomerContext(customerId, vendorId, conversationId);
   }
 

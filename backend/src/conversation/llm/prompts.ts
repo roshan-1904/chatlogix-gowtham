@@ -2,6 +2,52 @@ import type { HotSet, CompactCatalogEntry, OrderHistoryEntry, FaqEntry, VendorCo
 import { parseOrderItems } from '../cart/snapshot.js';
 import { getPreparationTimeMessage, type OrderPreparationConfig } from '../../types/orderSettings.js';
 import { PROMPT_CATALOG_DESC_MAX_CHARS } from '../context/catalogContextConfig.js';
+import { CustomerInsightsService } from '../../services/customerInsightsService.js';
+import type { CustomerInsightsContext } from '../../types/aiResponse.js';
+
+/** Max characters per free-text CustomerInsights field in LLM-1 prompt (token budget). */
+export const INSIGHTS_PROMPT_TEXT_FIELD_MAX_CHARS = 400;
+
+const insightsFormatter = new CustomerInsightsService();
+
+function truncateInsightText(value: string | undefined, maxChars: number): string {
+  if (!value) return '';
+  const trimmed = value.trim();
+  if (trimmed.length <= maxChars) return trimmed;
+  return `${trimmed.slice(0, maxChars - 1)}…`;
+}
+
+function truncateInsightsForPrompt(insights: CustomerInsightsContext): CustomerInsightsContext {
+  return {
+    ...insights,
+    basicDetails: truncateInsightText(insights.basicDetails, INSIGHTS_PROMPT_TEXT_FIELD_MAX_CHARS),
+    preferences: truncateInsightText(insights.preferences, INSIGHTS_PROMPT_TEXT_FIELD_MAX_CHARS),
+    communicationStyle: truncateInsightText(insights.communicationStyle, INSIGHTS_PROMPT_TEXT_FIELD_MAX_CHARS),
+    currentOrder: truncateInsightText(insights.currentOrder, INSIGHTS_PROMPT_TEXT_FIELD_MAX_CHARS),
+    deliveryInstructions: truncateInsightText(insights.deliveryInstructions, INSIGHTS_PROMPT_TEXT_FIELD_MAX_CHARS),
+    specialRequests: truncateInsightText(insights.specialRequests, INSIGHTS_PROMPT_TEXT_FIELD_MAX_CHARS),
+    dietaryRestrictions: truncateInsightText(insights.dietaryRestrictions, INSIGHTS_PROMPT_TEXT_FIELD_MAX_CHARS),
+    paymentPreferences: truncateInsightText(insights.paymentPreferences, INSIGHTS_PROMPT_TEXT_FIELD_MAX_CHARS)
+  };
+}
+
+/** Omit fields already shown in the CUSTOMER block to avoid duplication. */
+function insightsSectionPayload(insights: CustomerInsightsContext): CustomerInsightsContext {
+  return {
+    ...truncateInsightsForPrompt(insights),
+    customerName: undefined,
+    primaryDeliveryAddress: undefined,
+    deliveryAddress: '',
+    preferredLanguage: undefined
+  };
+}
+
+export function buildCustomerInsightsBlock(insights: CustomerInsightsContext | null): string | null {
+  if (!insights || insights.isNewCustomer) return null;
+  const formatted = insightsFormatter.formatInsightsForAI(insightsSectionPayload(insights)).trim();
+  if (!formatted || formatted.startsWith('CUSTOMER WITH LIMITED HISTORY')) return null;
+  return formatted;
+}
 
 /**
  * Same wording/emoji as whatsappTemplateService.ts's statusMessages map
@@ -306,10 +352,26 @@ export function buildDynamicBlock(hotSet: HotSet, opts?: Llm1PromptOptions): str
 
   parts.push('');
   parts.push('CUSTOMER:');
-  parts.push(`Name: ${hotSet.insights?.name || hotSet.pendingOrder?.customerName || '(unknown)'}`);
-  parts.push(`Address: ${hotSet.insights?.address || hotSet.pendingOrder?.address || '(unknown)'}`);
-  const language = hotSet.memory?.language || hotSet.insights?.language;
+  parts.push(
+    `Name: ${hotSet.insights?.customerName || hotSet.pendingOrder?.customerName || '(unknown)'}`
+  );
+  parts.push(
+    `Address: ${
+      hotSet.insights?.primaryDeliveryAddress ||
+      hotSet.insights?.deliveryAddress ||
+      hotSet.pendingOrder?.address ||
+      '(unknown)'
+    }`
+  );
+  const language = hotSet.memory?.language || hotSet.insights?.preferredLanguage;
   if (language) parts.push(`Preferred language (fallback only — the latest message's language wins): ${language}`);
+
+  const insightsBlock = buildCustomerInsightsBlock(hotSet.insights);
+  if (insightsBlock) {
+    parts.push('');
+    parts.push('CUSTOMER INSIGHTS:');
+    parts.push(insightsBlock);
+  }
 
   parts.push('');
   parts.push('RECENT ORDERS (most recent first — this is the customer\'s real order history, not the cart above):');

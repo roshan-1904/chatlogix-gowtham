@@ -3,6 +3,8 @@
  * Mirrors docs/CONVERSATION_PROCESSOR_LAMBDA.md §13-14.
  */
 
+import type { CustomerInsightsContext } from '../types/aiResponse.js';
+
 export type CartOp =
   // `notes`/`variantSku` accept `null` (not just `undefined`) because
   // OpenAI's strict structured-output mode requires every property to be
@@ -248,6 +250,6 @@ export interface HotSet {
   // turn's message text, not stable across turns for the same
   // vendor/conversation — see prefetchHotSet's `messageText` parameter.
   faqs: FaqEntry[];
-  insights: { name: string | null; address: string | null; language: string | null } | null;
+  insights: CustomerInsightsContext | null;
   recentMessages: Array<{ role: 'customer' | 'assistant'; content: string }>;
 }

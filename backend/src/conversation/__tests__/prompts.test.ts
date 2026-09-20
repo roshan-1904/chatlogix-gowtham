@@ -385,6 +385,29 @@ describe('llm1JsonSchema', () => {
     }
   });
 
+  it('includes CUSTOMER INSIGHTS when profile fields exist', () => {
+    const prompt = buildLlm1SystemPrompt(
+      makeHotSet({
+        insights: {
+          isNewCustomer: false,
+          basicDetails: 'Regular weekend buyer',
+          preferences: 'Less sugar',
+          communicationStyle: 'Brief',
+          currentOrder: '',
+          deliveryAddress: '',
+          deliveryInstructions: 'Ring the bell',
+          specialRequests: 'Gift wrap',
+          customerName: 'Anita',
+          primaryDeliveryAddress: '12 Park Lane'
+        }
+      })
+    );
+    expect(prompt).toContain('CUSTOMER INSIGHTS:');
+    expect(prompt).toContain('Less sugar');
+    expect(prompt).toContain('Gift wrap');
+    expect(prompt).not.toContain('Customer Name: Anita');
+  });
+
   it('knowledge_gap op schema is required-but-nullable (strict mode)', () => {
     const opsSchema = (llm1JsonSchema.properties as any).ops.items.anyOf as any[];
     const gap = opsSchema.find((s) => s.properties.type.enum[0] === 'knowledge_gap');

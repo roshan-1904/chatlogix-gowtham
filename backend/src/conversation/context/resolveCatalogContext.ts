@@ -35,7 +35,7 @@ export async function resolveCatalogContextForLlm1(input: {
   const fullCatalog = hotSet.compactCatalog;
   const plan = planTurnContext({ mergedContent, hotSet, traceId });
 
-  const language = hotSet.memory?.language ?? hotSet.insights?.language ?? null;
+  const language = hotSet.memory?.language ?? hotSet.insights?.preferredLanguage ?? null;
 
   const computeSlice = async (): Promise<CompactCatalogEntry[]> => {
     let retrievalMatches: Awaited<ReturnType<typeof searchCandidateProductsMany>> = [];

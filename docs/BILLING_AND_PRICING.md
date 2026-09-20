@@ -105,6 +105,8 @@ If the model string is missing from the table, `calculateCost` **warns and falls
 
 Other models in the same file (`gpt-4.1`, `gpt-4o-mini`, `gpt-5-nano`, …) serve non-conversation paths (catalog enhancer, legacy callers). **Conversation processor** uses **`Vendor.aiModel`** only (Q10).
 
+**Sampling:** LLM-1/LLM-2 pass `temperature` 0.3 / 0.2 only when the model supports it. **`gpt-5.*` and OpenAI `o*` reasoning models reject non-default temperature** — the processor omits the parameter (`backend/src/conversation/llm/openaiSampling.ts`).
+
 ---
 
 ## 3. There is no monthly plan quota

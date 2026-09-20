@@ -6,6 +6,7 @@ import { buildLlm1SystemPrompt, llm1JsonSchema } from './prompts.js';
 import { validateProductIds } from '../cart/productResolve.js';
 import type { CompactCatalogEntry, HotSet, Llm1Result } from '../types.js';
 import { logCount } from '../metrics.js';
+import { openaiSamplingParams } from './openaiSampling.js';
 
 // Module-level singleton, same pattern as every other OpenAI call site in
 // the codebase (e.g. unifiedAIProcessorService.ts).
@@ -56,7 +57,7 @@ export async function runLlm1(input: Llm1Input): Promise<Llm1Output> {
       { role: 'system', content: systemPrompt },
       { role: 'user', content: mergedContent }
     ],
-    temperature: 0.3,
+    ...openaiSamplingParams(model, 'llm1'),
     max_completion_tokens: 400, // spec §13: draftReply <=~120 words, cap completion tokens (~400)
     response_format: {
       type: 'json_schema',

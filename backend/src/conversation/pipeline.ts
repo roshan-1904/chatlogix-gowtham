@@ -31,6 +31,7 @@ import {
   stripSendProductMediaOps
 } from './orderStatusGuard.js';
 import { persistKnowledgeGapIfNeeded } from './customerQuery.js';
+import { enrichCustomerInsightsIfNeeded } from './customerInsightsEnrichment.js';
 import { notifyVendorOfPostSalesEvent } from './postSalesAlert.js';
 import { WALLET_EMPTY_TEMPLATE } from './templates.js';
 import { logStage, logLatency, logCount } from './metrics.js';
@@ -625,6 +626,19 @@ export async function processMessage(
       sandbox
     }).catch((error) => {
       logger.error({ err: error, vendorId, conversationId, traceId }, 'CustomerQuery persist failed');
+    });
+
+    await enrichCustomerInsightsIfNeeded({
+      vendorId,
+      conversationId,
+      customerId,
+      whatsappMessageId: input.whatsappMessageId,
+      customerText: mergedContent,
+      orderStatusTurn,
+      hasHandoff: Boolean(handoffOp),
+      sandbox
+    }).catch((error) => {
+      logger.error({ err: error, vendorId, conversationId, traceId }, 'Customer insights enrichment failed');
     });
 
     // Step 11 (async, fire-and-forget): vendor notify on a newly-confirmed

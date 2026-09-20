@@ -5,6 +5,7 @@ import { normalizeVariants } from './cart/variants.js';
 import { embedText, toVectorLiteral } from './faq/embedding.js';
 import { env } from '../config/env.js';
 import { logger } from '../logger.js';
+import type { CustomerInsightsContext } from '../types/aiResponse.js';
 import {
   catalogPaiseLookInflated,
   deflateDoubleConvertedPaise
@@ -268,20 +269,69 @@ async function loadConvMemory(conversationId: string): Promise<ConvMemory | null
   };
 }
 
-async function loadInsights(
-  customerId: string,
-  vendorId: string
-): Promise<{ name: string | null; address: string | null; language: string | null } | null> {
+async function loadInsights(customerId: string, vendorId: string): Promise<CustomerInsightsContext | null> {
   const insights = await prisma.customerInsights.findUnique({
     where: { customerId_vendorId: { customerId, vendorId } },
-    select: { customerName: true, primaryDeliveryAddress: true, deliveryAddress: true, preferredLanguage: true }
+    select: {
+      customerName: true,
+      alternativePhoneNumber: true,
+      email: true,
+      preferredLanguage: true,
+      basicDetails: true,
+      preferences: true,
+      communicationStyle: true,
+      currentOrder: true,
+      primaryDeliveryAddress: true,
+      deliveryAddress: true,
+      deliveryInstructions: true,
+      whatsappLocation: true,
+      specialRequests: true,
+      specialOccasions: true,
+      dietaryRestrictions: true,
+      paymentPreferences: true,
+      lastUpdated: true
+    }
   });
   if (!insights) return null;
 
+  const whatsappLocation = insights.whatsappLocation
+    ? typeof insights.whatsappLocation === 'string'
+      ? JSON.parse(insights.whatsappLocation)
+      : insights.whatsappLocation
+    : undefined;
+
+  const specialOccasions = insights.specialOccasions
+    ? typeof insights.specialOccasions === 'string'
+      ? JSON.parse(insights.specialOccasions)
+      : insights.specialOccasions
+    : undefined;
+
   return {
-    name: insights.customerName ?? null,
-    address: insights.primaryDeliveryAddress ?? insights.deliveryAddress ?? null,
-    language: insights.preferredLanguage ?? null
+    customerName: insights.customerName || undefined,
+    alternativePhoneNumber: insights.alternativePhoneNumber || undefined,
+    email: insights.email || undefined,
+    preferredLanguage: insights.preferredLanguage || undefined,
+    basicDetails: insights.basicDetails || '',
+    preferences: insights.preferences || '',
+    communicationStyle: insights.communicationStyle || '',
+    currentOrder: insights.currentOrder || '',
+    primaryDeliveryAddress: insights.primaryDeliveryAddress || undefined,
+    deliveryAddress: insights.deliveryAddress || '',
+    deliveryInstructions: insights.deliveryInstructions || '',
+    whatsappLocation,
+    specialRequests: insights.specialRequests || '',
+    specialOccasions,
+    dietaryRestrictions: insights.dietaryRestrictions || undefined,
+    paymentPreferences: insights.paymentPreferences || undefined,
+    isNewCustomer:
+      !insights.customerName &&
+      !insights.basicDetails &&
+      !insights.preferences &&
+      !insights.communicationStyle &&
+      !insights.currentOrder &&
+      !insights.primaryDeliveryAddress &&
+      !insights.deliveryAddress,
+    lastUpdated: insights.lastUpdated
   };
 }
 
@@ -423,7 +473,7 @@ export async function prefetchHotSet(
   // Depends on `insights.name` resolved above, so it can't join the same
   // Promise.all batch.
   const pendingOrder = await cacheAside(pendingOrderKey(conversationId), PENDING_ORDER_TTL, () =>
-    loadPendingOrder(conversationId, insights?.name ?? null)
+    loadPendingOrder(conversationId, insights?.customerName ?? null)
   );
 
   return { vendorConfig, compactCatalog, memory, pendingOrder, orderHistory, faqs, insights, recentMessages };

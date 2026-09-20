@@ -121,10 +121,27 @@ describe('runLlm1', () => {
     expect(createMock).toHaveBeenCalledTimes(1);
     const call = createMock.mock.calls[0][0];
     expect(call.model).toBe('gpt-4.1-mini');
+    expect(call.temperature).toBe(0.3);
     expect(call.max_completion_tokens).toBe(400);
     expect(call.response_format.type).toBe('json_schema');
     expect(call.response_format.json_schema.strict).toBe(true);
     expect(call.messages[1]).toEqual({ role: 'user', content: 'add 2 brownies' });
+  });
+
+  it('omits temperature for gpt-5.* models that only support the default', async () => {
+    createMock.mockResolvedValue(mockCompletion());
+    const lunaHotSet = { ...hotSet, vendorConfig: { ...hotSet.vendorConfig, aiModel: 'gpt-5.6-luna' } };
+
+    await runLlm1({
+      vendorId: 'vendor-1',
+      hotSet: lunaHotSet,
+      catalogSlice: hotSet.compactCatalog,
+      mergedContent: 'hello',
+      traceId: 'wamid.luna'
+    });
+
+    const call = createMock.mock.calls[0][0];
+    expect(call.temperature).toBeUndefined();
   });
 
   it('puts voice-note instructions in the system prompt when sourceMessageType is audio', async () => {
