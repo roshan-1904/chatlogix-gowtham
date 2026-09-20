@@ -118,7 +118,7 @@ describe('prefetchHotSet', () => {
     const hotSet = await prefetchHotSet(VENDOR_ID, CONVERSATION_ID, CUSTOMER_ID, MESSAGE_TEXT);
 
     expect(vendorFindUnique).toHaveBeenCalledTimes(1);
-    expect(hotSet.vendorConfig.aiModel).toBe('gpt-4.1-mini'); // aiModel was null on the fetched vendor
+    expect(hotSet.vendorConfig.aiModel).toBe('gpt-5.6-luna'); // aiModel was null on the fetched vendor
     expect(setCachedMock).toHaveBeenCalledWith('vendor:vendor-1:config', expect.any(Object), 600);
   });
 

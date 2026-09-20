@@ -10,7 +10,7 @@ vi.mock('../../observability/metrics.js', () => ({
   emitMetric: (...args: unknown[]) => emitMetricMock(...args)
 }));
 
-import { searchCandidateProducts } from '../cart/candidateSearch.js';
+import { searchCandidateProducts, searchCandidateProductsMany } from '../cart/candidateSearch.js';
 import type { CompactCatalogEntry } from '../types.js';
 
 const catalog: CompactCatalogEntry[] = [
@@ -66,6 +66,16 @@ describe('searchCandidateProducts', () => {
     await searchCandidateProducts('vendor-1', 'nonexistent thing', catalog, 'en');
 
     expect(emitMetricMock).not.toHaveBeenCalled();
+  });
+
+  it('searchCandidateProductsMany merges segments and caps topK', async () => {
+    findBestProductMatchMock
+      .mockResolvedValueOnce({ product: { id: 'p1' }, matchedName: 'Brownie', confidence: 'high' })
+      .mockResolvedValue(null);
+
+    const result = await searchCandidateProductsMany('vendor-1', 'brownie and cookie', catalog, { language: 'en', topK: 2 });
+    expect(result.length).toBeGreaterThanOrEqual(1);
+    expect(findBestProductMatchMock.mock.calls.some((c) => c[2]?.enableAIMatching === false)).toBe(true);
   });
 
   it('enables AI multi-language matching only for non-English queries', async () => {

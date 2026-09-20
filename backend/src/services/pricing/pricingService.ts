@@ -20,6 +20,7 @@ import { prisma } from '../../db/prisma.js';
 import { logger } from '../../logger.js';
 import { ceilMilli, paiseToMilli, usdToMilliFloat } from '../../utils/money.js';
 import { calculateAudioCost, calculateCost } from '../../utils/costCalculator.js';
+import { DEFAULT_CONVERSATION_MODEL } from '../../conversation/context/catalogContextConfig.js';
 import type { MessageKind } from '../billingService.js';
 import { ensurePlatformSettings, getPlatformSettings } from '../platformSettingsService.js';
 
@@ -189,7 +190,7 @@ export interface TurnEstimateOptions {
 
 /** Pre-markup components of the worst-case turn. */
 export function turnEstimateCost(options: TurnEstimateOptions = {}): ChargeCostInput {
-  const model = options.aiModel || 'gpt-4.1-mini';
+  const model = options.aiModel || DEFAULT_CONVERSATION_MODEL;
   const aiCostMilli =
     aiCostMilliForTokens(model, ESTIMATE_LLM1_PROMPT_TOKENS, ESTIMATE_LLM1_COMPLETION_TOKENS) +
     aiCostMilliForTokens(model, ESTIMATE_LLM2_PROMPT_TOKENS, ESTIMATE_LLM2_COMPLETION_TOKENS);

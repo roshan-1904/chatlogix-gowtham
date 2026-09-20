@@ -1,9 +1,9 @@
 # Incoming Response Generator — How We Prepare a WhatsApp Reply
 
 <!-- DOC_SYNC
-  last_verified_commit: 34c42e767ad3c86d9ed1d3d1d4d7953b2adba03c
-  last_verified_at: 2026-09-16
-  scope: As-implemented incoming-response-generator pipeline (language, LLM-2 reply selection, D6 order-status rewrite, knowledge_gap CustomerQuery persist, send_product_media outbound attachments, contentEn, voice-note ASR, compact-catalog paise heal, catalog baseQty pack pricing, millirupee per-turn wallet charge via pricingService)
+  last_verified_commit: b54bbdcc56cda764213d334c9e39dfb5f410ae69
+  last_verified_at: 2026-09-20
+  scope: As-implemented incoming-response-generator pipeline; catalog context slicing (flags off until fleet rollout) + gpt-5.6-luna default in code
 -->
 
 **Living document.** This describes the **as-implemented** text path in `chatlogix-incoming-response-generator`, not the locked design spec. When the pipeline in `backend/src/conversation/` changes, update this file in the same change (see `.cursor/rules/incoming-response-generator-flow.mdc`).
@@ -16,6 +16,7 @@
 | **Consumes** | `TEXT_QUEUE_URL` (`type: TextMessage` only) |
 | **Publishes** | `RESPONSE_QUEUE_URL` (finished customer text) |
 | **Design spec** | `docs/CONVERSATION_PROCESSOR_LAMBDA.md` (locked design; this file follows the **code**) |
+| **Catalog slicing** | `docs/CONVERSATION_CATALOG_CONTEXT_SLICING.md` — implemented; `CATALOG_SLICING_ENABLED=false` until rollout |
 | **Doc sync index** | `docs/DOC_SYNC_INDEX.md` |
 
 **SLA clock:** Lambda start → successful `publishToQueue(RESPONSE_QUEUE_URL)`. Targets: p90 ≤ 5s, p95 ≤ 10s, p99 ≤ 15s. Meta delivery time is out of scope.
@@ -33,6 +34,8 @@
 | Inbound idempotency | `backend/src/conversation/idempotency.ts` |
 | Burst merge | `backend/src/conversation/burstMerge.ts` |
 | Hot-set prefetch | `backend/src/conversation/prefetch.ts` |
+| Catalog context plan + slice | `backend/src/conversation/context/resolveCatalogContext.ts`, `turnContext.ts`, `catalogSlice.ts`, `catalogContextConfig.ts` |
+| Product retrieval (slice) | `backend/src/conversation/cart/candidateSearch.ts` |
 | LLM-1 prompt + schema | `backend/src/conversation/llm/prompts.ts` |
 | LLM-1 call | `backend/src/conversation/llm/llm1.ts` |
 | Cart apply | `backend/src/conversation/cart/engine.ts` |
@@ -128,7 +131,8 @@ flowchart TD
 
   BURST --> TYPING[7. sendTypingIndicator fire-and-forget]
   TYPING --> PRE[8. prefetchHotSet in parallel]
-  PRE --> LLM1[9. LLM-1: ops + draftReply]
+  PRE --> CTX[8b. resolveCatalogContextForLlm1<br/>planTurnContext + optional retrieval + slice]
+  CTX --> LLM1[9. LLM-1: ops + draftReply<br/>prompt uses catalogSlice]
   LLM1 --> NORM[9b. normalizeSetFieldOps<br/>name/address/notes → English/Latin]
   NORM --> CART[10. CartEngine.apply in one Postgres txn]
   CART --> BRANCH{11. Which reply path?}
@@ -217,9 +221,19 @@ If a second message arrives *during* LLM-1, the lock forces an SQS retry; the ne
 
 ---
 
-## 6. Prefetch (hot set)
+## 6. Prefetch (hot set) and catalog context
 
-Intent is unknown, so everything is loaded before LLM-1. Redis first, Postgres on miss. Redis outage here degrades to cache-miss (unlike the lock).
+`prefetchHotSet` always loads the **full** compact catalog into `hotSet.compactCatalog` (CartEngine and DB pricing still use the full vendor catalog). Before LLM-1, `resolveCatalogContextForLlm1` runs:
+
+1. **`planTurnContext`** — deterministic mode (order_status → checkout_fields → general → browse → product) and optional retrieval query.
+2. **`searchCandidateProductsMany`** when `retrievalTopK > 0` (gated AI matcher for non-English).
+3. **`buildPromptCatalogSlice`** — union pins, cart lines, retrieval hits; stable sort.
+
+It returns `catalogSlice` (validation + phantom checks) and `promptCatalogSlice` (may stay full catalog when **`CATALOG_SLICING_SHADOW_LOG`** is on and **`CATALOG_SLICING_ENABLED`** is off). Pipeline logs **`context_plan_done`** and EMF counts (`CatalogSliceSize`, `TurnContextMode`, …).
+
+**Rollout:** constants in `catalogContextConfig.ts` only — no new env vars. Shipped with **`CATALOG_SLICING_ENABLED = false`**; enable per [CONVERSATION_CATALOG_CONTEXT_SLICING.md](./CONVERSATION_CATALOG_CONTEXT_SLICING.md) §17.
+
+Redis first, Postgres on miss. Redis outage here degrades to cache-miss (unlike the lock).
 
 Compact catalog is loaded by `loadCompactCatalog` (its own cache, not the generic `cacheAside` helper). Cached compact prices that look like a 100× double conversion — every priced item ≥ ₹5,000 and a round hundred rupees (`paise >= 500_000` and `paise % 10_000 === 0`) — are ignored. Matching Postgres `Product.basePrice` rows are divided by 100 and persisted before the cache is rewritten. Prompt-only repair is not enough: CartEngine re-resolves prices from Postgres.
 
@@ -254,11 +268,12 @@ After persist writes name/address, `invalidateCustomerContext` drops the insight
 
 ## 7. LLM-1 — ops + draft, never the cart
 
-One OpenAI call with strict structured output (`llm1JsonSchema`). Model = `Vendor.aiModel` (fallback `gpt-4.1-mini`). Temperature 0.3, `max_completion_tokens` 400.
+One OpenAI call with strict structured output (`llm1JsonSchema`). Model = `Vendor.aiModel` (fallback **`gpt-5.6-luna`** via `DEFAULT_CONVERSATION_MODEL` in `catalogContextConfig.ts` — [BILLING_AND_PRICING.md](./BILLING_AND_PRICING.md) §2). Temperature 0.3, `max_completion_tokens` 400.
 
 System prompt (`buildLlm1SystemPrompt`):
 
-- **Static** (prompt-cache prefix): bot identity, vendor rules, compact catalog table (`id,name,price,unit,baseQty,…` — `price` is for `baseQty` of `unit`, not per gram when `baseQty` > 1), variant SKU table, op rules.
+- **Vendor rules** (prompt-cache prefix): bot identity, vendor rules, op bullets — **no catalog table**.
+- **Catalog block** (per turn): compact catalog table from **`catalogSlice`** / `promptCatalogSlice` only (`id,name,price,unit,baseQty,…`; descriptions capped at **280** chars in the table).
 - **Dynamic**: current cart, customer name/address, recent orders, matched FAQs, last 6 turns. When `sourceMessageType` is `audio`, a **VOICE NOTE** block is appended: treat the user text as ASR, ask a clarifying question if it is garbled or off-catalog, and prefer CURRENT CART / RECENT ORDERS when the transcript is close (cake, brownie, kg).
 
 User message: merged customer text.
@@ -294,7 +309,7 @@ Ops:
 | `send_product_media` | Customer asked for photo/video — CartEngine no-op; pipeline resolves `ProductMedia` and enqueues native WA attachments (not on D6 order-status turns) |
 | `noop` | Question / greeting / unclear product match |
 
-After parse, ops whose `productId` is not in this turn’s compact catalog are **dropped** (`validateProductIds`) — including `send_product_media`. CartEngine still re-resolves every product from Postgres.
+After parse, ops whose `productId` is not in this turn’s **`catalogSlice`** are **dropped** (`validateProductIds`; metric **`ValidateProductIdDropped`**) — including `send_product_media`. CartEngine still re-resolves every product from Postgres.
 
 `knowledge_gap` is the one exception: its `productId` is advisory (it only links the `CustomerQuery` row to a catalog item), so an unknown id nulls the field instead of dropping the op — dropping it would lose the gap itself. Because the compact catalog is vendor-scoped, this is also what keeps a *real but other-vendor* product id out of `CustomerQuery.productId`; the `Product` FK on that column would happily accept one.
 
@@ -305,7 +320,7 @@ flowchart TD
   HS[HotSet] --> SYS[buildLlm1SystemPrompt]
   SYS --> API[OpenAI structured output]
   API --> PARSE[JSON.parse → Llm1Result]
-  PARSE --> VAL[validateProductIds vs compactCatalog]
+  PARSE --> VAL[validateProductIds vs catalogSlice]
   VAL --> DROP[drop unknown productId ops]
   DROP --> NORM[normalizeSetFieldOps for set_field values]
   NORM --> OUT[ops + draftReply + confidence + needsVerify]
@@ -567,6 +582,14 @@ Skipping LLM-2 on greetings / thanks / high-confidence `noop` is required for p9
 | I5 | Customer send is not blocked on vendor notify or metrics. Those are fire-and-forget after enqueue. |
 | I6 | Webhook returns to Meta in &lt; 3s. Never run the LLM on API Gateway. |
 | I7 | Never drop a message silently. Retry, business-ACK (wallet template), or DLQ. |
+
+---
+
+## Catalog context slicing rollout (constants only)
+
+Master switch **`CATALOG_SLICING_ENABLED`** is **`false`** in production until you deliberately roll out ([CONVERSATION_CATALOG_CONTEXT_SLICING.md](./CONVERSATION_CATALOG_CONTEXT_SLICING.md) §17): shadow log → sandbox vendors (`SANDBOX_VENDOR_IDS`) → fleet enable. **`gpt-5.6-luna`** is already the code default for new/null `Vendor.aiModel` rows; existing vendors were backfilled by migration `20250920120000_vendor_ai_model_luna_default`.
+
+**Persisted tokens:** `tokenMeta.promptTokens` / `completionTokens` on `Message` and `MessageProcessing` sum **LLM-1 + LLM-2** for the turn; `chargeVendor` uses the same totals.
 
 ---
 

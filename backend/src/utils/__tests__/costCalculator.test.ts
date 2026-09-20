@@ -36,6 +36,12 @@ describe('calculateCost', () => {
     expect(result.isEstimated).toBe(true);
   });
 
+  it('calculates gpt-5.6-luna pricing correctly', () => {
+    const result = calculateCost('gpt-5.6-luna', 1_000_000, 1_000_000);
+    const expected = 1_000_000 * (0.20 / 1_000_000) + 1_000_000 * (1.20 / 1_000_000);
+    expect(result.costUsd).toBeCloseTo(expected, 10);
+  });
+
   it('calculates gpt-4.1 pricing correctly', () => {
     const result = calculateCost('gpt-4.1', 1000, 500);
     // gpt-4.1: input 2.00/1M, output 8.00/1M

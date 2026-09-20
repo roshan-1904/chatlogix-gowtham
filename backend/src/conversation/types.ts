@@ -125,7 +125,7 @@ export interface ProductVariant {
 /**
  * Vendor identity/prompts/tone/timezone (spec §11 hot set, `vendor:{id}:config`).
  * `aiModel` is always a resolved, non-null model string here — the
- * `vendor.aiModel || 'gpt-4.1-mini'` fallback (Q10; the correct pattern lives
+ * `vendor.aiModel || DEFAULT_CONVERSATION_MODEL` fallback (Q10; see catalogContextConfig.ts;
  * in aiService.ts, not unifiedAIProcessorService.ts, which never applies it)
  * is applied once in prefetch.ts so every downstream reader gets a valid model.
  */

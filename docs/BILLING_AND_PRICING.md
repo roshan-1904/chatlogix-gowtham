@@ -2,8 +2,8 @@
 
 <!-- DOC_SYNC
   last_verified_commit: 34c42e767ad3c86d9ed1d3d1d4d7953b2adba03c
-  last_verified_at: 2026-09-16
-  scope: Millirupee wallet unit, pricingService charge formula, per-vendor markup, charge sources, wallet schema, trial grant, dashboard billing block, admin billing endpoints, PlatformSettings (paise) + daily USD/INR refresh
+  last_verified_at: 2026-09-20
+  scope: Millirupee wallet unit, pricingService charge formula, per-vendor markup, charge sources, wallet schema, trial grant, dashboard billing block, admin billing endpoints, PlatformSettings (paise) + daily USD/INR refresh, OpenAI conversation model rates (gpt-5.6-luna planned default)
 -->
 
 **This file is the authority for how ChatLogix charges a vendor.** Other docs should link here rather than restate the formula, the unit, or the source list. If a doc disagrees with this one, this one is right — or both are wrong and the code wins (`backend/src/services/pricing/pricingService.ts`).
@@ -78,6 +78,33 @@ PATCH /api/vendors/:id/billing-config
 
 The markup is resolved **inside** the charge transaction, so the `markupPercent` snapshot written to `WalletTransaction.metadata` is the one the charge was actually computed with.
 
+### OpenAI model rates (`costCalculator.ts`)
+
+Wallet **`aiCostMilli`** for chat models comes from `backend/src/utils/costCalculator.ts` → `calculateCost(model, promptTokens, completionTokens)`. Rates below are **OpenAI list prices, short context**, verified **2026-09-20**. Values are **USD per token** in code (`$/1M ÷ 1_000_000`).
+
+| Model | Input / 1M | Cached input / 1M | Cache writes / 1M | Output / 1M | Role |
+|---|---:|---:|---:|---:|---|
+| **`gpt-5.6-luna`** | **$0.20** | $0.02 | $0.25 | **$1.20** | **Code default** for conversation LLM-1 + LLM-2 (`DEFAULT_CONVERSATION_MODEL`; [CONVERSATION_CATALOG_CONTEXT_SLICING.md](./CONVERSATION_CATALOG_CONTEXT_SLICING.md) §22) |
+| `gpt-4.1-mini` | $0.40 | — | — | $1.60 | **As-shipped today** — Prisma `@default`, `prefetch.ts` fallback, and `MODEL_PRICING` row |
+
+**Billing implementation today:** only the **input** and **output** columns are used for debits. **Cached input** and **cache writes** are not split in `calculateCost` until usage reports cached token counts (see slicing doc §22.2).
+
+**Code change required at luna cutover:** add to `MODEL_PRICING`:
+
+```ts
+'gpt-5.6-luna': { input: 0.20 / 1_000_000, output: 1.20 / 1_000_000 },
+```
+
+If the model string is missing from the table, `calculateCost` **warns and falls back to `gpt-4.1-mini` pricing** — a ship blocker for luna traffic.
+
+**Illustrative LLM-1-only API cost (before markup, USD):**
+
+| Tokens (prompt / completion) | gpt-4.1-mini | gpt-5.6-luna |
+|---:|---:|---:|
+| 5,016 / 106 (production p50 sample) | ~$0.00218 | ~$0.00113 |
+
+Other models in the same file (`gpt-4.1`, `gpt-4o-mini`, `gpt-5-nano`, …) serve non-conversation paths (catalog enhancer, legacy callers). **Conversation processor** uses **`Vendor.aiModel`** only (Q10).
+
 ---
 
 ## 3. There is no monthly plan quota
@@ -92,7 +119,8 @@ The plan-credit concept is **gone**:
 
 The wallet gate is `billingService.canProcessMessage`, which requires the vendor to afford a **worst-case turn at their own markup** — not merely to hold a non-zero balance:
 
-- Worst-case AI budget: LLM-1 at 4000 prompt / 400 completion tokens plus LLM-2 at 1500 / 300, using the vendor's `aiModel`.
+- Worst-case AI budget: LLM-1 at 4000 prompt / 400 completion tokens plus LLM-2 at 1500 / 300, using the vendor's `aiModel` and that model's row in §2 (`MODEL_PRICING`).
+- At **gpt-4.1-mini** rates and ~₹83/USD, that worst case is roughly **₹0.35–0.45** charged to the vendor at 50% markup. At **`gpt-5.6-luna`** list rates (same token budget), roughly **₹0.20–0.25** — update automatically once `prefetch` default and vendor rows cut over.
 - Optionally reserves worst-case outbound product media (3 attachments) for conversation turns.
 - Also fails closed with `trial_expired` when `trialExpiresAt` has passed and the vendor is not `approved`.
 
@@ -251,7 +279,7 @@ Platform fees default to `0` paise (`platformFeePerTurnPaise` / `platformFeeOutb
 
 The trial grant was **lowered from ₹100 to ₹50**. Any doc or UI copy claiming "₹100 free trial/credits" is stale.
 
-A conversation reply now works out to roughly **₹0.20** on `gpt-4.1-mini`, so a ₹50 trial is **roughly 250 replies**. The warning threshold must stay under the grant, or every trial vendor starts out warned.
+A conversation reply on **`gpt-4.1-mini`** (code today) works out to roughly **₹0.20** at median production token counts (50% markup, platform fee 0). After the planned **`gpt-5.6-luna`** cutover — especially with catalog slicing — typical replies are expected around **₹0.10–0.15**; the ₹50 trial is then **roughly 300–500 replies** at typical cost, while the wallet gate still reserves worst-case headroom (§3). The warning threshold must stay under the grant, or every trial vendor starts out warned.
 
 **Onboarding complete (target, 2026-09-18):** remaining trial **carries forward**. **Go live** when wallet passes **`canProcessMessage`** — no separate minimum top-up rule. **`minWalletTopUpPaise`** (default ₹100) applies only when the vendor initiates a top-up. See [public-signup-onboarding.md](../documentation/modules/features/vendor-onboarding/guides/public-signup-onboarding.md).
 
@@ -296,7 +324,7 @@ The rework moved most paths from "flat or cost-price" to "real cost plus markup"
 
 | Path | Before | After |
 |---|---|---|
-| Conversation reply | flat 1 paisa | **real cost — around ₹0.20 per reply on `gpt-4.1-mini`** |
+| Conversation reply | flat 1 paisa | **real cost** — ~**₹0.20** typical today on `gpt-4.1-mini`; target ~**₹0.10–0.15** on **`gpt-5.6-luna`** + slicing (§2 model table) |
 | Inbound voice note | free | **costs real money** — Whisper, priced by audio duration, folded into the same turn charge |
 | Outbound product media | flat 2 credits (image) / 10 (video) | **free** while its platform fee is 0 (§7) |
 | Catalog enhance | hardcoded 2x cost | **down ~25%** — the 2x became the vendor's 1.5x |
@@ -337,6 +365,7 @@ Renamed: `getTodaysCatalogImportPaiseSpent` → `getTodaysCatalogImportMilliSpen
 
 ## Related docs
 
+- [CONVERSATION_CATALOG_CONTEXT_SLICING.md](./CONVERSATION_CATALOG_CONTEXT_SLICING.md) — planned catalog slice + **gpt-5.6-luna** cutover (build spec; rates authoritative in §2 above once code ships)
 - [INCOMING_RESPONSE_GENERATOR_FLOW.md](./INCOMING_RESPONSE_GENERATOR_FLOW.md) §10 — where the per-turn debit sits in the pipeline
 - [VENDOR_CATALOG_ENHANCER.md](./VENDOR_CATALOG_ENHANCER.md) §13 — enhancer billing
 - [PRODUCT_MEDIA.md](./PRODUCT_MEDIA.md) §14 — outbound media billing

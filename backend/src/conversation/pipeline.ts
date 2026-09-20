@@ -18,6 +18,7 @@ import { upsertInboundMessage } from './idempotency.js';
 import { stashForBurstMerge } from './burstMerge.js';
 import { collectCoalescedInbound } from './coalesceInbound.js';
 import { prefetchHotSet } from './prefetch.js';
+import { resolveCatalogContextForLlm1 } from './context/resolveCatalogContext.js';
 import { runLlm1 } from './llm/llm1.js';
 import { apply } from './cart/engine.js';
 import { runLlm2, selectFinalReply, renderRejectedOpsReply } from './llm/llm2.js';
@@ -389,11 +390,28 @@ export async function processMessage(
     const hotSet = await prefetchHotSet(vendorId, conversationId, customerId, mergedContent);
     logStage('prefetch_done', { traceId, vendorId, conversationId });
 
+    const { plan, catalogSlice, promptCatalogSlice } = await resolveCatalogContextForLlm1({
+      vendorId,
+      mergedContent,
+      hotSet,
+      traceId,
+      whatsappMessageId: input.whatsappMessageId
+    });
+    logStage('context_plan_done', { traceId, vendorId, conversationId }, {
+      mode: plan.mode,
+      fullCatalogSize: hotSet.compactCatalog.length,
+      sliceSize: catalogSlice.length,
+      omitCatalogTable: plan.omitCatalogTable,
+      reasons: plan.reasons
+    });
+
     // Step 4: LLM-1 -- ops + draft reply.
     const llm1StartedAt = Date.now();
     const llm1Result = await runLlm1({
       vendorId,
       hotSet,
+      catalogSlice,
+      promptCatalogSlice,
       mergedContent,
       traceId,
       sourceMessageType: input.sourceMessageType
@@ -402,7 +420,10 @@ export async function processMessage(
     logStage('llm1_done', { traceId, vendorId, conversationId }, {
       promptTokens: llm1Result.promptTokens,
       completionTokens: llm1Result.completionTokens,
-      model: llm1Result.model
+      model: llm1Result.model,
+      fullCatalogSize: hotSet.compactCatalog.length,
+      sliceSize: catalogSlice.length,
+      turnContextMode: plan.mode
     });
 
     const normalizedOps = await normalizeSetFieldOps(llm1Result.ops);
@@ -534,7 +555,7 @@ export async function processMessage(
         traceId,
         intent: llm1Result.intent,
         ops: replyOps,
-        compactCatalog: hotSet.compactCatalog,
+        compactCatalog: catalogSlice,
         language: llm1Result.language,
         cartMutated: applyResult.mutated
       });
@@ -543,8 +564,12 @@ export async function processMessage(
 
     const tokenMeta = {
       model: llm1Result.model,
-      promptTokens: llm1Result.promptTokens,
-      completionTokens: llm1Result.completionTokens
+      promptTokens: llm1Result.promptTokens + llm2PromptTokens,
+      completionTokens: llm1Result.completionTokens + llm2CompletionTokens,
+      llm1PromptTokens: llm1Result.promptTokens,
+      llm1CompletionTokens: llm1Result.completionTokens,
+      llm2PromptTokens,
+      llm2CompletionTokens
     };
 
     // Both models bill at the same per-token rate (LLM-2 reuses LLM-1's

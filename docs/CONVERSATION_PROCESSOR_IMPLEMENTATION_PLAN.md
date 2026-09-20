@@ -32,6 +32,7 @@ This plan translates that spec (plus the v1.1 scale-hardening addendum already a
 | 10 — Full orchestrator + SQS handler/worker | **Done** | `identity.ts` + `templates.ts` (new, not in the original file list — see status note), `pipeline.ts` gained the full `processMessage` orchestrator (spec §7 steps 0-11), `handler.ts`, `lambdas/handlers/conversationProcessor.ts`, `workers/conversationWorker.ts`, `worker:conversation` npm script. 122/122 tests passing across the whole `conversation/` module. `tsc --noEmit` clean. |
 | 11 — Metrics/timestamps | **Done** | `metrics.ts` (thin wrapper over `observability/metrics.ts`) written; `pipeline.ts`'s `processMessage`/`finalizeTurn` retrofitted with all 6 required §23 timestamp checkpoints and the remaining metrics (`LatencyMs`, `Llm1Ms`, `Llm2Ms`/`Llm2Skipped`, `CartApplyFail`, `LockContention`, `LockUnavailable`, `ProcessorError{class}`). 129/129 tests passing across the whole `conversation/` module. `tsc --noEmit` clean. |
 | 12–14 | Not started | |
+| 15 — Catalog context slicing | **Done** (slicing flag off) | `resolveCatalogContextForLlm1`, 3-block prompts, metrics, tests; **`CATALOG_SLICING_ENABLED=false`** until §17 rollout. Spec: [CONVERSATION_CATALOG_CONTEXT_SLICING.md](./CONVERSATION_CATALOG_CONTEXT_SLICING.md). **gpt-5.6-luna** default + migration in same delivery. |
 
 ---
 
@@ -574,6 +575,23 @@ Changes after Steps 7–11 shipped, verified at commit `547b10e`:
 | **Vendor English** | `utils/vendorEnglish.ts`, `pipeline.ts` | `ensureMessageContentEn` on inbound + assistant messages; `normalizeSetFieldOps` transliterates set_field values before CartEngine; `hydrateMessagesContentEn` on vendor read paths. `content` stays customer language; `contentEn` is vendor-portal only. |
 
 Living walkthrough: `docs/INCOMING_RESPONSE_GENERATOR_FLOW.md`.
+
+### Catalog context slicing (2026-09-20, planned)
+
+**Goal:** Reduce LLM-1 prompt tokens (~30–40% fleet AI cost) by routing turns before LLM-1 and injecting only a **subset** of `compactCatalog` (plus mandatory cart/order product rows), instead of the full catalog in `buildStaticBlock` every time.
+
+| Area | Planned files | Notes |
+|---|---|---|
+| Turn routing | `conversation/context/turnContext.ts` | Deterministic modes; share phrases with `orderStatusGuard.ts` |
+| Slice builder | `conversation/context/catalogSlice.ts` | Union cart, retrieval top-K, order-history pins |
+| Retrieval | `conversation/cart/candidateSearch.ts` | Add `searchCandidateProductsMany` (spec: top 8–15) |
+| Prompts | `conversation/llm/prompts.ts` | Split vendor rules (static) vs catalog (dynamic per turn) |
+| Pipeline | `conversation/pipeline.ts` | After `prefetchHotSet`, before `runLlm1` |
+| Config | `config/env.ts`, `.env.example` | `CONVERSATION_CATALOG_SLICE_ENABLED`, K knobs |
+
+Prefetch (`loadCompactCatalog`) stays **full catalog in memory**; only the prompt subset changes. CartEngine unchanged.
+
+**Authoritative doc:** [CONVERSATION_CATALOG_CONTEXT_SLICING.md](./CONVERSATION_CATALOG_CONTEXT_SLICING.md) (production token evidence, rollout, tests, risks).
 
 ---
 

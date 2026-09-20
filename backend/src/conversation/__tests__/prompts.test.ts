@@ -334,6 +334,25 @@ describe('buildLlm1SystemPrompt', () => {
     expect(prompt).toContain('RELEVANT FAQs');
   });
 
+  it('order-status empty catalog slice still includes RECENT ORDERS in dynamic block', () => {
+    const prompt = buildLlm1SystemPrompt(makeHotSet(), { catalogSlice: [] });
+    expect(prompt).toContain('(none in this turn');
+    expect(prompt).toContain('RECENT ORDERS');
+  });
+
+  it('truncates long descriptions in the catalog table at 280 chars', () => {
+    const longDesc = 'word '.repeat(200);
+    const table = buildCatalogTable([
+      {
+        ...makeHotSet().compactCatalog[0],
+        description: longDesc
+      }
+    ]);
+    expect(table).toContain('…');
+    const descCell = table.split('\n')[1].split(',').pop() ?? '';
+    expect(descCell.length).toBeLessThanOrEqual(281);
+  });
+
   it('renders a matched FAQ\'s question and answer under RELEVANT FAQs', () => {
     const prompt = buildLlm1SystemPrompt(
       makeHotSet({

@@ -427,6 +427,12 @@ describe('chargeVendor', () => {
 });
 
 describe('computeTurnEstimate', () => {
+  it('uses gpt-5.6-luna when aiModel is omitted', () => {
+    const luna = computeTurnEstimate({ markupPercent: 50 });
+    const mini = computeTurnEstimate({ markupPercent: 50, aiModel: 'gpt-4.1-mini' });
+    expect(luna.chargeMilli).toBeLessThan(mini.chargeMilli);
+  });
+
   it('reserves more when worst-case outbound media is included', () => {
     const base = computeTurnEstimate({ markupPercent: 50, aiModel: 'gpt-4.1-mini' });
     const withMedia = computeTurnEstimate({

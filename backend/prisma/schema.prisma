@@ -38,7 +38,7 @@ model Vendor {
   aiProducts                     String?
   aiGreeting                     String?
   aiClosing                      String?
-  aiModel                        String?               @default("gpt-4.1-mini")
+  aiModel                        String?               @default("gpt-5.6-luna")
   aiPreparationTimeMinutes       Int?
   aiContentResponsibilities      String?
   aiContentConversationRules     String?

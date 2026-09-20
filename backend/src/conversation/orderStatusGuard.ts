@@ -10,7 +10,7 @@ export interface OrderStatusTurnInput {
   orderHistory: OrderHistoryEntry[];
 }
 
-const ORDER_STATUS_PHRASES: RegExp[] = [
+export const ORDER_STATUS_PHRASES: RegExp[] = [
   /\border status\b/i,
   /\bwhere(?:'s| is) (?:my |the )?order\b/i,
   /\bwhere is it\b/i,
@@ -36,18 +36,39 @@ const ORDER_STATUS_PHRASES: RegExp[] = [
 ];
 
 /** “How long if I order today” is prep/policy, not D6, when there is no history. */
-const HYPOTHETICAL_PREP_PHRASES: RegExp[] = [
+export const HYPOTHETICAL_PREP_PHRASES: RegExp[] = [
   /\bif i (?:were to )?order\b/i,
   /\bwhen i order\b/i,
   /\bhow long (?:does it take|to (?:bake|make|prepare|ready)|if i)\b/i
 ];
 
-function normalizeForMatch(text: string): string {
+export const REORDER_PHRASES: RegExp[] = [
+  /\bsame as (?:last|before)\b/i,
+  /\brepeat (?:order|last)\b/i,
+  /\border again\b/i,
+  /\blast time\b/i,
+  /\bமீண்டும்\b/,
+  /\bஅதே\b.*\border\b/i,
+  /\bफिर से\b/,
+  /\bवही\b/
+];
+
+export function normalizeForMatch(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
 }
 
-function matchesAny(text: string, patterns: RegExp[]): boolean {
+export function matchesAny(text: string, patterns: RegExp[]): boolean {
   return patterns.some((re) => re.test(text));
+}
+
+/** Short greeting/thanks-only turns → general mode (no catalog retrieval). */
+export function isGreetingOrThanksOnly(text: string): boolean {
+  const t = normalizeForMatch(text).toLowerCase();
+  if (!t || t.length > 80) return false;
+  if (/^(hi|hello|hey|good (morning|afternoon|evening)|namaste|vanakkam|வணக்கம்|नमस्ते)\b/.test(t)) return true;
+  if (/^(thanks|thank you|thx|ok thanks|okay thanks|👍|🙏)\b/.test(t)) return true;
+  if (/^(ok|okay|cool|great|nice)\.?$/i.test(t)) return true;
+  return false;
 }
 
 /**

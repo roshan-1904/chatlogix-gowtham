@@ -10,6 +10,7 @@ import {
   deflateDoubleConvertedPaise
 } from '../services/catalogNormalizationService.js';
 import type { HotSet, VendorConfig, CompactCatalogEntry, ConvMemory, CartSnapshot, OrderHistoryEntry, FaqEntry } from './types.js';
+import { DEFAULT_CONVERSATION_MODEL } from './context/catalogContextConfig.js';
 
 /**
  * Redis-first, Postgres-on-miss hot set (spec §11). `getCached`/`setCached`
@@ -119,7 +120,7 @@ async function loadVendorConfig(vendorId: string): Promise<VendorConfig> {
     // Q10 / spec §7 step 4: model = Vendor.aiModel, with the same fallback
     // aiService.ts uses (unifiedAIProcessorService.ts never applies this —
     // that's a real bug in the current pipeline, not a pattern to copy).
-    aiModel: vendor.aiModel || 'gpt-4.1-mini',
+    aiModel: vendor.aiModel || DEFAULT_CONVERSATION_MODEL,
     askForPreferredDeliveryDate: vendor.askForPreferredDeliveryDate
   };
 }

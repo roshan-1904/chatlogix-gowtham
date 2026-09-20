@@ -1,6 +1,7 @@
-import type { HotSet, CompactCatalogEntry, OrderHistoryEntry, FaqEntry } from '../types.js';
+import type { HotSet, CompactCatalogEntry, OrderHistoryEntry, FaqEntry, VendorConfig } from '../types.js';
 import { parseOrderItems } from '../cart/snapshot.js';
 import { getPreparationTimeMessage, type OrderPreparationConfig } from '../../types/orderSettings.js';
+import { PROMPT_CATALOG_DESC_MAX_CHARS } from '../context/catalogContextConfig.js';
 
 /**
  * Same wording/emoji as whatsappTemplateService.ts's statusMessages map
@@ -39,7 +40,17 @@ function toonTable(rows: Record<string, string>[]): string {
  * productId) and keeps price as a display value only — CartEngine never
  * reads this table for pricing, it always resolves Product directly (§14).
  */
-export function buildCatalogTable(catalog: CompactCatalogEntry[]): string {
+function truncateDescription(desc: string, maxChars: number): string {
+  const flat = desc.replace(/\s+/g, ' ').trim();
+  if (flat.length <= maxChars) return flat;
+  const cut = flat.slice(0, maxChars);
+  const lastSpace = cut.lastIndexOf(' ');
+  const trimmed = lastSpace > maxChars * 0.6 ? cut.slice(0, lastSpace) : cut;
+  return `${trimmed}…`;
+}
+
+export function buildCatalogTable(catalog: CompactCatalogEntry[], descMaxChars?: number): string {
+  const descCap = descMaxChars ?? PROMPT_CATALOG_DESC_MAX_CHARS;
   const rows = catalog.map((p) => ({
     id: p.id,
     name: p.name,
@@ -60,7 +71,7 @@ export function buildCatalogTable(catalog: CompactCatalogEntry[]): string {
     stockQty: p.stockQuantity !== null ? String(p.stockQuantity) : '',
     // Flattened to one line (a literal newline would break a TOON row); commas
     // are escaped by toonTable() below like every other column.
-    desc: p.description ? p.description.replace(/\s+/g, ' ').trim() : '',
+    desc: p.description ? truncateDescription(p.description, descCap) : '',
     media:
       p.imageCount > 0 || p.videoCount > 0
         ? `${p.imageCount}img/${p.videoCount}vid${p.mediaLabels.length ? ` (${p.mediaLabels.join('; ')})` : ''}`
@@ -136,13 +147,10 @@ function buildFaqBlock(faqs: FaqEntry[]): string {
 }
 
 /**
- * Vendor identity/rules/catalog — identical across turns for the same
- * vendor, so it belongs first in the system prompt to stay inside OpenAI's
- * automatic prompt-caching prefix (matches unifiedAIProcessorService.ts's
- * static/dynamic split convention).
+ * Vendor identity/rules — stable per vendor for OpenAI prompt-cache prefix.
  */
-function buildStaticBlock(hotSet: HotSet): string {
-  const v = hotSet.vendorConfig;
+export function buildVendorRulesBlock(vendorConfig: VendorConfig): string {
+  const v = vendorConfig;
   const parts: string[] = [];
 
   parts.push(`You are ${v.aiBotName || 'the assistant'} for ${v.businessName}, a WhatsApp ordering assistant.`);
@@ -154,32 +162,12 @@ function buildStaticBlock(hotSet: HotSet): string {
   if (v.aiContentImportantInstructions) parts.push(`Important: ${v.aiContentImportantInstructions}`);
 
   parts.push('');
-  parts.push('PRODUCT CATALOG (id,name,price,unit,baseQty,minQty,maxQty,baseOrderable,keywords,fulfillment,inStock,stockQty,desc):');
-  parts.push(buildCatalogTable(hotSet.compactCatalog));
-  parts.push(
-    '- "price" is the total for "baseQty" of "unit" on that row — NOT the per-unit price when baseQty is greater than 1. Example: price=550, unit=g, baseQty=350 means Rs 550 for a 350g pack, not Rs 550 per gram. When quoting or comparing sizes (e.g. "is this 1kg?"), use this — never divide price by 1 and call it the per-gram/per-ml rate unless baseQty is exactly 1.'
-  );
-  parts.push(
-    "- A product's \"desc\" may contain compatibility/eligibility notes or vendor instructions (e.g. an accessory that only fits one size, or a step to confirm before an order is valid). Read it and apply it, not just recite it — e.g. warn the customer or ask the confirming question yourself before adding the item, don't wait for them to ask."
-  );
-
-  const variantsTable = buildVariantsTable(hotSet.compactCatalog);
-  if (variantsTable) {
-    parts.push('');
-    parts.push('PRODUCT VARIANTS (productId,sku,label,attrs,price):');
-    parts.push(variantsTable);
-    parts.push(
-      '- If the catalog row\'s "baseOrderable" is "no": that productId\'s price/unit is a range/reference only — you MUST get the customer to pick a size/material/etc from this table and add it with that exact "variantSku". Never invent one, and never guess an attribute the customer didn\'t confirm — if what they ask for isn\'t a row here, say so and offer the closest real options instead.'
-    );
-    parts.push(
-      '- If the catalog row\'s "baseOrderable" is "yes": that product can ALSO be added directly using the base productId with NO variantSku, at whatever quantity of its base "unit" the customer asked for (e.g. weight in kg) — this is a real, separate way to order it, not a fallback. Only use one of this product\'s variantSku rows instead when the customer clearly asked for one of those specific packaged options (e.g. a fixed box/pack size) rather than a bulk/weight amount.'
-    );
-  }
-
-  parts.push('');
   parts.push('YOUR TASK: read the customer message and respond with cart OPERATIONS, never a full cart list.');
   parts.push('Rules:');
-  parts.push('- "productId" in every op must be exactly one of the ids in the catalog above. Never invent one.');
+  parts.push('- "productId" in every op must be exactly one of the ids in the PRODUCT CATALOG table when that table is present. Never invent one.');
+  parts.push(
+    '- Only products listed in PRODUCT CATALOG (this turn) are in context. If the customer asks for something not listed, use "noop" and clarify, or emit knowledge_gap — do not invent ids.'
+  );
   parts.push(
     "- If you cannot confidently match a product the customer mentioned, use \"noop\" and ask a clarifying question in draftReply instead of guessing."
   );
@@ -255,15 +243,52 @@ function buildStaticBlock(hotSet: HotSet): string {
   return parts.join('\n');
 }
 
+/**
+ * Per-turn catalog + variants (sliced subset of active SKUs).
+ */
+export function buildCatalogBlock(catalogSlice: CompactCatalogEntry[]): string {
+  const parts: string[] = [];
+
+  if (catalogSlice.length === 0) {
+    parts.push('PRODUCT CATALOG: (none in this turn — use RECENT ORDERS for order questions; do not invent products.)');
+    return parts.join('\n');
+  }
+
+  parts.push('PRODUCT CATALOG (id,name,price,unit,baseQty,minQty,maxQty,baseOrderable,keywords,fulfillment,inStock,stockQty,desc):');
+  parts.push(buildCatalogTable(catalogSlice));
+  parts.push(
+    '- "price" is the total for "baseQty" of "unit" on that row — NOT the per-unit price when baseQty is greater than 1. Example: price=550, unit=g, baseQty=350 means Rs 550 for a 350g pack, not Rs 550 per gram. When quoting or comparing sizes (e.g. "is this 1kg?"), use this — never divide price by 1 and call it the per-gram/per-ml rate unless baseQty is exactly 1.'
+  );
+  parts.push(
+    "- A product's \"desc\" may contain compatibility/eligibility notes or vendor instructions (e.g. an accessory that only fits one size, or a step to confirm before an order is valid). Read it and apply it, not just recite it — e.g. warn the customer or ask the confirming question yourself before adding the item, don't wait for them to ask."
+  );
+
+  const variantsTable = buildVariantsTable(catalogSlice);
+  if (variantsTable) {
+    parts.push('');
+    parts.push('PRODUCT VARIANTS (productId,sku,label,attrs,price):');
+    parts.push(variantsTable);
+    parts.push(
+      '- If the catalog row\'s "baseOrderable" is "no": that productId\'s price/unit is a range/reference only — you MUST get the customer to pick a size/material/etc from this table and add it with that exact "variantSku". Never invent one, and never guess an attribute the customer didn\'t confirm — if what they ask for isn\'t a row here, say so and offer the closest real options instead.'
+    );
+    parts.push(
+      '- If the catalog row\'s "baseOrderable" is "yes": that product can ALSO be added directly using the base productId with NO variantSku, at whatever quantity of its base "unit" the customer asked for (e.g. weight in kg) — this is a real, separate way to order it, not a fallback. Only use one of this product\'s variantSku rows instead when the customer clearly asked for one of those specific packaged options (e.g. a fixed box/pack size) rather than a bulk/weight amount.'
+    );
+  }
+
+  return parts.join('\n');
+}
+
 export interface Llm1PromptOptions {
   sourceMessageType?: 'audio' | 'image';
+  catalogSlice?: CompactCatalogEntry[];
 }
 
 /**
  * Turn-specific context — changes every message, so it comes after the
  * static block (outside OpenAI's cached prefix).
  */
-function buildDynamicBlock(hotSet: HotSet, opts?: Llm1PromptOptions): string {
+export function buildDynamicBlock(hotSet: HotSet, opts?: Llm1PromptOptions): string {
   const parts: string[] = [];
 
   parts.push('CURRENT CART:');
@@ -322,7 +347,8 @@ function buildDynamicBlock(hotSet: HotSet, opts?: Llm1PromptOptions): string {
 }
 
 export function buildLlm1SystemPrompt(hotSet: HotSet, opts?: Llm1PromptOptions): string {
-  return `${buildStaticBlock(hotSet)}\n\n${buildDynamicBlock(hotSet, opts)}`;
+  const catalogSlice = opts?.catalogSlice ?? hotSet.compactCatalog;
+  return `${buildVendorRulesBlock(hotSet.vendorConfig)}\n\n${buildCatalogBlock(catalogSlice)}\n\n${buildDynamicBlock(hotSet, opts)}`;
 }
 
 const cartOpSchema = {

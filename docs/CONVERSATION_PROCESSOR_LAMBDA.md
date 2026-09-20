@@ -21,6 +21,7 @@ This document is the source of truth for rewriting WhatsApp **text** conversatio
 Related docs (do not contradict this spec for the **text** path):
 
 - `docs/INCOMING_RESPONSE_GENERATOR_FLOW.md` — **living as-implemented** walkthrough of how the reply is prepared (follows the code; update it when `backend/src/conversation/` changes)
+- `docs/CONVERSATION_CATALOG_CONTEXT_SLICING.md` — **planned** per-turn catalog subset + turn routing before LLM-1 (closes Q9 implementation gap; not shipped yet)
 - `docs/DOC_SYNC_INDEX.md` — audit index of doc ↔ commit SHA sync status
 - `docs/DEPLOYMENT.md` — current webhook → SQS → Lambda topology  
 - `docs/LAMBDA_MIGRATION_PLAN.md` — VM vs Lambda; Postgres stays on Lightsail for now  
@@ -137,7 +138,7 @@ The writer is already full of “CRITICAL FIX” branches that fight each other 
 | **Q7** | Handoff = `aiPaused = true` **and** notify the vendor. |
 | **Q8** | **A.** Deduct credits **after** the reply is queued. Idempotent on `whatsappMessageId`. |
 | **Q9** | Day-1 retrieval = **keyword + compact catalog**. No vector database. |
-| **Q10** | Model = `Vendor.aiModel` (schema default `gpt-4.1-mini`). |
+| **Q10** | Model = `Vendor.aiModel` (schema default **`gpt-4.1-mini`** in code today; planned fleet default **`gpt-5.6-luna`** — rates in [BILLING_AND_PRICING.md](./BILLING_AND_PRICING.md) §2, cutover in [CONVERSATION_CATALOG_CONTEXT_SLICING.md](./CONVERSATION_CATALOG_CONTEXT_SLICING.md) §22). |
 | **Q11** | **Dev/test, no live customers: replace the existing text processor.** No shadow queue, no vendor allowlist, no percentage rollout. |
 | **Q12** | Reply in the **language/script of the customer’s latest message**. |
 | **Q13** | Customer confirm requires **name + address + non-empty cart**. AI **never** sends an expected delivery date. ETA is sent **after the vendor confirms** in the dashboard. |
@@ -379,6 +380,8 @@ After LLM-1, fetch extra only if needed: recent order history (`order_status` / 
 **Multi-language matching is a Day-1 quality concern, not deferrable.** `productMatcher.findBestProductMatch` already has an AI multi-language fallback in production — before cutover, measure its hit rate against real (or representative synthetic) Tamil/Hindi/English customer phrasing, per language. Emit `ProductMatchMiss{language}` (EMF, see [§23.1](#231-quality-evaluation-loop)) from day one so the embeddings decision below is made from fleet data, not anecdote. Cheapest first mitigation: encourage/default vendors to populate multilingual `keywords` per SKU in the compact catalog (already a field above) — no infra change required.
 
 Embeddings are a later phase, revisited only if the measured miss rate stays high after the keywords mitigation.
+
+> **Implementation drift (2026-09-20):** as-shipped code puts the **entire** compact catalog in LLM-1’s static prompt block (`llm/prompts.ts` → `buildStaticBlock`) on every turn. `cart/candidateSearch.ts` is implemented but **not** wired into `pipeline.ts`. A full build spec to align runtime with Q9 (turn context, top-K slice, prompt refactor) and move the conversation default model to **`gpt-5.6-luna`** lives in [CONVERSATION_CATALOG_CONTEXT_SLICING.md](./CONVERSATION_CATALOG_CONTEXT_SLICING.md). OpenAI list rates for wallet debits: [BILLING_AND_PRICING.md](./BILLING_AND_PRICING.md) §2. As-implemented behavior until that ships: [INCOMING_RESPONSE_GENERATOR_FLOW.md](./INCOMING_RESPONSE_GENERATOR_FLOW.md) §6–§7.
 
 ---
 

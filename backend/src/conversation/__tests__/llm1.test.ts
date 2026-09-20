@@ -30,6 +30,10 @@ vi.mock('../../observability/metrics.js', () => ({
   emitMetric: (...args: unknown[]) => emitMetricMock(...args)
 }));
 
+vi.mock('../metrics.js', () => ({
+  logCount: vi.fn()
+}));
+
 import { runLlm1 } from '../llm/llm1.js';
 import type { HotSet } from '../types.js';
 
@@ -106,7 +110,13 @@ describe('runLlm1', () => {
   it('calls the model with the resolved vendor model, strict json_schema, and the §13 token cap', async () => {
     createMock.mockResolvedValue(mockCompletion());
 
-    await runLlm1({ vendorId: 'vendor-1', hotSet, mergedContent: 'add 2 brownies', traceId: 'wamid.1' });
+    await runLlm1({
+      vendorId: 'vendor-1',
+      hotSet,
+      catalogSlice: hotSet.compactCatalog,
+      mergedContent: 'add 2 brownies',
+      traceId: 'wamid.1'
+    });
 
     expect(createMock).toHaveBeenCalledTimes(1);
     const call = createMock.mock.calls[0][0];
@@ -123,6 +133,7 @@ describe('runLlm1', () => {
     await runLlm1({
       vendorId: 'vendor-1',
       hotSet,
+      catalogSlice: hotSet.compactCatalog,
       mergedContent: 'பையனுக்கு birthday',
       traceId: 'wamid.audio',
       sourceMessageType: 'audio'
@@ -136,7 +147,13 @@ describe('runLlm1', () => {
   it('returns the parsed result plus model/token usage', async () => {
     createMock.mockResolvedValue(mockCompletion());
 
-    const result = await runLlm1({ vendorId: 'vendor-1', hotSet, mergedContent: 'add 2 brownies', traceId: 'wamid.1' });
+    const result = await runLlm1({
+      vendorId: 'vendor-1',
+      hotSet,
+      catalogSlice: hotSet.compactCatalog,
+      mergedContent: 'add 2 brownies',
+      traceId: 'wamid.1'
+    });
 
     expect(result.draftReply).toBe('Sure, added 2 Brownies!');
     expect(result.model).toBe('gpt-4.1-mini');
@@ -155,7 +172,13 @@ describe('runLlm1', () => {
       })
     );
 
-    const result = await runLlm1({ vendorId: 'vendor-1', hotSet, mergedContent: 'add stuff', traceId: 'wamid.2' });
+    const result = await runLlm1({
+      vendorId: 'vendor-1',
+      hotSet,
+      catalogSlice: hotSet.compactCatalog,
+      mergedContent: 'add stuff',
+      traceId: 'wamid.2'
+    });
 
     expect(result.ops).toEqual([{ type: 'add', productId: 'prod-1', qty: 1, notes: null }]);
     expect(emitMetricMock).toHaveBeenCalledWith('Llm1HallucinatedProductId', 1, {
@@ -166,12 +189,16 @@ describe('runLlm1', () => {
   it('throws if the model refuses', async () => {
     createMock.mockResolvedValue({ choices: [{ message: { refusal: 'unable to comply' } }], usage: {} });
 
-    await expect(runLlm1({ vendorId: 'vendor-1', hotSet, mergedContent: 'x', traceId: 'wamid.3' })).rejects.toThrow(/refused/);
+    await expect(
+      runLlm1({ vendorId: 'vendor-1', hotSet, catalogSlice: hotSet.compactCatalog, mergedContent: 'x', traceId: 'wamid.3' })
+    ).rejects.toThrow(/refused/);
   });
 
   it('throws if the model returns no content', async () => {
     createMock.mockResolvedValue({ choices: [{ message: {} }], usage: {} });
 
-    await expect(runLlm1({ vendorId: 'vendor-1', hotSet, mergedContent: 'x', traceId: 'wamid.4' })).rejects.toThrow(/no content/);
+    await expect(
+      runLlm1({ vendorId: 'vendor-1', hotSet, catalogSlice: hotSet.compactCatalog, mergedContent: 'x', traceId: 'wamid.4' })
+    ).rejects.toThrow(/no content/);
   });
 });

@@ -413,20 +413,36 @@ describe('processMessage', () => {
     await processMessage(rawInput);
 
     const stages = logStageMock.mock.calls.map((call) => call[0]);
-    expect(stages).toEqual(['handler_start', 'prefetch_done', 'llm1_done', 'cart_apply_done', 'llm2_skipped', 'response_queue_published']);
+    expect(stages).toEqual([
+      'handler_start',
+      'prefetch_done',
+      'context_plan_done',
+      'llm1_done',
+      'cart_apply_done',
+      'llm2_skipped',
+      'response_queue_published'
+    ]);
   });
 
   it('§23: llm1_done carries promptTokens/completionTokens/model, and Llm1Ms is timed', async () => {
     await processMessage(rawInput);
 
     const llm1StageCall = logStageMock.mock.calls.find((call) => call[0] === 'llm1_done');
-    expect(llm1StageCall?.[2]).toEqual({ promptTokens: 500, completionTokens: 40, model: 'gpt-4.1-mini' });
+    expect(llm1StageCall?.[2]).toEqual(
+      expect.objectContaining({ promptTokens: 500, completionTokens: 40, model: 'gpt-4.1-mini', fullCatalogSize: hotSet.compactCatalog.length })
+    );
     expect(logLatencyMock).toHaveBeenCalledWith('Llm1Ms', expect.any(Number), { vendorId: 'vendor-1' });
   });
 
-  it('threads intent, ops, and compactCatalog through to selectFinalReply so the phantom-mutation backstop has what it needs', async () => {
+  it('threads catalogSlice to runLlm1 and selectFinalReply (full catalog when slicing off)', async () => {
     await processMessage(rawInput);
 
+    expect(runLlm1Mock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        catalogSlice: hotSet.compactCatalog,
+        mergedContent: '2 brownies please'
+      })
+    );
     expect(selectFinalReplyMock).toHaveBeenCalledWith(
       expect.objectContaining({
         intent: llm1Result.intent,
