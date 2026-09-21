@@ -1,5 +1,6 @@
 import { logger } from '../logger.js';
 import { isVendorFlagOn } from '../config/featureFlags.js';
+import { isTurnAuditLogGroupConfigured, publishTurnAuditToCloudWatch } from './turnAuditCloudWatch.js';
 
 export const TURN_AUDIT_FLAG = 'conversation_turn_audit';
 
@@ -69,9 +70,19 @@ function truncatePayloadJson(serialized: string): Record<string, unknown> {
   };
 }
 
+function emitTurnAuditEnvelope(envelope: Record<string, unknown>): void {
+  if (isTurnAuditLogGroupConfigured()) {
+    void publishTurnAuditToCloudWatch(envelope);
+    return;
+  }
+
+  logger.info(envelope, 'turn_audit');
+}
+
 /**
- * Sync structured audit log for CloudWatch Insights. No-op when `enabled` is false.
- * Large payloads are truncated at ~200KB with `truncated` markers.
+ * Structured turn audit for CloudWatch analysis. No-op when `enabled` is false.
+ * When `TURN_AUDIT_LOG_GROUP` is set, events go only to that log group (not Lambda default logs).
+ * Large payloads are truncated or split at ~200KB.
  */
 export function logTurnAudit(
   enabled: boolean,
@@ -85,19 +96,16 @@ export function logTurnAudit(
   const originalBytes = byteLengthUtf8(serialized);
 
   if (originalBytes <= MAX_AUDIT_BYTES) {
-    logger.info(
-      {
-        turnAudit: true,
-        schema: 'turn_audit_v1',
-        checkpoint,
-        traceId: ctx.traceId,
-        vendorId: ctx.vendorId,
-        conversationId: ctx.conversationId,
-        service: ctx.service,
-        payload: JSON.parse(serialized)
-      },
-      'turn_audit'
-    );
+    emitTurnAuditEnvelope({
+      turnAudit: true,
+      schema: 'turn_audit_v1',
+      checkpoint,
+      traceId: ctx.traceId,
+      vendorId: ctx.vendorId,
+      conversationId: ctx.conversationId,
+      service: ctx.service,
+      payload: JSON.parse(serialized)
+    });
     return;
   }
 
@@ -114,23 +122,20 @@ export function logTurnAudit(
       partPayload = { preview: slice };
     }
 
-    logger.info(
-      {
-        turnAudit: true,
-        schema: 'turn_audit_v1',
-        checkpoint: `${checkpoint}_part_${i + 1}`,
-        traceId: ctx.traceId,
-        vendorId: ctx.vendorId,
-        conversationId: ctx.conversationId,
-        service: ctx.service,
-        truncated: true,
-        originalBytes,
-        keptBytes: byteLengthUtf8(slice),
-        partIndex: i + 1,
-        partCount,
-        payload: partPayload
-      },
-      'turn_audit'
-    );
+    emitTurnAuditEnvelope({
+      turnAudit: true,
+      schema: 'turn_audit_v1',
+      checkpoint: `${checkpoint}_part_${i + 1}`,
+      traceId: ctx.traceId,
+      vendorId: ctx.vendorId,
+      conversationId: ctx.conversationId,
+      service: ctx.service,
+      truncated: true,
+      originalBytes,
+      keptBytes: byteLengthUtf8(slice),
+      partIndex: i + 1,
+      partCount,
+      payload: partPayload
+    });
   }
 }

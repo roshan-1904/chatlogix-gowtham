@@ -37,8 +37,8 @@ export function TurnAuditToggle({ vendorId }: TurnAuditToggleProps) {
       <div>
         <h3 className="text-base font-semibold text-[#072349]">Turn audit logging</h3>
         <p className="mt-1 text-xs text-gray-500">
-          Temporary debugging only. Logs include customer PII in CloudWatch. Changes take effect within about
-          30 seconds on Lambdas (immediate on this API instance).
+          Temporary debugging only. Events go to the dedicated log group (e.g. /chatlogix/turn-audit), not
+          Lambda default logs. Includes customer PII. Effective on Lambdas within ~30s after save.
         </p>
       </div>
 

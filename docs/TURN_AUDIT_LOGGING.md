@@ -1,7 +1,7 @@
-# Turn audit logging (per-vendor, inline CloudWatch)
+# Turn audit logging (per-vendor, dedicated CloudWatch log group)
 
-**Status:** Implemented (per-vendor `conversation_turn_audit` flag, admin API + web-admin toggle, pipeline checkpoints).  
-**Goal:** When debugging a specific vendor, admins enable verbose **turn audit** logs; each customer message produces a correlated trail in existing Lambda log groups. No separate log group, no S3 offload, **no global env toggle** — only `Vendor.featureFlags` controlled from **web-admin**.
+**Status:** Implemented (per-vendor flag, admin toggle, pipeline checkpoints, dedicated log group via `TURN_AUDIT_LOG_GROUP`).  
+**Goal:** When debugging a specific vendor, admins enable **turn audit** logging; each customer message emits correlated JSON events to **`/chatlogix/turn-audit`** (configurable). Per-vendor on/off remains **`Vendor.featureFlags`** only — no global enable env.
 
 ---
 
@@ -9,14 +9,16 @@
 
 | Requirement | Decision |
 |-------------|----------|
-| Where logs go | Default Lambda groups: `/aws/lambda/chatlogix-webhook-handler`, `chatlogix-incoming-response-generator`, `chatlogix-whatsapp-response-dispatcher` |
+| Where logs go | **Dedicated log group** `TURN_AUDIT_LOG_GROUP` (recommended prod: `/chatlogix/turn-audit`). Streams: `{vendorId}/{YYYY-MM-DD}`. If env unset (local dev), events fall back to Pino on stdout only. |
 | Who can turn it on | **Admin only** (same auth as markup / wallet recharge) |
 | Scope | **Per vendor** — other vendors stay at normal log volume |
 | Global env flag | **None** — do not add `TURN_AUDIT_LOGS_ENABLED`; if flag is off in DB, no audit lines |
 | Correlation key | `traceId` = inbound `whatsappMessageId` (`wamid`) on every audit line |
 | Default | Flag absent or not `true` → **no audit logs** (fail-closed, same as `isVendorFlagOn`) |
 
-**Admin workflow:** Vendors page → select vendor → toggle “Turn audit logging” → wait up to ~30s (flag cache TTL) → reproduce issue → CloudWatch Logs Insights on processor (and webhook/dispatcher for bookends) → filter by `vendorId` / `traceId` → disable toggle.
+**Admin workflow:** Vendors page → toggle “Turn audit logging” → wait up to ~30s → send test WhatsApp → **CloudWatch → Log groups → `/chatlogix/turn-audit`** → Logs Insights → filter by `traceId` / `vendorId` → disable toggle.
+
+**Prod setup (once):** Create log group (or let first write create it), run `scripts/deployment/grant-lambda-turn-audit-logs.sh`, set `TURN_AUDIT_LOG_GROUP=/chatlogix/turn-audit` on **webhook**, **incoming-response-generator**, and **whatsapp-response-dispatcher** Lambdas.
 
 ---
 
@@ -36,7 +38,7 @@ Reuse existing column and reader:
 
 ---
 
-## 3. Log envelope (Pino → CloudWatch)
+## 3. Log envelope (JSON → dedicated log group)
 
 Single shape on every audit line for Insights:
 
@@ -56,7 +58,7 @@ Single shape on every audit line for Insights:
 - **Module:** `backend/src/observability/turnAuditLog.ts`
   - `export const TURN_AUDIT_FLAG = 'conversation_turn_audit'`
   - `isTurnAuditEnabled(vendorId): Promise<boolean>` → `isVendorFlagOn(...)`
-  - `logTurnAudit(enabled: boolean, ctx, checkpoint, payload)` — sync no-op if `!enabled`; else `logger.info({ turnAudit: true, ... }, 'turn_audit')`
+  - `logTurnAudit(...)` — no-op if `!enabled`; else `publishTurnAuditToCloudWatch` when `TURN_AUDIT_LOG_GROUP` is set (`turnAuditCloudWatch.ts`)
 - Callers resolve `enabled` **once per invocation** (per webhook vendor batch, per SQS message, per response job) and pass `boolean` into hot path to avoid repeated DB reads.
 
 **Size limit:** CloudWatch max **256 KB** per event. Strategy for v1 (still “inline”):
@@ -146,26 +148,33 @@ Pattern: same as `MarkupEditor` (`useQuery` + `useMutation` + invalidate `['admi
 
 ## 8. CloudWatch analysis (runbook snippet)
 
-Log groups (prod example):
+**Log group (analysis):** `/chatlogix/turn-audit` (or your `TURN_AUDIT_LOG_GROUP` value).
 
-- `/aws/lambda/chatlogix-webhook-handler`
-- `/aws/lambda/chatlogix-incoming-response-generator`
-- `/aws/lambda/chatlogix-whatsapp-response-dispatcher`
-
-Insights (adjust field paths after first deploy — Pino may nest under `@message` JSON):
+Insights on that group — each event is one JSON line in `@message`:
 
 ```sql
-fields @timestamp, checkpoint, traceId, vendorId
-| filter turnAudit = 1
+fields @timestamp, checkpoint, traceId, vendorId, service
+| filter @message like /"turnAudit":true/
 | filter vendorId = "VENDOR_UUID"
 | sort @timestamp asc
 ```
 
-Single turn:
+Single turn (`traceId` = inbound wamid):
 
 ```sql
-fields @timestamp, checkpoint, payload
-| filter traceId = "wamid.XXX"
+fields @timestamp, checkpoint, service, @message
+| filter @message like /wamid.PASTE_ID_HERE/
+| sort @timestamp asc
+```
+
+Parse fields (optional):
+
+```sql
+fields @timestamp,
+  jsonParse(@message).checkpoint as checkpoint,
+  jsonParse(@message).traceId as traceId,
+  jsonParse(@message).payload as payload
+| filter jsonParse(@message).turnAudit = true
 | sort @timestamp asc
 ```
 
@@ -205,7 +214,7 @@ fields @timestamp, checkpoint, payload
 | Flag name | `conversation_turn_audit` |
 | Include sandbox/onboarding path? | Yes — same flag if `vendorId` present |
 | Express `/webhook` dev path | Yes — shared `webhookEventProcessor` |
-| Separate log group? | No |
+| Separate log group? | **Yes** — `TURN_AUDIT_LOG_GROUP` (not a per-vendor enable switch) |
 | Env kill switch? | **No** (per user request) |
 
 ---

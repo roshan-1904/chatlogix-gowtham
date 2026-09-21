@@ -55,6 +55,10 @@ const EnvSchema = z.object({
   CLOUDWATCH_NAMESPACE: z.string().default('ChatLogix/ConversationParity'),
   CLOUDWATCH_REGION: z.string().optional(),
 
+  // Dedicated CloudWatch log group for per-vendor turn audit (PutLogEvents). Unset = Pino only (local dev).
+  TURN_AUDIT_LOG_GROUP: z.string().optional(),
+  TURN_AUDIT_LOG_REGION: z.string().optional(),
+
   // Conversation processor LLM-2 verifier (spec §17, Appendix C: "tune from logs")
   VERIFY_THRESHOLD: z.string().default('0.75'),
 
