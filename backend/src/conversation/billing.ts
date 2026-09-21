@@ -5,6 +5,7 @@ import type { MessageKind } from '../services/billingService.js';
 import { chargeVendor, turnEstimateCost } from '../services/pricing/pricingService.js';
 import { ensurePlatformSettings, getPlatformSettings } from '../services/platformSettingsService.js';
 import { paiseToMilli } from '../utils/money.js';
+import { logTurnAudit, turnAuditServiceFromRuntime } from '../observability/turnAuditLog.js';
 
 export type DebitOutcome = 'debited' | 'already_debited';
 
@@ -29,6 +30,7 @@ export interface TurnDebitInput {
    * original token usage — see `reconcileStuckDebits`.
    */
   costs?: TurnCostInputs;
+  turnAuditEnabled?: boolean;
 }
 
 /**
@@ -38,7 +40,7 @@ export interface TurnDebitInput {
  * the codebase that moves wallet money.
  */
 export async function debitAfterEnqueue(input: TurnDebitInput): Promise<DebitOutcome> {
-  const { vendorId, conversationId, whatsappMessageId, costs } = input;
+  const { vendorId, conversationId, whatsappMessageId, costs, turnAuditEnabled = false } = input;
 
   await ensurePlatformSettings();
   const cost = costs
@@ -72,6 +74,19 @@ export async function debitAfterEnqueue(input: TurnDebitInput): Promise<DebitOut
   // CreditUsage write may have landed while its own markDebited call didn't
   // (e.g. the process died in between), and the sweep must stop re-finding it.
   await markDebited(whatsappMessageId);
+
+  logTurnAudit(turnAuditEnabled, {
+    traceId: whatsappMessageId,
+    vendorId,
+    conversationId,
+    service: turnAuditServiceFromRuntime()
+  }, 'debit', {
+    outcome: result.outcome,
+    idempotencyKey: whatsappMessageId,
+    cost,
+    costs
+  });
+
   return result.outcome === 'already_charged' ? 'already_debited' : 'debited';
 }
 

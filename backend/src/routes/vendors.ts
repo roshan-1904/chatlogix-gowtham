@@ -25,6 +25,9 @@ import {
 import { settingsRateLimit } from '../middleware/settingsRateLimit.js';
 import { buildAIPromptsUpdate } from '../services/vendorAIConfigService.js';
 import { shapeMessageMedia } from './conversations.js';
+import { invalidateVendorFlagCache } from '../config/featureFlags.js';
+import { TURN_AUDIT_FLAG } from '../observability/turnAuditLog.js';
+import { logger } from '../logger.js';
 
 export const vendorsRouter = express.Router();
 
@@ -231,6 +234,100 @@ vendorsRouter.post('/:id/upgrade-plan', requireRole('admin'), async (req, res) =
 
 const billingConfigSchema = z.object({
   markupPercent: z.number().int().min(0).max(500)
+});
+
+const vendorFeatureFlagsResponseSchema = z.object({
+  conversation_turn_audit: z.boolean()
+});
+
+const vendorFeatureFlagsPatchSchema = z
+  .object({
+    conversation_turn_audit: z.boolean().optional()
+  })
+  .strict()
+  .refine((body) => body.conversation_turn_audit !== undefined, {
+    message: 'At least one known feature flag must be provided'
+  });
+
+function readConversationTurnAudit(flags: unknown): boolean {
+  if (!flags || typeof flags !== 'object' || Array.isArray(flags)) return false;
+  return (flags as Record<string, unknown>).conversation_turn_audit === true;
+}
+
+// GET /api/vendors/:id/feature-flags — admin-only turn-audit toggle (not exposed on vendor config)
+vendorsRouter.get('/:id/feature-flags', requireRole('admin'), async (req, res, next) => {
+  try {
+    const vendor = await prisma.vendor.findUnique({
+      where: { id: req.params.id },
+      select: { featureFlags: true }
+    });
+    if (!vendor) {
+      return res.status(404).json({ error: 'not_found' });
+    }
+    const body = vendorFeatureFlagsResponseSchema.parse({
+      conversation_turn_audit: readConversationTurnAudit(vendor.featureFlags)
+    });
+    return res.json(body);
+  } catch (error) {
+    return handlePrismaError(error, 'read', 'Vendor', next);
+  }
+});
+
+// PATCH /api/vendors/:id/feature-flags — merge into Vendor.featureFlags JSON
+vendorsRouter.patch('/:id/feature-flags', requireRole('admin'), async (req, res, next) => {
+  const parsed = vendorFeatureFlagsPatchSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    return res.status(400).json({
+      error: 'invalid_feature_flags',
+      details: parsed.error.errors.map((e) => `${e.path.join('.')}: ${e.message}`)
+    });
+  }
+
+  try {
+    const existing = await prisma.vendor.findUnique({
+      where: { id: req.params.id },
+      select: { featureFlags: true }
+    });
+    if (!existing) {
+      return res.status(404).json({ error: 'not_found' });
+    }
+
+    const prior =
+      existing.featureFlags && typeof existing.featureFlags === 'object' && !Array.isArray(existing.featureFlags)
+        ? (existing.featureFlags as Record<string, boolean>)
+        : {};
+
+    const merged = { ...prior, ...parsed.data };
+
+    const vendor = await prisma.vendor.update({
+      where: { id: req.params.id },
+      data: { featureFlags: merged },
+      select: { featureFlags: true }
+    });
+
+    logger.info(
+      {
+        adminUserId: req.user?.id,
+        vendorId: req.params.id,
+        patch: parsed.data
+      },
+      'admin updated vendor feature flags'
+    );
+
+    if (parsed.data.conversation_turn_audit !== undefined) {
+      invalidateVendorFlagCache(req.params.id, TURN_AUDIT_FLAG);
+    }
+
+    const body = vendorFeatureFlagsResponseSchema.parse({
+      conversation_turn_audit: readConversationTurnAudit(vendor.featureFlags)
+    });
+    return res.json(body);
+  } catch (error: any) {
+    if (error?.code === 'P2025') {
+      return res.status(404).json({ error: 'not_found' });
+    }
+    return handlePrismaError(error, 'update', 'Vendor', next);
+  }
 });
 
 // PATCH /api/vendors/:id/billing-config - Admin-editable per-vendor markup

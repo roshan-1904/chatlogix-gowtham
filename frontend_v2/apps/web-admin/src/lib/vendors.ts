@@ -65,3 +65,18 @@ export async function updateVendorMarkup(
     markupPercent,
   });
 }
+
+export interface VendorFeatureFlags {
+  conversation_turn_audit: boolean;
+}
+
+export async function getVendorFeatureFlags(vendorId: string): Promise<VendorFeatureFlags> {
+  return apiClient.get<VendorFeatureFlags>(`/vendors/${vendorId}/feature-flags`);
+}
+
+export async function patchVendorFeatureFlags(
+  vendorId: string,
+  patch: Partial<VendorFeatureFlags>
+): Promise<VendorFeatureFlags> {
+  return apiClient.patch<VendorFeatureFlags>(`/vendors/${vendorId}/feature-flags`, patch);
+}

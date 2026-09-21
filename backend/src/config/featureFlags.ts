@@ -192,3 +192,9 @@ export async function isVendorFlagOn(vendorId: string, flag: string): Promise<bo
 export function clearVendorFlagCache(): void {
   VENDOR_FLAG_CACHE.clear();
 }
+
+/** Drop one cached flag value so an admin PATCH takes effect immediately on this process. */
+export function invalidateVendorFlagCache(vendorId: string, flag: string): void {
+  if (!vendorId || !flag) return;
+  VENDOR_FLAG_CACHE.delete(vendorFlagCacheKey(vendorId, flag));
+}

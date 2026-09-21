@@ -8,6 +8,7 @@ import {
   type AdminWalletTransaction,
 } from '../../lib/vendors';
 import { MarkupEditor } from './MarkupEditor';
+import { TurnAuditToggle } from './TurnAuditToggle';
 
 interface VendorDetailPanelProps {
   vendor: AdminVendorListRow;
@@ -70,6 +71,10 @@ export function VendorDetailPanel({ vendor }: VendorDetailPanelProps) {
 
       <Card className="p-5">
         <MarkupEditor vendorId={vendor.id} markupPercent={markupPercent} />
+      </Card>
+
+      <Card className="p-5">
+        <TurnAuditToggle vendorId={vendor.id} />
       </Card>
 
       <Card className="p-5">

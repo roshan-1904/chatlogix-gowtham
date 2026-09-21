@@ -5,6 +5,7 @@ import { isEnglishLanguage, type CustomerLanguage } from '../language.js';
 import type { CartOp, CartSnapshot, CompactCatalogEntry } from '../types.js';
 import type { ApplyOpsResult } from '../cart/engine.js';
 import { openaiChatCompletionParams } from './openaiSampling.js';
+import { logTurnAudit, turnAuditServiceFromRuntime } from '../../observability/turnAuditLog.js';
 
 // Module-level singleton, same pattern as llm1.ts / every other OpenAI call
 // site in the codebase.
@@ -44,6 +45,8 @@ export interface Llm2Input {
   ops: CartOp[];
   needsVerify: boolean;
   confidence: number;
+  turnAuditEnabled?: boolean;
+  traceId?: string;
 }
 
 export type Llm2Output =
@@ -94,7 +97,16 @@ function buildLlm2Prompt(input: Llm2Input): string {
  * true}` so callers don't have to duplicate the skip decision.
  */
 export async function runLlm2(input: Llm2Input): Promise<Llm2Output> {
+  const turnAuditEnabled = input.turnAuditEnabled ?? false;
+  const traceId = input.traceId ?? '';
+  const auditCtx = {
+    traceId,
+    vendorId: input.vendorId,
+    service: turnAuditServiceFromRuntime()
+  };
+
   if (!shouldRunLlm2(input.ops, input.needsVerify, input.confidence)) {
+    logTurnAudit(turnAuditEnabled, auditCtx, 'llm2_response', { skipped: true });
     return { skipped: true };
   }
 
@@ -102,9 +114,12 @@ export async function runLlm2(input: Llm2Input): Promise<Llm2Output> {
     throw new Error('OpenAI API key not configured');
   }
 
+  const prompt = buildLlm2Prompt(input);
+  logTurnAudit(turnAuditEnabled, auditCtx, 'llm2_prompt', { prompt });
+
   const completion = await openai.chat.completions.create({
     model: input.model,
-    messages: [{ role: 'system', content: buildLlm2Prompt(input) }],
+    messages: [{ role: 'system', content: prompt }],
     ...openaiChatCompletionParams(input.model, 'llm2'),
     response_format: {
       type: 'json_schema',
@@ -123,12 +138,16 @@ export async function runLlm2(input: Llm2Input): Promise<Llm2Output> {
 
   const parsed = JSON.parse(content) as { finalReply: string };
 
-  return {
-    skipped: false,
+  const output = {
+    skipped: false as const,
     finalReply: parsed.finalReply,
     promptTokens: completion.usage?.prompt_tokens ?? 0,
     completionTokens: completion.usage?.completion_tokens ?? 0
   };
+
+  logTurnAudit(turnAuditEnabled, auditCtx, 'llm2_response', { finalReply: output.finalReply });
+
+  return output;
 }
 
 /**

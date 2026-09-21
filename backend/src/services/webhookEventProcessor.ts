@@ -15,6 +15,11 @@ import {
   StatusEvent
 } from './waParser.js';
 import { ensureMessageContentEn } from '../utils/vendorEnglish.js';
+import {
+  isTurnAuditEnabled,
+  logTurnAudit,
+  turnAuditServiceFromRuntime
+} from '../observability/turnAuditLog.js';
 
 const ORPHAN_TTL_SECONDS = 5 * 60; // 5 minutes
 const MEDIA_TYPES: ReadonlyArray<ParsedMessageType> = [
@@ -245,13 +250,14 @@ async function enqueueMediaFetch(
 async function enqueueForAI(
   vendor: VendorContext,
   event: MessageCreatedEvent,
-  persisted: PersistedMessage
+  persisted: PersistedMessage,
+  turnAuditEnabled: boolean
 ): Promise<void> {
   if (!AI_QUEUE_TYPES.includes(event.messageType)) return;
   const content = (event.text ?? '').trim();
   if (!content) return;
-  await publishToQueue(getTextQueueUrl(), {
-    type: 'TextMessage',
+  const queueBody = {
+    type: 'TextMessage' as const,
     messageId: persisted.id,
     conversationId: persisted.conversationId,
     customerId: persisted.customerId,
@@ -261,7 +267,14 @@ async function enqueueForAI(
     phoneNumberId: vendor.phoneNumberId,
     whatsappMessageId: event.whatsappMessageId,
     sourceMessageType: event.messageType
-  });
+  };
+  await publishToQueue(getTextQueueUrl(), queueBody);
+  logTurnAudit(turnAuditEnabled, {
+    traceId: event.whatsappMessageId,
+    vendorId: vendor.vendorId,
+    conversationId: persisted.conversationId,
+    service: turnAuditServiceFromRuntime()
+  }, 'text_queue_enqueued', queueBody);
   logWhatsAppOperation('ai_enqueued', vendor.phoneNumberId, event.from, {
     vendorId: vendor.vendorId,
     messageType: event.messageType
@@ -423,7 +436,8 @@ async function replayOrphans(
 export async function processMessageCreated(
   vendor: VendorContext,
   event: MessageCreatedEvent,
-  stepLogger: StepLogger
+  stepLogger: StepLogger,
+  turnAuditEnabled: boolean
 ): Promise<void> {
   stepLogger.step('Persisting inbound message', {
     messageType: event.messageType,
@@ -437,6 +451,17 @@ export async function processMessageCreated(
     });
     return;
   }
+
+  logTurnAudit(turnAuditEnabled, {
+    traceId: event.whatsappMessageId,
+    vendorId: vendor.vendorId,
+    conversationId: persisted.conversationId,
+    service: turnAuditServiceFromRuntime()
+  }, 'webhook_message_created', {
+    event,
+    messageId: persisted.id,
+    conversationId: persisted.conversationId
+  });
 
   const inboundBody = bodyContentForCreate(event).trim();
   if (inboundBody) {
@@ -462,7 +487,7 @@ export async function processMessageCreated(
   });
 
   if (AI_QUEUE_TYPES.includes(event.messageType)) {
-    await enqueueForAI(vendor, event, persisted);
+    await enqueueForAI(vendor, event, persisted, turnAuditEnabled);
   } else {
     logWhatsAppOperation('non_ai_persisted', vendor.phoneNumberId, event.from, {
       vendorId: vendor.vendorId,
@@ -474,7 +499,8 @@ export async function processMessageCreated(
 export async function processWebhookEvent(
   vendor: VendorContext,
   event: ParsedWAEvent,
-  parentOperationId: string
+  parentOperationId: string,
+  turnAuditEnabled: boolean
 ): Promise<void> {
   const stepLogger = new StepLogger(
     createOperationId('webhook_event_dispatch'),
@@ -487,7 +513,7 @@ export async function processWebhookEvent(
   );
   try {
     if (event.kind === 'message_created') {
-      await processMessageCreated(vendor, event, stepLogger);
+      await processMessageCreated(vendor, event, stepLogger, turnAuditEnabled);
     } else if (
       event.kind === 'message_reaction_added' ||
       event.kind === 'message_reaction_removed'
@@ -529,12 +555,38 @@ function eventActor(event: ParsedWAEvent): string {
  * deliveries, and dispatches each event via processWebhookEvent. Shared by the Express
  * webhook route and the API Gateway Lambda so both entry points see identical behavior.
  */
+function primaryTraceIdFromEvents(events: ParsedWAEvent[]): string | undefined {
+  for (const event of events) {
+    if (event.kind === 'message_created') return event.whatsappMessageId;
+    if ('whatsappMessageId' in event && event.whatsappMessageId) {
+      return event.whatsappMessageId;
+    }
+  }
+  return undefined;
+}
+
 export async function processWebhookEventBatch(
   vendor: VendorContext,
   events: ParsedWAEvent[],
   parentOperationId: string,
   stepLogger: StepLogger
 ): Promise<void> {
+  const turnAuditEnabled = await isTurnAuditEnabled(vendor.vendorId);
+  const auditService = turnAuditServiceFromRuntime();
+  const batchTraceId = primaryTraceIdFromEvents(events);
+  if (turnAuditEnabled && batchTraceId) {
+    logTurnAudit(
+      true,
+      {
+        traceId: batchTraceId,
+        vendorId: vendor.vendorId,
+        service: auditService
+      },
+      'webhook_batch',
+      { events }
+    );
+  }
+
   const ordered = [...events].sort((a, b) => rankEvent(a) - rankEvent(b));
 
   for (const event of ordered) {
@@ -554,6 +606,6 @@ export async function processWebhookEventBatch(
     emitMetric('webhook.event_processed', 1, {
       dimensions: { vendorId: vendor.vendorId, kind: event.kind }
     });
-    await processWebhookEvent(vendor, event, parentOperationId);
+    await processWebhookEvent(vendor, event, parentOperationId, turnAuditEnabled);
   }
 }

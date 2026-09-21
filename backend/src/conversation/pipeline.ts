@@ -37,6 +37,11 @@ import { WALLET_EMPTY_TEMPLATE } from './templates.js';
 import { logStage, logLatency, logCount } from './metrics.js';
 import { ensureMessageContentEn, normalizeSetFieldOps } from '../utils/vendorEnglish.js';
 import { aiCostMilliForTokens } from '../services/pricing/pricingService.js';
+import {
+  isTurnAuditEnabled,
+  logTurnAudit,
+  turnAuditServiceFromRuntime
+} from '../observability/turnAuditLog.js';
 import type { CartOp, CartSnapshot, PostSalesOutcome } from './types.js';
 
 /** Deterministic customer-facing copy for a refund/cancel outcome — never LLM-authored (same reasoning as the handoff short-circuit: money/eligibility facts must not go through a free-text model). */
@@ -70,6 +75,7 @@ export interface FinalizeTurnInput {
   costs: TurnCostInputs;
   sandbox?: boolean;
   pendingMedia?: ResolvedOutboundAttachment[];
+  turnAuditEnabled?: boolean;
 }
 
 export interface ProcessMessageResult {
@@ -119,8 +125,17 @@ export async function finalizeTurn(input: FinalizeTurnInput): Promise<FinalizeTu
     tokenMeta,
     costs,
     sandbox = false,
-    pendingMedia = []
+    pendingMedia = [],
+    turnAuditEnabled = false
   } = input;
+
+  const auditService = turnAuditServiceFromRuntime();
+  const auditCtx = {
+    traceId: whatsappMessageId,
+    vendorId,
+    conversationId,
+    service: auditService
+  };
 
   const { assistantMessageId } = await persistTurn({
     vendorId,
@@ -132,6 +147,13 @@ export async function finalizeTurn(input: FinalizeTurnInput): Promise<FinalizeTu
     intent,
     tokenMeta,
     whatsappMessageId
+  });
+
+  logTurnAudit(turnAuditEnabled, auditCtx, 'persist_turn', {
+    assistantMessageId,
+    intent,
+    stage: 'conversation-v1',
+    tokenMeta
   });
 
   const attachments =
@@ -163,8 +185,8 @@ export async function finalizeTurn(input: FinalizeTurnInput): Promise<FinalizeTu
   //   the inbound SQS TextMessage payload (§10), threaded through here.
   // - messageId: chatlogix-response-processor only marks delivery status on
   //   the assistant Message row when this is present.
-  await publishToQueue(env.RESPONSE_QUEUE_URL, {
-    type: 'text',
+  const responseQueueBody = {
+    type: 'text' as const,
     to: customerPhone,
     text: finalText,
     conversationId,
@@ -174,9 +196,11 @@ export async function finalizeTurn(input: FinalizeTurnInput): Promise<FinalizeTu
     messageId: assistantMessageId,
     ...(attachments.length > 0 ? { attachments } : {}),
     metadata: { intent, processor: 'conversation-v1', traceId: whatsappMessageId }
-  });
+  };
+  await publishToQueue(env.RESPONSE_QUEUE_URL, responseQueueBody);
   const publishedAt = Date.now(); // §19 step 9: SLA clock stops here
   logStage('response_queue_published', { traceId: whatsappMessageId, vendorId, conversationId });
+  logTurnAudit(turnAuditEnabled, auditCtx, 'response_queue_published', responseQueueBody);
 
   await ensureMessageContentEn(assistantMessageId, finalText).catch((error) => {
     logger.warn(
@@ -194,7 +218,13 @@ export async function finalizeTurn(input: FinalizeTurnInput): Promise<FinalizeTu
   });
 
   try {
-    await debitAfterEnqueue({ vendorId, conversationId, whatsappMessageId, costs });
+    await debitAfterEnqueue({
+      vendorId,
+      conversationId,
+      whatsappMessageId,
+      costs,
+      turnAuditEnabled
+    });
   } catch (error) {
     // Must NOT rethrow: the customer already has their reply, so the SQS
     // message must not retry (that would re-run LLM-1/CartEngine). The
@@ -256,6 +286,15 @@ export async function processMessage(
     phoneNumberId: input.phoneNumberId,
     customerPhone: input.customerPhone
   });
+
+  const turnAuditEnabled = await isTurnAuditEnabled(vendorId);
+  const auditService = turnAuditServiceFromRuntime();
+  const auditCtx = {
+    traceId,
+    vendorId,
+    conversationId,
+    service: auditService
+  };
 
   // Step 0 (lock): fail closed (I3, I4) -- a Redis outage or lock contention
   // both throw, so the caller's SQS message retries rather than proceeding
@@ -405,6 +444,15 @@ export async function processMessage(
       omitCatalogTable: plan.omitCatalogTable,
       reasons: plan.reasons
     });
+    logTurnAudit(turnAuditEnabled, auditCtx, 'context_plan', {
+      plan,
+      catalogSlice,
+      promptCatalogSlice,
+      catalogSliceSize: catalogSlice.length,
+      promptCatalogSliceSize: promptCatalogSlice?.length ?? catalogSlice.length,
+      mergedContent,
+      coalescedWhatsappMessageIds: coalesced.whatsappMessageIds
+    });
 
     // Step 4: LLM-1 -- ops + draft reply.
     const llm1StartedAt = Date.now();
@@ -415,7 +463,8 @@ export async function processMessage(
       promptCatalogSlice,
       mergedContent,
       traceId,
-      sourceMessageType: input.sourceMessageType
+      sourceMessageType: input.sourceMessageType,
+      turnAuditEnabled
     });
     logLatency('Llm1Ms', Date.now() - llm1StartedAt, { vendorId });
     logStage('llm1_done', { traceId, vendorId, conversationId }, {
@@ -445,6 +494,13 @@ export async function processMessage(
       throw error;
     }
     logStage('cart_apply_done', { traceId, vendorId, conversationId }, { mutated: applyResult.mutated });
+    logTurnAudit(turnAuditEnabled, auditCtx, 'cart_apply', {
+      normalizedOps,
+      mutated: applyResult.mutated,
+      rejectedOps: applyResult.rejectedOps,
+      snapshot: applyResult.snapshot,
+      postSalesOutcome: applyResult.postSalesOutcome
+    });
 
     const orderHistory = hotSet.orderHistory ?? [];
     const orderStatusTurn = isOrderStatusTurn({
@@ -460,12 +516,14 @@ export async function processMessage(
 
     const handoffOp = replyOps.find((op): op is Extract<CartOp, { type: 'handoff' }> => op.type === 'handoff');
     let finalText: string;
+    let replyBranch = 'llm2_path';
     // LLM-2's tokens were never costed anywhere before the wallet rewrite;
     // they stay zero on the branches below that never call it.
     let llm2PromptTokens = 0;
     let llm2CompletionTokens = 0;
 
     if (handoffOp) {
+      replyBranch = 'handoff';
       // §20: handoff wins over the normal LLM-2/render path -- the customer
       // gets the "connecting you to the team" copy, not a possibly-unrelated
       // polished reply about cart contents. LLM-2 never runs on this branch.
@@ -481,6 +539,7 @@ export async function processMessage(
       });
       finalText = handoffResult.customerMessage;
     } else if (applyResult.postSalesOutcome) {
+      replyBranch = 'post_sales';
       // A refund/cancel decision CartEngine already made deterministically —
       // render it as-is (never through LLM-2) and, for the two outcomes that
       // need a human's call, alert the vendor with the real order + reason
@@ -508,6 +567,7 @@ export async function processMessage(
         });
       }
     } else if (applyResult.rejectedOps.length > 0) {
+      replyBranch = 'rejected_ops';
       // CartEngine rejected part (or all) of what was asked -- never let
       // LLM-1's draft or LLM-2's polish claim success here. Neither is
       // grounded in whether the op actually applied (copyMatchesSnapshot only
@@ -517,6 +577,7 @@ export async function processMessage(
       logCount('RejectedOpsGrounded', { vendorId }, applyResult.rejectedOps.length);
       finalText = renderRejectedOpsReply(applyResult.rejectedOps, applyResult.snapshot, llm1Result.language, llm1Result.draftReply);
     } else if (orderStatusTurn && shouldRewriteOrderStatusReply(llm1Result.draftReply, orderHistory)) {
+      replyBranch = 'order_status';
       // D6: order-status turns never defer and never invent a lookup. Skip LLM-2
       // when the draft is a "I'll check / get back" line or does not cite a real order number.
       logCount('CustomerQueryBlockedOrder', { vendorId });
@@ -532,7 +593,9 @@ export async function processMessage(
         model: llm1Result.model,
         ops: replyOps,
         needsVerify: llm1Result.needsVerify,
-        confidence: llm1Result.confidence
+        confidence: llm1Result.confidence,
+        turnAuditEnabled,
+        traceId
       });
 
       if (llm2Result.skipped) {
@@ -590,6 +653,17 @@ export async function processMessage(
 
     const queueIntent = pendingMedia.length > 0 ? 'send_media' : llm1Result.intent;
 
+    logTurnAudit(turnAuditEnabled, auditCtx, 'reply_selected', {
+      finalText,
+      intent: queueIntent,
+      replyBranch,
+      pendingMedia: pendingMedia.map((m) => ({
+        productMediaId: m.productMediaId,
+        kind: m.kind,
+        caption: m.caption
+      }))
+    });
+
     // Steps 8-10: persist -> response queue -> debit.
     const { publishedAt } = await finalizeTurn({
       vendorId,
@@ -606,7 +680,8 @@ export async function processMessage(
       tokenMeta,
       costs: { aiCostMilli, upstreamCostMilli: input.upstreamCostMilli ?? 0 },
       sandbox,
-      pendingMedia
+      pendingMedia,
+      turnAuditEnabled
     });
     logLatency('LatencyMs', publishedAt - startTime, { vendorId }); // §8 SLA clock: start (handler_start) -> publish, excluding the debit attempt's own duration
 

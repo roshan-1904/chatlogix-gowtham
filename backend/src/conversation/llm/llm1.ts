@@ -7,6 +7,7 @@ import { validateProductIds } from '../cart/productResolve.js';
 import type { CompactCatalogEntry, HotSet, Llm1Result } from '../types.js';
 import { logCount } from '../metrics.js';
 import { openaiChatCompletionParams } from './openaiSampling.js';
+import { logTurnAudit, turnAuditServiceFromRuntime } from '../../observability/turnAuditLog.js';
 
 // Module-level singleton, same pattern as every other OpenAI call site in
 // the codebase (e.g. unifiedAIProcessorService.ts).
@@ -21,6 +22,7 @@ export interface Llm1Input {
   mergedContent: string; // post burst-merge (Step 8)
   traceId: string;
   sourceMessageType?: 'audio' | 'image';
+  turnAuditEnabled?: boolean;
 }
 
 export interface Llm1Output extends Llm1Result {
@@ -42,7 +44,16 @@ export async function runLlm1(input: Llm1Input): Promise<Llm1Output> {
     throw new Error('OpenAI API key not configured');
   }
 
-  const { vendorId, hotSet, catalogSlice, promptCatalogSlice, mergedContent, traceId, sourceMessageType } = input;
+  const {
+    vendorId,
+    hotSet,
+    catalogSlice,
+    promptCatalogSlice,
+    mergedContent,
+    traceId,
+    sourceMessageType,
+    turnAuditEnabled = false
+  } = input;
   // Already resolved with the aiService.ts-style fallback in prefetch.ts's
   // loadVendorConfig (Q10) — unifiedAIProcessorService.ts never applies this
   // fallback despite fetching vendor config, which is a real bug there, not
@@ -50,6 +61,17 @@ export async function runLlm1(input: Llm1Input): Promise<Llm1Output> {
   const model = hotSet.vendorConfig.aiModel;
   const sliceForPrompt = promptCatalogSlice ?? catalogSlice;
   const systemPrompt = buildLlm1SystemPrompt(hotSet, { sourceMessageType, catalogSlice: sliceForPrompt });
+
+  logTurnAudit(turnAuditEnabled, {
+    traceId,
+    vendorId,
+    service: turnAuditServiceFromRuntime()
+  }, 'llm1_prompt', {
+    systemPrompt,
+    userContent: mergedContent,
+    model,
+    sourceMessageType
+  });
 
   const completion = await openai.chat.completions.create({
     model,
@@ -104,11 +126,27 @@ export async function runLlm1(input: Llm1Input): Promise<Llm1Output> {
     emitMetric('Llm1HallucinatedProductId', invalid.length, { dimensions: { vendorId, processor: 'conversation-v1' } });
   }
 
-  return {
+  const result = {
     ...parsed,
     ops: valid,
     model,
     promptTokens: completion.usage?.prompt_tokens ?? 0,
     completionTokens: completion.usage?.completion_tokens ?? 0
   };
+
+  logTurnAudit(turnAuditEnabled, {
+    traceId,
+    vendorId,
+    service: turnAuditServiceFromRuntime()
+  }, 'llm1_response', {
+    ops: result.ops,
+    draftReply: result.draftReply,
+    intent: result.intent,
+    promptTokens: result.promptTokens,
+    completionTokens: result.completionTokens,
+    needsVerify: result.needsVerify,
+    confidence: result.confidence
+  });
+
+  return result;
 }

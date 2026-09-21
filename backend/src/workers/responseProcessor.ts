@@ -11,6 +11,7 @@ import { logCount } from '../conversation/metrics.js';
 import { AsyncDatabaseService } from '../services/asyncDatabaseService.js';
 import { CustomerInsightsService } from '../services/customerInsightsService.js';
 import { prisma } from '../db/prisma.js';
+import { isTurnAuditEnabled, logTurnAudit, turnAuditServiceFromRuntime } from '../observability/turnAuditLog.js';
 
 export type ResponseMediaAttachment = {
   messageId: string;
@@ -150,6 +151,27 @@ export async function processResponseMessage(body: ResponseQueueMessage, parentO
             whatsappMessageId: textSendResult?.messageId,
             quoteApplied
           });
+
+          const traceId =
+            body.type === 'text' && body.metadata && typeof body.metadata.traceId === 'string'
+              ? body.metadata.traceId
+              : undefined;
+          if (traceId && textBody.vendorId) {
+            const turnAuditEnabled = await isTurnAuditEnabled(textBody.vendorId);
+            logTurnAudit(turnAuditEnabled, {
+              traceId,
+              vendorId: textBody.vendorId,
+              conversationId: textBody.conversationId,
+              service: turnAuditServiceFromRuntime()
+            }, 'whatsapp_sent', {
+              to: body.to,
+              textLength: textBody.text.length,
+              textPreview: textBody.text.slice(0, 500),
+              messageId: textBody.messageId,
+              graphMessageId: textSendResult?.messageId,
+              attachments: body.type === 'text' ? body.attachments : undefined
+            });
+          }
 
           if (textBody.messageId) {
             await markAssistantMessageSent(
