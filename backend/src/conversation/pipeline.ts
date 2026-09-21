@@ -52,7 +52,9 @@ function renderPostSalesReply(outcome: PostSalesOutcome): string {
     case 'refund_denied':
       return `I'm sorry, order ${outcome.orderNumber} isn't eligible for an automatic refund — ${outcome.detail} I've let the team know to take a look.`;
     case 'order_cancelled':
-      return `Order ${outcome.orderNumber} has been cancelled as requested.`;
+      return `Order ${outcome.orderNumber} has been cancelled as requested. What would you like to add?`;
+    case 'already_cancelled':
+      return `Order ${outcome.orderNumber} is already cancelled.`;
     case 'not_cancellable_at_this_stage':
       return `I can't cancel order ${outcome.orderNumber} automatically — ${outcome.detail} I've flagged this for the team to review right away.`;
   }

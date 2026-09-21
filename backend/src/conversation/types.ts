@@ -57,7 +57,12 @@ export type CartOp =
  * messages; it only ever reports state.
  */
 export interface PostSalesOutcome {
-  type: 'refund_approved' | 'refund_denied' | 'order_cancelled' | 'not_cancellable_at_this_stage';
+  type:
+    | 'refund_approved'
+    | 'refund_denied'
+    | 'order_cancelled'
+    | 'already_cancelled'
+    | 'not_cancellable_at_this_stage';
   orderId: string;
   orderNumber: string;
   detail: string;
@@ -93,6 +98,13 @@ export interface CartSnapshot {
   customerName: string | null;
   address: string | null;
   missing: Array<'name' | 'address' | 'items'>;
+  /**
+   * True when the customer already confirmed this order (a prior `confirm`
+   * audit) or the vendor has confirmed it (`confirmedAt` / status past
+   * pending). A complete cart that is not placed still needs “Shall I place
+   * this order?”; an edit to a placed order must not ask that again.
+   */
+  orderPlaced?: boolean;
 }
 
 /** Fields CartEngine needs from a Product row to price a line and check availability. */

@@ -550,7 +550,12 @@ describe('CartEngine.apply', () => {
     productFindFirst.mockResolvedValue(brownie);
     // Simulates a prior successful apply() for this exact traceId already
     // having written an OrderAuditLog row for this order.
-    orderAuditLogFindFirst.mockResolvedValue({ id: 'audit-1', orderId: 'order-1', changes: { traceId: 'wamid.retry-1' } });
+    orderAuditLogFindFirst.mockImplementation(async (args: { where?: { changes?: unknown } }) => {
+      if (args?.where?.changes) {
+        return { id: 'audit-1', orderId: 'order-1', changes: { traceId: 'wamid.retry-1' } };
+      }
+      return null;
+    });
 
     const result = await apply({
       vendorId: VENDOR_ID,
@@ -795,5 +800,137 @@ describe('CartEngine.apply — refund_request and historical cancel (#3)', () =>
     expect(orderUpdate).not.toHaveBeenCalled();
     expect(result.rejectedOps[0].reason).toBe('not_cancellable_at_this_stage');
     expect(result.postSalesOutcome?.type).toBe('not_cancellable_at_this_stage');
+  });
+
+  it('cancel: a bare cancel of the live pending cart reports order_cancelled', async () => {
+    orderFindFirst.mockResolvedValue(
+      existingOrder([{ productId: 'prod-brownie', name: 'Brownie', quantity: 1, unit: 'box', unitPricePaise: 10000, lineTotalPaise: 10000 }], {
+        orderNumber: 'ORD-LIVE-1'
+      })
+    );
+    orderUpdate.mockImplementation(({ data }: { data: Record<string, unknown> }) => ({
+      ...existingOrder([], { orderNumber: 'ORD-LIVE-1' }),
+      ...data
+    }));
+
+    const result = await apply({
+      vendorId: VENDOR_ID,
+      conversationId: CONVERSATION_ID,
+      customerId: CUSTOMER_ID,
+      orderId: 'order-1',
+      ops: [{ type: 'cancel' }],
+      traceId: 'wamid.26'
+    });
+
+    expect(result.mutated).toBe(true);
+    expect(result.postSalesOutcome).toEqual({
+      type: 'order_cancelled',
+      orderId: 'order-1',
+      orderNumber: 'ORD-LIVE-1',
+      detail: 'Cancelled as requested.'
+    });
+    expect(orderUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'order-1' },
+        data: expect.objectContaining({ status: 'cancelled' })
+      })
+    );
+  });
+
+  it('cancel: a bare cancel of an already-cancelled live order reports already_cancelled and does not write', async () => {
+    orderFindFirst.mockResolvedValue(
+      existingOrder([], { status: 'cancelled', orderNumber: 'ORD-LIVE-2' })
+    );
+
+    const result = await apply({
+      vendorId: VENDOR_ID,
+      conversationId: CONVERSATION_ID,
+      customerId: CUSTOMER_ID,
+      orderId: 'order-1',
+      ops: [{ type: 'cancel' }],
+      traceId: 'wamid.27'
+    });
+
+    expect(orderUpdate).not.toHaveBeenCalled();
+    expect(result.mutated).toBe(false);
+    expect(result.postSalesOutcome).toEqual({
+      type: 'already_cancelled',
+      orderId: 'order-1',
+      orderNumber: 'ORD-LIVE-2',
+      detail: 'Order is already cancelled.'
+    });
+  });
+
+  it('cancel: a numbered cancel of an already-cancelled order reports already_cancelled', async () => {
+    mockNoLiveDraftThenHistoricalOrder({
+      id: 'order-hist-6',
+      orderNumber: 'ORD-HIST-0006',
+      status: 'cancelled',
+      totalAmount: 50000,
+      createdAt: new Date()
+    });
+
+    const result = await apply({
+      vendorId: VENDOR_ID,
+      conversationId: CONVERSATION_ID,
+      customerId: CUSTOMER_ID,
+      orderId: null,
+      ops: [{ type: 'cancel', orderNumber: 'ORD-HIST-0006' }],
+      traceId: 'wamid.28'
+    });
+
+    expect(orderUpdate).not.toHaveBeenCalled();
+    expect(result.postSalesOutcome?.type).toBe('already_cancelled');
+    expect(result.postSalesOutcome?.orderNumber).toBe('ORD-HIST-0006');
+  });
+
+  it('set_field: orderPlaced is true when a prior confirm audit exists', async () => {
+    orderFindFirst.mockResolvedValue(
+      existingOrder([{ productId: 'prod-brownie', name: 'Brownie', quantity: 1, unit: 'box', unitPricePaise: 10000, lineTotalPaise: 10000 }], {
+        deliveryAddress: 'Old address'
+      })
+    );
+    orderUpdate.mockImplementation(({ data }: { data: Record<string, unknown> }) => ({
+      ...existingOrder([]),
+      ...data,
+      confirmedAt: null
+    }));
+    orderAuditLogFindFirst.mockImplementation(async (args: { where?: { OR?: unknown; changes?: unknown } }) => {
+      if (args?.where?.OR) return { id: 'confirm-audit' };
+      return null;
+    });
+
+    const result = await apply({
+      vendorId: VENDOR_ID,
+      conversationId: CONVERSATION_ID,
+      customerId: CUSTOMER_ID,
+      orderId: 'order-1',
+      ops: [{ type: 'set_field', field: 'address', value: 'New address' }],
+      traceId: 'wamid.29'
+    });
+
+    expect(result.snapshot.orderPlaced).toBe(true);
+  });
+
+  it('set_field: orderPlaced is false when the customer has not confirmed', async () => {
+    orderFindFirst.mockResolvedValue(
+      existingOrder([{ productId: 'prod-brownie', name: 'Brownie', quantity: 1, unit: 'box', unitPricePaise: 10000, lineTotalPaise: 10000 }])
+    );
+    orderUpdate.mockImplementation(({ data }: { data: Record<string, unknown> }) => ({
+      ...existingOrder([]),
+      ...data,
+      confirmedAt: null
+    }));
+
+    const result = await apply({
+      vendorId: VENDOR_ID,
+      conversationId: CONVERSATION_ID,
+      customerId: CUSTOMER_ID,
+      orderId: 'order-1',
+      ops: [{ type: 'set_field', field: 'address', value: 'New address' }],
+      traceId: 'wamid.29b'
+    });
+
+    expect(result.snapshot.orderPlaced).toBe(false);
   });
 });

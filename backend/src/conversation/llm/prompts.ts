@@ -221,6 +221,9 @@ export function buildVendorRulesBlock(vendorConfig: VendorConfig): string {
   parts.push('- "set_qty" with qty=0 removes the line.');
   parts.push('- Only emit "confirm" when the customer clearly confirms the order.');
   parts.push(
+    '- If the customer says they sent the same items again because there was no reply, keep that list once. Do not ask them to drop or choose between items they already named.'
+  );
+  parts.push(
     '- "intent" should be one of: add, remove, set_qty, set_field, confirm, cancel, refund_request, handoff, query, other — pick whichever best matches this turn\'s ops (or the customer\'s question, for "query").'
   );
   parts.push(

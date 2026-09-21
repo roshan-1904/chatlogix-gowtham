@@ -232,14 +232,38 @@ describe('copyMatchesSnapshot', () => {
 });
 
 describe('renderSetFieldConfirmation', () => {
-  it('uses English templates for en', () => {
+  it('recaps a complete unplaced cart and asks to place it', () => {
     const text = renderSetFieldConfirmation(
       [{ type: 'set_field', field: 'address', value: 'Tower 10, Coimbatore' }],
       snapshotWithItems,
       'en'
     );
     expect(text).toContain('Tower 10, Coimbatore');
+    expect(text).toContain('Brownie x2');
+    expect(text).toContain('Total: Rs250.00');
+    expect(text).toContain('Shall I place this order?');
+  });
+
+  it('confirms an edit when the order was already placed, without asking to place it again', () => {
+    const text = renderSetFieldConfirmation(
+      [{ type: 'set_field', field: 'address', value: 'Tower 10, Coimbatore' }],
+      { ...snapshotWithItems, orderPlaced: true },
+      'en'
+    );
+    expect(text).toContain("I've updated the delivery address on your order.");
+    expect(text).not.toContain('Shall I place this order?');
     expect(text).not.toContain('Brownie x2');
+  });
+
+  it('still asks for a missing field instead of placing', () => {
+    const text = renderSetFieldConfirmation(
+      [{ type: 'set_field', field: 'delivery_date', value: 'tomorrow morning' }],
+      { ...snapshotWithItems, missing: ['address'], address: null },
+      'en'
+    );
+    expect(text).toContain('tomorrow morning');
+    expect(text).toContain('Please share your full delivery address');
+    expect(text).not.toContain('Shall I place this order?');
   });
 
   it('uses LLM draftReply for non-English instead of English templates', () => {
@@ -283,7 +307,8 @@ describe('selectFinalReply', () => {
     });
     expect(decision.usedEngineRenderer).toBe(true);
     expect(decision.finalReply).toContain('123 Main St');
-    expect(decision.finalReply).not.toContain('Brownie x2');
+    expect(decision.finalReply).toContain('Shall I place this order?');
+    expect(decision.finalReply).toContain('Brownie x2');
   });
 
   it('uses LLM-2\'s copy when it matches the snapshot', () => {

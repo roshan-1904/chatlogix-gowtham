@@ -128,6 +128,12 @@ describe('buildLlm1SystemPrompt', () => {
     expect(voice).toContain('CURRENT CART or RECENT ORDERS');
   });
 
+  it('tells the model to keep a repeated item list once', () => {
+    const prompt = buildLlm1SystemPrompt(makeHotSet());
+    expect(prompt).toContain('sent the same items again because there was no reply');
+    expect(prompt).toContain('keep that list once');
+  });
+
   it('includes a baseQty price grounding rule in the static block', () => {
     const prompt = buildLlm1SystemPrompt(makeHotSet());
     expect(prompt).toContain('baseQty');

@@ -302,6 +302,19 @@ function englishAddressSaved(value: string): string {
   return `Thanks! I've saved your delivery address:\n${value}`;
 }
 
+function englishPlacedFieldUpdate(field: 'address' | 'name' | 'notes' | 'delivery_date'): string {
+  switch (field) {
+    case 'name':
+      return "I've updated the name on your order.";
+    case 'address':
+      return "I've updated the delivery address on your order.";
+    case 'notes':
+      return "I've updated the notes on your order.";
+    case 'delivery_date':
+      return "I've updated the preferred delivery date on your order.";
+  }
+}
+
 function englishMissingFieldsPrompt(missing: CartSnapshot['missing']): string | null {
   if (missing.length === 0) return null;
   const needName = missing.includes('name');
@@ -317,6 +330,10 @@ function englishMissingFieldsPrompt(missing: CartSnapshot['missing']): string | 
 /**
  * Short confirmation when only name/address/notes/delivery_date changed.
  * Non-English: uses LLM-1 draftReply (already in the customer's language).
+ *
+ * English, cart complete: a not-yet-placed order gets a recap and “Shall I
+ * place this order?”. An order the customer or vendor already placed gets
+ * an update line only — asking to place it again is wrong.
  */
 export function renderSetFieldConfirmation(
   ops: CartOp[],
@@ -328,9 +345,15 @@ export function renderSetFieldConfirmation(
     return draftReply.trim();
   }
 
+  const cartComplete = snapshot.missing.length === 0 && snapshot.items.length > 0;
+  const placed = cartComplete && snapshot.orderPlaced === true;
   const fields = ops.filter((op): op is Extract<CartOp, { type: 'set_field' }> => op.type === 'set_field');
   const parts: string[] = [];
   for (const op of fields) {
+    if (placed) {
+      parts.push(englishPlacedFieldUpdate(op.field));
+      continue;
+    }
     switch (op.field) {
       case 'name':
         parts.push(englishNameSaved(op.value));
@@ -348,6 +371,10 @@ export function renderSetFieldConfirmation(
   }
   const missingPrompt = englishMissingFieldsPrompt(snapshot.missing);
   if (missingPrompt) parts.push(missingPrompt);
+  else if (cartComplete && !snapshot.orderPlaced) {
+    parts.push(renderSnapshotReply(snapshot, language));
+    parts.push('Shall I place this order?');
+  }
   return parts.join('\n\n');
 }
 

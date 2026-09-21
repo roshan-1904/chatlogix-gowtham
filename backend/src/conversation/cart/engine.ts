@@ -25,14 +25,17 @@ export interface ApplyOpsResult {
   snapshot: CartSnapshot;
   mutated: boolean;
   rejectedOps: Array<{ op: CartOp; reason: string }>;
-  // Set by a `cancel`/`refund_request` op that targeted a *historical* order
-  // (or failed to, past the pending/confirmed stage) — CartEngine only
-  // reports state, pipeline.ts turns this into the actual customer reply
-  // and vendor alert (see postSalesAlert.ts).
+  // Set by a cancel/refund outcome CartEngine decided itself (live-cart
+  // cancel, historical cancel, already cancelled, or a stage that cannot
+  // be cancelled). CartEngine only reports state; pipeline.ts turns this
+  // into the customer reply and, for the cases that need a person, a
+  // vendor alert (see postSalesAlert.ts).
   postSalesOutcome?: PostSalesOutcome;
 }
 
 const CANCELLABLE_STATUSES = ['pending', 'confirmed'];
+/** Vendor dashboard confirm moves the order off `pending`. Customer confirm does not. */
+const VENDOR_PLACED_STATUSES = new Set(['confirmed', 'preparing', 'ready', 'out_for_delivery', 'delivered']);
 
 /**
  * Applies LLM-1's cart ops inside one Postgres transaction (spec §14). The
@@ -100,17 +103,8 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
               { traceId, vendorId, conversationId, orderId: order.id },
               'CartEngine.apply: ops for this traceId already applied to this order — skipping re-apply (SQS retry)'
             );
-            const missing = computeMissing(lines, customerName, deliveryAddress);
             return {
-              snapshot: {
-                orderId: order.id,
-                status,
-                items: lines,
-                totalPaise: Math.round(lines.reduce((sum, line) => sum + line.lineTotalPaise, 0)),
-                customerName,
-                address: deliveryAddress,
-                missing
-              },
+              snapshot: await currentSnapshot(),
               mutated: false,
               rejectedOps: []
             };
@@ -157,6 +151,65 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
             orderId,
             orderNumber,
             detail: `Order is already ${status} and can no longer be cancelled automatically.`
+          };
+        }
+
+        function alreadyCancelledOutcome(orderId: string, orderNumber: string): PostSalesOutcome {
+          return {
+            type: 'already_cancelled',
+            orderId,
+            orderNumber,
+            detail: 'Order is already cancelled.'
+          };
+        }
+
+        function cancelledOutcome(orderId: string, orderNumber: string): PostSalesOutcome {
+          return {
+            type: 'order_cancelled',
+            orderId,
+            orderNumber,
+            detail: 'Cancelled as requested.'
+          };
+        }
+
+        /**
+         * A pending order the customer already confirmed still looks like a
+         * draft (`status` stays `pending`, `confirmedAt` is the vendor's
+         * stamp). The confirm audit is the customer-placed signal.
+         */
+        async function orderAlreadyPlaced(
+          targetOrderId: string,
+          confirmedAt: Date | null | undefined,
+          currentStatus: string
+        ): Promise<boolean> {
+          if (confirmedAt || VENDOR_PLACED_STATUSES.has(currentStatus)) return true;
+          if (currentStatus !== 'pending') return false;
+          const priorConfirm = await tx.orderAuditLog.findFirst({
+            where: {
+              orderId: targetOrderId,
+              OR: [
+                { action: 'confirm' },
+                { action: { startsWith: 'confirm,' } },
+                { action: { endsWith: ',confirm' } },
+                { action: { contains: ',confirm,' } }
+              ]
+            },
+            select: { id: true }
+          });
+          return priorConfirm != null;
+        }
+
+        async function currentSnapshot(): Promise<CartSnapshot> {
+          const missing = computeMissing(lines, customerName, deliveryAddress);
+          return {
+            orderId: order?.id ?? null,
+            status,
+            items: lines,
+            totalPaise: Math.round(lines.reduce((sum, line) => sum + line.lineTotalPaise, 0)),
+            customerName,
+            address: deliveryAddress,
+            missing,
+            orderPlaced: order ? await orderAlreadyPlaced(order.id, order.confirmedAt, status) : false
           };
         }
 
@@ -327,7 +380,6 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
             case 'cancel': {
               if (!op.orderNumber) {
                 // No target specified — the conversation's own live order only.
-                // Unchanged from before historical-order cancel existed.
                 if (!order) {
                   rejectedOps.push({ op, reason: 'no_order_to_cancel' });
                   break;
@@ -335,6 +387,9 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
                 if (status === 'pending' || status === 'confirmed') {
                   status = 'cancelled';
                   mutated = true;
+                  postSalesOutcome = cancelledOutcome(order.id, order.orderNumber);
+                } else if (status === 'cancelled') {
+                  postSalesOutcome = alreadyCancelledOutcome(order.id, order.orderNumber);
                 } else {
                   rejectedOps.push({ op, reason: 'not_cancellable_at_this_stage' });
                   postSalesOutcome = notCancellableOutcome(order.id, order.orderNumber, status);
@@ -347,6 +402,10 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
               const targetOrder = await resolveTargetOrder(op.orderNumber);
               if (!targetOrder) {
                 rejectedOps.push({ op, reason: 'no_order_to_cancel' });
+                break;
+              }
+              if (targetOrder.status === 'cancelled') {
+                postSalesOutcome = alreadyCancelledOutcome(targetOrder.id, targetOrder.orderNumber);
                 break;
               }
               if (!CANCELLABLE_STATUSES.includes(targetOrder.status)) {
@@ -368,7 +427,7 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
                 await writeHistoricalAuditLog(targetOrder.id, 'cancel', targetOrder.status, 'cancelled', op);
                 historicalOrderChanged = true;
               }
-              postSalesOutcome = { type: 'order_cancelled', orderId: targetOrder.id, orderNumber: targetOrder.orderNumber, detail: 'Cancelled as requested.' };
+              postSalesOutcome = cancelledOutcome(targetOrder.id, targetOrder.orderNumber);
               break;
             }
 
@@ -470,16 +529,7 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
           }
         }
 
-        const missing = computeMissing(lines, customerName, deliveryAddress);
-        const snapshot: CartSnapshot = {
-          orderId: order?.id ?? null,
-          status,
-          items: lines,
-          totalPaise,
-          customerName,
-          address: deliveryAddress,
-          missing
-        };
+        const snapshot = await currentSnapshot();
 
         const reportedMutated = mutated || historicalOrderChanged;
 

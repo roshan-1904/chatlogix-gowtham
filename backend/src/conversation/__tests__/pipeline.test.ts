@@ -689,7 +689,24 @@ describe('processMessage', () => {
 
     expect(notifyVendorOfPostSalesEventMock).not.toHaveBeenCalled();
     const persistCall = persistTurnMock.mock.calls[0][0];
-    expect(persistCall.finalText).toBe('Order ORD-4 has been cancelled as requested.');
+    expect(persistCall.finalText).toBe('Order ORD-4 has been cancelled as requested. What would you like to add?');
+  });
+
+  it('postSalesOutcome (already_cancelled): says the order is already cancelled and does not alert the vendor', async () => {
+    runLlm1Mock.mockResolvedValue({ ...llm1Result, ops: [{ type: 'cancel', orderNumber: 'ORD-5' }] });
+    applyMock.mockResolvedValue({
+      snapshot,
+      mutated: false,
+      rejectedOps: [],
+      postSalesOutcome: { type: 'already_cancelled', orderId: 'order-hist-5', orderNumber: 'ORD-5', detail: 'Order is already cancelled.' }
+    });
+
+    await processMessage(rawInput);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(notifyVendorOfPostSalesEventMock).not.toHaveBeenCalled();
+    const persistCall = persistTurnMock.mock.calls[0][0];
+    expect(persistCall.finalText).toBe('Order ORD-5 is already cancelled.');
   });
 
   it('successful confirm: fire-and-forget notifies the vendor of the new order', async () => {

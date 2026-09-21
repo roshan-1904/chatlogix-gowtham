@@ -1,9 +1,9 @@
 # Incoming Response Generator — How We Prepare a WhatsApp Reply
 
 <!-- DOC_SYNC
-  last_verified_commit: 0151f3a814f9d583e34b4f543c27a31dbbd35dce
-  last_verified_at: 2026-09-21
-  scope: As-implemented incoming-response-generator pipeline; customer insights read/enrich; gpt-5/o* temperature omit + empty-content retry; orderNumber allocation
+  last_verified_commit: c947e6580ce5f7ecc502147f0aeb06a92e6479e1
+  last_verified_at: 2026-09-22
+  scope: As-implemented incoming-response-generator pipeline; live-cart cancel outcome; already-cancelled reply; set_field place-vs-update close
 -->
 
 **Living document.** This describes the **as-implemented** text path in `chatlogix-incoming-response-generator`, not the locked design spec. When the pipeline in `backend/src/conversation/` changes, update this file in the same change (see `.cursor/rules/incoming-response-generator-flow.mdc`).
@@ -374,7 +374,7 @@ flowchart TD
 
 **Confirm:** requires name + address + ≥1 item. Status stays `pending`. AI never sets `estimatedDelivery`.
 
-**Cancel / refund:** `orderNumber` is scoped to `customerId` + `vendorId`. Refund auto-approves only if status is `pending`/`confirmed` **and** placed within 7 days. Otherwise `postSalesOutcome: refund_denied`. CartEngine never sends messages; it only reports state.
+**Cancel / refund:** `orderNumber` is scoped to `customerId` + `vendorId`. A successful cancel of a `pending` or `confirmed` order — including a live-cart cancel with no `orderNumber` — sets `postSalesOutcome: order_cancelled`. A target that is already `cancelled` sets `already_cancelled` (no vendor alert). Any other non-cancellable status sets `not_cancellable_at_this_stage` and alerts the vendor. Refund auto-approves only if status is `pending`/`confirmed` **and** placed within 7 days. Otherwise `postSalesOutcome: refund_denied`. CartEngine never sends messages; it only reports state. The snapshot's `orderPlaced` is true when `confirmedAt` is set, status is past `pending`, or a prior audit action includes `confirm` (customer confirm leaves status `pending`).
 
 `handoff` / `knowledge_gap` / `noop` are no-ops inside the engine. Handoff and knowledge-gap persist are handled in `pipeline.ts` after apply.
 
@@ -435,7 +435,7 @@ LLM-2 (when it runs): same vendor model, temperature 0.2 (omitted on gpt-5.* / o
 
 | Condition | Reply |
 |---|---|
-| LLM-2 skipped + `set_field` only | `renderSetFieldConfirmation` — English deterministic strings, or LLM-1 `draftReply` for non-English |
+| LLM-2 skipped + `set_field` only | `renderSetFieldConfirmation` — English deterministic strings, or LLM-1 `draftReply` for non-English. English: still ask for a missing name/address/items. When nothing is missing and `orderPlaced` is false, recap the cart and ask “Shall I place this order?”. When `orderPlaced` is true, confirm the update only. |
 | LLM-2 skipped + phantom mutation (`intent` add/remove/set_qty, `ops` empty, draft names catalog item not in snapshot) | `renderPossibleMissedItemReply` — English prompt + true cart |
 | LLM-2 skipped (otherwise) | LLM-1 `draftReply` as-is |
 | LLM-2 ran + `copyMatchesSnapshot` | LLM-2 `finalReply` |
@@ -549,11 +549,14 @@ After finalize, if a `confirm` op was not rejected and the snapshot has an `orde
 | “Hi” | `noop` | no mutation | LLM-1 draft (LLM-2 skipped) |
 | “2 brownies” | `add` | new/updated line, priced from Product | LLM-2 polish, or engine list if copy disagrees |
 | “Make it 5” | `set_qty` | overwrite qty | same |
-| Name + address | `set_field` | insights later in persist | `renderSetFieldConfirmation` or draft (LLM-2 skipped) |
+| Name + address, cart still missing a field | `set_field` | insights later in persist | `renderSetFieldConfirmation` asks for the next missing field (LLM-2 skipped) |
+| Last missing field saved, customer has not confirmed | `set_field` | address/name/notes/delivery note saved | English recap + “Shall I place this order?” — no `confirm` op on this turn |
+| Edit to an order already placed | `set_field` | field updated | “I've updated the … on your order.” No second place question |
 | “Yes, place it” but missing address | `confirm` **rejected** | cart unchanged | `renderRejectedOpsReply` — explains rejection + true cart |
 | “Yes, place it” complete | `confirm` accepted | still `pending` | confirmation copy, **no delivery date** |
 | “Where is my order?” / “Eappo kidaikum?” with a pending order | `noop` | none | `renderOrderStatusReply` if draft deferred or omitted the order number; otherwise LLM-1 draft |
-| “Cancel ORD-…” | `cancel` | cancel if pending/confirmed | canned `Order … has been cancelled` |
+| “Cancel my cart” / “Cancel ORD-…” | `cancel` | cancel if pending/confirmed, including a live cart with no order number | canned `Order … has been cancelled as requested. What would you like to add?` |
+| Cancel an order that is already cancelled | `cancel` | `already_cancelled`, no vendor alert | canned `Order … is already cancelled.` |
 | “Refund please” ineligible | `refund_request` | `refund_denied` | canned denial + vendor alert, AI stays on |
 | “Does it include dividers?” (not in FAQ/desc) | `knowledge_gap` | ignored in engine | customer deferral + `CustomerQuery` row (AI stays on) |
 | Complaint / return | `handoff` | ignored in engine | canned handoff + `aiPaused` + vendor alert |
