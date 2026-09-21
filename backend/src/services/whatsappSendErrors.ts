@@ -39,7 +39,11 @@ export function parseGraphErrorBody(raw: string): {
   }
 }
 
-/** Heuristic — refine when staging returns live quote errors. */
+/**
+ * Quote-context Graph failures. Live 2026-09-20/21 (vendor quoted replies):
+ * `{ error: { message: "(#100) Invalid parameter", code: 100 } }` — no
+ * `error_subcode`. Subcode 2593006 is the documented Cloud API variant.
+ */
 export function isInvalidQuoteContextError(
   status: number,
   graphCode?: number,

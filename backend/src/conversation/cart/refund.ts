@@ -10,9 +10,8 @@ export interface RefundEligibility {
  * Mirrors services/refundService.ts's checkRefundEligibility rule exactly
  * (status pending/confirmed + placed within 7 days). Reimplemented locally
  * rather than imported — that file belongs to the legacy pipeline this
- * rewrite is replacing (same reason cart/engine.ts reimplements
- * generateOrderNumber instead of importing it). Keep the two numbers in sync
- * by hand if the business rule ever changes.
+ * rewrite is replacing. Keep the two numbers in sync by hand if the
+ * business rule ever changes.
  */
 export function checkRefundEligibility(order: { status: string; createdAt: Date }): RefundEligibility {
   if (!REFUNDABLE_STATUSES.includes(order.status)) {

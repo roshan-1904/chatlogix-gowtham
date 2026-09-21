@@ -681,20 +681,24 @@ async function sendTextWithQuoteFallback(
     logCount('CustomerQueryReplyQuoted', {});
     return { result, quoteApplied: true };
   } catch (sendErr) {
-    const isQuoteError =
-      sendErr instanceof WhatsAppSendError &&
-      sendErr.isInvalidQuoteContext &&
-      !!quote?.fallbackQuestionText?.trim();
+    // Graph's live quote failure is a generic (#100) Invalid parameter with
+    // no subcode. Retry without context whenever we classified it as a quote
+    // error — even if fallbackQuestionText is empty (media-only customer
+    // bubbles). Dropping the vendor reply used to fail the whole SQS record.
+    const isQuoteError = sendErr instanceof WhatsAppSendError && sendErr.isInvalidQuoteContext;
     if (!isQuoteError) {
       throw sendErr;
     }
 
-    const fallbackBody = buildQuotedReplyFallbackBody(
-      quotedReplyFallbackIntro(),
-      quote.fallbackQuestionText!,
-      text
+    const question = quote?.fallbackQuestionText?.trim();
+    const fallbackBody = question
+      ? buildQuotedReplyFallbackBody(quotedReplyFallbackIntro(), question, text)
+      : text;
+    logger.warn(
+      { err: sendErr, hasQuestionPrefix: Boolean(question), graphCode: sendErr.graphCode },
+      'Quoted WhatsApp send rejected by Graph — retrying without context'
     );
-    if (outboundMessageId) {
+    if (outboundMessageId && fallbackBody !== text) {
       await prisma.message.update({
         where: { id: outboundMessageId },
         data: { content: fallbackBody }

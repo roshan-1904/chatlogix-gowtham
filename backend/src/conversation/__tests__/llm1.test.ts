@@ -214,10 +214,57 @@ describe('runLlm1', () => {
   });
 
   it('throws if the model returns no content', async () => {
-    createMock.mockResolvedValue({ choices: [{ message: {} }], usage: {} });
+    createMock.mockResolvedValue({ choices: [{ message: {}, finish_reason: 'length' }], usage: {} });
 
     await expect(
       runLlm1({ vendorId: 'vendor-1', hotSet, catalogSlice: hotSet.compactCatalog, mergedContent: 'x', traceId: 'wamid.4' })
     ).rejects.toThrow(/no content/);
+    expect(createMock).toHaveBeenCalledTimes(2);
+    expect(createMock.mock.calls[1][0].max_completion_tokens).toBe(4000);
+  });
+
+  it('retries without temperature when OpenAI rejects 0.3 on a default-sampling model', async () => {
+    const tempError = Object.assign(new Error("400 Unsupported value: 'temperature' does not support 0.3 with this model."), {
+      status: 400,
+      code: 'unsupported_value',
+      param: 'temperature'
+    });
+    createMock.mockRejectedValueOnce(tempError).mockResolvedValueOnce(mockCompletion());
+
+    const result = await runLlm1({
+      vendorId: 'vendor-1',
+      hotSet,
+      catalogSlice: hotSet.compactCatalog,
+      mergedContent: 'add 2 brownies',
+      traceId: 'wamid.temp'
+    });
+
+    expect(result.draftReply).toBe('Sure, added 2 Brownies!');
+    expect(createMock).toHaveBeenCalledTimes(2);
+    expect(createMock.mock.calls[0][0].temperature).toBe(0.3);
+    expect(createMock.mock.calls[1][0].temperature).toBeUndefined();
+  });
+
+  it('retries empty gpt-5 reasoning output with a larger completion budget then succeeds', async () => {
+    createMock
+      .mockResolvedValueOnce({
+        choices: [{ message: { content: null }, finish_reason: 'length' }],
+        usage: { prompt_tokens: 200, completion_tokens: 2500, completion_tokens_details: { reasoning_tokens: 2500 } }
+      })
+      .mockResolvedValueOnce(mockCompletion());
+    const lunaHotSet = { ...hotSet, vendorConfig: { ...hotSet.vendorConfig, aiModel: 'gpt-5.6-luna' } };
+
+    const result = await runLlm1({
+      vendorId: 'vendor-1',
+      hotSet: lunaHotSet,
+      catalogSlice: hotSet.compactCatalog,
+      mergedContent: 'hello',
+      traceId: 'wamid.empty'
+    });
+
+    expect(result.draftReply).toBe('Sure, added 2 Brownies!');
+    expect(createMock).toHaveBeenCalledTimes(2);
+    expect(createMock.mock.calls[0][0].max_completion_tokens).toBe(2500);
+    expect(createMock.mock.calls[1][0].max_completion_tokens).toBe(4000);
   });
 });

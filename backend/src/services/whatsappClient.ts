@@ -90,10 +90,17 @@ async function postToGraph(
       parsed.graphSubcode,
       parsed.message
     );
-    logger.error(
-      { status: res.status, body: errBody, payloadType: body?.type, invalidQuote },
-      'Failed to send WhatsApp message'
-    );
+    if (invalidQuote) {
+      logger.warn(
+        { status: res.status, body: errBody, payloadType: body?.type, invalidQuote },
+        'Failed to send WhatsApp message'
+      );
+    } else {
+      logger.error(
+        { status: res.status, body: errBody, payloadType: body?.type, invalidQuote },
+        'Failed to send WhatsApp message'
+      );
+    }
     throw new WhatsAppSendError(`WhatsApp send failed: ${res.status}`, res.status, {
       graphCode: parsed.graphCode,
       graphSubcode: parsed.graphSubcode,

@@ -39,6 +39,9 @@ export function maxCompletionTokensForModel(model: string, role: LlmSamplingRole
  * `max_completion_tokens` budget and lower `reasoning_effort` or the API
  * returns finish_reason=length with empty message.content.
  */
+export const LLM1_MAX_COMPLETION_TOKENS_EMPTY_RETRY = 4000;
+export const LLM2_MAX_COMPLETION_TOKENS_EMPTY_RETRY = 2000;
+
 export function openaiChatCompletionParams(
   model: string,
   role: LlmSamplingRole
@@ -59,4 +62,50 @@ export function openaiChatCompletionParams(
     params.reasoning_effort = 'low';
   }
   return params;
+}
+
+function nestedErrorField(error: unknown, key: string): unknown {
+  if (!error || typeof error !== 'object') return undefined;
+  const obj = error as Record<string, unknown>;
+  if (obj[key] != null) return obj[key];
+  const nested = obj.error;
+  if (nested && typeof nested === 'object' && nested !== null && key in nested) {
+    return (nested as Record<string, unknown>)[key];
+  }
+  return undefined;
+}
+
+/**
+ * OpenAI 400 `unsupported_value` on `temperature` — gpt-5.* / o* and any
+ * future default-sampling model we have not classified yet. Live 2026-09-20:
+ * `'temperature' does not support 0.3 with this model. Only the default (1) value is supported.`
+ */
+export function isUnsupportedTemperatureError(error: unknown): boolean {
+  const status = nestedErrorField(error, 'status');
+  const code = nestedErrorField(error, 'code');
+  const param = nestedErrorField(error, 'param');
+  if (status === 400 && code === 'unsupported_value' && param === 'temperature') {
+    return true;
+  }
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  return /temperature/i.test(message) && /does not support/i.test(message);
+}
+
+export function retryMaxCompletionTokens(role: LlmSamplingRole): number {
+  return role === 'llm1' ? LLM1_MAX_COMPLETION_TOKENS_EMPTY_RETRY : LLM2_MAX_COMPLETION_TOKENS_EMPTY_RETRY;
+}
+
+/**
+ * Empty `message.content` after a completion. `length` is the gpt-5.* case
+ * (hidden reasoning ate the budget). Also retry a blank `stop` — do not retry
+ * refusals or content_filter.
+ */
+export function shouldRetryEmptyContent(choice: {
+  finish_reason?: string | null;
+  message?: { content?: string | null; refusal?: string | null };
+} | undefined): boolean {
+  if (choice?.message?.refusal) return false;
+  if (choice?.message?.content) return false;
+  if (choice?.finish_reason === 'content_filter') return false;
+  return true;
 }

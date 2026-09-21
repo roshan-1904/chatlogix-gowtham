@@ -1,9 +1,9 @@
 # Incoming Response Generator — How We Prepare a WhatsApp Reply
 
 <!-- DOC_SYNC
-  last_verified_commit: 66e920a601e6b172d9ffc373f072c54b112be98a
-  last_verified_at: 2026-09-20
-  scope: As-implemented incoming-response-generator pipeline; customer insights read/enrich; gpt-5/o* temperature omit via openaiSampling
+  last_verified_commit: 0151f3a814f9d583e34b4f543c27a31dbbd35dce
+  last_verified_at: 2026-09-21
+  scope: As-implemented incoming-response-generator pipeline; customer insights read/enrich; gpt-5/o* temperature omit + empty-content retry; orderNumber allocation
 -->
 
 **Living document.** This describes the **as-implemented** text path in `chatlogix-incoming-response-generator`, not the locked design spec. When the pipeline in `backend/src/conversation/` changes, update this file in the same change (see `.cursor/rules/incoming-response-generator-flow.mdc`).
@@ -273,7 +273,7 @@ Post-publish, `enrichCustomerInsightsIfNeeded` may call `extractKeyFacts` (same 
 
 ## 7. LLM-1 — ops + draft, never the cart
 
-One OpenAI call with strict structured output (`llm1JsonSchema`). Model = `Vendor.aiModel` (fallback **`gpt-5.6-luna`** via `DEFAULT_CONVERSATION_MODEL` in `catalogContextConfig.ts` — [BILLING_AND_PRICING.md](./BILLING_AND_PRICING.md) §2). Temperature **0.3** when supported; **`gpt-5.*` / `o*` models omit `temperature`** (`openaiSampling.ts`). `max_completion_tokens` 400.
+One OpenAI call with strict structured output (`llm1JsonSchema`). Model = `Vendor.aiModel` (fallback **`gpt-5.6-luna`** via `DEFAULT_CONVERSATION_MODEL` in `catalogContextConfig.ts` — [BILLING_AND_PRICING.md](./BILLING_AND_PRICING.md) §2). Temperature **0.3** when supported; **`gpt-5.*` / `o*` models omit `temperature`** (`openaiSampling.ts`). `max_completion_tokens` is 400 on classic models and 2500 on gpt-5.* / o*. If OpenAI still returns 400 `unsupported_value` on `temperature`, LLM-1 retries once without it. If `message.content` is empty (`finish_reason=length` is the usual gpt-5 reasoning case), it retries once at 4000 completion tokens instead of failing the SQS record immediately.
 
 System prompt (`buildLlm1SystemPrompt`):
 
@@ -338,6 +338,8 @@ The model must not emit a full cart JSON list. It proposes **deltas**. Postgres 
 ## 8. CartEngine
 
 `apply()` runs one Prisma transaction (`ReadCommitted`). Prices come from `Product` (and variants), never from the model.
+
+**New-order numbers:** `Order.orderNumber` is globally unique (`ORD-{prefix}-YYYYMM####`). Allocation looks up the latest number with that prefix+month **across all vendors** (not this vendor’s monthly row count) and takes max+1. Two vendors sharing the default `ORDER` prefix, or two first-item carts racing, used to throw Prisma `P2002` Unique constraint failed on `orderNumber` and fail the whole `processMessage` turn. A `P2002` on `orderNumber` now retries the whole `apply()` transaction (up to 5 times) — Postgres aborts the transaction on unique violation, so the retry cannot happen inside it.
 
 ```mermaid
 flowchart TD
@@ -427,7 +429,7 @@ Runs when **any** of: mutating ops present (and not **set_field-only**), `needsV
 
 Mutating op types: `add`, `set_qty`, `remove`, `set_field`, `confirm`, `cancel`. **`set_field`-only turns skip LLM-2** — `shouldRunLlm2` returns false when every mutating op is `set_field`.
 
-LLM-2 (when it runs): same vendor model, temperature 0.2, ~300 tokens. Rewrites wording only; drops claims about items absent from CART SNAPSHOT. Cart is frozen after `apply`. Prompt includes the LLM-1 `language` string and tells the model to answer the customer's question first, listing cart lines only when items changed or they asked to review the order.
+LLM-2 (when it runs): same vendor model, temperature 0.2 (omitted on gpt-5.* / o*), 300 tokens classic / 1200 on reasoning models. Same temperature-400 and empty-content retries as LLM-1 (empty retry budget 2000). Rewrites wording only; drops claims about items absent from CART SNAPSHOT. Cart is frozen after `apply`. Prompt includes the LLM-1 `language` string and tells the model to answer the customer's question first, listing cart lines only when items changed or they asked to review the order.
 
 ### `selectFinalReply` branches (after LLM-2)
 

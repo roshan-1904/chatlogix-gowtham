@@ -6,6 +6,11 @@ import { parseOrderItems, computeMissing } from './snapshot.js';
 import { resolveProduct, resolveVariant, computeUnitPricePaise } from './productResolve.js';
 import { checkAvailability } from './availability.js';
 import { checkRefundEligibility } from './refund.js';
+import {
+  allocateOrderNumber,
+  isOrderNumberConflict,
+  MAX_ORDER_NUMBER_ALLOCATION_ATTEMPTS
+} from './orderNumber.js';
 
 export interface ApplyOpsInput {
   vendorId: string;
@@ -29,26 +34,6 @@ export interface ApplyOpsResult {
 
 const CANCELLABLE_STATUSES = ['pending', 'confirmed'];
 
-type TxClient = Prisma.TransactionClient;
-
-/**
- * Format: ORD-{prefix}-YYYYMM{4-digit-count}, matching orderService.ts's
- * existing `generateOrderNumber` convention. Reimplemented locally (that
- * function is private and duplicated across 4 files already) rather than
- * importing from a file this rewrite is replacing.
- */
-async function generateOrderNumber(tx: TxClient, vendorId: string): Promise<string> {
-  const vendor = await tx.vendor.findUnique({ where: { id: vendorId }, select: { orderPrefix: true } });
-  const prefix = (vendor?.orderPrefix || 'ORDER').toUpperCase().substring(0, 5).padEnd(5, 'X');
-
-  const now = new Date();
-  const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const count = await tx.order.count({ where: { vendorId, createdAt: { gte: startOfMonth } } });
-
-  return `ORD-${prefix}-${yearMonth}${String(count + 1).padStart(4, '0')}`;
-}
-
 /**
  * Applies LLM-1's cart ops inside one Postgres transaction (spec §14). The
  * model never writes Order.items directly — it proposes ops, this function
@@ -67,9 +52,14 @@ async function generateOrderNumber(tx: TxClient, vendorId: string): Promise<stri
 export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
   const { vendorId, conversationId, customerId, orderId, ops, traceId } = input;
 
-  return await prisma
-    .$transaction(
-      async (tx) => {
+  // `Order.orderNumber` is globally unique. Allocation can still race two
+  // concurrent first-item carts (or two vendors sharing a prefix); Postgres
+  // aborts the transaction on P2002, so the retry is a fresh $transaction.
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= MAX_ORDER_NUMBER_ALLOCATION_ATTEMPTS; attempt++) {
+    try {
+      return await prisma.$transaction(
+        async (tx) => {
         let order = orderId
           ? await tx.order.findFirst({ where: { id: orderId, vendorId } })
           : await tx.order.findFirst({
@@ -454,7 +444,7 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
                 vendorId,
                 customerId,
                 conversationId,
-                orderNumber: await generateOrderNumber(tx, vendorId),
+                orderNumber: await allocateOrderNumber(tx, vendorId),
                 status,
                 items: itemsJson,
                 totalAmount: totalPaise,
@@ -501,9 +491,20 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
         return { snapshot, mutated: reportedMutated, rejectedOps, postSalesOutcome };
       },
       { isolationLevel: 'ReadCommitted', maxWait: 5000, timeout: 10000 }
-    )
-    .catch((error) => {
+    );
+    } catch (error) {
+      lastError = error;
+      if (isOrderNumberConflict(error) && attempt < MAX_ORDER_NUMBER_ALLOCATION_ATTEMPTS) {
+        logger.warn(
+          { err: error, traceId, vendorId, conversationId, attempt },
+          'CartEngine.apply: orderNumber unique conflict — retrying allocation'
+        );
+        continue;
+      }
       logger.error({ err: error, traceId, vendorId, conversationId }, 'CartEngine.apply failed');
       throw error;
-    });
+    }
+  }
+  logger.error({ err: lastError, traceId, vendorId, conversationId }, 'CartEngine.apply failed');
+  throw lastError;
 }

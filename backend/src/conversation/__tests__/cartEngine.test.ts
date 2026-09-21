@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { Prisma } from '@prisma/client';
 
 // Mock the Prisma module BEFORE importing the engine. CartEngine.apply runs
 // everything inside prisma.$transaction — this txStub captures every call
@@ -277,6 +278,77 @@ describe('CartEngine.apply', () => {
     expect(orderCreate).toHaveBeenCalledTimes(1);
     expect(result.snapshot.orderId).toBe('new-order');
     expect(result.snapshot.items[0].quantity).toBe(2);
+  });
+
+  it("allocates the next global orderNumber for the prefix+month, not this vendor's monthly count", async () => {
+    const yearMonth = `${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+    const stem = `ORD-TESTX-${yearMonth}`;
+    orderFindFirst.mockImplementation((args: any) => {
+      if (args?.where?.orderNumber?.startsWith === stem) {
+        return Promise.resolve({ orderNumber: `${stem}0007` });
+      }
+      return Promise.resolve(null);
+    });
+    productFindFirst.mockResolvedValue(brownie);
+    orderCreate.mockImplementation(({ data }: any) => ({ id: 'new-order', ...data }));
+
+    await apply({
+      vendorId: VENDOR_ID,
+      conversationId: CONVERSATION_ID,
+      customerId: CUSTOMER_ID,
+      orderId: null,
+      ops: [{ type: 'add', productId: 'prod-brownie', qty: 2 }],
+      traceId: 'wamid.7b'
+    });
+
+    expect(orderCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ orderNumber: `${stem}0008` })
+      })
+    );
+  });
+
+  it('retries apply when order.create hits a unique constraint on orderNumber', async () => {
+    const p2002 = new Prisma.PrismaClientKnownRequestError('Unique constraint failed on the fields: (`orderNumber`)', {
+      code: 'P2002',
+      clientVersion: '5.22.0',
+      meta: { target: ['orderNumber'] }
+    });
+    orderFindFirst.mockResolvedValue(null);
+    productFindFirst.mockResolvedValue(brownie);
+    orderCreate
+      .mockRejectedValueOnce(p2002)
+      .mockImplementation(({ data }: any) => ({ id: 'new-order', ...data }));
+
+    const result = await apply({
+      vendorId: VENDOR_ID,
+      conversationId: CONVERSATION_ID,
+      customerId: CUSTOMER_ID,
+      orderId: null,
+      ops: [{ type: 'add', productId: 'prod-brownie', qty: 2 }],
+      traceId: 'wamid.7c'
+    });
+
+    expect(orderCreate).toHaveBeenCalledTimes(2);
+    expect(result.snapshot.orderId).toBe('new-order');
+  });
+
+  it('does not retry apply on a non-conflict cart error', async () => {
+    orderFindFirst.mockResolvedValue(null);
+    productFindFirst.mockResolvedValue(brownie);
+    orderCreate.mockRejectedValue(new Error('connection reset'));
+
+    await expect(
+      apply({
+        vendorId: VENDOR_ID,
+        conversationId: CONVERSATION_ID,
+        customerId: CUSTOMER_ID,
+        orderId: null,
+        ops: [{ type: 'add', productId: 'prod-brownie', qty: 2 }],
+        traceId: 'wamid.7d'
+      })
+    ).rejects.toThrow('connection reset');
+    expect(orderCreate).toHaveBeenCalledTimes(1);
   });
 
   it('does not create a phantom order for a set_field-only op with no items (the empty-order bug)', async () => {

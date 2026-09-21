@@ -1,9 +1,9 @@
 # Customer Query replies — WhatsApp quoted context (v1.1)
 
 <!-- DOC_SYNC
-  last_verified_commit: pending-commit
-  last_verified_at: 2026-09-14
-  scope: Implemented v1.1 — WhatsApp quoted vendor replies + fallback prefix for Customer Queries and optional Conversations reply UI
+  last_verified_commit: 0151f3a814f9d583e34b4f543c27a31dbbd35dce
+  last_verified_at: 2026-09-21
+  scope: Implemented v1.1 — WhatsApp quoted vendor replies; unquoted retry even when fallbackQuestionText is empty
 -->
 
 **Status:** Implemented (v1.1) — extends Customer Queries v1  
@@ -277,10 +277,10 @@ Today `postToGraph` throws `Error('WhatsApp send failed: ${status}')` and discar
 
 1. Parse Graph error payload on `!res.ok`.
 2. Throw a typed error, e.g. `WhatsAppSendError { status, graphCode?, graphSubcode?, isInvalidQuoteContext: boolean }`.
-3. In `responseProcessor`, if `isInvalidQuoteContext` **and** `fallbackQuestionText` is present:
-   - Build fallback body (§8.1).
+3. In `responseProcessor`, if `isInvalidQuoteContext` (quote-specific Graph error):
+   - If `fallbackQuestionText` is present, build fallback body (§8.1) and `UPDATE Message SET content = :fallbackBody` for the outbound row.
+   - If `fallbackQuestionText` is empty (media-only customer bubble), **resend the original vendor text** with no `context` — still deliver the answer.
    - Call `sendWhatsAppText` **without** `context`.
-   - `UPDATE Message SET content = :fallbackBody` for the outbound row.
 4. Otherwise rethrow (token expired, 429, 5xx) — **no** second send attempt.
 
 **Do not** retry unquoted on generic 400/500 — avoids duplicate customer messages when WhatsApp accepted the first request but the client timed out.

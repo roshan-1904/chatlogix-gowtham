@@ -6,7 +6,12 @@ import { buildLlm1SystemPrompt, llm1JsonSchema } from './prompts.js';
 import { validateProductIds } from '../cart/productResolve.js';
 import type { CompactCatalogEntry, HotSet, Llm1Result } from '../types.js';
 import { logCount } from '../metrics.js';
-import { openaiChatCompletionParams } from './openaiSampling.js';
+import {
+  isUnsupportedTemperatureError,
+  openaiChatCompletionParams,
+  retryMaxCompletionTokens,
+  shouldRetryEmptyContent
+} from './openaiSampling.js';
 import { logTurnAudit, turnAuditServiceFromRuntime } from '../../observability/turnAuditLog.js';
 
 // Module-level singleton, same pattern as every other OpenAI call site in
@@ -43,6 +48,7 @@ export async function runLlm1(input: Llm1Input): Promise<Llm1Output> {
   if (!openai) {
     throw new Error('OpenAI API key not configured');
   }
+  const client = openai;
 
   const {
     vendorId,
@@ -73,20 +79,54 @@ export async function runLlm1(input: Llm1Input): Promise<Llm1Output> {
     sourceMessageType
   });
 
-  const completion = await openai.chat.completions.create({
+  const request = {
     model,
     messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: mergedContent }
+      { role: 'system' as const, content: systemPrompt },
+      { role: 'user' as const, content: mergedContent }
     ],
     ...openaiChatCompletionParams(model, 'llm1'),
     response_format: {
-      type: 'json_schema',
+      type: 'json_schema' as const,
       json_schema: { name: 'llm1_result', schema: llm1JsonSchema, strict: true }
     }
-  });
+  };
 
-  const choice = completion.choices[0];
+  const createCompletion = async (body: typeof request) => {
+    try {
+      return await client.chat.completions.create(body);
+    } catch (error) {
+      if (!isUnsupportedTemperatureError(error) || body.temperature === undefined) {
+        throw error;
+      }
+      logger.warn({ traceId, vendorId, model }, 'OpenAI rejected temperature — retrying LLM-1 without it');
+      logCount('Llm1TemperatureRetry', { vendorId, model });
+      const { temperature: _omit, ...rest } = body;
+      return client.chat.completions.create(rest);
+    }
+  };
+
+  let completion = await createCompletion(request);
+  let choice = completion.choices[0];
+  if (!choice?.message?.content && shouldRetryEmptyContent(choice)) {
+    logger.warn(
+      {
+        traceId,
+        vendorId,
+        model,
+        finishReason: choice?.finish_reason,
+        completionTokens: completion.usage?.completion_tokens
+      },
+      'LLM-1 returned no content — retrying with a larger completion budget'
+    );
+    logCount('Llm1EmptyContentRetry', { vendorId, model });
+    completion = await createCompletion({
+      ...request,
+      max_completion_tokens: retryMaxCompletionTokens('llm1')
+    });
+    choice = completion.choices[0];
+  }
+
   if (choice?.message?.refusal) {
     throw new Error(`LLM-1 refused: ${choice.message.refusal}`);
   }

@@ -16,6 +16,10 @@ vi.mock('../../logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
 }));
 
+vi.mock('../metrics.js', () => ({
+  logCount: vi.fn()
+}));
+
 import {
   shouldRunLlm2,
   runLlm2,

@@ -4,7 +4,13 @@ import { logger } from '../../logger.js';
 import { isEnglishLanguage, type CustomerLanguage } from '../language.js';
 import type { CartOp, CartSnapshot, CompactCatalogEntry } from '../types.js';
 import type { ApplyOpsResult } from '../cart/engine.js';
-import { openaiChatCompletionParams } from './openaiSampling.js';
+import { logCount } from '../metrics.js';
+import {
+  isUnsupportedTemperatureError,
+  openaiChatCompletionParams,
+  retryMaxCompletionTokens,
+  shouldRetryEmptyContent
+} from './openaiSampling.js';
 import { logTurnAudit, turnAuditServiceFromRuntime } from '../../observability/turnAuditLog.js';
 
 // Module-level singleton, same pattern as llm1.ts / every other OpenAI call
@@ -113,21 +119,50 @@ export async function runLlm2(input: Llm2Input): Promise<Llm2Output> {
   if (!openai) {
     throw new Error('OpenAI API key not configured');
   }
+  const client = openai;
 
   const prompt = buildLlm2Prompt(input);
   logTurnAudit(turnAuditEnabled, auditCtx, 'llm2_prompt', { prompt });
 
-  const completion = await openai.chat.completions.create({
+  const request = {
     model: input.model,
-    messages: [{ role: 'system', content: prompt }],
+    messages: [{ role: 'system' as const, content: prompt }],
     ...openaiChatCompletionParams(input.model, 'llm2'),
     response_format: {
-      type: 'json_schema',
+      type: 'json_schema' as const,
       json_schema: { name: 'llm2_result', schema: llm2JsonSchema, strict: true }
     }
-  });
+  };
 
-  const choice = completion.choices[0];
+  const createCompletion = async (body: typeof request) => {
+    try {
+      return await client.chat.completions.create(body);
+    } catch (error) {
+      if (!isUnsupportedTemperatureError(error) || body.temperature === undefined) {
+        throw error;
+      }
+      logger.warn({ vendorId: input.vendorId, model: input.model }, 'OpenAI rejected temperature — retrying LLM-2 without it');
+      logCount('Llm2TemperatureRetry', { vendorId: input.vendorId, model: input.model });
+      const { temperature: _omit, ...rest } = body;
+      return client.chat.completions.create(rest);
+    }
+  };
+
+  let completion = await createCompletion(request);
+  let choice = completion.choices[0];
+  if (!choice?.message?.content && shouldRetryEmptyContent(choice)) {
+    logger.warn(
+      { vendorId: input.vendorId, model: input.model, finishReason: choice?.finish_reason },
+      'LLM-2 returned no content — retrying with a larger completion budget'
+    );
+    logCount('Llm2EmptyContentRetry', { vendorId: input.vendorId, model: input.model });
+    completion = await createCompletion({
+      ...request,
+      max_completion_tokens: retryMaxCompletionTokens('llm2')
+    });
+    choice = completion.choices[0];
+  }
+
   if (choice?.message?.refusal) {
     throw new Error(`LLM-2 refused: ${choice.message.refusal}`);
   }

@@ -142,4 +142,31 @@ describe('processResponseMessage quoted reply fallback', () => {
 
     expect(sendWhatsAppText).toHaveBeenCalledTimes(1);
   });
+
+  it('retries without context when quote is invalid even if fallbackQuestionText is missing', async () => {
+    sendWhatsAppText
+      .mockRejectedValueOnce(
+        new WhatsAppSendError('WhatsApp send failed: 400', 400, {
+          isInvalidQuoteContext: true,
+          graphCode: 100
+        })
+      )
+      .mockResolvedValueOnce({ messageId: 'wamid.plain' });
+
+    await processResponseMessage({
+      type: 'text',
+      to: '919000000000',
+      text: 'Yes, it includes a divider.',
+      messageId: 'out-2',
+      phoneNumberId: 'phone-1',
+      replyToWhatsappMessageId: 'wamid.media-bubble'
+    });
+
+    expect(sendWhatsAppText).toHaveBeenCalledTimes(2);
+    expect(sendWhatsAppText.mock.calls[1][1]).toBe('Yes, it includes a divider.');
+    expect(sendWhatsAppText.mock.calls[1][3]).toBeUndefined();
+    expect(messageUpdate).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ content: expect.any(String) }) })
+    );
+  });
 });
