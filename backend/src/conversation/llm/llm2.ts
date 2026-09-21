@@ -78,6 +78,9 @@ function buildLlm2Prompt(input: Llm2Input): string {
   parts.push(`- Reply in this language/script: ${language}.`);
   parts.push('- Answer the customer\'s actual question first. Only include the full cart line list when they asked to review the order or you changed items this turn.');
   parts.push('- No more than about 120 words.');
+  parts.push(
+    '- Emoji: drop any emoji in the draft unless the customer just placed the order, or they thanked you or complimented you. At most one emoji in those cases. Never a smiley and a heart on the same message. No emoji on questions, clarifications, prices, cart updates, address or delivery asks, apologies, or cancellations.'
+  );
   parts.push('- Output only the polished reply text — you are not proposing cart changes.');
 
   parts.push('');

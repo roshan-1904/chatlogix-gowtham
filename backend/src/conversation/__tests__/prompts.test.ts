@@ -128,6 +128,13 @@ describe('buildLlm1SystemPrompt', () => {
     expect(voice).toContain('CURRENT CART or RECENT ORDERS');
   });
 
+  it('allows at most one emoji, and only when the order was placed or the customer was positive', () => {
+    const prompt = buildLlm1SystemPrompt(makeHotSet());
+    expect(prompt).toContain('this rule overrides Personality and Tone example');
+    expect(prompt).toContain('At most one emoji');
+    expect(prompt).toContain('just placed the order');
+  });
+
   it('tells the model to keep a repeated item list once', () => {
     const prompt = buildLlm1SystemPrompt(makeHotSet());
     expect(prompt).toContain('sent the same items again because there was no reply');

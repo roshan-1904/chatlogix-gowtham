@@ -3,7 +3,7 @@
 <!-- DOC_SYNC
   last_verified_commit: c947e6580ce5f7ecc502147f0aeb06a92e6479e1
   last_verified_at: 2026-09-22
-  scope: As-implemented incoming-response-generator pipeline; live-cart cancel outcome; already-cancelled reply; set_field place-vs-update close
+  scope: As-implemented incoming-response-generator pipeline; live-cart cancel outcome; already-cancelled reply; set_field place-vs-update close; emoji only on place-order or positive feedback
 -->
 
 **Living document.** This describes the **as-implemented** text path in `chatlogix-incoming-response-generator`, not the locked design spec. When the pipeline in `backend/src/conversation/` changes, update this file in the same change (see `.cursor/rules/incoming-response-generator-flow.mdc`).
@@ -277,7 +277,7 @@ One OpenAI call with strict structured output (`llm1JsonSchema`). Model = `Vendo
 
 System prompt (`buildLlm1SystemPrompt`):
 
-- **Vendor rules** (prompt-cache prefix): bot identity, vendor rules, op bullets — **no catalog table**.
+- **Vendor rules** (prompt-cache prefix): bot identity, vendor rules, op bullets — **no catalog table**. Emoji rule overrides Personality and Tone example: no emoji on questions, clarifications, prices, cart updates, address or delivery asks, apologies, or cancellations. At most one emoji, and only when the customer just placed the order or thanked / complimented the shop. Never a smiley and a heart together.
 - **Catalog block** (per turn): compact catalog table from **`catalogSlice`** / `promptCatalogSlice` only (`id,name,price,unit,baseQty,…`; descriptions capped at **280** chars in the table).
 - **Dynamic**: current cart, customer name/address, recent orders, matched FAQs, last 6 turns. When `sourceMessageType` is `audio`, a **VOICE NOTE** block is appended: treat the user text as ASR, ask a clarifying question if it is garbled or off-catalog, and prefer CURRENT CART / RECENT ORDERS when the transcript is close (cake, brownie, kg).
 
@@ -429,7 +429,7 @@ Runs when **any** of: mutating ops present (and not **set_field-only**), `needsV
 
 Mutating op types: `add`, `set_qty`, `remove`, `set_field`, `confirm`, `cancel`. **`set_field`-only turns skip LLM-2** — `shouldRunLlm2` returns false when every mutating op is `set_field`.
 
-LLM-2 (when it runs): same vendor model, temperature 0.2 (omitted on gpt-5.* / o*), 300 tokens classic / 1200 on reasoning models. Same temperature-400 and empty-content retries as LLM-1 (empty retry budget 2000). Rewrites wording only; drops claims about items absent from CART SNAPSHOT. Cart is frozen after `apply`. Prompt includes the LLM-1 `language` string and tells the model to answer the customer's question first, listing cart lines only when items changed or they asked to review the order.
+LLM-2 (when it runs): same vendor model, temperature 0.2 (omitted on gpt-5.* / o*), 300 tokens classic / 1200 on reasoning models. Same temperature-400 and empty-content retries as LLM-1 (empty retry budget 2000). Rewrites wording only; drops claims about items absent from CART SNAPSHOT. It also drops emoji from the draft except one emoji when the customer just placed the order or thanked / complimented the shop. Cart is frozen after `apply`. Prompt includes the LLM-1 `language` string and tells the model to answer the customer's question first, listing cart lines only when items changed or they asked to review the order.
 
 ### `selectFinalReply` branches (after LLM-2)
 

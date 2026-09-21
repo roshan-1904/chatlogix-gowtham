@@ -144,6 +144,9 @@ describe('runLlm2', () => {
     const call = createMock.mock.calls[0][0];
     expect(call.model).toBe('gpt-4.1-mini');
     expect(call.max_completion_tokens).toBe(300);
+    const promptText = JSON.stringify(call.messages);
+    expect(promptText).toContain('At most one emoji');
+    expect(promptText).toContain('drop any emoji in the draft');
     expect(call.response_format.json_schema.strict).toBe(true);
     expect(result).toEqual({ skipped: false, finalReply: 'polished reply', promptTokens: 300, completionTokens: 40 });
   });

@@ -241,6 +241,9 @@ export function buildVendorRulesBlock(vendorConfig: VendorConfig): string {
   );
   parts.push('- draftReply must be no more than about 120 words.');
   parts.push(
+    '- Emoji: this rule overrides Personality and Tone example. No emoji on questions, clarifications, prices, cart updates, address or delivery asks, apologies, or cancellations. At most one emoji, and only when the customer just placed the order, or they thanked you or complimented you. Never a smiley and a heart on the same message.'
+  );
+  parts.push(
     '- Set "language" to an ISO 639-1 code for the customer\'s latest message (e.g. en, hi, ta, ml, kn, te, bn, gu, or mixed for code-switching).'
   );
   parts.push(
