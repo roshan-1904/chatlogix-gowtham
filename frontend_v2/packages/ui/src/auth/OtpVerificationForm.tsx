@@ -1,8 +1,8 @@
-import { UseFormReturn } from 'react-hook-form';
-import { Button } from '@chatlogix/ui';
+import type { UseFormReturn } from 'react-hook-form';
 import { useRef, useEffect, useState } from 'react';
+import { Button } from '../primitives';
 
-interface OtpVerificationFormProps {
+export interface OtpVerificationFormProps {
   form: UseFormReturn<{ otp: string }>;
   onSubmit: (data: { otp: string }) => void;
   phoneNumber: string;
@@ -29,17 +29,14 @@ export function OtpVerificationForm({
   const autoSubmittedOtp = useRef<string | null>(null);
 
   useEffect(() => {
-    // Focus first input on mount
     inputRefs.current[0]?.focus();
   }, []);
 
   useEffect(() => {
-    // Update form value when OTP changes (without validation until submit)
     const otpString = otpValues.join('');
     form.setValue('otp', otpString, { shouldValidate: false });
   }, [otpValues, form]);
 
-  // Timer countdown for resend
   useEffect(() => {
     if (resendTimer > 0) {
       const timer = setTimeout(() => {
@@ -55,7 +52,6 @@ export function OtpVerificationForm({
     setHasSubmitted(true);
     const otpString = otpValues.join('');
 
-    // Validate before submitting
     if (otpString.length !== 6) {
       form.setValue('otp', otpString, { shouldValidate: true });
       return;
@@ -68,17 +64,17 @@ export function OtpVerificationForm({
 
   const handleResend = async () => {
     if (resendTimer > 0 || isResending) return;
-    
+
     setIsResending(true);
     try {
       await onResend();
-      setResendTimer(30); // Reset timer
-      setOtpValues(['', '', '', '', '', '']); // Clear OTP inputs
+      setResendTimer(30);
+      setOtpValues(['', '', '', '', '', '']);
       form.reset();
       setHasSubmitted(false);
       autoSubmittedOtp.current = null;
-      inputRefs.current[0]?.focus(); // Focus first input
-    } catch (error) {
+      inputRefs.current[0]?.focus();
+    } catch {
       // Error handling is done in parent component
     } finally {
       setIsResending(false);
@@ -121,7 +117,6 @@ export function OtpVerificationForm({
 
   const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Backspace' && !otpValues[index] && index > 0) {
-      // Move to previous input on backspace if current is empty
       inputRefs.current[index - 1]?.focus();
     } else if (e.key === 'ArrowLeft' && index > 0) {
       inputRefs.current[index - 1]?.focus();
@@ -137,7 +132,6 @@ export function OtpVerificationForm({
   };
 
   const handleFocus = (index: number) => {
-    // Select all text when focusing
     inputRefs.current[index]?.select();
   };
 
@@ -161,16 +155,18 @@ export function OtpVerificationForm({
             Change
           </button>
         </div>
-        
+
         <label className="block text-sm font-medium text-gray-700 mb-3">
           Verification Code
         </label>
-        
+
         <div className="flex justify-center gap-2 sm:gap-3">
           {otpValues.map((value, index) => (
             <input
               key={index}
-              ref={(el) => (inputRefs.current[index] = el)}
+              ref={(el) => {
+                inputRefs.current[index] = el;
+              }}
               type="text"
               inputMode="numeric"
               maxLength={1}
@@ -197,29 +193,29 @@ export function OtpVerificationForm({
             />
           ))}
         </div>
-        
+
         {showError && (
           <p className="mt-2 text-sm text-red-600">{form.formState.errors.otp?.message}</p>
         )}
       </div>
 
       <div className="space-y-3">
-        <Button 
-          type="submit" 
-          disabled={isLoading || !isComplete} 
-          isLoading={isLoading} 
+        <Button
+          type="submit"
+          disabled={isLoading || !isComplete}
+          isLoading={isLoading}
           className="w-full"
         >
           {isLoading ? 'Verifying...' : submitLabel}
         </Button>
-        
+
         <div className="text-center">
           <p className="text-sm text-gray-600 mb-2">
-            Didn't receive the code?
+            Didn&apos;t receive the code?
           </p>
           <button
             type="button"
-            onClick={handleResend}
+            onClick={() => void handleResend()}
             disabled={resendTimer > 0 || isResending || isLoading}
             className="text-sm text-primary-500 hover:opacity-80 font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
@@ -234,4 +230,3 @@ export function OtpVerificationForm({
     </form>
   );
 }
-

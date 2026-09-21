@@ -8,3 +8,4 @@ export * from './hooks';
 // Re-export for convenience
 export { AuthProvider, useAuth } from './AuthContext';
 export { useLogin, useSignup, useLogout, useHasRole, useHasAnyRole, useHasAllRoles } from './hooks';
+export { executeFirebaseRecaptcha } from './firebaseRecaptcha';

@@ -42,7 +42,7 @@ const ALL_COUNTRIES: Country[] = [
   { code: 'ID', dialCode: '+62', name: 'Indonesia', flag: '🇮🇩' },
 ];
 
-interface CountryCodeSelectorProps {
+export interface CountryCodeSelectorProps {
   value: string;
   onChange: (dialCode: string) => void;
   disabled?: boolean;
@@ -183,4 +183,3 @@ export function CountryCodeSelector({ value, onChange, disabled }: CountryCodeSe
     </div>
   );
 }
-

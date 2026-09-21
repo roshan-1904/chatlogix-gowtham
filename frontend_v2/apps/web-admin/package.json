@@ -20,13 +20,14 @@
     "@chatlogix/schemas": "file:../../packages/schemas",
     "@chatlogix/ui": "file:../../packages/ui",
     "@chatlogix/utils": "file:../../packages/utils",
+    "@hookform/resolvers": "^3.10.0",
     "@tanstack/react-query": "^5.17.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.49.3",
     "react-router-dom": "^7.9.5",
-    "zustand": "^4.4.7",
-    "zod": "^3.23.8"
+    "zod": "^3.23.8",
+    "zustand": "^4.4.7"
   },
   "devDependencies": {
     "@types/react": "^18.3.7",
@@ -44,4 +45,3 @@
     "vite": "^5.1.0"
   }
 }
-

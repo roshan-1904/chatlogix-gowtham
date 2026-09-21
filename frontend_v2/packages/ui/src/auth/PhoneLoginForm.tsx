@@ -1,8 +1,8 @@
-import { UseFormReturn } from 'react-hook-form';
-import { Button, Input } from '@chatlogix/ui';
+import type { UseFormReturn } from 'react-hook-form';
+import { Button, Input } from '../primitives';
 import { CountryCodeSelector } from './CountryCodeSelector';
 
-interface PhoneLoginFormProps {
+export interface PhoneLoginFormProps {
   form: UseFormReturn<{ countryCode: string; phone: string }>;
   onSubmit: (data: { countryCode: string; phone: string }) => void;
   isLoading: boolean;
