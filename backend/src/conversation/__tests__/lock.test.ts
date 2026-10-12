@@ -1,8 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const getRedisClientMock = vi.fn();
-vi.mock('../../utils/redis.js', () => ({
-  getRedisClient: () => getRedisClientMock()
+const queryRaw = vi.fn();
+const executeRaw = vi.fn();
+
+vi.mock('../../db/prisma.js', () => ({
+  prisma: {
+    $queryRaw: (strings: TemplateStringsArray, ...values: unknown[]) => queryRaw(strings, ...values),
+    $executeRaw: (strings: TemplateStringsArray, ...values: unknown[]) => executeRaw(strings, ...values)
+  }
 }));
 
 vi.mock('../../logger.js', () => ({
@@ -24,53 +29,53 @@ beforeEach(() => {
 });
 
 describe('acquireLock', () => {
-  it('§26 test 14: throws LockUnavailableError (fails closed) when Redis is unreachable, never proceeds without a lock', async () => {
-    getRedisClientMock.mockReturnValue(null);
+  it('throws LockUnavailableError (fails closed) when the database statement errors, never proceeds without a lock', async () => {
+    queryRaw.mockRejectedValue(new Error('ECONNRESET'));
 
     await expect(acquireLock(CONVERSATION_ID)).rejects.toThrow(LockUnavailableError);
   });
 
-  it('throws LockUnavailableError when the SET command itself errors, not just when the client is missing', async () => {
-    getRedisClientMock.mockReturnValue({ set: vi.fn().mockRejectedValue(new Error('ECONNRESET')) });
-
-    await expect(acquireLock(CONVERSATION_ID)).rejects.toThrow(LockUnavailableError);
-  });
-
-  it('§26 test 15: throws LockContentionError (not LockUnavailableError) when Redis is reachable but the key is already held', async () => {
-    getRedisClientMock.mockReturnValue({ set: vi.fn().mockResolvedValue(null) }); // SET NX returns null when the key exists
+  it('throws LockContentionError when a live lock row is already held', async () => {
+    queryRaw.mockResolvedValue([]);
 
     await expect(acquireLock(CONVERSATION_ID)).rejects.toThrow(LockContentionError);
   });
 
   it('uses DEFAULT_LOCK_TTL_MS (300s) when ttlMs is omitted', async () => {
-    const set = vi.fn().mockResolvedValue('OK');
-    getRedisClientMock.mockReturnValue({ set });
+    queryRaw.mockImplementation(async (_strings: TemplateStringsArray, _conversationId: string, token: string) => [{ token }]);
 
     await acquireLock(CONVERSATION_ID);
 
     expect(DEFAULT_LOCK_TTL_MS).toBe(300_000);
-    expect(set).toHaveBeenCalledWith('lock:conv:conv-1', expect.any(String), 'PX', 300_000, 'NX');
+    const expiresAt = queryRaw.mock.calls[0][3] as Date;
+    const ttl = expiresAt.getTime() - Date.now();
+    expect(ttl).toBeGreaterThan(299_000);
+    expect(ttl).toBeLessThan(301_000);
   });
 
-  it('returns a token and calls SET with NX+PX when the lock is free', async () => {
-    const set = vi.fn().mockResolvedValue('OK');
-    getRedisClientMock.mockReturnValue({ set });
+  it('returns a token when the insert wins', async () => {
+    queryRaw.mockImplementation(async (_strings: TemplateStringsArray, _conversationId: string, token: string) => [{ token }]);
 
     const handle = await acquireLock(CONVERSATION_ID, 60_000);
 
     expect(handle.token).toEqual(expect.any(String));
-    expect(set).toHaveBeenCalledWith('lock:conv:conv-1', handle.token, 'PX', 60_000, 'NX');
+    const sql = (queryRaw.mock.calls[0][0] as TemplateStringsArray).join(' ');
+    expect(sql).toContain('ON CONFLICT');
+    expect(queryRaw.mock.calls[0][1]).toBe(CONVERSATION_ID);
+    expect(queryRaw.mock.calls[0][2]).toBe(handle.token);
+    const expiresAt = queryRaw.mock.calls[0][3] as Date;
+    const ttl = expiresAt.getTime() - Date.now();
+    expect(ttl).toBeGreaterThan(59_000);
+    expect(ttl).toBeLessThan(61_000);
   });
 
-  it('two concurrent acquire attempts on the same conversation: only the first succeeds (§26 test 15)', async () => {
-    // Simulate a real Redis NX: the first SET wins, the second sees the key already set.
+  it('two concurrent acquire attempts on the same conversation: only the first succeeds', async () => {
     let held: string | null = null;
-    const set = vi.fn(async (_key: string, value: string) => {
-      if (held) return null;
-      held = value;
-      return 'OK';
+    queryRaw.mockImplementation(async (_strings: TemplateStringsArray, _conversationId: string, token: string) => {
+      if (held) return [];
+      held = token;
+      return [{ token }];
     });
-    getRedisClientMock.mockReturnValue({ set });
 
     const first = await acquireLock(CONVERSATION_ID);
     expect(first.token).toBeDefined();
@@ -79,22 +84,20 @@ describe('acquireLock', () => {
 });
 
 describe('releaseLock', () => {
-  it('releases via the token-checked script (does not blindly DEL)', async () => {
-    const evalMock = vi.fn().mockResolvedValue(1);
-    getRedisClientMock.mockReturnValue({ eval: evalMock });
+  it('deletes only the row whose token matches', async () => {
+    executeRaw.mockResolvedValue(1);
 
     await releaseLock(CONVERSATION_ID, 'my-token');
 
-    expect(evalMock).toHaveBeenCalledWith(expect.stringContaining('redis.call("GET"'), 1, 'lock:conv:conv-1', 'my-token');
+    const sql = (executeRaw.mock.calls[0][0] as TemplateStringsArray).join(' ');
+    expect(sql).toContain('DELETE FROM "ConversationLock"');
+    expect(sql).toContain('"token"');
+    expect(executeRaw.mock.calls[0][1]).toBe(CONVERSATION_ID);
+    expect(executeRaw.mock.calls[0][2]).toBe('my-token');
   });
 
-  it('does not throw when Redis is unavailable', async () => {
-    getRedisClientMock.mockReturnValue(null);
-    await expect(releaseLock(CONVERSATION_ID, 'my-token')).resolves.toBeUndefined();
-  });
-
-  it('does not throw when the eval call itself errors', async () => {
-    getRedisClientMock.mockReturnValue({ eval: vi.fn().mockRejectedValue(new Error('down')) });
+  it('does not throw when the delete errors', async () => {
+    executeRaw.mockRejectedValue(new Error('down'));
     await expect(releaseLock(CONVERSATION_ID, 'my-token')).resolves.toBeUndefined();
   });
 });

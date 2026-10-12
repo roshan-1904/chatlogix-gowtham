@@ -19,8 +19,8 @@ import { faqsRouter } from './routes/faqs.js';
 import { customerQueriesRouter } from './routes/customerQueries.js';
 import { catalogImportRouter } from './routes/catalogImport.js';
 import { catalogEnhanceRouter } from './routes/catalogEnhance.js';
-import swaggerUi from 'swagger-ui-express';
 import { openApiSpec } from './docs/openapi.js';
+import { mountSwagger } from './docs/swagger.js';
 import { authRouter } from './routes/auth.js';
 import { vendorOnboardingRouter } from './routes/vendorOnboarding.js';
 import { vendorWalletRouter } from './routes/vendorWallet.js';
@@ -106,37 +106,19 @@ async function bootstrap() {
   // accepts header or query and falls through to the kill switch.
   app.use('/api/catalog-import', catalogImportRouter);
   app.use('/api/catalog-enhance', authenticate, catalogEnhanceRouter);
+
+  // Mount before the `/api` routers below. Those attach `authenticate` to
+  // every `/api/*` path, so a later `/api/docs` mount never runs and the
+  // public URL comes back 401.
+  if (env.ENABLE_SWAGGER === 'true' || env.NODE_ENV !== 'production') {
+    mountSwagger(app, '/docs', openApiSpec);
+    mountSwagger(app, '/api/docs', openApiSpec);
+    app.get('/openapi.json', (_req, res) => res.json(openApiSpec));
+  }
+
   app.use('/api', authenticate, paymentsRouter);
   app.use('/api', authenticate, shippingRouter);
   app.use('/api/admin/settings', authenticate, requireRole('admin'), adminSettingsRouter);
-
-  if (env.ENABLE_SWAGGER === 'true' || env.NODE_ENV !== 'production') {
-    app.get('/openapi.json', (req, res) => res.json(openApiSpec));
-    app.get('/docs/openapi.json', (req, res) => res.json(openApiSpec));
-    app.use('/docs', swaggerUi.serve, swaggerUi.setup(openApiSpec, {
-      customCss: '.swagger-ui .topbar { display: none }',
-      customSiteTitle: 'ChatLogix API Documentation',
-      swaggerOptions: {
-        // Relative, not '/openapi.json': nginx proxies this whole router under
-        // /api/docs (not /docs), and an absolute path resolves against the
-        // public origin, missing that prefix and falling through to the
-        // frontend SPA. A relative path resolves against wherever /docs is
-        // actually mounted, proxied or not.
-        url: 'openapi.json',
-        persistAuthorization: true,
-        displayRequestDuration: true,
-        tryItOutEnabled: true,
-        supportedSubmitMethods: ['get', 'post', 'put', 'delete', 'patch'],
-        validatorUrl: null, // Disable validator to avoid HTTPS issues
-        onComplete: function() {
-          // Swagger UI loaded
-        },
-        onFailure: function(error: any) {
-          logger.error({ error }, 'Swagger UI failed to load');
-        }
-      }
-    }));
-  }
 
   // Error handling middleware (must be last)
   app.use(notFoundHandler);

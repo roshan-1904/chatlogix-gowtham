@@ -1,9 +1,9 @@
 # Incoming Response Generator — How We Prepare a WhatsApp Reply
 
 <!-- DOC_SYNC
-  last_verified_commit: c947e6580ce5f7ecc502147f0aeb06a92e6479e1
-  last_verified_at: 2026-09-22
-  scope: As-implemented incoming-response-generator pipeline; live-cart cancel outcome; already-cancelled reply; set_field place-vs-update close; emoji only on place-order or positive feedback
+  last_verified_commit: 2a4dce8
+  last_verified_at: 2026-10-06
+  scope: As-implemented incoming-response-generator pipeline; conversation lock in Postgres (ConversationLock); live-cart cancel outcome; already-cancelled reply; set_field place-vs-update close; emoji only on place-order or positive feedback
 -->
 
 **Living document.** This describes the **as-implemented** text path in `chatlogix-incoming-response-generator`, not the locked design spec. When the pipeline in `backend/src/conversation/` changes, update this file in the same change (see `.cursor/rules/incoming-response-generator-flow.mdc`).
@@ -30,7 +30,7 @@
 | SQS batch handler | `backend/src/conversation/handler.ts` |
 | End-to-end orchestration | `backend/src/conversation/pipeline.ts` |
 | Vendor / customer / conversation | `backend/src/conversation/identity.ts` |
-| Redis conversation lock | `backend/src/conversation/lock.ts` |
+| Postgres conversation lock | `backend/src/conversation/lock.ts` |
 | Inbound idempotency | `backend/src/conversation/idempotency.ts` |
 | Burst merge | `backend/src/conversation/burstMerge.ts` |
 | Hot-set prefetch | `backend/src/conversation/prefetch.ts` |
@@ -111,12 +111,12 @@ Actual code order (identity **before** lock — the spec’s “step 0 lock firs
 ```mermaid
 flowchart TD
   START([SQS TextMessage]) --> ID[1. resolveIdentity<br/>vendor + customer + open conversation]
-  ID --> LOCK{2. acquire Redis lock<br/>lock:conv:conversationId TTL 300s}
+  ID --> LOCK{2. acquire Postgres lock<br/>ConversationLock TTL 300s}
 
   LOCK -->|LockContention| STASH[stashForBurstMerge<br/>Redis list TTL 300s]
   STASH -->|stash ok| ACK[ACK SQS — lock-holder will coalesce]
   STASH -->|Redis down| RETRY[throw → SQS retry]
-  LOCK -->|LockUnavailable Redis down| RETRY
+  LOCK -->|LockUnavailable store down| RETRY
   LOCK -->|OK| INB[3. upsertInboundMessage<br/>unique whatsappMessageId]
   INB --> EN[3b. ensureMessageContentEn<br/>fire-and-forget → Message.contentEn]
 
@@ -193,8 +193,8 @@ If webhook copied Meta’s `phone_number_id` into `vendorId`, and that is not a 
 | Duplicate `whatsappMessageId` | ACK. No second reply, no second debit. |
 | `conversation.aiPaused` | Store inbound. Silent. Vendor replies in the dashboard. |
 | Wallet insufficient (`canProcessMessage`: balance must cover a worst-case turn estimate, LLM-1 + LLM-2 at the vendor's markup, plus worst-case product media) — or `trial_expired` for an unapproved vendor past `trialExpiresAt` | Send `WALLET_EMPTY_TEMPLATE`. No LLM, no debit. |
-| Redis lock held | `stashForBurstMerge`, then throw → SQS retry. |
-| Redis down | Fail closed. Throw. SQS retry. Never mutate the cart unlocked. |
+| Postgres lock held | `stashForBurstMerge`, then throw → SQS retry. With Redis unset the stash returns false and the message retries on SQS instead of being coalesced. |
+| Lock store down | Fail closed. Throw. SQS retry. Never mutate the cart unlocked. |
 
 The wallet is **checked** here and **charged only after** the reply is queued (`billing.ts`). Because the gate uses an estimate and the charge uses actual token usage, a balance can end up slightly negative when a turn overruns the estimate; the next turn's gate is what stops it.
 

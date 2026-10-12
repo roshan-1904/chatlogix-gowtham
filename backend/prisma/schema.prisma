@@ -126,6 +126,18 @@ model Conversation {
   @@map("Conversation")
 }
 
+// One row per conversation. The holder is the token; a crashed Lambda's row
+// stops winning once expiresAt passes. Used instead of Redis so the pipeline
+// can run without ElastiCache.
+model ConversationLock {
+  conversationId String   @id
+  token          String
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+
+  @@map("ConversationLock")
+}
+
 model Message {
   id                    String                @id @default(uuid())
   conversationId        String

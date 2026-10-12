@@ -2,42 +2,20 @@ import { env } from '../config/env.js';
 
 // Dynamically set servers based on environment
 const getServers = () => {
-  const isDevelopment = env.NODE_ENV !== 'production';
   const localUrl = `http://localhost:${env.PORT}`;
-  
-  if (isDevelopment) {
-    // In development, put localhost first
+  const productionUrl = 'https://api.chatlogix.in';
+
+  if (env.NODE_ENV !== 'production') {
     return [
-      { 
-        url: localUrl,
-        description: 'Local Development'
-      },
-      { 
-        url: 'http://65.1.191.185:3000',
-        description: 'Production Server (HTTP)'
-      },
-      { 
-        url: 'https://65.1.191.185:3000',
-        description: 'Production Server (HTTPS)'
-      }
-    ];
-  } else {
-    // In production, put production servers first
-    return [
-      { 
-        url: 'http://65.1.191.185:3000',
-        description: 'Production Server (HTTP)'
-      },
-      { 
-        url: 'https://65.1.191.185:3000',
-        description: 'Production Server (HTTPS)'
-      },
-      { 
-        url: localUrl,
-        description: 'Local Development'
-      }
+      { url: localUrl, description: 'Local Development' },
+      { url: productionUrl, description: 'Production' },
     ];
   }
+
+  return [
+    { url: productionUrl, description: 'Production' },
+    { url: localUrl, description: 'Local Development' },
+  ];
 };
 
 export const openApiSpec: any = {
