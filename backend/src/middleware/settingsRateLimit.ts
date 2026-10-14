@@ -1,4 +1,4 @@
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import RedisStore from 'rate-limit-redis';
 import { getRedisClient } from '../utils/redis.js';
 
@@ -32,7 +32,7 @@ export const settingsRateLimit = rateLimit({
   keyGenerator: (req) => {
     // Use vendorId if available, otherwise use IP address
     const vendorId = (req as any).user?.vendorId;
-    return vendorId ? `vendor:${vendorId}` : `ip:${req.ip}`;
+    return vendorId ? `vendor:${vendorId}` : `ip:${ipKeyGenerator(req.ip ?? '')}`;
   },
   handler: (req, res) => {
     const resetTime = (req as any).rateLimit?.resetTime || Date.now() + 60000;
