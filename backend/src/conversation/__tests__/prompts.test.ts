@@ -47,6 +47,7 @@ function makeHotSet(overrides: Partial<HotSet> = {}): HotSet {
     memory: null,
     pendingOrder: null,
     orderHistory: [],
+    orderPaymentStatuses: [],
     faqs: [],
     insights: null,
     recentMessages: [],
@@ -150,6 +151,26 @@ describe('buildLlm1SystemPrompt', () => {
   it('reflects an empty cart when there is no pending order', () => {
     const prompt = buildLlm1SystemPrompt(makeHotSet());
     expect(prompt).toContain('(empty)');
+  });
+
+  it('surfaces ORDER PAYMENT STATUS for managed-collection payment questions', () => {
+    const prompt = buildLlm1SystemPrompt(
+      makeHotSet({
+        orderPaymentStatuses: [
+          {
+            orderId: 'ord-1',
+            orderNumber: 'ORD-99',
+            orderStatus: 'awaiting_payment',
+            paymentMethod: 'razorpay',
+            paymentStatus: 'link_pending',
+            amountPaise: 25000
+          }
+        ]
+      })
+    );
+    expect(prompt).toContain('ORDER PAYMENT STATUS');
+    expect(prompt).toContain('ORD-99');
+    expect(prompt).toContain('link_pending');
   });
 
   it('renders pending order items and total in the dynamic block', () => {

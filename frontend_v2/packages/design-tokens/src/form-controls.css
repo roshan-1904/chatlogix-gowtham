@@ -1,0 +1,51 @@
+/**
+ * Light-theme form controls for all ChatLogix web portals.
+ * Import after each app's index.css (see main.tsx) so rules apply after Tailwind preflight.
+ *
+ * Portals are light-only; without this, OS dark mode can paint native inputs dark while
+ * Tailwind keeps dark text, making values unreadable.
+ */
+:root {
+  color-scheme: light;
+}
+
+input,
+textarea,
+select,
+option {
+  color: #111827; /* text-gray-900 */
+}
+
+input:not([type]),
+input[type='text'],
+input[type='email'],
+input[type='password'],
+input[type='number'],
+input[type='tel'],
+input[type='url'],
+input[type='search'],
+input[type='date'],
+input[type='time'],
+input[type='datetime-local'],
+textarea,
+select {
+  color: #111827;
+  background-color: #ffffff;
+}
+
+input:disabled,
+textarea:disabled,
+select:disabled {
+  color: #6b7280; /* text-gray-500 */
+  background-color: #f3f4f6; /* bg-gray-100 */
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #9ca3af; /* text-gray-400 */
+}
+
+select option {
+  color: #111827;
+  background-color: #ffffff;
+}

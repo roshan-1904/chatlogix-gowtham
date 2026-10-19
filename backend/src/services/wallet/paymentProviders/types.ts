@@ -1,6 +1,6 @@
 export type WalletTopUpClientAction =
   | { type: 'mock_confirm'; intentId: string }
-  | { type: 'razorpay_checkout'; orderId: string; amountMilli: number };
+  | { type: 'razorpay_checkout'; orderId: string; amountMilli: number; keyId: string };
 
 export interface WalletPaymentProvider {
   readonly name: 'mock' | 'razorpay';

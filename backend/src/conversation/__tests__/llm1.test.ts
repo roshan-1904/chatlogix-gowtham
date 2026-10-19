@@ -81,6 +81,7 @@ const hotSet: HotSet = {
   memory: null,
   pendingOrder: null,
   orderHistory: [],
+  orderPaymentStatuses: [],
   faqs: [],
   insights: null,
   recentMessages: []

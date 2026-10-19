@@ -3,6 +3,7 @@ import type { BadgeVariant } from '@chatlogix/ui';
 // Status badge colors
 export const statusColors: Record<string, BadgeVariant> = {
   pending: 'warning',      // Yellow
+  awaiting_payment: 'warning',
   confirmed: 'info',       // Blue
   preparing: 'warning',    // Orange/Yellow
   ready: 'info',           // Blue
@@ -14,6 +15,7 @@ export const statusColors: Record<string, BadgeVariant> = {
 // Status labels for display
 export const statusLabels: Record<string, string> = {
   pending: 'Pending',
+  awaiting_payment: 'Awaiting Payment',
   confirmed: 'Confirmed',
   preparing: 'Preparing',
   ready: 'Ready',
@@ -24,7 +26,8 @@ export const statusLabels: Record<string, string> = {
 
 // Valid status transitions
 export const validStatusTransitions: Record<string, string[]> = {
-  pending: ['confirmed', 'cancelled'],
+  pending: ['confirmed', 'awaiting_payment', 'cancelled'],
+  awaiting_payment: ['confirmed', 'cancelled'],
   confirmed: ['preparing', 'cancelled'],
   preparing: ['ready', 'cancelled'],
   ready: ['out_for_delivery', 'cancelled'],

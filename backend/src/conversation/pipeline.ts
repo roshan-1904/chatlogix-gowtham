@@ -49,6 +49,8 @@ function renderPostSalesReply(outcome: PostSalesOutcome): string {
   switch (outcome.type) {
     case 'refund_approved':
       return `Your refund for order ${outcome.orderNumber} has been approved. ${outcome.detail}`;
+    case 'refund_request_received':
+      return `Thanks — we've noted your refund request for order ${outcome.orderNumber}. ${outcome.detail}`;
     case 'refund_denied':
       return `I'm sorry, order ${outcome.orderNumber} isn't eligible for an automatic refund — ${outcome.detail} I've let the team know to take a look.`;
     case 'order_cancelled':
@@ -453,7 +455,8 @@ export async function processMessage(
       catalogSliceSize: catalogSlice.length,
       promptCatalogSliceSize: promptCatalogSlice?.length ?? catalogSlice.length,
       mergedContent,
-      coalescedWhatsappMessageIds: coalesced.whatsappMessageIds
+      coalescedWhatsappMessageIds: coalesced.whatsappMessageIds,
+      orderPaymentStatuses: hotSet.orderPaymentStatuses
     });
 
     // Step 4: LLM-1 -- ops + draft reply.
@@ -496,6 +499,20 @@ export async function processMessage(
       throw error;
     }
     logStage('cart_apply_done', { traceId, vendorId, conversationId }, { mutated: applyResult.mutated });
+
+    const preApplyTotalPaise = hotSet.pendingOrder?.totalPaise;
+    if (!sandbox && applyResult.mutated) {
+      const { handleOrderPaymentLinksAfterCartApply } = await import('./orderPaymentPipeline.js');
+      await handleOrderPaymentLinksAfterCartApply({
+        vendorId,
+        conversationId,
+        phoneNumberId: input.phoneNumberId,
+        orderId: applyResult.snapshot.orderId,
+        mutated: applyResult.mutated,
+        ops: normalizedOps,
+        previousTotalPaise: preApplyTotalPaise
+      });
+    }
     logTurnAudit(turnAuditEnabled, auditCtx, 'cart_apply', {
       normalizedOps,
       mutated: applyResult.mutated,

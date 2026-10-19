@@ -1,9 +1,9 @@
 # Incoming Response Generator — How We Prepare a WhatsApp Reply
 
 <!-- DOC_SYNC
-  last_verified_commit: 2a4dce8
-  last_verified_at: 2026-10-06
-  scope: As-implemented incoming-response-generator pipeline; conversation lock in Postgres (ConversationLock); live-cart cancel outcome; already-cancelled reply; set_field place-vs-update close; emoji only on place-order or positive feedback
+  last_verified_commit: stage-8-cod-chat
+  last_verified_at: 2026-10-19
+  scope: As-implemented incoming-response-generator pipeline; managed order payment status in hot set; orderPaymentPipeline auto-send gate; conversation lock in Postgres (ConversationLock)
 -->
 
 **Living document.** This describes the **as-implemented** text path in `chatlogix-incoming-response-generator`, not the locked design spec. When the pipeline in `backend/src/conversation/` changes, update this file in the same change (see `.cursor/rules/incoming-response-generator-flow.mdc`).
@@ -135,7 +135,8 @@ flowchart TD
   CTX --> LLM1[9. LLM-1: ops + draftReply<br/>prompt uses catalogSlice]
   LLM1 --> NORM[9b. normalizeSetFieldOps<br/>name/address/notes → English/Latin]
   NORM --> CART[10. CartEngine.apply in one Postgres txn]
-  CART --> BRANCH{11. Which reply path?}
+  CART --> PAY[10b. orderPaymentPipeline<br/>auto payment link if collection on]
+  PAY --> BRANCH{11. Which reply path?}
 
   BRANCH -->|ops contains handoff| HO[triggerHandoff<br/>pause AI + canned customer copy]
   BRANCH -->|postSalesOutcome set| PS[renderPostSalesReply<br/>deterministic money copy]
@@ -374,7 +375,11 @@ flowchart TD
 
 **Confirm:** requires name + address + ≥1 item. Status stays `pending`. AI never sets `estimatedDelivery`.
 
-**Cancel / refund:** `orderNumber` is scoped to `customerId` + `vendorId`. A successful cancel of a `pending` or `confirmed` order — including a live-cart cancel with no `orderNumber` — sets `postSalesOutcome: order_cancelled`. A target that is already `cancelled` sets `already_cancelled` (no vendor alert). Any other non-cancellable status sets `not_cancellable_at_this_stage` and alerts the vendor. Refund auto-approves only if status is `pending`/`confirmed` **and** placed within 7 days. Otherwise `postSalesOutcome: refund_denied`. CartEngine never sends messages; it only reports state. The snapshot's `orderPlaced` is true when `confirmedAt` is set, status is past `pending`, or a prior audit action includes `confirm` (customer confirm leaves status `pending`).
+**Online collection (phases 5 + 8):** When `Vendor.paymentsManagedByChatlogix` is true and the customer did not choose COD (`CustomerInsights.paymentPreferences`), a successful `confirm` sets `Order.status` to `awaiting_payment` (not `pending`). If `paymentLinkAutoSend` is on, `orderPaymentPipeline.ts` creates a Razorpay Payment Link and queues `sendPaymentLink` (utility template outside the 24h window). When auto-send is off, the shop sends the link from the dashboard — the bot does not queue one. Cart edits while `awaiting_payment` cancel the open link and issue a new one for the updated total the same way.
+
+**Payment status in chat (phase 8):** `prefetchHotSet` loads `orderPaymentStatuses` from Postgres (`CustomerPayment`, open `PaymentLink`, and `cash_collected` audit rows) when collection is on. LLM-1’s dynamic prompt block **ORDER PAYMENT STATUS** grounds “did my payment go through?” answers — no Razorpay API on the customer message. Turn audit `context_plan` includes the same array for debugging.
+
+**Cancel / refund:** `orderNumber` is scoped to `customerId` + `vendorId`. A successful cancel of a `pending`, `awaiting_payment`, or `confirmed` order — including a live-cart cancel with no `orderNumber` — sets `postSalesOutcome: order_cancelled`. A target that is already `cancelled` sets `already_cancelled` (no vendor alert). Any other non-cancellable status sets `not_cancellable_at_this_stage` and alerts the vendor. Refund auto-approves only if status is `pending`/`confirmed` **and** placed within 7 days. Otherwise `postSalesOutcome: refund_denied`. CartEngine never sends messages; it only reports state. The snapshot's `orderPlaced` is true when `confirmedAt` is set, status is past `pending`, or a prior audit action includes `confirm` (customer confirm leaves status `pending`).
 
 `handoff` / `knowledge_gap` / `noop` are no-ops inside the engine. Handoff and knowledge-gap persist are handled in `pipeline.ts` after apply.
 

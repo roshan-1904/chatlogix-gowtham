@@ -14,6 +14,9 @@ import { PaymentLinkModal } from '../components/orders/modals/PaymentLinkModal';
 import { ShippingModal } from '../components/orders/modals/ShippingModal';
 import { useModal } from '../hooks/useModal';
 import { navigateToConversation } from '../utils/navigation';
+import { createShopFundingIntent, requestOrderRefund } from '../lib/refunds';
+import { openRazorpayCheckout } from '../lib/razorpayCheckout';
+import toast from 'react-hot-toast';
 
 export function OrderDetails() {
   const { orderId } = useParams<{ orderId: string }>();
@@ -26,10 +29,11 @@ export function OrderDetails() {
     return saved !== null ? JSON.parse(saved) : true;
   });
   const [paymentLink, setPaymentLink] = useState<string | null>(null);
-  const [paymentStatus] = useState<'pending' | 'paid' | 'expired' | 'failed'>('pending');
   const [shippingStatus, setShippingStatus] = useState<'not_created' | 'created' | 'in_transit' | 'delivered'>('not_created');
   const [trackingNumber, setTrackingNumber] = useState<string | null>(null);
   const [shippingPartner] = useState<string | null>(null);
+  const [refundBusy, setRefundBusy] = useState(false);
+  const [awaitingFundingRefundId, setAwaitingFundingRefundId] = useState<string | null>(null);
 
   const conversationModal = useModal();
   const paymentLinkModal = useModal();
@@ -53,6 +57,8 @@ export function OrderDetails() {
       try {
         const orderData = await orderService.getOrderDetails(orderId);
         setOrder(orderData);
+        const linkUrl = orderData.payment?.paymentLinkUrl ?? null;
+        if (linkUrl) setPaymentLink(linkUrl);
       } catch (err: any) {
         const errorMessage = getErrorMessage(err);
         setError(errorMessage);
@@ -166,6 +172,58 @@ export function OrderDetails() {
   const items = parseOrderItems(order.items ?? [], totalAmountInRupees);
   const statusColor = statusColors[order.status] || 'default';
   const statusLabel = statusLabels[order.status] || order.status;
+  const paymentStatus = order.payment?.status ?? 'pending';
+  const paymentPaid = paymentStatus === 'captured' || paymentStatus === 'paid' || paymentStatus === 'partially_refunded';
+  const refundedPaise = order.payment?.refundedPaise ?? 0;
+  const capturedPaise = order.payment?.amountPaise ?? 0;
+  const refundRemainderPaise = capturedPaise > 0 ? capturedPaise - refundedPaise : 0;
+  const canRefund = paymentPaid && refundRemainderPaise > 0;
+
+  const handleRefund = async () => {
+    if (!order) return;
+    const confirmed = window.confirm(
+      `Refund ${formatAmountWithSymbol(refundRemainderPaise)} to the customer for this order?`
+    );
+    if (!confirmed) return;
+    setRefundBusy(true);
+    try {
+      const result = await requestOrderRefund(order.id, refundRemainderPaise);
+      if (result.status === 'awaiting_funding') {
+        setAwaitingFundingRefundId(result.refundId);
+        toast('Add funds to send this refund to the customer.');
+      } else {
+        toast.success('Refund submitted — the customer will be updated when it completes.');
+        const refreshed = await orderService.getOrderDetails(order.id);
+        setOrder(refreshed);
+      }
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err));
+    } finally {
+      setRefundBusy(false);
+    }
+  };
+
+  const handleShopFunding = async () => {
+    if (!awaitingFundingRefundId || !order) return;
+    setRefundBusy(true);
+    try {
+      const intent = await createShopFundingIntent(awaitingFundingRefundId);
+      await openRazorpayCheckout({
+        keyId: intent.clientAction.keyId,
+        orderId: intent.clientAction.orderId,
+        amountPaise: intent.clientAction.amountPaise,
+        description: 'Fund refund to customer'
+      });
+      toast.success('Payment received — finishing your refund…');
+      setAwaitingFundingRefundId(null);
+      const refreshed = await orderService.getOrderDetails(order.id);
+      setOrder(refreshed);
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err));
+    } finally {
+      setRefundBusy(false);
+    }
+  };
 
   return (
     <div className="p-1  max-w-7xl mx-auto h-full overflow-auto">
@@ -351,15 +409,53 @@ export function OrderDetails() {
           <Card title="Payment Information" className="!p-3 sm:!p-4">
             <div className="space-y-2">
               <div>
-                <Badge variant={paymentStatus === 'paid' ? 'success' : 'warning'} className="text-xs sm:text-sm">
-                  {paymentStatus === 'paid' ? 'Paid' : 'Pending'}
+                <Badge variant={paymentPaid ? 'success' : 'warning'} className="text-xs sm:text-sm">
+                  {paymentPaid ? 'Paid' : paymentStatus === 'pending' ? 'Awaiting payment' : paymentStatus}
                 </Badge>
               </div>
               <div>
                 <h4 className="text-xs sm:text-sm font-medium text-gray-700 mb-0.5">Amount</h4>
                 <p className="text-xs sm:text-sm text-gray-900">{formatAmountWithSymbol(totalAmountInPaise)}</p>
               </div>
-              {!paymentLink ? (
+              {order.payment?.netMilli && (
+                <div>
+                  <h4 className="text-xs sm:text-sm font-medium text-gray-700 mb-0.5">Settlement net</h4>
+                  <p className="text-xs sm:text-sm text-gray-900">₹{(Number(order.payment.netMilli) / 1000).toFixed(2)}</p>
+                  {order.payment.transferStatus && (
+                    <p className="text-xs text-gray-500">Transfer: {order.payment.transferStatus}</p>
+                  )}
+                </div>
+              )}
+              {canRefund && (
+                <div className="space-y-2 pt-1 border-t border-gray-100">
+                  {refundedPaise > 0 && (
+                    <p className="text-xs text-gray-500">
+                      Refunded so far: {formatAmountWithSymbol(refundedPaise)}
+                    </p>
+                  )}
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={refundBusy}
+                    onClick={() => void handleRefund()}
+                    className="w-full text-xs sm:text-sm"
+                  >
+                    Refund customer
+                  </Button>
+                  {awaitingFundingRefundId && (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      disabled={refundBusy}
+                      onClick={() => void handleShopFunding()}
+                      className="w-full text-xs sm:text-sm"
+                    >
+                      Add funds to send refund
+                    </Button>
+                  )}
+                </div>
+              )}
+              {!paymentPaid && !paymentLink ? (
                 <Button
                   variant="primary"
                   size="sm"
@@ -456,6 +552,30 @@ export function OrderDetails() {
           {/* Action Buttons */}
           <Card title="Actions" className="!p-3 sm:!p-4">
             <div className="space-y-2">
+              {order.status === 'awaiting_payment' && (
+                <>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => paymentLinkModal.open()}
+                    className="w-full text-xs sm:text-sm"
+                  >
+                    Send Payment Link
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      if (window.confirm('Are you sure you want to cancel this order?')) {
+                        handleStatusUpdate('cancelled');
+                      }
+                    }}
+                    className="w-full text-xs sm:text-sm"
+                  >
+                    Cancel Order
+                  </Button>
+                </>
+              )}
               {order.status === 'pending' && (
                 <>
                   <Button

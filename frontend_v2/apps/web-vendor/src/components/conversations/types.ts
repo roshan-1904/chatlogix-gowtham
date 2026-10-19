@@ -197,6 +197,17 @@ export interface Order {
   };
   productIds?: string[]; // Array of product IDs (for future mapping)
   productMapping?: { [productName: string]: string }; // Product name to ID mapping
+  payment?: {
+    status: string;
+    amountPaise: number;
+    netMilli: string | null;
+    transferStatus: string | null;
+    eligibleAt: string | null;
+    refundedPaise: number;
+    paymentLinkId?: string;
+    paymentLinkUrl?: string;
+    expiresAt?: string;
+  } | null;
 }
 
 /**

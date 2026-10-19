@@ -10,7 +10,17 @@ import {
   catalogPaiseLookInflated,
   deflateDoubleConvertedPaise
 } from '../services/catalogNormalizationService.js';
-import type { HotSet, VendorConfig, CompactCatalogEntry, ConvMemory, CartSnapshot, OrderHistoryEntry, FaqEntry } from './types.js';
+import type {
+  HotSet,
+  VendorConfig,
+  CompactCatalogEntry,
+  ConvMemory,
+  CartSnapshot,
+  OrderHistoryEntry,
+  FaqEntry,
+  OrderPaymentStatusEntry
+} from './types.js';
+import { isCodPaymentMethod } from '../services/payments/linkedAccountService.js';
 import { DEFAULT_CONVERSATION_MODEL } from './context/catalogContextConfig.js';
 
 /**
@@ -351,7 +361,7 @@ async function loadRecentMessages(conversationId: string): Promise<Array<{ role:
 
 async function loadPendingOrder(conversationId: string, customerName: string | null): Promise<CartSnapshot | null> {
   const order = await prisma.order.findFirst({
-    where: { conversationId, status: 'pending' },
+    where: { conversationId, status: { in: ['pending', 'awaiting_payment'] } },
     orderBy: { createdAt: 'desc' },
     select: { id: true, status: true, items: true, deliveryAddress: true }
   });
@@ -373,6 +383,99 @@ async function loadPendingOrder(conversationId: string, customerName: string | n
  * (estimatedDelivery/confirmedAt/preparedAt/deliveredAt/cancelledAt) that
  * one never selected.
  */
+async function loadOrderPaymentStatuses(
+  vendorId: string,
+  orders: Array<{
+    id: string;
+    orderNumber: string;
+    status: string;
+    paymentMethod: string | null;
+    totalAmount: number;
+  }>
+): Promise<OrderPaymentStatusEntry[]> {
+  if (orders.length === 0) return [];
+
+  const vendor = await prisma.vendor.findUnique({
+    where: { id: vendorId },
+    select: { paymentsManagedByChatlogix: true }
+  });
+  if (!vendor?.paymentsManagedByChatlogix) return [];
+
+  const orderIds = orders.map((o) => o.id);
+  const [payments, openLinks, cashCollectedRows] = await Promise.all([
+    prisma.customerPayment.findMany({
+      where: { orderId: { in: orderIds } },
+      orderBy: { capturedAt: 'desc' },
+      select: {
+        orderId: true,
+        status: true,
+        amountPaise: true,
+        refundedPaise: true,
+        capturedAt: true,
+        settlementAlert: true,
+        netMilli: true
+      }
+    }),
+    prisma.paymentLink.findMany({
+      where: { orderId: { in: orderIds }, status: 'created' },
+      orderBy: { createdAt: 'desc' },
+      select: { orderId: true, amountPaise: true, expiresAt: true }
+    }),
+    prisma.orderAuditLog.findMany({
+      where: { orderId: { in: orderIds }, action: 'cash_collected' },
+      select: { orderId: true }
+    })
+  ]);
+
+  const paymentByOrder = new Map<string, (typeof payments)[0]>();
+  for (const row of payments) {
+    if (!paymentByOrder.has(row.orderId)) paymentByOrder.set(row.orderId, row);
+  }
+  const linkByOrder = new Map<string, (typeof openLinks)[0]>();
+  for (const row of openLinks) {
+    if (!linkByOrder.has(row.orderId)) linkByOrder.set(row.orderId, row);
+  }
+  const cashCollected = new Set(cashCollectedRows.map((r) => r.orderId));
+
+  return orders.map((o) => {
+    const base = {
+      orderId: o.id,
+      orderNumber: o.orderNumber,
+      orderStatus: o.status,
+      paymentMethod: o.paymentMethod,
+      amountPaise: o.totalAmount
+    };
+
+    if (isCodPaymentMethod(o.paymentMethod) || o.paymentMethod === 'vendor_collected') {
+      return {
+        ...base,
+        paymentStatus: cashCollected.has(o.id) ? 'cash_collected' : 'cod_unpaid'
+      };
+    }
+
+    const captured = paymentByOrder.get(o.id);
+    if (captured && captured.netMilli > 0n && !captured.settlementAlert) {
+      return {
+        ...base,
+        paymentStatus: captured.status,
+        amountPaise: captured.amountPaise,
+        refundedPaise: captured.refundedPaise,
+        capturedAt: captured.capturedAt.toISOString()
+      };
+    }
+
+    if (linkByOrder.has(o.id)) {
+      return { ...base, paymentStatus: 'link_pending' };
+    }
+
+    if (o.status === 'awaiting_payment') {
+      return { ...base, paymentStatus: 'awaiting_payment' };
+    }
+
+    return { ...base, paymentStatus: 'no_payment_record' };
+  });
+}
+
 async function loadOrderHistory(customerId: string, vendorId: string): Promise<OrderHistoryEntry[]> {
   return prisma.order.findMany({
     where: { customerId, vendorId },
@@ -383,6 +486,7 @@ async function loadOrderHistory(customerId: string, vendorId: string): Promise<O
       orderNumber: true,
       items: true,
       totalAmount: true,
+      paymentMethod: true,
       status: true,
       createdAt: true,
       estimatedDelivery: true,
@@ -476,5 +580,47 @@ export async function prefetchHotSet(
     loadPendingOrder(conversationId, insights?.customerName ?? null)
   );
 
-  return { vendorConfig, compactCatalog, memory, pendingOrder, orderHistory, faqs, insights, recentMessages };
+  const ordersForPaymentContext: Array<{
+    id: string;
+    orderNumber: string;
+    status: string;
+    paymentMethod: string | null;
+    totalAmount: number;
+  }> = orderHistory.map((o) => ({
+    id: o.id,
+    orderNumber: o.orderNumber,
+    status: o.status,
+    paymentMethod: o.paymentMethod,
+    totalAmount: o.totalAmount
+  }));
+
+  if (pendingOrder?.orderId && !ordersForPaymentContext.some((o) => o.id === pendingOrder.orderId)) {
+    const pendingMeta = await prisma.order.findUnique({
+      where: { id: pendingOrder.orderId },
+      select: { orderNumber: true, status: true, paymentMethod: true, totalAmount: true }
+    });
+    if (pendingMeta) {
+      ordersForPaymentContext.unshift({
+        id: pendingOrder.orderId,
+        orderNumber: pendingMeta.orderNumber,
+        status: pendingMeta.status,
+        paymentMethod: pendingMeta.paymentMethod,
+        totalAmount: pendingMeta.totalAmount
+      });
+    }
+  }
+
+  const orderPaymentStatuses = await loadOrderPaymentStatuses(vendorId, ordersForPaymentContext);
+
+  return {
+    vendorConfig,
+    compactCatalog,
+    memory,
+    pendingOrder,
+    orderHistory,
+    orderPaymentStatuses,
+    faqs,
+    insights,
+    recentMessages
+  };
 }

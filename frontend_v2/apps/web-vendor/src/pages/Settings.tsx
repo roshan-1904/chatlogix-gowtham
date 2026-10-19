@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '@chatlogix/auth';
 import { Card } from '@chatlogix/ui';
 import { AccountBusinessTab } from '../components/settings/tabs/AccountBusinessTab';
@@ -6,20 +7,40 @@ import { AIConfigTab } from '../components/settings/tabs/AIConfigTab';
 import { OrderSettingsTab } from '../components/settings/tabs/OrderSettingsTab';
 import { NotificationsTab } from '../components/settings/tabs/NotificationsTab';
 import { AdvancedTab } from '../components/settings/tabs/AdvancedTab';
+import { PaymentCollectionTab } from '../components/settings/tabs/PaymentCollectionTab';
 
-type TabId = 'account' | 'ai' | 'orders' | 'notifications' | 'advanced';
+type TabId = 'account' | 'ai' | 'orders' | 'payments' | 'notifications' | 'advanced';
 
 const TABS: Array<{ id: TabId; label: string }> = [
   { id: 'account', label: 'Account & Business' },
   { id: 'ai', label: 'AI Configuration' },
   { id: 'orders', label: 'Order Settings' },
+  { id: 'payments', label: 'Payment Collection' },
   { id: 'notifications', label: 'Notifications' },
   { id: 'advanced', label: 'Advanced' },
 ];
 
+const TAB_IDS: TabId[] = ['account', 'ai', 'orders', 'payments', 'notifications', 'advanced'];
+
+function tabFromSearch(params: URLSearchParams): TabId {
+  const raw = params.get('tab');
+  if (raw && TAB_IDS.includes(raw as TabId)) return raw as TabId;
+  return 'account';
+}
+
 export function Settings() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<TabId>('account');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<TabId>(() => tabFromSearch(searchParams));
+
+  useEffect(() => {
+    setActiveTab(tabFromSearch(searchParams));
+  }, [searchParams]);
+
+  const selectTab = (id: TabId) => {
+    setActiveTab(id);
+    setSearchParams(id === 'account' ? {} : { tab: id }, { replace: true });
+  };
 
   if (!user?.vendorId) {
     return (
@@ -44,7 +65,7 @@ export function Settings() {
               {TABS.map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => selectTab(tab.id)}
                   className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${
                     activeTab === tab.id
                       ? 'bg-primary-50 text-primary-700 font-medium'
@@ -64,6 +85,7 @@ export function Settings() {
             {activeTab === 'account' && <AccountBusinessTab vendorId={user.vendorId} />}
             {activeTab === 'ai' && <AIConfigTab vendorId={user.vendorId} />}
             {activeTab === 'orders' && <OrderSettingsTab vendorId={user.vendorId} />}
+            {activeTab === 'payments' && <PaymentCollectionTab vendorId={user.vendorId} />}
             {activeTab === 'notifications' && <NotificationsTab vendorId={user.vendorId} />}
             {activeTab === 'advanced' && <AdvancedTab vendorId={user.vendorId} />}
           </Card>

@@ -19,6 +19,7 @@ import {
   ShoppingBagIcon,
   Squares2X2Icon,
   WalletIcon,
+  BanknotesIcon,
   XMarkIcon
 } from '@heroicons/react/20/solid';
 
@@ -49,6 +50,7 @@ function alias(Heroicon: HeroIcon, name: string): IconComponent {
 export const IconRefresh = alias(ArrowPathIcon, 'IconRefresh');
 export const IconOrders = alias(ShoppingBagIcon, 'IconOrders');
 export const IconWallet = alias(WalletIcon, 'IconWallet');
+export const IconBanknotes = alias(BanknotesIcon, 'IconBanknotes');
 export const IconChat = alias(ChatBubbleLeftRightIcon, 'IconChat');
 export const IconRevenue = alias(ArrowTrendingUpIcon, 'IconRevenue');
 export const IconCatalog = alias(CubeIcon, 'IconCatalog');

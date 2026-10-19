@@ -1,7 +1,7 @@
 # P2g — Post-approval wallet top-up (implementation plan)
 
-**Status:** Shipped (mock v1)  
-**Last updated:** 2026-09-16  
+**Status:** Shipped (mock v1 + Razorpay v2)  
+**Last updated:** 2026-10-19  
 **Depends on:** P2a–P2f (shipped)  
 **Blocks:** P2h (WhatsApp Embedded Signup + live wallet gating) for self-serve vendors  
 
@@ -24,7 +24,7 @@ After **P2a–P2f**, vendors sign up with a **₹50 trial wallet** during onboar
 | Phase | Approach |
 | --- | --- |
 | **P2g v1 (now)** | **Mock payment provider** — simulates successful top-up in dev/staging (and optionally production behind a feature flag) so wallet UI, APIs, and ledger behavior can ship without Razorpay credentials. |
-| **P2g v2 (later)** | **Razorpay** — real Orders/Checkout + signed webhook when account credentials are available. Swap implementation behind a small `WalletPaymentProvider` interface; do not rewrite wallet credit logic. |
+| **P2g v2 (shipped 2026-10-19)** | **Razorpay** — Orders/Checkout + `payment.captured` webhook credits via `creditWalletFromTopUp` (idempotency key = Razorpay payment id). Mock path unchanged behind `mockWalletTopUpEnabled`. |
 
 ---
 
@@ -58,7 +58,7 @@ After **P2a–P2f**, vendors sign up with a **₹50 trial wallet** during onboar
 ### Non-goals (P2g v1)
 
 - GST invoices, tax lines, or email receipts
-- Subscriptions, auto-recharge, refunds UI
+- Subscriptions or refunds UI (auto-recharge shipped in **P2g v2** / payments phase 4 — see `docs/payments/02-implementation-plan.md` phase 4)
 - Replacing admin `recharge-wallet` (ops escape hatch stays)
 - Razorpay live keys or production card processing until credentials exist
 
@@ -256,6 +256,8 @@ Razorpay (later) adds: `razorpay_order_id`, `razorpay_payment_id`, `razorpay_sig
 ## 7. Razorpay migration (P2g v2 — when credentials exist)
 
 Implement without changing `creditWalletFromTopUp`.
+
+Customer **order** payments are a different balance. Do not call `creditWalletFromTopUp` when a buyer pays an order. That design is [docs/payments/README.md](../../../../../docs/payments/README.md). This section is only the vendor funding their AI wallet. The webhook URL and the key names are shared with that plan; the `purpose` note on the Razorpay order is what keeps the two credits apart.
 
 | Step | Work |
 | --- | --- |

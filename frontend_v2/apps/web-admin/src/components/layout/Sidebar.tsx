@@ -3,9 +3,11 @@ import { Link, useLocation } from 'react-router-dom';
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: '📊' },
   { name: 'Vendors', href: '/vendors', icon: '🏪' },
+  { name: 'Payments', href: '/payments', icon: '💰' },
+  { name: 'Tax reports', href: '/tax-reports', icon: '🧾' },
+  { name: 'Billing', href: '/billing', icon: '💳' },
   { name: 'Templates', href: '/templates', icon: '📝' },
   { name: 'Logs', href: '/logs', icon: '📋' },
-  { name: 'Billing', href: '/billing', icon: '💳' },
 ];
 
 export function Sidebar() {
@@ -16,7 +18,9 @@ export function Sidebar() {
       <nav className="p-4">
         <ul className="space-y-2">
           {navigation.map((item) => {
-            const isActive = location.pathname === item.href;
+            const isActive =
+              location.pathname === item.href ||
+              (item.href !== '/dashboard' && location.pathname.startsWith(item.href));
             return (
               <li key={item.name}>
                 <Link

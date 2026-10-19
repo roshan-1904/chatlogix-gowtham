@@ -32,6 +32,9 @@ const customerInsightsFindUnique = vi.fn();
 const messageFindMany = vi.fn();
 const orderFindFirst = vi.fn();
 const orderFindMany = vi.fn();
+const customerPaymentFindMany = vi.fn();
+const paymentLinkFindMany = vi.fn();
+const orderAuditLogFindMany = vi.fn();
 const faqCount = vi.fn();
 const queryRaw = vi.fn();
 const productMediaFindMany = vi.fn();
@@ -52,6 +55,9 @@ vi.mock('../../db/prisma.js', () => ({
       findFirst: (...args: unknown[]) => orderFindFirst(...args),
       findMany: (...args: unknown[]) => orderFindMany(...args)
     },
+    customerPayment: { findMany: (...args: unknown[]) => customerPaymentFindMany(...args) },
+    paymentLink: { findMany: (...args: unknown[]) => paymentLinkFindMany(...args) },
+    orderAuditLog: { findMany: (...args: unknown[]) => orderAuditLogFindMany(...args) },
     faq: { count: (...args: unknown[]) => faqCount(...args) },
     // Tagged-template mock: prefetch.ts calls prisma.$queryRaw`...` — a plain
     // vi.fn() can't be invoked as a tag function, so wrap it.
@@ -111,6 +117,9 @@ beforeEach(() => {
   messageFindMany.mockResolvedValue([]);
   orderFindFirst.mockResolvedValue(null);
   orderFindMany.mockResolvedValue([]);
+  customerPaymentFindMany.mockResolvedValue([]);
+  paymentLinkFindMany.mockResolvedValue([]);
+  orderAuditLogFindMany.mockResolvedValue([]);
 });
 
 describe('prefetchHotSet', () => {
@@ -118,6 +127,7 @@ describe('prefetchHotSet', () => {
     const hotSet = await prefetchHotSet(VENDOR_ID, CONVERSATION_ID, CUSTOMER_ID, MESSAGE_TEXT);
 
     expect(vendorFindUnique).toHaveBeenCalledTimes(1);
+    expect(hotSet.orderPaymentStatuses).toEqual([]);
     expect(hotSet.vendorConfig.aiModel).toBe('gpt-5.6-luna'); // aiModel was null on the fetched vendor
     expect(setCachedMock).toHaveBeenCalledWith('vendor:vendor-1:config', expect.any(Object), 600);
   });
@@ -390,5 +400,62 @@ describe('prefetchHotSet', () => {
       await invalidateFaqs(VENDOR_ID);
       expect(deleteCachedMock).toHaveBeenCalledWith('vendor:vendor-1:faq_count');
     });
+  });
+
+  it('loads orderPaymentStatuses when managed collection is on', async () => {
+    vendorFindUnique.mockImplementation(({ select }: { select?: Record<string, boolean> }) => {
+      if (select?.paymentsManagedByChatlogix) {
+        return Promise.resolve({ paymentsManagedByChatlogix: true });
+      }
+      return Promise.resolve({
+        id: VENDOR_ID,
+        businessName: 'Test Bakery',
+        aiBotName: null,
+        aiPersonality: null,
+        aiSystemPrompt: null,
+        aiGreeting: null,
+        aiClosing: null,
+        aiToneExample: null,
+        aiContentResponsibilities: null,
+        aiContentConversationRules: null,
+        aiContentImportantInstructions: null,
+        aiDeliveryInstructions: null,
+        aiPickupDeliveryAddress: null,
+        orderPreparationConfig: null,
+        timezone: 'Asia/Kolkata',
+        aiModel: null,
+        askForPreferredDeliveryDate: false
+      });
+    });
+    orderFindMany.mockResolvedValue([
+      {
+        id: 'ord-1',
+        orderNumber: 'ORD-1',
+        items: [],
+        totalAmount: 50000,
+        paymentMethod: 'razorpay',
+        status: 'awaiting_payment',
+        createdAt: new Date(),
+        estimatedDelivery: null,
+        confirmedAt: null,
+        preparedAt: null,
+        deliveredAt: null,
+        cancelledAt: null,
+        cancellationReason: null
+      }
+    ]);
+    customerPaymentFindMany.mockResolvedValue([]);
+    paymentLinkFindMany.mockResolvedValue([{ orderId: 'ord-1', amountPaise: 50000, expiresAt: new Date() }]);
+    orderAuditLogFindMany.mockResolvedValue([]);
+
+    const hotSet = await prefetchHotSet(VENDOR_ID, CONVERSATION_ID, CUSTOMER_ID, 'did my payment go through?');
+
+    expect(hotSet.orderPaymentStatuses).toEqual([
+      expect.objectContaining({
+        orderNumber: 'ORD-1',
+        paymentStatus: 'link_pending',
+        amountPaise: 50000
+      })
+    ]);
   });
 });

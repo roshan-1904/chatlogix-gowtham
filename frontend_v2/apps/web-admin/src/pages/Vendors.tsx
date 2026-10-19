@@ -40,7 +40,7 @@ export function Vendors() {
       <header>
         <h1 className="text-2xl font-bold text-[#072349] sm:text-3xl">Vendors</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Wallet balance, recent charges, and the markup each vendor pays.
+          AI wallet, order-payment settlement (Route), markup, and platform-fee invoices per shop.
         </p>
       </header>
 

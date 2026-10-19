@@ -25,8 +25,8 @@ export const onboardingCopy = {
       and: 'and',
       terms: 'Terms of Service',
       privacy: 'Privacy Policy',
-      termsUrl: 'https://chatlogix.in/terms',
-      privacyUrl: 'https://chatlogix.in/privacy',
+      termsUrl: 'https://www.chatlogix.in/terms',
+      privacyUrl: 'https://www.chatlogix.in/privacy',
     },
     meta: {
       title: 'Try it on your catalog | ChatLogix',
@@ -404,7 +404,7 @@ export const onboardingCopy = {
     addProducts: 'Review catalog',
     contactSupport: 'WhatsApp us',
     contactFallback: 'Contact us',
-    contactFallbackUrl: 'https://chatlogix.in',
+    contactFallbackUrl: 'https://www.chatlogix.in/contact',
     backToLogin: 'Log out',
     guide: {
       kicker: 'Application',
@@ -428,7 +428,7 @@ export const onboardingCopy = {
     whatsapp: 'WhatsApp us',
     email: 'Email us',
     fallbackLabel: 'Contact us',
-    fallbackUrl: 'https://chatlogix.in',
+    fallbackUrl: 'https://www.chatlogix.in/contact',
     logout: 'Log out',
     loading: 'Loading…',
   },

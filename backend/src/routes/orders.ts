@@ -13,6 +13,12 @@ import {
   CustomError
 } from '../middleware/errorHandler.js';
 import { requireRole, requireVendorAccess } from '../middleware/authorize.js';
+import { getPaymentLinkService } from '../services/paymentLinkService.js';
+import { startVendorOrderRefund } from '../services/payments/vendorRefundService.js';
+import {
+  markOrderCashCollected,
+  switchAwaitingPaymentOrderToCod
+} from '../services/payments/codOrderService.js';
 
 // Helper function to parse DD/MM/YYYY date format
 function parseDate(dateString: string): Date {
@@ -178,12 +184,55 @@ ordersRouter.put('/:id/notes', asyncHandlerWithContext(async (req: any, res: any
   }
 }, ErrorType.DATABASE, ErrorSeverity.MEDIUM));
 
+// POST /api/orders/:id/switch-to-cod — cancel open link and confirm as COD
+ordersRouter.post('/:id/switch-to-cod', asyncHandlerWithContext(async (req: any, res: any) => {
+  const orderId = req.params.id;
+  const existingOrder = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { vendorId: true }
+  });
+  if (!existingOrder) {
+    throw createValidationError('Order not found', 'orderId', orderId);
+  }
+  ensureOrderAccess(req, existingOrder.vendorId);
+
+  const result = await switchAwaitingPaymentOrderToCod({
+    orderId,
+    vendorId: existingOrder.vendorId,
+    changedBy: req.user?.id ?? req.user?.vendorId ?? 'vendor'
+  });
+  res.json(result);
+}, ErrorType.PAYMENT, ErrorSeverity.MEDIUM));
+
+// POST /api/orders/:id/mark-cash-collected — COD / vendor-collected only
+ordersRouter.post('/:id/mark-cash-collected', asyncHandlerWithContext(async (req: any, res: any) => {
+  const orderId = req.params.id;
+  const existingOrder = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { vendorId: true }
+  });
+  if (!existingOrder) {
+    throw createValidationError('Order not found', 'orderId', orderId);
+  }
+  ensureOrderAccess(req, existingOrder.vendorId);
+
+  const paymentMethod =
+    req.body?.paymentMethod === 'vendor_collected' ? 'vendor_collected' : undefined;
+
+  const result = await markOrderCashCollected({
+    orderId,
+    vendorId: existingOrder.vendorId,
+    changedBy: req.user?.id ?? req.user?.vendorId ?? 'vendor',
+    paymentMethod
+  });
+  res.json(result);
+}, ErrorType.PAYMENT, ErrorSeverity.MEDIUM));
+
 // POST /api/orders/:id/payment-link - Generate payment link for order
 // Note: This route must come before /:id to ensure proper matching
 ordersRouter.post('/:id/payment-link', async (req, res) => {
   try {
     const orderId = req.params.id;
-    const { amount, customerPhone } = req.body;
 
     const existingOrder = await prisma.order.findUnique({
       where: { id: orderId },
@@ -196,14 +245,52 @@ ordersRouter.post('/:id/payment-link', async (req, res) => {
 
     ensureOrderAccess(req, existingOrder.vendorId);
 
-    // TODO: Implement payment link generation
-    // This is a placeholder - will be implemented when payment gateway is integrated
-    res.status(501).json({ error: 'Not implemented' });
-  } catch (error) {
+    const sendWhatsApp = req.body?.sendWhatsApp !== false;
+    const result = await getPaymentLinkService().createPaymentLinkForOrder(orderId, {
+      sendWhatsApp
+    });
+
+    res.json({
+      paymentLink: result.paymentLink,
+      paymentLinkId: result.paymentLinkId,
+      expiresAt: result.expiresAt.toISOString(),
+      amountPaise: result.amountPaise,
+      sent: result.sent
+    });
+  } catch (error: any) {
+    const statusCode = error?.statusCode ?? 500;
+    if (statusCode !== 500) {
+      return res.status(statusCode).json({ error: error.message });
+    }
     logger.error({ error }, 'Error generating payment link');
     res.status(500).json({ message: 'Failed to generate payment link' });
   }
 });
+
+// POST /api/orders/:id/refund — vendor-initiated refund (managed payments)
+ordersRouter.post('/:id/refund', asyncHandlerWithContext(async (req: any, res: any) => {
+  const orderId = req.params.id;
+  const existingOrder = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { vendorId: true }
+  });
+  if (!existingOrder) {
+    throw createValidationError('Order not found', 'orderId', orderId);
+  }
+  ensureOrderAccess(req, existingOrder.vendorId);
+
+  const refundPaise =
+    typeof req.body?.refundPaise === 'number' ? Math.round(req.body.refundPaise) : undefined;
+  const requestedBy = req.user?.id ?? req.user?.vendorId ?? 'vendor';
+
+  const result = await startVendorOrderRefund({
+    vendorId: existingOrder.vendorId,
+    orderId,
+    refundPaise,
+    requestedBy
+  });
+  res.status(201).json(result);
+}, ErrorType.PAYMENT, ErrorSeverity.MEDIUM));
 
 // GET /api/orders/:id - Get order details
 ordersRouter.get('/:id', asyncHandlerWithContext(async (req: any, res: any) => {
@@ -250,7 +337,16 @@ ordersRouter.put('/:id/status', async (req, res) => {
       return res.status(400).json({ message: 'Status is required' });
     }
 
-    const validStatuses = ['pending', 'confirmed', 'preparing', 'ready', 'out_for_delivery', 'delivered', 'cancelled'];
+    const validStatuses = [
+      'pending',
+      'awaiting_payment',
+      'confirmed',
+      'preparing',
+      'ready',
+      'out_for_delivery',
+      'delivered',
+      'cancelled'
+    ];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ message: 'Invalid status' });
     }

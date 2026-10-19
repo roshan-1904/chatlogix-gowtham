@@ -1,4 +1,11 @@
-import type { HotSet, CompactCatalogEntry, OrderHistoryEntry, FaqEntry, VendorConfig } from '../types.js';
+import type {
+  HotSet,
+  CompactCatalogEntry,
+  OrderHistoryEntry,
+  FaqEntry,
+  VendorConfig,
+  OrderPaymentStatusEntry
+} from '../types.js';
 import { parseOrderItems } from '../cart/snapshot.js';
 import { getPreparationTimeMessage, type OrderPreparationConfig } from '../../types/orderSettings.js';
 import { PROMPT_CATALOG_DESC_MAX_CHARS } from '../context/catalogContextConfig.js';
@@ -157,6 +164,23 @@ export function buildVariantsTable(catalog: CompactCatalogEntry[]): string {
  * nothing to answer from and improvises ("I'm checking...") instead of
  * either reporting a real status or honestly saying there's no order.
  */
+function buildOrderPaymentStatusBlock(entries: OrderPaymentStatusEntry[]): string {
+  if (entries.length === 0) return '(none — shop does not use ChatLogix online collection, or no recent orders)';
+  return entries
+    .map((e) => {
+      const parts = [
+        `${e.orderNumber}: payment=${e.paymentStatus}`,
+        `orderStatus=${e.orderStatus}`,
+        `Rs${(e.amountPaise / 100).toFixed(2)}`
+      ];
+      if (e.paymentMethod) parts.push(`method=${e.paymentMethod}`);
+      if (e.refundedPaise != null && e.refundedPaise > 0) parts.push(`refundedPaise=${e.refundedPaise}`);
+      if (e.capturedAt) parts.push(`capturedAt=${e.capturedAt.slice(0, 10)}`);
+      return `- ${parts.join(', ')}`;
+    })
+    .join('\n');
+}
+
 function buildOrderHistoryBlock(orderHistory: OrderHistoryEntry[]): string {
   if (orderHistory.length === 0) return '(none)';
   return orderHistory
@@ -274,6 +298,9 @@ export function buildVendorRulesBlock(vendorConfig: VendorConfig): string {
     '- NEVER emit knowledge_gap for order status, last order, "did I already order", tracking, or "eappo kidaikum" in an order context — answer from RECENT ORDERS. NEVER say "I\'ll check / get back" on those turns.'
   );
   parts.push(
+    '- If the customer asks whether their payment went through, if the link worked, or about UPI/card payment status, answer from ORDER PAYMENT STATUS below (Postgres snapshot). Never say you are checking with the bank or Razorpay. Status meanings: captured/paid = success; link_pending or awaiting_payment = not paid yet; cash_collected = COD marked paid to the shop; cod_unpaid = pay on delivery.'
+  );
+  parts.push(
     '- When the customer asks to see a product photo, picture, image, or video (e.g. "show me", "photo irukka", "send pic"), emit "send_product_media" with the matched productId from PRODUCT CATALOG and optional kind "image" or "video" (null if either is fine). Never invent URLs or S3 keys. needsVerify: false. intent: "send_media" when this is the main action.'
   );
   parts.push(
@@ -382,6 +409,11 @@ export function buildDynamicBlock(hotSet: HotSet, opts?: Llm1PromptOptions): str
   parts.push('');
   parts.push('RECENT ORDERS (most recent first — this is the customer\'s real order history, not the cart above):');
   parts.push(buildOrderHistoryBlock(hotSet.orderHistory));
+
+  parts.push('');
+  parts.push('ORDER PAYMENT STATUS (managed collection — for payment / link / "did my payment go through?" questions):');
+  parts.push(buildOrderPaymentStatusBlock(hotSet.orderPaymentStatuses));
+
   const hasUnfulfilledOrder = hotSet.orderHistory.some((o) => ['pending', 'confirmed', 'preparing'].includes(o.status));
   if (hasUnfulfilledOrder) {
     const prepMessage = getPreparationTimeMessage(hotSet.vendorConfig.orderPreparationConfig as OrderPreparationConfig | null);

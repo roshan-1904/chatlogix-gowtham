@@ -5,8 +5,11 @@ const vendorFindUnique = vi.fn();
 const vendorUpdate = vi.fn();
 const walletTransactionCreate = vi.fn();
 const creditUsageCreate = vi.fn();
+const executeRaw = vi.fn().mockResolvedValue(undefined);
+
 const transaction = vi.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
   fn({
+    $executeRaw: executeRaw,
     vendor: {
       findUnique: (...args: unknown[]) => vendorFindUnique(...args),
       update: (...args: unknown[]) => vendorUpdate(...args)
@@ -19,6 +22,10 @@ const transaction = vi.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
     }
   })
 );
+
+vi.mock('../../wallet/autoRechargeService.js', () => ({
+  maybeScheduleAutoRechargeAfterDebit: vi.fn().mockResolvedValue(undefined)
+}));
 
 vi.mock('../../../db/prisma.js', () => ({
   prisma: {

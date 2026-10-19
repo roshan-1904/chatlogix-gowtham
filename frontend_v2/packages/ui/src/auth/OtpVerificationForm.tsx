@@ -178,7 +178,7 @@ export function OtpVerificationForm({
               onFocus={() => handleFocus(index)}
               disabled={isLoading}
               className={`
-                min-h-12 min-w-11 h-12 w-11 sm:h-14 sm:w-12 text-center text-xl font-semibold text-gray-900
+                min-h-12 min-w-11 h-12 w-11 sm:h-14 sm:w-12 text-center text-xl font-semibold text-gray-900 bg-white
                 border-2 rounded-lg transition-all
                 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1
                 disabled:opacity-50 disabled:cursor-not-allowed

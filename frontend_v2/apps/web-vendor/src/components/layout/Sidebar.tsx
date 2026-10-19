@@ -16,7 +16,8 @@ import {
   IconSidebarExpand,
   IconSupport,
   IconTemplates,
-  IconWallet
+  IconWallet,
+  IconBanknotes
 } from '../icons';
 
 const COLLAPSE_STORAGE_KEY = 'chatlogix:sidebar-collapsed';
@@ -41,7 +42,8 @@ const navGroups: NavGroup[] = [
       { name: 'Dashboard', href: '/dashboard', icon: IconDashboard },
       { name: 'Conversations', href: '/conversations', icon: IconChat },
       { name: 'Queries', href: '/queries', icon: IconInbox },
-      { name: 'Orders', href: '/orders', icon: IconOrders }
+      { name: 'Orders', href: '/orders', icon: IconOrders },
+      { name: 'Order payments', href: '/order-payments', icon: IconBanknotes }
     ]
   },
   {

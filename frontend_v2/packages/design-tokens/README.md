@@ -34,3 +34,14 @@ module.exports = {
 import { colors, spacing, typography } from '@chatlogix/design-tokens';
 ```
 
+### Web form controls (OS dark mode)
+
+Each web app imports shared form styles after its `index.css`:
+
+```ts
+import './index.css';
+import '@chatlogix/design-tokens/form-controls.css';
+```
+
+This sets `color-scheme: light` and readable defaults for native inputs across admin, vendor, and marketing.
+

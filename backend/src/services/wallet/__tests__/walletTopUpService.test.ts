@@ -15,6 +15,7 @@ vi.mock('../../../db/prisma.js', () => ({
     },
     $transaction: async (fn: (tx: unknown) => Promise<unknown>) =>
       fn({
+        $executeRaw: vi.fn().mockResolvedValue(undefined),
         vendor: {
           findUnique: (...args: unknown[]) => vendorFindUnique(...args),
           update: (...args: unknown[]) => vendorUpdate(...args)

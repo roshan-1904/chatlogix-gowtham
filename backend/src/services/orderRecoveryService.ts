@@ -48,7 +48,7 @@ export async function attemptOrderRecovery(
         conversationId,
         vendorId: conversation.vendorId,
         customerId: conversation.customerId,
-        status: { in: ['pending', 'confirmed'] }
+        status: { in: ['pending', 'awaiting_payment', 'confirmed'] }
       },
       orderBy: { createdAt: 'desc' }
     });
@@ -234,7 +234,7 @@ export async function detectAndRecoverOrderIssues(): Promise<void> {
   try {
     const recentOrders = await prisma.order.findMany({
       where: {
-        status: { in: ['pending', 'confirmed'] },
+        status: { in: ['pending', 'awaiting_payment', 'confirmed'] },
         createdAt: {
           gte: new Date(Date.now() - 24 * 60 * 60 * 1000) // Last 24 hours
         }

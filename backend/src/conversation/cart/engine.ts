@@ -33,7 +33,7 @@ export interface ApplyOpsResult {
   postSalesOutcome?: PostSalesOutcome;
 }
 
-const CANCELLABLE_STATUSES = ['pending', 'confirmed'];
+const CANCELLABLE_STATUSES = ['pending', 'awaiting_payment', 'confirmed'];
 /** Vendor dashboard confirm moves the order off `pending`. Customer confirm does not. */
 const VENDOR_PLACED_STATUSES = new Set(['confirmed', 'preparing', 'ready', 'out_for_delivery', 'delivered']);
 
@@ -66,7 +66,7 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
         let order = orderId
           ? await tx.order.findFirst({ where: { id: orderId, vendorId } })
           : await tx.order.findFirst({
-              where: { conversationId, vendorId, status: 'pending' },
+              where: { conversationId, vendorId, status: { in: ['pending', 'awaiting_payment'] } },
               orderBy: { createdAt: 'desc' }
             });
 
@@ -82,9 +82,13 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
         // reflect it in this turn's snapshot.
         const insights = await tx.customerInsights.findUnique({
           where: { customerId_vendorId: { customerId, vendorId } },
-          select: { customerName: true }
+          select: { customerName: true, paymentPreferences: true }
         });
         let customerName = insights?.customerName ?? null;
+        const vendorPayments = await tx.vendor.findUnique({
+          where: { id: vendorId },
+          select: { paymentsManagedByChatlogix: true }
+        });
 
         // Retry guard: if an SQS redelivery re-invokes apply() for a
         // whatsappMessageId whose ops were already committed to this order
@@ -370,9 +374,15 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
                 rejectedOps.push({ op, reason: `missing_${missing.join('_')}` });
                 break;
               }
-              // Q13: customer confirm stays 'pending' (awaiting vendor). AI never
-              // sets estimatedDelivery — only the vendor (or a later job) does.
-              status = 'pending';
+              const codSelected =
+                typeof insights?.paymentPreferences === 'string' &&
+                /cod|cash on delivery/i.test(insights.paymentPreferences);
+              if (vendorPayments?.paymentsManagedByChatlogix && !codSelected) {
+                status = 'awaiting_payment';
+              } else {
+                // Q13: customer confirm stays 'pending' (awaiting vendor) when collection is off or COD.
+                status = 'pending';
+              }
               mutated = true;
               break;
             }
@@ -384,7 +394,7 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
                   rejectedOps.push({ op, reason: 'no_order_to_cancel' });
                   break;
                 }
-                if (status === 'pending' || status === 'confirmed') {
+                if (status === 'pending' || status === 'awaiting_payment' || status === 'confirmed') {
                   status = 'cancelled';
                   mutated = true;
                   postSalesOutcome = cancelledOutcome(order.id, order.orderNumber);
@@ -437,27 +447,39 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
                 rejectedOps.push({ op, reason: 'no_order_to_refund' });
                 break;
               }
-              const eligibility = checkRefundEligibility(targetOrder);
+              const capturedPayment = await tx.customerPayment.findFirst({
+                where: {
+                  orderId: targetOrder.id,
+                  settlementAlert: null,
+                  refundRequired: false,
+                  netMilli: { gt: 0 }
+                },
+                orderBy: { capturedAt: 'desc' }
+              });
+              const capturedRemainderPaise = capturedPayment
+                ? capturedPayment.amountPaise - capturedPayment.refundedPaise
+                : null;
+              const eligibility = checkRefundEligibility({
+                status: targetOrder.status,
+                createdAt: targetOrder.createdAt,
+                paymentMethod: targetOrder.paymentMethod,
+                paymentsManagedByChatlogix: vendorPayments?.paymentsManagedByChatlogix ?? false,
+                capturedRemainderPaise
+              });
               if (!eligibility.eligible) {
-                postSalesOutcome = { type: 'refund_denied', orderId: targetOrder.id, orderNumber: targetOrder.orderNumber, detail: eligibility.reason };
+                postSalesOutcome = {
+                  type: 'refund_denied',
+                  orderId: targetOrder.id,
+                  orderNumber: targetOrder.orderNumber ?? '',
+                  detail: eligibility.reason
+                };
                 break;
               }
-              if (order && targetOrder.id === order.id) {
-                status = 'cancelled';
-                mutated = true;
-              } else {
-                await tx.order.update({
-                  where: { id: targetOrder.id },
-                  data: { status: 'cancelled', cancelledAt: new Date(), cancellationReason: op.reason || 'Refund approved' }
-                });
-                await writeHistoricalAuditLog(targetOrder.id, 'refund_request', targetOrder.status, 'cancelled', op);
-                historicalOrderChanged = true;
-              }
               postSalesOutcome = {
-                type: 'refund_approved',
+                type: 'refund_request_received',
                 orderId: targetOrder.id,
-                orderNumber: targetOrder.orderNumber,
-                detail: `₹${(targetOrder.totalAmount / 100).toFixed(2)} will be refunded within 3-5 business days.`
+                orderNumber: targetOrder.orderNumber ?? '',
+                detail: eligibility.reason
               };
               break;
             }
@@ -489,7 +511,13 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
                 deliveryAddress,
                 specialRequests,
                 deliveryInstructions,
-                status
+                status,
+                ...(status === 'awaiting_payment' ? { paymentMethod: 'razorpay' } : {}),
+                ...(status === 'pending' &&
+                typeof insights?.paymentPreferences === 'string' &&
+                /cod|cash on delivery/i.test(insights.paymentPreferences)
+                  ? { paymentMethod: 'cod' }
+                  : {})
               }
             });
           } else if (lines.length > 0) {
@@ -509,7 +537,13 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
                 totalAmount: totalPaise,
                 deliveryAddress,
                 specialRequests,
-                deliveryInstructions
+                deliveryInstructions,
+                ...(status === 'awaiting_payment' ? { paymentMethod: 'razorpay' } : {}),
+                ...(status === 'pending' &&
+                typeof insights?.paymentPreferences === 'string' &&
+                /cod|cash on delivery/i.test(insights.paymentPreferences)
+                  ? { paymentMethod: 'cod' }
+                  : {})
               }
             });
           }

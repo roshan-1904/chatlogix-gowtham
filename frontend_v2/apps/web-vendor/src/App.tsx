@@ -19,6 +19,7 @@ import { CatalogImportTemplate } from './pages/CatalogImportTemplate';
 import { CatalogImportGoLive } from './pages/CatalogImportGoLive';
 import { Settings } from './pages/Settings';
 import { Wallet } from './pages/Wallet';
+import { OrderPayments } from './pages/OrderPayments';
 import { WhatsAppConnect } from './pages/settings/WhatsAppConnect';
 import { Login } from './pages/Login';
 import { Signup } from './pages/onboarding/Signup';
@@ -112,6 +113,7 @@ function App() {
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/settings/whatsapp" element={<WhatsAppConnect />} />
                   <Route path="/wallet" element={<Wallet />} />
+                  <Route path="/order-payments" element={<OrderPayments />} />
                   <Route path="*" element={<div>404 - Page Not Found</div>} />
                 </Routes>
               </Layout>

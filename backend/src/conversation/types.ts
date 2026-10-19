@@ -59,6 +59,7 @@ export type CartOp =
 export interface PostSalesOutcome {
   type:
     | 'refund_approved'
+    | 'refund_request_received'
     | 'refund_denied'
     | 'order_cancelled'
     | 'already_cancelled'
@@ -228,6 +229,7 @@ export interface OrderHistoryEntry {
   orderNumber: string;
   items: unknown; // Json — parse with cart/snapshot.ts's parseOrderItems()
   totalAmount: number; // paise
+  paymentMethod: string | null;
   status: string;
   createdAt: Date;
   estimatedDelivery: Date | null;
@@ -236,6 +238,18 @@ export interface OrderHistoryEntry {
   deliveredAt: Date | null;
   cancelledAt: Date | null;
   cancellationReason: string | null;
+}
+
+/** Latest payment posture for managed-collection orders (Postgres only — no Razorpay calls). */
+export interface OrderPaymentStatusEntry {
+  orderId: string;
+  orderNumber: string;
+  orderStatus: string;
+  paymentMethod: string | null;
+  paymentStatus: string;
+  amountPaise: number;
+  refundedPaise?: number;
+  capturedAt?: string;
 }
 
 /**
@@ -258,6 +272,8 @@ export interface HotSet {
   memory: ConvMemory | null;
   pendingOrder: CartSnapshot | null;
   orderHistory: OrderHistoryEntry[]; // most recent first, up to 10
+  /** Grounding for "did my payment go through?" when collection is managed. */
+  orderPaymentStatuses: OrderPaymentStatusEntry[];
   // Unlike every other HotSet field, this is a function of the current
   // turn's message text, not stable across turns for the same
   // vendor/conversation — see prefetchHotSet's `messageText` parameter.

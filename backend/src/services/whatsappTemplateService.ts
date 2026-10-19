@@ -13,6 +13,7 @@ export class WhatsAppTemplateService {
    */
   private getTemplateNameForStatus(status: string): string {
     const templateMap: Record<string, string> = {
+      'awaiting_payment': 'order_update',
       'confirmed': 'order_confirmed',
       'preparing': 'order_preparing',
       'ready': 'order_ready',
@@ -57,6 +58,7 @@ export class WhatsAppTemplateService {
     orderData: ReturnType<typeof this.formatOrderData>
   ): string {
     const statusMessages: Record<string, string> = {
+      'awaiting_payment': '💳 Awaiting Payment',
       'confirmed': '✅ Order Confirmed',
       'preparing': '👨‍🍳 Order Being Prepared',
       'ready': '✅ Order Ready for Pickup',
@@ -341,42 +343,85 @@ export class WhatsAppTemplateService {
   }
 
   /**
-   * Send payment link notification (queues message)
+   * Send payment link notification (queues message).
+   * Outside the 24-hour customer care window, queues an approved utility template.
    */
-  async sendPaymentLink(
-    customerPhone: string,
-    paymentLink: string,
-    orderNumber: string,
-    amount: string,
-    orderId: string,
-    vendorId: string,
-    customerId: string
-  ): Promise<{ success: boolean; queued: boolean; error?: string }> {
+  async sendPaymentLink(input: {
+    customerPhone: string;
+    paymentLink: string;
+    orderNumber: string;
+    amountFormatted: string;
+    orderId: string;
+    vendorId: string;
+    customerId: string;
+    useUtilityTemplate?: boolean;
+    phoneNumberId?: string;
+  }): Promise<{ success: boolean; queued: boolean; error?: string }> {
+    const {
+      customerPhone,
+      paymentLink,
+      orderNumber,
+      amountFormatted,
+      orderId,
+      vendorId,
+      customerId,
+      useUtilityTemplate = false,
+      phoneNumberId: phoneNumberIdOverride
+    } = input;
     try {
-      // Create notification history
+      const templateName = useUtilityTemplate ? 'payment_link_utility' : 'payment_link';
       const notification = await prisma.notificationHistory.create({
         data: {
           vendorId,
           orderId,
           customerId,
           notificationType: 'payment_link',
-          templateName: 'payment_link',
+          templateName,
           status: 'pending'
         }
       });
 
-      // Get vendor's WhatsApp phone number ID
-      const phoneNumberId = await this.getVendorPhoneNumberId(vendorId);
+      const phoneNumberId = phoneNumberIdOverride ?? (await this.getVendorPhoneNumberId(vendorId));
 
-      // Format payment link message
-      const messageText = `💳 Payment Link\n\n` +
+      if (useUtilityTemplate) {
+        const queueMessage = {
+          type: 'template' as const,
+          to: customerPhone,
+          templateName: 'payment_link_utility',
+          languageCode: 'en',
+          parameters: {
+            body: [
+              { type: 'text' as const, text: orderNumber },
+              { type: 'text' as const, text: amountFormatted },
+              { type: 'text' as const, text: paymentLink }
+            ]
+          },
+          vendorId,
+          customerId,
+          orderId,
+          notificationType: 'payment_link' as const,
+          phoneNumberId,
+          metadata: {
+            notificationId: notification.id,
+            orderId,
+            orderNumber,
+            paymentLink,
+            notificationType: 'payment_link'
+          }
+        };
+        await publishToQueue(env.RESPONSE_QUEUE_URL, queueMessage);
+        logger.info({ orderId, notificationId: notification.id }, 'Payment link notification queued (utility template)');
+        return { success: true, queued: true };
+      }
+
+      const messageText =
+        `💳 Payment Link\n\n` +
         `Order #: ${orderNumber}\n` +
-        `Amount: ${amount}\n\n` +
+        `Amount: ${amountFormatted}\n\n` +
         `Please complete your payment using the link below:\n` +
         `${paymentLink}\n\n` +
         `Thank you!`;
 
-      // Queue text message
       const queueMessage = {
         type: 'text' as const,
         to: customerPhone,
@@ -407,12 +452,114 @@ export class WhatsAppTemplateService {
         orderId,
         error: error.message
       }, 'Failed to queue payment link notification');
-      
+
       return {
         success: false,
         queued: false,
         error: error.message
       };
+    }
+  }
+
+  /**
+   * One-time reminder before a payment link expires (phase 9). Dedupe via NotificationHistory in the caller.
+   */
+  async sendPaymentLinkExpiryReminder(input: {
+    customerPhone: string;
+    paymentLink: string;
+    orderNumber: string;
+    amountFormatted: string;
+    orderId: string;
+    vendorId: string;
+    customerId: string;
+    useUtilityTemplate?: boolean;
+    phoneNumberId?: string;
+  }): Promise<{ success: boolean; queued: boolean; error?: string }> {
+    const {
+      customerPhone,
+      paymentLink,
+      orderNumber,
+      amountFormatted,
+      orderId,
+      vendorId,
+      customerId,
+      useUtilityTemplate = false,
+      phoneNumberId: phoneNumberIdOverride
+    } = input;
+    try {
+      const templateName = useUtilityTemplate ? 'payment_link_reminder_utility' : 'payment_link_reminder';
+      const notification = await prisma.notificationHistory.create({
+        data: {
+          vendorId,
+          orderId,
+          customerId,
+          notificationType: 'payment_link',
+          templateName,
+          status: 'pending'
+        }
+      });
+
+      const phoneNumberId = phoneNumberIdOverride ?? (await this.getVendorPhoneNumberId(vendorId));
+
+      if (useUtilityTemplate) {
+        const queueMessage = {
+          type: 'template' as const,
+          to: customerPhone,
+          templateName: 'payment_link_reminder_utility',
+          languageCode: 'en',
+          parameters: {
+            body: [
+              { type: 'text' as const, text: orderNumber },
+              { type: 'text' as const, text: amountFormatted },
+              { type: 'text' as const, text: paymentLink }
+            ]
+          },
+          vendorId,
+          customerId,
+          orderId,
+          notificationType: 'payment_link' as const,
+          phoneNumberId,
+          metadata: {
+            notificationId: notification.id,
+            orderId,
+            orderNumber,
+            paymentLink,
+            notificationType: 'payment_link_reminder'
+          }
+        };
+        await publishToQueue(env.RESPONSE_QUEUE_URL, queueMessage);
+        logger.info({ orderId, notificationId: notification.id }, 'Payment link expiry reminder queued (utility template)');
+        return { success: true, queued: true };
+      }
+
+      const messageText =
+        `⏰ Payment reminder\n\n` +
+        `Order #: ${orderNumber}\n` +
+        `Amount: ${amountFormatted}\n\n` +
+        `Your payment link expires soon:\n${paymentLink}`;
+
+      const queueMessage = {
+        type: 'text' as const,
+        to: customerPhone,
+        text: messageText,
+        vendorId,
+        customerId,
+        phoneNumberId,
+        metadata: {
+          notificationId: notification.id,
+          orderId,
+          orderNumber,
+          paymentLink,
+          notificationType: 'payment_link_reminder'
+        }
+      };
+
+      await publishToQueue(env.RESPONSE_QUEUE_URL, queueMessage);
+      logger.info({ orderId, notificationId: notification.id }, 'Payment link expiry reminder queued');
+      return { success: true, queued: true };
+    } catch (error: any) {
+      logger.error({ orderId, error: error.message }, 'Failed to queue payment link expiry reminder');
+      return { success: false, queued: false, error: error.message };
     }
   }
 

@@ -839,7 +839,31 @@ export const about = {
 export const privacyMeta = {
   title: 'Privacy Policy | ChatLogix',
   description:
-    'How ChatLogix collects, uses, and protects shop, customer, and WhatsApp conversation data on our commerce platform.',
+    'How ChatLogix collects, uses, and protects shop, customer, and WhatsApp data. Razorpay processes payments. ChatLogix never stores card numbers or UPI PINs.',
 };
 
-export const privacyLastUpdated = 'September 6, 2026';
+export const privacyLastUpdated = 'October 19, 2026';
+
+export const legalLastUpdated = 'October 19, 2026';
+
+/** The only published inbox in marketing copy. No postal address or phone is on file. */
+export const legalContact = {
+  privacyEmail: 'privacy@chatlogix.in',
+};
+
+export const termsMeta = {
+  title: 'Terms of Service | ChatLogix',
+  description:
+    'Terms for shops using ChatLogix WhatsApp commerce software, including order payments collected through Razorpay Route and settlement to the shop’s bank.',
+};
+
+export const refundsMeta = {
+  title: 'Refund and Cancellation Policy | ChatLogix',
+  description:
+    'How customer refunds work when a shop uses ChatLogix to collect payments, including shop approval, funding, and cash on delivery.',
+};
+
+export const contactMeta = {
+  title: 'Contact | ChatLogix',
+  description: 'Contact ChatLogix about privacy, terms, or a payment. Email privacy@chatlogix.in.',
+};

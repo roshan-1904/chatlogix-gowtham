@@ -129,6 +129,9 @@ vi.mock('../coalesceInbound.js', () => ({
 vi.mock('../prefetch.js', () => ({ prefetchHotSet: (...args: unknown[]) => prefetchHotSetMock(...args) }));
 vi.mock('../llm/llm1.js', () => ({ runLlm1: (...args: unknown[]) => runLlm1Mock(...args) }));
 vi.mock('../cart/engine.js', () => ({ apply: (...args: unknown[]) => applyMock(...args) }));
+vi.mock('../orderPaymentPipeline.js', () => ({
+  handleOrderPaymentLinksAfterCartApply: vi.fn().mockResolvedValue(undefined)
+}));
 vi.mock('../llm/llm2.js', () => ({
   runLlm2: (...args: unknown[]) => runLlm2Mock(...args),
   selectFinalReply: (...args: unknown[]) => selectFinalReplyMock(...args),
@@ -315,6 +318,9 @@ describe('processMessage', () => {
     compactCatalog: [],
     memory: null,
     pendingOrder: null,
+    orderHistory: [],
+    orderPaymentStatuses: [],
+    faqs: [],
     insights: null,
     recentMessages: []
   };
@@ -611,13 +617,18 @@ describe('processMessage', () => {
     expect(persistCall.finalText).toBe("I've passed this to our team!");
   });
 
-  it('postSalesOutcome (refund_approved): renders the deterministic reply, skips LLM-2, does not alert the vendor', async () => {
+  it('postSalesOutcome (refund_request_received): renders the deterministic reply, skips LLM-2, does not alert the vendor', async () => {
     runLlm1Mock.mockResolvedValue({ ...llm1Result, ops: [{ type: 'refund_request', orderNumber: 'ORD-1', reason: null }] });
     applyMock.mockResolvedValue({
       snapshot,
-      mutated: true,
+      mutated: false,
       rejectedOps: [],
-      postSalesOutcome: { type: 'refund_approved', orderId: 'order-hist-1', orderNumber: 'ORD-1', detail: '₹500.00 will be refunded within 3-5 business days.' }
+      postSalesOutcome: {
+        type: 'refund_request_received',
+        orderId: 'order-hist-1',
+        orderNumber: 'ORD-1',
+        detail: 'The shop will review and confirm your refund.'
+      }
     });
 
     await processMessage(rawInput);
@@ -626,7 +637,7 @@ describe('processMessage', () => {
     expect(selectFinalReplyMock).not.toHaveBeenCalled();
     expect(notifyVendorOfPostSalesEventMock).not.toHaveBeenCalled();
     const persistCall = persistTurnMock.mock.calls[0][0];
-    expect(persistCall.finalText).toBe('Your refund for order ORD-1 has been approved. ₹500.00 will be refunded within 3-5 business days.');
+    expect(persistCall.finalText).toContain("we've noted your refund request for order ORD-1");
   });
 
   it('postSalesOutcome (refund_denied): renders the deterministic reply and alerts the vendor (Tier 2)', async () => {

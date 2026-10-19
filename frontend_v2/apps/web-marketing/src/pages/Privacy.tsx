@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { MarketingLayout } from '../components/MarketingLayout';
 import { usePageMeta } from '@chatlogix/hooks';
-import { privacyLastUpdated, privacyMeta } from '../copy';
+import { legalContact, privacyLastUpdated, privacyMeta } from '../copy';
 import { site } from '../lib/site';
 
 export function Privacy() {
@@ -43,6 +43,20 @@ export function Privacy() {
               <li>Customer insights and analytics</li>
               <li>Usage statistics and performance metrics</li>
             </ul>
+            <h3 className="mt-4 text-lg font-medium text-gray-900">2.3 Payment and settlement data</h3>
+            <p className="mt-2 leading-relaxed">
+              When a shop opts in to ChatLogix collecting order payments, we also process:
+            </p>
+            <ul className="mt-2 list-disc space-y-1 pl-6">
+              <li>Razorpay payment identifiers, amounts, and payment status</li>
+              <li>Route transfer and settlement status for the shop&apos;s linked account</li>
+              <li>Shop legal name, PAN, GSTIN (or exemption declaration), and masked settlement bank details</li>
+              <li>Refund and dispute records needed for the settlement ledger and tax reporting</li>
+            </ul>
+            <p className="mt-3 leading-relaxed">
+              Razorpay is our payment processor. We collect payout bank details to pay shops. Card numbers and UPI PINs
+              are never stored by ChatLogix. Customers enter them only on Razorpay&apos;s page.
+            </p>
           </section>
 
           <section className="mb-8">
@@ -54,6 +68,8 @@ export function Privacy() {
               <li>Generate automated responses using AI technology</li>
               <li>Analyze customer interactions and provide insights</li>
               <li>Manage orders and transactions</li>
+              <li>Collect order payments, settle funds to shops through Razorpay Route, and process refunds</li>
+              <li>Meet tax and regulatory reporting obligations where applicable</li>
               <li>Improve our services and develop new features</li>
               <li>Ensure compliance with applicable laws and regulations</li>
             </ul>
@@ -68,6 +84,23 @@ export function Privacy() {
               <li>With trusted service providers who assist in our operations</li>
               <li>To protect our rights, property, or safety</li>
             </ul>
+            <p className="mt-3 leading-relaxed">Key processors include:</p>
+            <ul className="mt-2 list-disc space-y-1 pl-6">
+              <li>
+                <strong>Razorpay</strong> — payment collection, Route linked-account settlement, refunds, and
+                disputes (India)
+              </li>
+              <li>
+                <strong>Meta</strong> — WhatsApp Business messaging
+              </li>
+              <li>
+                <strong>Cloud and database providers</strong> — hosting and storage for the platform
+              </li>
+            </ul>
+            <p className="mt-3 leading-relaxed">
+              When you pay a shop through ChatLogix, Razorpay processes your payment; the shop receives order and
+              contact details needed to fulfil the order.
+            </p>
           </section>
 
           <section className="mb-8">
@@ -125,7 +158,16 @@ export function Privacy() {
             </p>
             <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm">
               <p>
-                <strong>Email:</strong> privacy@chatlogix.in
+                <strong>Email:</strong>{' '}
+                <a href={`mailto:${legalContact.privacyEmail}`} className="text-primary-500 hover:opacity-80">
+                  {legalContact.privacyEmail}
+                </a>
+              </p>
+              <p className="mt-1">
+                <strong>Contact page:</strong>{' '}
+                <Link to="/contact" className="text-primary-500 hover:opacity-80">
+                  {site.urls.contact}
+                </Link>
               </p>
               <p className="mt-1">
                 <strong>Website:</strong>{' '}

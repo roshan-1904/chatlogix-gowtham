@@ -32,8 +32,28 @@ export default defineConfig(({ mode }) => {
     console.warn('\n⚠️  VITE_API_URL is not set; defaulting to http://localhost:8000/api at runtime.\n');
   }
 
+  const razorpayCsp =
+    "default-src 'self'; " +
+    "script-src 'self' https://checkout.razorpay.com; " +
+    "frame-src https://api.razorpay.com https://checkout.razorpay.com; " +
+    "connect-src 'self' https: wss: https://api.razorpay.com https://lumberjack.razorpay.com; " +
+    "img-src 'self' data: https:; " +
+    "style-src 'self' 'unsafe-inline';";
+
   return {
-    plugins: [react()],
+    plugins: [
+      react(),
+      {
+        name: 'csp-razorpay-checkout',
+        transformIndexHtml(html, ctx) {
+          if (ctx.server) return html;
+          return html.replace(
+            '<head>',
+            `<head>\n    <meta http-equiv="Content-Security-Policy" content="${razorpayCsp}" />`
+          );
+        }
+      }
+    ],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),

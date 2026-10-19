@@ -181,19 +181,32 @@ Trial and sandbox charges pass `floorAtZero: true` so a trial wallet never goes 
 | `CreditUsage` | `conversationId` `String?`, `conversationType` `MessageType?` | Both nullable — non-conversation sources leave them null |
 | `CreditUsage` | `externalId` `String? @unique` | Idempotency |
 | `WalletTopUpIntent` | `amountMilli`, `status`, `provider`, `idempotencyKey @unique`, `expiresAt` | P2g mock/Razorpay intents |
-| `PlatformSettings` | money in **paise**; FX Decimals | Singleton `id=default`. Live knobs + `usdToInrOverride` |
+| `PlatformSettings` | money in **paise**; FX Decimals | Singleton `id=default`. Live knobs + `usdToInrOverride`. Order-settlement tax knobs: `gstTcsBps`, `tds194oBps`, `tds194oNoPanBps`, `refundReturnsWithheldTaxToShop`, `gstTcsBaseExcludesShopGst` (authority + CA defaults: [payments/05-compliance-and-risk.md](./payments/05-compliance-and-risk.md) D2) |
 | `FxRateHistory` | `base`, `quote`, `rate`, `source`, `fetchedAt` | One row per successful USD/INR fetch |
+| `Vendor` | `settlementBalanceMilli` `BigInt @default(0)` | **Order** money under Route — only `settlementService` writes it. Separate from `walletBalanceMilli` |
+| `CustomerPayment`, `PaymentLink`, `SettlementEntry`, `SettlementTransfer`, `CustomerRefund` | paise / milli per column | Append-only order-payment ledger. Full model: `backend/prisma/schema.prisma`; rules: [payments/02-implementation-plan.md](./payments/02-implementation-plan.md) |
 
 `CreditUsage` is indexed on `(vendorId, usageDate desc)`, `(vendorId, source)` and `(vendorId, conversationType)`.
 
+### Order settlement (pointer)
+
+This file remains the **AI wallet** authority. Customer order payments (Route holds, transfers, refunds, TCS/TDS) are specified in [payments/README.md](./payments/README.md) and [payments/02-implementation-plan.md](./payments/02-implementation-plan.md). The settlement tables and `Vendor.settlementBalanceMilli` exist in the database after `20261019140000_order_settlement`; no capture or transfer runs in production until payments phases 5–7 ship (D1 Route confirmation still pending for live order money).
+
 ### Migrations — all applied
 
-Verified 2026-09-18 against the dev database: `prisma migrate status` reports "Database schema is up to date!" for all 8 migrations.
+Verified 2026-10-19 against the shared database: `prisma migrate status` reports "Database schema is up to date!" for all **11** migrations.
 
+- `20250905120000_add_refresh_token`
+- `20250905180000_vendor_onboarding_p2`
 - `20250916120000_wallet_top_up_intent`
 - `20250916180000_wallet_milli_units`
 - `20250916210000_credit_usage_source`
 - `20250916220000_platform_settings` — `PlatformSettings` + `FxRateHistory`; seeds paise defaults (milli env ÷ 10)
+- `20250918120000_whatsapp_connect_p2h`
+- `20250920120000_vendor_ai_model_luna_default`
+- `20251125065132_init_mysql`
+- `20261006120000_conversation_lock`
+- `20261019140000_order_settlement` — Route ledger schema (no backfill of existing orders)
 
 **How they were applied matters if you ever bootstrap another environment.** The schema changes reached the database out of band (`prisma db push` or hand-run SQL), so `prisma migrate deploy` later failed with `column "walletBalance" does not exist` — the rename had already happened. Postgres rolled that attempt back (`applied_steps_count = 0`), but the failed record blocked every later migration until reconciled with `prisma migrate resolve --applied <name>`.
 
@@ -364,6 +377,21 @@ Renamed: `getTodaysCatalogImportPaiseSpent` → `getTodaysCatalogImportMilliSpen
 | Cached platform knobs + FX refresh | `backend/src/services/platformSettingsService.ts` |
 | Admin settings API | `backend/src/routes/adminSettings.ts` |
 | Env fallbacks | `backend/src/config/env.ts` (`numericEnv`, `walletEnv`) |
+| Order settlement ledger (Route) | `backend/src/services/payments/settlementService.ts`, `paymentReconciliationService.ts` |
+
+---
+
+## 14. Order settlement balance (Route ledger)
+
+Customer order money is **not** the AI wallet. It lives in `Vendor.settlementBalanceMilli` and is written **only** by `settlementService.ts` (credits, releases, refunds, disputes, shop funding) inside one Prisma transaction per change, with a matching `SettlementEntry` row.
+
+| Topic | Rule |
+|---|---|
+| Unit | Millirupees on `Vendor.settlementBalanceMilli` and `SettlementEntry.amountMilli`. Razorpay transfer/refund amounts stay **paise** until `paiseToMilli` at the boundary. |
+| Meaning | Money still under ChatLogix control at Razorpay for the shop, minus amounts owed to ChatLogix. Held Route transfers are **not** released into this balance until `transfer_release`. |
+| Writers | `creditCapturedPaymentTx`, `releaseDueTransfers` / `finishReleasingTransfers`, refund and dispute handlers, `creditShopFundingTx`. Never `pricingService.chargeVendor`. |
+| Reconciliation | Phase 9: 15m intent sweep + daily sweep in `paymentReconciliationService.ts`. Ledger and Route on-hold mismatches **alert only** (log + optional CloudWatch). |
+| Full spec | [payments/02-implementation-plan.md](./payments/02-implementation-plan.md), [payments/README.md](./payments/README.md). |
 
 ## Related docs
 
@@ -373,6 +401,7 @@ Renamed: `getTodaysCatalogImportPaiseSpent` → `getTodaysCatalogImportMilliSpen
 - [PRODUCT_MEDIA.md](./PRODUCT_MEDIA.md) §14 — outbound media billing
 - [public-signup-onboarding.md](../documentation/modules/features/vendor-onboarding/guides/public-signup-onboarding.md) §"Billing model" — trial wallet in the signup flow
 - [wallet-top-up-p2g.md](../documentation/modules/features/vendor-onboarding/guides/wallet-top-up-p2g.md) — top-up flow and the Razorpay migration
+- [payments/README.md](./payments/README.md) — customer order payments through Razorpay Route: held transfers to each shop’s linked account, refunds, and TCS/TDS. Not the AI wallet. Ledger code lives in `backend/src/services/payments/`; schema applied via `20261019140000_order_settlement` (2026-10-19). Live order money still waits on D1 Route confirmation — see [02-implementation-plan.md](./payments/02-implementation-plan.md) phases 5–7.
 - [whatsapp-connect-p2h.md](../documentation/modules/features/vendor-onboarding/guides/whatsapp-connect-p2h.md) — P2h connect + when `whatsappCostMilli` gets populated
 - [vendor-dashboard/API.md](../documentation/modules/features/vendor-dashboard/API.md) — the `billing` block contract
 - [vendor-dashboard/USER_GUIDE.md](../documentation/modules/features/vendor-dashboard/USER_GUIDE.md) — what the vendor sees

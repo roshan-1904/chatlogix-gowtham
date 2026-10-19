@@ -23,7 +23,7 @@ import {
 const SETTINGS_QUERY_KEY = ['admin-platform-settings'] as const;
 
 const INPUT_CLASS =
-  'w-full rounded-lg border py-2 text-sm text-gray-900 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/30';
+  'w-full rounded-lg border bg-white py-2 text-sm text-gray-900 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/30';
 
 interface FieldProps extends InputHTMLAttributes<HTMLInputElement> {
   id: string;

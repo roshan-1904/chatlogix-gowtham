@@ -288,7 +288,7 @@ export function Orders() {
   // Not yet implemented on the backend (payment-link generation is a 501
   // stub; shipment creation/tracking don't exist yet) -- surfaced honestly
   // instead of silently doing nothing.
-  const NOT_YET_AVAILABLE_ACTIONS = new Set(['send_payment_link', 'create_shipment', 'track', 'view_invoice']);
+  const NOT_YET_AVAILABLE_ACTIONS = new Set(['create_shipment', 'track', 'view_invoice']);
 
   const handleQuickAction = async (orderId: string, action: string) => {
     if (action === 'view') {

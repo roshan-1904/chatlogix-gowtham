@@ -12,7 +12,8 @@
       "require": "./dist/index.js"
     },
     "./tailwind": "./tailwind.config.js",
-    "./nativewind": "./nativewind.config.js"
+    "./nativewind": "./nativewind.config.js",
+    "./form-controls.css": "./src/form-controls.css"
   },
   "scripts": {
     "build": "tsup",

@@ -28,7 +28,9 @@ const patchSchema = z
     minWalletTopUpPaise: optionalNonNegInt.optional(),
     maxWalletTopUpPaise: optionalNonNegInt.optional(),
     walletTopUpPresetsPaise: optionalPresets.optional(),
-    mockWalletTopUpEnabled: z.boolean().optional()
+    mockWalletTopUpEnabled: z.boolean().optional(),
+    refundReturnsWithheldTaxToShop: z.boolean().optional(),
+    gstTcsBaseExcludesShopGst: z.boolean().optional()
   })
   .strict();
 

@@ -8,6 +8,12 @@ import { getVendorWalletSummary } from '../services/wallet/walletSummaryService.
 import { getWalletPaymentProvider } from '../services/wallet/paymentProviders/index.js';
 import { ensurePlatformSettings, getPlatformSettings } from '../services/platformSettingsService.js';
 import { paiseToMilli } from '../utils/money.js';
+import { walletTopUpIntentRateLimit } from '../middleware/walletTopUpRateLimit.js';
+import {
+  disableAutoRecharge,
+  startAutoRechargeMandateRegistration
+} from '../services/wallet/autoRechargeService.js';
+import { isAutoRechargePresetMilli } from '../services/wallet/autoRechargeConstants.js';
 
 export const vendorWalletRouter = Router();
 
@@ -33,6 +39,14 @@ const confirmMockSchema = z.object({
   intentId: z.string().uuid()
 });
 
+const autoRechargeSetupSchema = z.object({
+  amountMilli: z.number().int()
+});
+
+const autoRechargeDisableSchema = z.object({
+  enabled: z.literal(false)
+});
+
 vendorWalletRouter.get(
   '/me/wallet',
   requireRole('vendor'),
@@ -49,6 +63,7 @@ vendorWalletRouter.get(
 vendorWalletRouter.post(
   '/me/wallet/top-up-intent',
   requireRole('vendor'),
+  walletTopUpIntentRateLimit,
   asyncHandler(async (req, res) => {
     const vendorId = requireVendorId(req);
     await ensurePlatformSettings();
@@ -102,5 +117,47 @@ vendorWalletRouter.post(
       transactionId: result.transactionId,
       alreadyCompleted: result.alreadyCompleted ?? false
     });
+  })
+);
+
+function requireUserId(req: Request): string {
+  const uid = req.user?.id ?? req.user?.userId;
+  if (!uid) {
+    throw createValidationError('User context is required', 'userId');
+  }
+  return uid;
+}
+
+vendorWalletRouter.post(
+  '/me/wallet/auto-recharge/setup',
+  requireRole('vendor'),
+  asyncHandler(async (req, res) => {
+    const vendorId = requireVendorId(req);
+    const approvedBy = requireUserId(req);
+    const parsed = autoRechargeSetupSchema.safeParse(req.body);
+    if (!parsed.success || !isAutoRechargePresetMilli(parsed.data.amountMilli)) {
+      throw createValidationError('Choose ₹500, ₹1,000, or ₹2,000 for auto-recharge', 'amountMilli');
+    }
+
+    const result = await startAutoRechargeMandateRegistration(
+      vendorId,
+      parsed.data.amountMilli,
+      approvedBy
+    );
+    res.status(201).json(result);
+  })
+);
+
+vendorWalletRouter.patch(
+  '/me/wallet/auto-recharge',
+  requireRole('vendor'),
+  asyncHandler(async (req, res) => {
+    const vendorId = requireVendorId(req);
+    const parsed = autoRechargeDisableSchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw createValidationError('Only { enabled: false } is supported', 'enabled');
+    }
+    await disableAutoRecharge(vendorId);
+    res.json({ ok: true });
   })
 );

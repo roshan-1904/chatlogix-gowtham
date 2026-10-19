@@ -26,7 +26,10 @@ import { vendorOnboardingRouter } from './routes/vendorOnboarding.js';
 import { vendorWalletRouter } from './routes/vendorWallet.js';
 import { vendorWhatsAppRouter } from './routes/vendorWhatsApp.js';
 import { adminSettingsRouter } from './routes/adminSettings.js';
+import { adminTaxReportsRouter } from './routes/adminTaxReports.js';
 import { startFxRateRefreshLoop } from './services/platformSettingsService.js';
+import { startAutoRechargeBackgroundLoops } from './services/wallet/autoRechargeService.js';
+import { walletEnv } from './config/env.js';
 import { 
   enhancedGlobalErrorHandler, 
   notFoundHandler, 
@@ -37,11 +40,21 @@ import {
 } from './middleware/errorHandler.js';
 import { authenticate } from './middleware/authenticate.js';
 import { requireRole } from './middleware/authorize.js';
+import { razorpayWebhookHandler } from './routes/razorpayWebhook.js';
+import { bootstrapRouteClientFromEnv } from './services/payments/routeClient.js';
+import { bootstrapLinkedAccountClientFromEnv } from './services/payments/linkedAccountClient.js';
+import {
+  runSettlementDailySweep,
+  runSettlementIntentSweep
+} from './services/payments/paymentReconciliationService.js';
+import { expireRefundDrafts, releaseDueTransfers } from './services/payments/settlementService.js';
 
 async function bootstrap() {
   // Setup global error handlers
   setupUnhandledRejectionHandler();
   setupUncaughtExceptionHandler();
+  await bootstrapRouteClientFromEnv();
+  await bootstrapLinkedAccountClientFromEnv();
 
   const app = express();
 
@@ -65,8 +78,13 @@ async function bootstrap() {
     crossOriginResourcePolicy: { policy: 'cross-origin' }
   }));
   app.use(morgan('combined'));
-  // Note: webhook route needs raw body; attach JSON parser after mounting webhook
+  // Note: webhook routes need raw body; attach JSON parser after mounting them
   app.use('/webhook', webhookRouter);
+  app.post(
+    '/api/payments/razorpay/webhook',
+    express.raw({ type: 'application/json' }),
+    razorpayWebhookHandler
+  );
   app.use(express.json({ limit: '2mb' }));
 
   app.get('/health', (req, res) => {
@@ -119,6 +137,7 @@ async function bootstrap() {
   app.use('/api', authenticate, paymentsRouter);
   app.use('/api', authenticate, shippingRouter);
   app.use('/api/admin/settings', authenticate, requireRole('admin'), adminSettingsRouter);
+  app.use('/api/admin/tax-reports', authenticate, requireRole('admin'), adminTaxReportsRouter);
 
   // Error handling middleware (must be last)
   app.use(notFoundHandler);
@@ -126,9 +145,43 @@ async function bootstrap() {
 
   const port = Number(env.PORT);
   let fxRefreshTimer: NodeJS.Timeout | undefined;
+  let autoRechargeTimer: NodeJS.Timeout | undefined;
+  let refundDraftTimer: NodeJS.Timeout | undefined;
+  let releaseTransfersTimer: NodeJS.Timeout | undefined;
+  let settlementIntentTimer: NodeJS.Timeout | undefined;
+  let settlementDailyTimer: NodeJS.Timeout | undefined;
   const server = app.listen(port, () => {
     logger.info({ port }, 'HTTP server started');
     if (env.NODE_ENV !== 'test') {
+      releaseTransfersTimer = setInterval(() => {
+        void releaseDueTransfers().catch((err) => {
+          logger.error({ err }, 'releaseDueTransfers job failed');
+        });
+      }, 5 * 60 * 1000);
+      refundDraftTimer = setInterval(() => {
+        void expireRefundDrafts().catch((err) => {
+          logger.error({ err }, 'expireRefundDrafts job failed');
+        });
+      }, 15 * 60 * 1000);
+      settlementIntentTimer = setInterval(() => {
+        void runSettlementIntentSweep().catch((err) => {
+          logger.error({ err }, 'runSettlementIntentSweep job failed');
+        });
+      }, 15 * 60 * 1000);
+      void runSettlementIntentSweep().catch((err) => {
+        logger.error({ err }, 'runSettlementIntentSweep initial run failed');
+      });
+      settlementDailyTimer = setInterval(() => {
+        void runSettlementDailySweep().catch((err) => {
+          logger.error({ err }, 'runSettlementDailySweep job failed');
+        });
+      }, 24 * 60 * 60 * 1000);
+      void runSettlementDailySweep().catch((err) => {
+        logger.error({ err }, 'runSettlementDailySweep initial run failed');
+      });
+      if (walletEnv.paymentProvider === 'razorpay') {
+        autoRechargeTimer = startAutoRechargeBackgroundLoops();
+      }
       if (isFxRefreshLoopEnabled) {
         fxRefreshTimer = startFxRateRefreshLoop();
       } else {
@@ -150,6 +203,11 @@ async function bootstrap() {
   const shutdown = (signal: string) => {
     logger.info({ signal }, 'Shutting down HTTP server');
     if (fxRefreshTimer) clearInterval(fxRefreshTimer);
+    if (autoRechargeTimer) clearInterval(autoRechargeTimer);
+    if (refundDraftTimer) clearInterval(refundDraftTimer);
+    if (releaseTransfersTimer) clearInterval(releaseTransfersTimer);
+    if (settlementIntentTimer) clearInterval(settlementIntentTimer);
+    if (settlementDailyTimer) clearInterval(settlementDailyTimer);
     server.close((err) => {
       if (err) {
         logger.error({ err }, 'Error during HTTP server shutdown');

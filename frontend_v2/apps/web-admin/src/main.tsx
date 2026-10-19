@@ -6,6 +6,7 @@ import { AuthProvider } from '@chatlogix/auth';
 import { authApi } from './lib/auth';
 import App from './App';
 import './index.css';
+import '@chatlogix/design-tokens/form-controls.css';
 
 const queryClient = new QueryClient({
   defaultOptions: {

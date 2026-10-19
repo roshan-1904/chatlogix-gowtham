@@ -63,6 +63,31 @@ model Vendor {
   orderPreparationConfig         Json?
   catalogImportEnabled           Boolean               @default(false)
   featureFlags                   Json?
+  paymentsManagedByChatlogix     Boolean               @default(false)
+  paymentFeeBps                  Int                   @default(100)
+  settlementBalanceMilli         BigInt                @default(0)
+  razorpayLinkedAccountId        String?               @unique
+  linkedAccountStatus            String?
+  collectionStartedAt            DateTime?
+  paymentLinkAutoSend            Boolean               @default(true)
+  releasesFrozenAt               DateTime?
+  releasesFrozenReason           String?
+  rollingReserveBps              Int                   @default(0)
+  settlementBankChangedAt        DateTime?
+  legalName                      String?
+  panEncrypted                   String?
+  gstin                          String?
+  gstExempt                      Boolean               @default(false)
+  settlementBankAccountMasked    String?
+  settlementBankIfsc             String?
+  settlementAccountHolderName    String?
+  businessType                   String?
+  settlementContactEmail         String?
+  settlementContactPhone         String?
+  autoRechargeEnabled            Boolean               @default(false)
+  autoRechargeAmountMilli        Int?
+  autoRechargeMandateId          String?
+  razorpayWalletCustomerId       String?
   billingHistory                 BillingHistory[]
   catalogImportJobs              CatalogImportJob[]
   conversations                  Conversation[]
@@ -79,6 +104,16 @@ model Vendor {
   stageExecutionLogs             StageExecutionLog[]
   walletTransactions             WalletTransaction[]
   walletTopUpIntents             WalletTopUpIntent[]
+  autoRechargeRegistrations      WalletAutoRechargeRegistration[]
+  autoRechargeAttempts           WalletAutoRechargeAttempt[]
+  autoRechargeMandateAudits      WalletAutoRechargeMandateAudit[]
+  settlementControlAudits        VendorSettlementControlAudit[]
+  customerPayments               CustomerPayment[]
+  paymentLinks                   PaymentLink[]
+  settlementEntries              SettlementEntry[]
+  settlementTransfers            SettlementTransfer[]
+  customerRefunds                CustomerRefund[]
+  platformFeeInvoices            VendorPlatformFeeInvoice[]
   whatsappNumbers                WhatsAppNumber[]
   customerQueries                CustomerQuery[]
   productMedia                   ProductMedia[]
@@ -277,6 +312,252 @@ model WalletTopUpIntent {
   @@map("WalletTopUpIntent")
 }
 
+model WalletAutoRechargeRegistration {
+  id              String   @id @default(uuid())
+  vendorId        String
+  amountMilli     Int
+  status          String   @default("pending")
+  razorpayOrderId String?
+  replaceMandateId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  vendor          Vendor   @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+
+  @@index([vendorId, status])
+  @@map("WalletAutoRechargeRegistration")
+}
+
+model WalletAutoRechargeAttempt {
+  id                 String    @id @default(uuid())
+  vendorId           String
+  amountMilli        Int
+  status             String    @default("scheduled")
+  scheduledDebitAt   DateTime
+  scheduleDay        DateTime  @db.Date
+  razorpayOrderId    String?
+  preDebitNotifiedAt DateTime?
+  failureReason      String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  vendor             Vendor    @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+
+  @@unique([vendorId, scheduleDay])
+  @@index([vendorId, status])
+  @@index([status, scheduledDebitAt])
+  @@map("WalletAutoRechargeAttempt")
+}
+
+model WalletAutoRechargeMandateAudit {
+  id          String   @id @default(uuid())
+  vendorId    String
+  mandateId   String
+  amountMilli Int
+  approvedBy  String
+  approvedAt  DateTime @default(now())
+  vendor      Vendor   @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+
+  @@index([vendorId])
+  @@map("WalletAutoRechargeMandateAudit")
+}
+
+model VendorSettlementControlAudit {
+  id        String   @id @default(uuid())
+  vendorId  String
+  changedBy String
+  field     String
+  oldValue  String?
+  newValue  String?
+  reason    String?
+  createdAt DateTime @default(now())
+  vendor    Vendor   @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+
+  @@index([vendorId])
+  @@index([vendorId, createdAt(sort: Desc)])
+  @@map("VendorSettlementControlAudit")
+}
+
+/// One Razorpay payment for a customer order. `netMilli` is what settlement
+/// was credited. Order `totalAmount` stays paise. This balance is not the AI wallet.
+model CustomerPayment {
+  id                    String               @id @default(uuid())
+  vendorId              String
+  orderId               String
+  amountPaise           Int
+  gatewayFeePaise       Int
+  gatewayTaxPaise       Int
+  platformFeePaise      Int
+  platformFeeGstPaise   Int                  @default(0)
+  gstTcsPaise           Int                  @default(0)
+  tdsPaise              Int                  @default(0)
+  netMilli              BigInt
+  refundedPaise         Int                  @default(0)
+  status                String
+  razorpayPaymentId     String               @unique
+  razorpayPaymentLinkId String?
+  capturedAt            DateTime
+  settlementAlert       String?
+  refundRequired        Boolean              @default(false)
+  disputeStatus         String?
+  createdAt             DateTime             @default(now())
+  order                 Order                @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  vendor                Vendor               @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  settlementEntries     SettlementEntry[]
+  settlementTransfers   SettlementTransfer[]
+  customerRefunds       CustomerRefund[]
+
+  @@index([vendorId, createdAt(sort: Desc)], map: "idx_customer_payment_vendor")
+  @@index([orderId], map: "idx_customer_payment_order")
+  @@map("CustomerPayment")
+}
+
+/// A customer order can have several Razorpay payment links (expiry, regenerate).
+model PaymentLink {
+  id             String   @id @default(uuid())
+  vendorId       String
+  orderId        String
+  amountPaise    Int
+  url            String
+  expiresAt      DateTime
+  razorpayLinkId String   @unique
+  status         String   @default("created")
+  createdAt      DateTime @default(now())
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  vendor         Vendor   @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+
+  @@index([orderId], map: "idx_payment_link_order")
+  @@map("PaymentLink")
+}
+
+/// One Route transfer per capture (main and optional reserve). Hold lives here.
+model SettlementTransfer {
+  id                  String           @id @default(uuid())
+  vendorId            String
+  customerPaymentId   String
+  amountPaise         Int
+  reversedPaise       Int              @default(0)
+  kind                String
+  status              String
+  eligibleAt          DateTime
+  releasedAt          DateTime?
+  razorpayTransferId  String?          @unique
+  createdAt           DateTime         @default(now())
+  vendor              Vendor           @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  customerPayment     CustomerPayment  @relation(fields: [customerPaymentId], references: [id], onDelete: Restrict)
+  settlementEntries   SettlementEntry[]
+
+  @@index([vendorId, status, eligibleAt], map: "idx_settlement_transfer_release")
+  @@index([customerPaymentId], map: "idx_settlement_transfer_payment")
+  @@map("SettlementTransfer")
+}
+
+/// Shop-initiated refund lifecycle (Route reversals + Razorpay refund).
+model CustomerRefund {
+  id                     String           @id @default(uuid())
+  vendorId               String
+  customerPaymentId      String
+  amountPaise            Int
+  status                 String
+  shortfallMilli         BigInt           @default(0)
+  fundingRazorpayOrderId String?
+  fundingExpiresAt       DateTime?
+  reversalPlan           Json
+  razorpayRefundId       String?          @unique
+  requestedBy            String
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+  vendor                 Vendor           @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  customerPayment        CustomerPayment  @relation(fields: [customerPaymentId], references: [id], onDelete: Restrict)
+  settlementEntries      SettlementEntry[]
+
+  @@index([vendorId, status], map: "idx_customer_refund_vendor_status")
+  @@index([customerPaymentId], map: "idx_customer_refund_payment")
+  @@map("CustomerRefund")
+}
+
+/// Append-only settlement ledger. Credits and debits change `Vendor.settlementBalanceMilli`.
+model SettlementEntry {
+  id                   String              @id @default(uuid())
+  vendorId             String
+  amountMilli          BigInt
+  direction            String
+  balanceAfterMilli    BigInt
+  kind                 String
+  idempotencyKey       String              @unique
+  customerPaymentId    String?
+  settlementTransferId String?
+  customerRefundId     String?
+  metadata             Json?
+  createdAt            DateTime            @default(now())
+  vendor               Vendor              @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  customerPayment      CustomerPayment?    @relation(fields: [customerPaymentId], references: [id], onDelete: Restrict)
+  settlementTransfer   SettlementTransfer? @relation(fields: [settlementTransferId], references: [id], onDelete: Restrict)
+  customerRefund       CustomerRefund?     @relation(fields: [customerRefundId], references: [id], onDelete: Restrict)
+
+  @@index([vendorId, createdAt(sort: Desc)], map: "idx_settlement_entry_vendor")
+  @@index([customerPaymentId], map: "idx_settlement_entry_payment")
+  @@index([kind], map: "idx_settlement_entry_kind")
+  @@map("SettlementEntry")
+}
+
+/// Razorpay event id. The raw body is not stored.
+model PaymentWebhookEvent {
+  id                 String    @id @default(uuid())
+  providerEventId    String    @unique
+  eventType          String
+  razorpayPaymentId  String?
+  razorpayRefundId   String?
+  processedAt        DateTime?
+  createdAt          DateTime  @default(now())
+
+  @@map("PaymentWebhookEvent")
+}
+
+/// Global sequential counter for platform-fee tax invoices.
+model PlatformFeeInvoiceSequence {
+  id         String @id @default("default")
+  nextNumber Int    @default(1)
+
+  @@map("PlatformFeeInvoiceSequence")
+}
+
+/// Monthly GST invoice from ChatLogix to a shop for order platform fees (phase 10).
+/// Issued rows are immutable; corrections use VendorPlatformFeeCreditNote.
+model VendorPlatformFeeInvoice {
+  id                      String                      @id @default(uuid())
+  vendorId                String
+  monthKey                String
+  invoiceNumber           Int                         @unique
+  invoiceDisplay          String
+  platformFeePaise        Int
+  platformFeeTaxablePaise Int
+  platformFeeGstPaise     Int
+  gatewayFeePaise         Int
+  gatewayTaxPaise         Int
+  gatewayLineMode         String
+  paymentCount            Int
+  pdfS3Key                String
+  pdfSha256               String?
+  issuedAt                DateTime                    @default(now())
+  vendor                  Vendor                      @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  creditNote              VendorPlatformFeeCreditNote?
+
+  @@unique([vendorId, monthKey])
+  @@index([vendorId, issuedAt(sort: Desc)])
+  @@map("VendorPlatformFeeInvoice")
+}
+
+/// Stub for correcting an issued invoice without regenerating the PDF.
+model VendorPlatformFeeCreditNote {
+  id               String                   @id @default(uuid())
+  invoiceId        String                   @unique
+  creditNoteNumber Int                      @unique
+  reason           String
+  createdAt        DateTime                 @default(now())
+  invoice          VendorPlatformFeeInvoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+
+  @@map("VendorPlatformFeeCreditNote")
+}
+
 /// Singleton platform billing knobs (id = "default"). Money columns are paise.
 /// Live USD/INR is written by the daily Frankfurter refresh; admins may pin
 /// `usdToInrOverride`. Wallet charges still convert paise → milli at the boundary.
@@ -296,10 +577,29 @@ model PlatformSettings {
   maxWalletTopUpPaise           Int
   walletTopUpPresetsPaise       Json
   mockWalletTopUpEnabled        Boolean   @default(true)
+  gstTcsBps                     Int       @default(50)
+  tds194oBps                    Int       @default(10)
+  tds194oNoPanBps               Int       @default(500)
+  /// D2 — when true, same-month refunds credit withheld TCS/TDS back at month close.
+  refundReturnsWithheldTaxToShop Boolean  @default(false)
+  /// D2 — TCS base excludes the shop's own GST when true.
+  gstTcsBaseExcludesShopGst     Boolean  @default(false)
   updatedAt                     DateTime  @updatedAt
   updatedBy                     String?
 
   @@map("PlatformSettings")
+}
+
+/// One row per IST calendar month after finance closes tax reports (phase 10).
+model TaxReportMonthClose {
+  id                String   @id @default(uuid())
+  yearMonth         String   @unique
+  closedAt          DateTime @default(now())
+  closedBy          String?
+  adjustmentCount   Int      @default(0)
+  createdAt         DateTime @default(now())
+
+  @@map("TaxReportMonthClose")
 }
 
 /// Audit log of each successful USD/INR fetch (and any admin-triggered refresh).
@@ -346,6 +646,7 @@ model Order {
   conversationId       String
   orderNumber          String                @unique
   status               OrderStatus           @default(pending)
+  paymentMethod        String?
   items                Json
   totalAmount          Int
   deliveryAddress      String?
@@ -363,6 +664,8 @@ model Order {
   notificationHistory  NotificationHistory[]
   auditLogs            OrderAuditLog[]
   alerts               OrderAlert[]
+  customerPayments     CustomerPayment[]
+  paymentLinks         PaymentLink[]
   conversation         Conversation          @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   customer             Customer              @relation(fields: [customerId], references: [id], onDelete: Cascade)
   vendor               Vendor                @relation(fields: [vendorId], references: [id], onDelete: Cascade)
@@ -835,6 +1138,7 @@ enum WalletTransactionType {
 
 enum OrderStatus {
   pending
+  awaiting_payment
   confirmed
   preparing
   ready

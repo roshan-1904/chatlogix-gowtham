@@ -96,12 +96,22 @@ export function MarketingFooter() {
 
         <p className="text-center text-[12px] text-white">
           ChatLogix © {year}
-          <Link
-            to="/privacy"
-            className="ml-3 text-white underline decoration-white/70 underline-offset-2 hover:decoration-white"
-          >
-            Privacy
-          </Link>
+          {(
+            [
+              { to: '/privacy', label: 'Privacy' },
+              { to: '/terms', label: 'Terms' },
+              { to: '/refunds', label: 'Refunds' },
+              { to: '/contact', label: 'Contact' },
+            ] as const
+          ).map(({ to, label }) => (
+            <Link
+              key={to}
+              to={to}
+              className="ml-3 text-white underline decoration-white/70 underline-offset-2 hover:decoration-white"
+            >
+              {label}
+            </Link>
+          ))}
         </p>
 
         <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-[12px] sm:justify-self-end">

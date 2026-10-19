@@ -28,6 +28,8 @@ export const site = {
     privacy: `${siteOrigin}/privacy`,
     about: `${siteOrigin}/about`,
     terms: `${siteOrigin}/terms`,
+    refunds: `${siteOrigin}/refunds`,
+    contact: `${siteOrigin}/contact`,
     talkToUs: supportWhatsApp
       ? `https://wa.me/${supportWhatsApp.replace(/\D/g, '')}`
       : null,

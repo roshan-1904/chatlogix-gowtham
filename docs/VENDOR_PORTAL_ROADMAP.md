@@ -200,6 +200,8 @@ GET /api/vendors/:id/notifications?limit=50&cursor=<id>
 
 ### 5.1 P1.1 — Payment links
 
+**Spec.** The final design (Razorpay Route linked accounts, 48-hour hold or 7 days for new shops, automatic release, shop-funded refunds, fees and TCS/TDS) is [docs/payments/README.md](./payments/README.md). This section is the portal gap that spec closes. Do not credit a captured order into `walletBalanceMilli`.
+
 **Problem.** `OrderDetails` renders **Generate Payment Link**, a link modal with copy and send actions, and a QR placeholder — in front of an endpoint that returns 501. The order list blocks the same action with an alert.
 
 **Evidence.**

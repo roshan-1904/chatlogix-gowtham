@@ -54,7 +54,14 @@ export function CustomerDetailsPanel({
   };
 
   // Separate orders into current/pending and recent (delivered/cancelled)
-  const activeOrderStatuses = new Set(['pending', 'confirmed', 'preparing', 'ready', 'out_for_delivery']);
+  const activeOrderStatuses = new Set([
+    'pending',
+    'awaiting_payment',
+    'confirmed',
+    'preparing',
+    'ready',
+    'out_for_delivery'
+  ]);
   const currentPendingOrders = customerOrders.filter(order => 
     activeOrderStatuses.has(order.status.toLowerCase())
   );

@@ -22,6 +22,72 @@ export interface ExtractedOrder {
   customerNotes?: string;
 }
 
+async function attachPaymentSummary(order: Record<string, unknown>) {
+  const orderId = order.id as string;
+
+  const cashCollected = await prisma.orderAuditLog.findFirst({
+    where: { orderId, action: 'cash_collected' },
+    orderBy: { timestamp: 'desc' }
+  });
+  if (cashCollected) {
+    return {
+      ...order,
+      payment: {
+        status: 'cash_collected',
+        amountPaise: order.totalAmount as number,
+        netMilli: null,
+        transferStatus: null,
+        eligibleAt: null,
+        refundedPaise: 0
+      }
+    };
+  }
+
+  const captured = await prisma.customerPayment.findFirst({
+    where: { orderId, settlementAlert: null, netMilli: { gt: 0 } },
+    orderBy: { capturedAt: 'desc' },
+    include: {
+      settlementTransfers: {
+        orderBy: { createdAt: 'asc' },
+        take: 1
+      }
+    }
+  });
+  const openLink = await prisma.paymentLink.findFirst({
+    where: { orderId, status: 'created' },
+    orderBy: { createdAt: 'desc' }
+  });
+
+  if (!captured && !openLink) {
+    return { ...order, payment: null };
+  }
+
+  const transfer = captured?.settlementTransfers[0];
+  return {
+    ...order,
+    payment: captured
+      ? {
+          status: captured.status,
+          amountPaise: captured.amountPaise,
+          netMilli: captured.netMilli.toString(),
+          transferStatus: transfer?.status ?? null,
+          eligibleAt: transfer?.eligibleAt?.toISOString() ?? null,
+          refundedPaise: captured.refundedPaise
+        }
+      : {
+          status: 'pending',
+          amountPaise: openLink!.amountPaise,
+          netMilli: null,
+          transferStatus: null,
+          eligibleAt: null,
+          refundedPaise: 0,
+          paymentLinkId: openLink!.id,
+          paymentLinkUrl: openLink!.url,
+          expiresAt: openLink!.expiresAt.toISOString()
+        }
+  };
+}
+
 export class OrderService {
   /**
    * Extract order information from conversation messages
@@ -188,7 +254,8 @@ export class OrderService {
    */
   // Valid order status transitions — terminal states (delivered, cancelled) cannot transition further
   private static readonly validStatusTransitions: Record<string, string[]> = {
-    pending: ['confirmed', 'cancelled'],
+    pending: ['confirmed', 'awaiting_payment', 'cancelled'],
+    awaiting_payment: ['confirmed', 'cancelled'],
     confirmed: ['preparing', 'cancelled'],
     preparing: ['ready', 'cancelled'],
     ready: ['out_for_delivery', 'cancelled'],
@@ -402,6 +469,9 @@ export class OrderService {
           }
         });
 
+        if (order) {
+          return attachPaymentSummary(order);
+        }
         return order;
       } catch (dbError: any) {
         // If customerNotes column doesn't exist, fetch without it
@@ -445,7 +515,7 @@ export class OrderService {
           });
 
           // Add null customerNotes to maintain API compatibility
-          return order ? { ...order, customerNotes: null } : null;
+          return order ? attachPaymentSummary({ ...order, customerNotes: null }) : null;
         }
         
         // Re-throw if it's a different error

@@ -58,6 +58,9 @@ vi.mock('../../config/env.js', () => ({
 import {
   clearPlatformSettingsCache,
   computeEffectiveUsdToInrRate,
+  DEFAULT_GST_TCS_BPS,
+  DEFAULT_TDS_194O_BPS,
+  DEFAULT_TDS_194O_NO_PAN_BPS,
   ensurePlatformSettings,
   envFallbackSettings,
   getMemoryCacheAgeMs,
@@ -88,11 +91,26 @@ function dbRow(overrides: Record<string, unknown> = {}) {
     maxWalletTopUpPaise: 5_000_000,
     walletTopUpPresetsPaise: [50000, 100000, 200000, 500000],
     mockWalletTopUpEnabled: true,
+    gstTcsBps: DEFAULT_GST_TCS_BPS,
+    tds194oBps: DEFAULT_TDS_194O_BPS,
+    tds194oNoPanBps: DEFAULT_TDS_194O_NO_PAN_BPS,
     updatedAt: new Date('2026-09-16T00:00:00.000Z'),
     updatedBy: null,
     ...overrides
   };
 }
+
+describe('order settlement tax defaults (05 D2)', () => {
+  it('env fallback matches documented bps defaults', () => {
+    const settings = envFallbackSettings();
+    expect(settings.gstTcsBps).toBe(DEFAULT_GST_TCS_BPS);
+    expect(settings.tds194oBps).toBe(DEFAULT_TDS_194O_BPS);
+    expect(settings.tds194oNoPanBps).toBe(DEFAULT_TDS_194O_NO_PAN_BPS);
+    expect(DEFAULT_GST_TCS_BPS).toBe(50);
+    expect(DEFAULT_TDS_194O_BPS).toBe(10);
+    expect(DEFAULT_TDS_194O_NO_PAN_BPS).toBe(500);
+  });
+});
 
 describe('Frankfurter parse + sanity', () => {
   it('accepts a finite in-range INR rate', () => {

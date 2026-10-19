@@ -26,6 +26,11 @@ export const FX_SANITY_MIN = 50;
 export const FX_SANITY_MAX = 150;
 export const FRANKFURTER_USD_INR_URL = 'https://api.frankfurter.app/latest?from=USD&to=INR';
 
+/** Order-settlement tax rates (bps). Authority: docs/payments/05-compliance-and-risk.md D2 dev defaults. */
+export const DEFAULT_GST_TCS_BPS = 50;
+export const DEFAULT_TDS_194O_BPS = 10;
+export const DEFAULT_TDS_194O_NO_PAN_BPS = 500;
+
 export type UsdToInrSource = 'frankfurter' | 'fallback';
 
 export interface PlatformSettingsSnapshot {
@@ -44,6 +49,11 @@ export interface PlatformSettingsSnapshot {
   maxWalletTopUpPaise: number;
   walletTopUpPresetsPaise: number[];
   mockWalletTopUpEnabled: boolean;
+  gstTcsBps: number;
+  tds194oBps: number;
+  tds194oNoPanBps: number;
+  refundReturnsWithheldTaxToShop: boolean;
+  gstTcsBaseExcludesShopGst: boolean;
   updatedAt: string;
   updatedBy: string | null;
 }
@@ -60,6 +70,8 @@ export type PlatformSettingsPatch = {
   maxWalletTopUpPaise?: number;
   walletTopUpPresetsPaise?: number[];
   mockWalletTopUpEnabled?: boolean;
+  refundReturnsWithheldTaxToShop?: boolean;
+  gstTcsBaseExcludesShopGst?: boolean;
 };
 
 export type FxRefreshFailureReason = 'fetch_failed' | 'invalid_payload' | 'out_of_range';
@@ -182,6 +194,21 @@ export function envFallbackSettings(): PlatformSettingsSnapshot {
       envString('WALLET_TOPUP_PRESETS_MILLI', '500000,1000000,2000000,5000000')
     ).map(milliEnvToPaise),
     mockWalletTopUpEnabled: envString('MOCK_WALLET_TOPUP_ENABLED', 'true') !== 'false',
+    gstTcsBps: finiteNumber(
+      Number(envString('GST_TCS_BPS', String(DEFAULT_GST_TCS_BPS))),
+      DEFAULT_GST_TCS_BPS
+    ),
+    tds194oBps: finiteNumber(
+      Number(envString('TDS_194O_BPS', String(DEFAULT_TDS_194O_BPS))),
+      DEFAULT_TDS_194O_BPS
+    ),
+    tds194oNoPanBps: finiteNumber(
+      Number(envString('TDS_194O_NO_PAN_BPS', String(DEFAULT_TDS_194O_NO_PAN_BPS))),
+      DEFAULT_TDS_194O_NO_PAN_BPS
+    ),
+    refundReturnsWithheldTaxToShop:
+      envString('REFUND_RETURNS_WITHHELD_TAX_TO_SHOP', 'false') === 'true',
+    gstTcsBaseExcludesShopGst: envString('GST_TCS_BASE_EXCLUDES_SHOP_GST', 'false') === 'true',
     updatedAt: new Date(0).toISOString(),
     updatedBy: null
   };
@@ -211,6 +238,11 @@ export function rowToSnapshot(row: PlatformSettingsRow): PlatformSettingsSnapsho
     maxWalletTopUpPaise: row.maxWalletTopUpPaise,
     walletTopUpPresetsPaise: parsePresets(row.walletTopUpPresetsPaise),
     mockWalletTopUpEnabled: row.mockWalletTopUpEnabled,
+    gstTcsBps: row.gstTcsBps,
+    tds194oBps: row.tds194oBps,
+    tds194oNoPanBps: row.tds194oNoPanBps,
+    refundReturnsWithheldTaxToShop: row.refundReturnsWithheldTaxToShop,
+    gstTcsBaseExcludesShopGst: row.gstTcsBaseExcludesShopGst,
     updatedAt: toIso(row.updatedAt) ?? new Date().toISOString(),
     updatedBy: row.updatedBy
   };
@@ -264,7 +296,12 @@ function envCreateData(): Prisma.PlatformSettingsCreateInput {
     minWalletTopUpPaise: fallback.minWalletTopUpPaise,
     maxWalletTopUpPaise: fallback.maxWalletTopUpPaise,
     walletTopUpPresetsPaise: fallback.walletTopUpPresetsPaise,
-    mockWalletTopUpEnabled: fallback.mockWalletTopUpEnabled
+    mockWalletTopUpEnabled: fallback.mockWalletTopUpEnabled,
+    gstTcsBps: fallback.gstTcsBps,
+    tds194oBps: fallback.tds194oBps,
+    tds194oNoPanBps: fallback.tds194oNoPanBps,
+    refundReturnsWithheldTaxToShop: fallback.refundReturnsWithheldTaxToShop,
+    gstTcsBaseExcludesShopGst: fallback.gstTcsBaseExcludesShopGst
   };
 }
 
@@ -366,6 +403,12 @@ function scalarPatch(
     ...(patch.mockWalletTopUpEnabled !== undefined
       ? { mockWalletTopUpEnabled: patch.mockWalletTopUpEnabled }
       : {}),
+    ...(patch.refundReturnsWithheldTaxToShop !== undefined
+      ? { refundReturnsWithheldTaxToShop: patch.refundReturnsWithheldTaxToShop }
+      : {}),
+    ...(patch.gstTcsBaseExcludesShopGst !== undefined
+      ? { gstTcsBaseExcludesShopGst: patch.gstTcsBaseExcludesShopGst }
+      : {}),
     ...(updatedBy !== undefined ? { updatedBy } : {})
   };
 }
@@ -403,6 +446,12 @@ export async function updatePlatformSettings(
       : {}),
     ...(patch.mockWalletTopUpEnabled !== undefined
       ? { mockWalletTopUpEnabled: patch.mockWalletTopUpEnabled }
+      : {}),
+    ...(patch.refundReturnsWithheldTaxToShop !== undefined
+      ? { refundReturnsWithheldTaxToShop: patch.refundReturnsWithheldTaxToShop }
+      : {}),
+    ...(patch.gstTcsBaseExcludesShopGst !== undefined
+      ? { gstTcsBaseExcludesShopGst: patch.gstTcsBaseExcludesShopGst }
       : {}),
     updatedBy: updatedBy ?? null
   };

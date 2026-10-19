@@ -169,10 +169,28 @@ const EnvSchema = z.object({
   // Vendor wallet top-up. Provider stays env-only; amounts/presets/mock flag
   // are fallbacks for PlatformSettings (paise = milli ÷ 10).
   WALLET_PAYMENT_PROVIDER: z.enum(['mock', 'razorpay']).default('mock'),
+  // Optional. Unset or empty still boots; live payments stay off while the
+  // provider is mock. Never commit real secrets.
+  RAZORPAY_KEY_ID: z.string().optional(),
+  RAZORPAY_KEY_SECRET: z.string().optional(),
+  RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
+  /** When true, Route transfer calls use FakeRouteClient (dev / pre-D1). */
+  RAZORPAY_USE_FAKE_ROUTE: z.string().optional(),
   MIN_WALLET_TOPUP_MILLI: z.string().default('100000'),
   MAX_WALLET_TOPUP_MILLI: z.string().default('50000000'),
   WALLET_TOPUP_PRESETS_MILLI: z.string().default('500000,1000000,2000000,5000000'),
-  MOCK_WALLET_TOPUP_ENABLED: z.string().default('true')
+  MOCK_WALLET_TOPUP_ENABLED: z.string().default('true'),
+
+  /** ChatLogix entity on platform-fee tax invoices. */
+  CHATLOGIX_LEGAL_NAME: z.string().optional(),
+  CHATLOGIX_GSTIN: z.string().optional(),
+  /** S3 bucket for settlement PDFs (invoices, statements). Falls back to WA_MEDIA_S3_BUCKET. */
+  SETTLEMENT_INVOICE_S3_BUCKET: z.string().optional(),
+  /**
+   * D3 gateway line on platform-fee invoices: pure_agent (default) or inclusive_service.
+   * See docs/payments/05-compliance-and-risk.md D3.
+   */
+  PLATFORM_FEE_INVOICE_GATEWAY_LINE: z.string().optional()
 });
 
 export type Env = z.infer<typeof EnvSchema> & {
@@ -180,6 +198,19 @@ export type Env = z.infer<typeof EnvSchema> & {
 };
 
 export const env: Env = EnvSchema.parse(process.env);
+
+/** Refuse live deploy with Razorpay test keys (payments go-live §5.3). */
+export function assertProductionRazorpayKeys(): void {
+  if (env.NODE_ENV !== 'production') return;
+  const keyId = env.RAZORPAY_KEY_ID?.trim();
+  if (keyId?.startsWith('rzp_test_')) {
+    throw new Error(
+      'RAZORPAY_KEY_ID must not use rzp_test_ in production. Use live keys or unset Razorpay until go-live.'
+    );
+  }
+}
+
+assertProductionRazorpayKeys();
 
 // Canonical accessor for the inbound text queue. Throws if neither
 // TEXT_QUEUE_URL nor INCOMING_QUEUE_URL is set — caught at first call site

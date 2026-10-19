@@ -26,6 +26,7 @@ import {
 } from '../../conversation/llm/openaiSampling.js';
 import type { MessageKind } from '../billingService.js';
 import { ensurePlatformSettings, getPlatformSettings } from '../platformSettingsService.js';
+import { lockVendorForSettlement } from '../payments/vendorSettlementLock.js';
 
 /** Mirrors `Vendor.markupPercent`'s schema default. */
 export const DEFAULT_MARKUP_PERCENT = 50;
@@ -303,6 +304,8 @@ export async function chargeVendor(input: ChargeVendorInput): Promise<ChargeVend
 
   try {
     const result = await prisma.$transaction(async (tx) => {
+      await lockVendorForSettlement(tx, input.vendorId);
+
       const vendor = await tx.vendor.findUnique({
         where: { id: input.vendorId },
         select: { walletBalanceMilli: true, markupPercent: true }
@@ -368,6 +371,13 @@ export async function chargeVendor(input: ChargeVendorInput): Promise<ChargeVend
       },
       'wallet_charged'
     );
+
+    if (result.balanceAfterMilli !== null) {
+      const { maybeScheduleAutoRechargeAfterDebit } = await import('../wallet/autoRechargeService.js');
+      void maybeScheduleAutoRechargeAfterDebit(input.vendorId, result.balanceAfterMilli).catch((err) => {
+        logger.warn({ err, vendorId: input.vendorId }, 'auto_recharge_schedule_after_debit_failed');
+      });
+    }
 
     return { outcome: 'charged', breakdown, ...result };
   } catch (error) {

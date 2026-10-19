@@ -1,32 +1,56 @@
 /**
- * Payment Routes (Placeholder)
- * 
- * TODO: Implement payment link endpoints
- * 
- * Endpoints to implement:
- * - POST /api/orders/:orderId/payment-link - Generate payment link for order
- * - GET /api/payment-links/:linkId/status - Get payment link status
- * - POST /api/payments/webhook - Handle payment webhooks
+ * Payment link status and related read APIs.
  */
 
 import express from 'express';
+import { prisma } from '../db/prisma.js';
+import { getPaymentLinkService } from '../services/paymentLinkService.js';
+import { createShopFundingCheckoutIntent } from '../services/payments/shopFundingService.js';
+import { CustomError, ErrorType, ErrorSeverity, asyncHandler } from '../middleware/errorHandler.js';
+import { requireRole } from '../middleware/authorize.js';
 
 export const paymentsRouter = express.Router();
 
-// Note: POST /api/orders/:id/payment-link is handled in orders router
-// to avoid route conflicts
+function ensureVendorAccess(req: express.Request, vendorId: string): void {
+  const user = req.user;
+  if (!user) {
+    throw new CustomError('Authentication required', 401, ErrorType.AUTHENTICATION, ErrorSeverity.MEDIUM);
+  }
+  if (user.roles.includes('admin')) return;
+  if (user.roles.includes('vendor') && user.vendorId === vendorId) return;
+  throw new CustomError('Forbidden', 403, ErrorType.AUTHORIZATION, ErrorSeverity.MEDIUM);
+}
 
-// TODO: GET /api/payment-links/:linkId/status
-// Get payment link status
 paymentsRouter.get('/payment-links/:linkId/status', async (req, res) => {
-  // TODO: Implement payment link status check
-  res.status(501).json({ error: 'Not implemented' });
+  const link = await prisma.paymentLink.findUnique({
+    where: { id: req.params.linkId },
+    select: { vendorId: true }
+  });
+  if (!link) {
+    return res.status(404).json({ error: 'not_found' });
+  }
+  ensureVendorAccess(req, link.vendorId);
+
+  const status = await getPaymentLinkService().getPaymentLinkStatus(req.params.linkId, link.vendorId);
+  if (!status) {
+    return res.status(404).json({ error: 'not_found' });
+  }
+  res.json(status);
 });
 
-// TODO: POST /api/payments/webhook
-// Handle payment webhooks
-paymentsRouter.post('/webhook', async (req, res) => {
-  // TODO: Implement payment webhook handling
-  res.status(501).json({ error: 'Not implemented' });
-});
-
+paymentsRouter.post(
+  '/payments/shop-funding-intent',
+  requireRole('vendor'),
+  asyncHandler(async (req, res) => {
+    const vendorId = req.user?.vendorId;
+    if (!vendorId) {
+      throw new CustomError('Vendor context required', 403, ErrorType.AUTHORIZATION, ErrorSeverity.MEDIUM);
+    }
+    const customerRefundId = String(req.body?.customerRefundId ?? '').trim();
+    if (!customerRefundId) {
+      throw new CustomError('customerRefundId is required', 400, ErrorType.VALIDATION, ErrorSeverity.LOW);
+    }
+    const intent = await createShopFundingCheckoutIntent(vendorId, customerRefundId);
+    res.status(201).json(intent);
+  })
+);

@@ -28,6 +28,37 @@ import { shapeMessageMedia } from './conversations.js';
 import { invalidateVendorFlagCache } from '../config/featureFlags.js';
 import { TURN_AUDIT_FLAG } from '../observability/turnAuditLog.js';
 import { logger } from '../logger.js';
+import {
+  getLinkedAccountStatus,
+  submitLinkedAccountOptIn
+} from '../services/payments/linkedAccountService.js';
+import { bigintToDecimalString } from '../utils/bigIntJson.js';
+import { getVendorSettlementOverview } from '../services/payments/settlementService.js';
+import {
+  confirmSettlementBankChange,
+  requestSettlementBankChangeOtp
+} from '../services/payments/settlementBankChangeService.js';
+import {
+  freezeVendorReleases,
+  getAdminSettlementView,
+  setVendorRollingReserveBps,
+  unfreezeVendorReleases
+} from '../services/payments/settlementControlService.js';
+import { patchVendorBillingConfig } from '../services/payments/vendorBillingConfigService.js';
+import {
+  disableCollectionPreservingLedger,
+  offboardVendor
+} from '../services/payments/vendorOffboardingService.js';
+import {
+  getPlatformFeeInvoicePdfForVendor,
+  issuePlatformFeeInvoiceForVendor,
+  listVendorPlatformFeeInvoices,
+  requestPlatformFeeCreditNote
+} from '../services/payments/platformFeeInvoiceService.js';
+import {
+  getVendorSettlementStatement,
+  getVendorSettlementStatementCsv
+} from '../services/payments/settlementStatementService.js';
 
 export const vendorsRouter = express.Router();
 
@@ -115,9 +146,26 @@ vendorsRouter.post('/register', requireRole('admin'), async (req, res) => {
       email,
       subscriptionPlan: subscriptionPlan || 'Starter',
       walletBalanceMilli: 0
+    },
+    select: {
+      id: true,
+      businessName: true,
+      phone: true,
+      email: true,
+      subscriptionPlan: true,
+      subscriptionStatus: true,
+      walletBalanceMilli: true,
+      settlementBalanceMilli: true,
+      paymentsManagedByChatlogix: true,
+      paymentFeeBps: true,
+      registrationStatus: true,
+      createdAt: true
     }
   });
-  res.json(vendor);
+  res.json({
+    ...vendor,
+    settlementBalanceMilli: vendor.settlementBalanceMilli.toString()
+  });
 });
 
 vendorsRouter.get('/:id/usage-analytics', requireVendorAccess(req => req.params.id), async (req, res, next) => {
@@ -144,6 +192,9 @@ vendorsRouter.get('/:id/config', requireVendorAccess(req => req.params.id), asyn
         subscriptionStatus: true,
         walletBalanceMilli: true,
         markupPercent: true,
+        paymentFeeBps: true,
+        paymentsManagedByChatlogix: true,
+        paymentLinkAutoSend: true,
         aiBotName: true,
         aiPersonality: true,
         aiSystemPrompt: true,
@@ -165,6 +216,9 @@ vendorsRouter.get('/:id/config', requireVendorAccess(req => req.params.id), asyn
       status: vendor.subscriptionStatus,
       walletBalanceMilli: vendor.walletBalanceMilli,
       markupPercent: vendor.markupPercent,
+      paymentFeeBps: vendor.paymentFeeBps,
+      paymentsManagedByChatlogix: vendor.paymentsManagedByChatlogix,
+      paymentLinkAutoSend: vendor.paymentLinkAutoSend,
       category: vendor.category ?? null,
       catalogImportEnabled: !!vendor.catalogImportEnabled,
       ai: {
@@ -232,9 +286,14 @@ vendorsRouter.post('/:id/upgrade-plan', requireRole('admin'), async (req, res) =
   res.json({ id: vendor.id, plan: vendor.subscriptionPlan });
 });
 
-const billingConfigSchema = z.object({
-  markupPercent: z.number().int().min(0).max(500)
-});
+const billingConfigSchema = z
+  .object({
+    markupPercent: z.number().int().min(0).max(500).optional(),
+    paymentFeeBps: z.number().int().min(0).max(2000).optional()
+  })
+  .refine((body) => body.markupPercent !== undefined || body.paymentFeeBps !== undefined, {
+    message: 'At least one of markupPercent or paymentFeeBps is required'
+  });
 
 const vendorFeatureFlagsResponseSchema = z.object({
   conversation_turn_audit: z.boolean()
@@ -330,7 +389,7 @@ vendorsRouter.patch('/:id/feature-flags', requireRole('admin'), async (req, res,
   }
 });
 
-// PATCH /api/vendors/:id/billing-config - Admin-editable per-vendor markup
+// PATCH /api/vendors/:id/billing-config - Admin-editable markup + order payment fee
 vendorsRouter.patch('/:id/billing-config', requireRole('admin'), async (req, res, next) => {
   const parsed = billingConfigSchema.safeParse(req.body ?? {});
   if (!parsed.success) {
@@ -341,14 +400,15 @@ vendorsRouter.patch('/:id/billing-config', requireRole('admin'), async (req, res
   }
 
   try {
-    const vendor = await prisma.vendor.update({
-      where: { id: req.params.id },
-      data: { markupPercent: parsed.data.markupPercent },
-      select: { id: true, markupPercent: true }
+    const vendor = await patchVendorBillingConfig({
+      vendorId: req.params.id,
+      changedBy: req.user?.id ?? 'admin',
+      markupPercent: parsed.data.markupPercent,
+      paymentFeeBps: parsed.data.paymentFeeBps
     });
-    return res.json({ id: vendor.id, markupPercent: vendor.markupPercent });
+    return res.json(vendor);
   } catch (error: any) {
-    if (error?.code === 'P2025') {
+    if (error?.statusCode === 404) {
       return res.status(404).json({ error: 'not_found' });
     }
     return handlePrismaError(error, 'update', 'Vendor', next);
@@ -1249,6 +1309,269 @@ vendorsRouter.put(
  * PUT /api/vendors/:id/timezone
  * Update timezone
  */
+const linkedAccountOptInSchema = z.object({
+  legalName: z.string().min(2),
+  businessType: z.string().min(2),
+  pan: z.string().regex(/^[A-Z]{5}[0-9]{4}[A-Z]$/i),
+  gstin: z.string().optional(),
+  gstExempt: z.boolean().optional(),
+  bankAccountNumber: z.string().min(8),
+  bankIfsc: z.string().regex(/^[A-Z]{4}0[A-Z0-9]{6}$/i),
+  bankAccountHolderName: z.string().min(2),
+  contactEmail: z.string().email(),
+  contactPhone: z.string().min(10)
+});
+
+vendorsRouter.get(
+  '/:id/payments/collection',
+  requireVendorAccess((req) => req.params.id),
+  asyncHandlerWithContext(async (req: any, res: any) => {
+    const status = await getLinkedAccountStatus(req.params.id);
+    if (!status) return res.status(404).json({ error: 'not_found' });
+    res.json(status);
+  })
+);
+
+vendorsRouter.post(
+  '/:id/payments/linked-account',
+  requireVendorAccess((req) => req.params.id),
+  settingsRateLimit,
+  asyncHandlerWithContext(async (req: any, res: any) => {
+    const vendorId = req.params.id;
+    const body = linkedAccountOptInSchema.parse(req.body);
+    const result = await submitLinkedAccountOptIn(vendorId, {
+      ...body,
+      gstExempt: body.gstExempt ?? false
+    });
+    res.status(201).json(result);
+  })
+);
+
+const settlementBankChangeSchema = z.object({
+  bankAccountNumber: z.string().min(8),
+  bankIfsc: z.string().regex(/^[A-Z]{4}0[A-Z0-9]{6}$/i),
+  bankAccountHolderName: z.string().min(2),
+  sessionInfo: z.string().min(8),
+  otp: z.string().min(4)
+});
+
+const settlementStatementQuerySchema = z.object({
+  year: z.coerce.number().int().min(2020).max(2100),
+  month: z.coerce.number().int().min(1).max(12),
+  format: z.enum(['json', 'csv']).optional().default('json')
+});
+
+vendorsRouter.get(
+  '/:id/payments/settlement/statement',
+  requireVendorAccess((req) => req.params.id),
+  asyncHandlerWithContext(async (req: any, res: any) => {
+    const parsed = settlementStatementQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      throw createValidationError(parsed.error.errors[0]?.message ?? 'Invalid query', 'query');
+    }
+    const { year, month, format } = parsed.data;
+    if (format === 'csv') {
+      const { filename, body } = await getVendorSettlementStatementCsv(req.params.id, year, month);
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(body);
+      return;
+    }
+    const statement = await getVendorSettlementStatement(req.params.id, year, month);
+    res.json(statement);
+  })
+);
+
+const platformFeeInvoiceMonthSchema = z.object({
+  monthKey: z.string().regex(/^\d{4}-\d{2}$/)
+});
+
+vendorsRouter.get(
+  '/:id/payments/platform-fee-invoices',
+  requireVendorAccess((req) => req.params.id),
+  asyncHandlerWithContext(async (req: any, res: any) => {
+    const invoices = await listVendorPlatformFeeInvoices(req.params.id);
+    res.json({ invoices });
+  })
+);
+
+vendorsRouter.get(
+  '/:id/payments/platform-fee-invoices/:invoiceId/pdf',
+  requireVendorAccess((req) => req.params.id),
+  asyncHandlerWithContext(async (req: any, res: any) => {
+    const result = await getPlatformFeeInvoicePdfForVendor({
+      vendorId: req.params.id,
+      invoiceId: req.params.invoiceId
+    });
+    if ('redirectUrl' in result) {
+      res.redirect(result.redirectUrl);
+      return;
+    }
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.send(result.buffer);
+  })
+);
+
+vendorsRouter.post(
+  '/:id/payments/platform-fee-invoices/issue',
+  requireRole('admin'),
+  asyncHandlerWithContext(async (req: any, res: any) => {
+    const body = platformFeeInvoiceMonthSchema.parse(req.body);
+    const invoice = await issuePlatformFeeInvoiceForVendor({
+      vendorId: req.params.id,
+      monthKey: body.monthKey
+    });
+    res.status(201).json(invoice);
+  })
+);
+
+vendorsRouter.post(
+  '/:id/payments/platform-fee-invoices/:invoiceId/credit-note',
+  requireRole('admin'),
+  asyncHandlerWithContext(async (req: any, _res: any) => {
+    const reason = String(req.body?.reason ?? '').trim();
+    await requestPlatformFeeCreditNote({ invoiceId: req.params.invoiceId, reason });
+  })
+);
+
+vendorsRouter.get(
+  '/:id/payments/settlement',
+  requireVendorAccess((req) => req.params.id),
+  asyncHandlerWithContext(async (req: any, res: any) => {
+    const overview = await getVendorSettlementOverview(req.params.id);
+    res.json({
+      position: {
+        balanceMilli: bigintToDecimalString(overview.position.balanceMilli),
+        heldMilli: bigintToDecimalString(overview.position.heldMilli),
+        reserveMilli: bigintToDecimalString(overview.position.reserveMilli),
+        owedMilli: bigintToDecimalString(overview.position.owedMilli),
+        releasedMilli: bigintToDecimalString(overview.position.releasedMilli),
+        nextReleaseAt: overview.position.nextReleaseAt?.toISOString() ?? null,
+        asOf: overview.position.asOf.toISOString()
+      },
+      awaitingFunding: overview.awaitingFunding.map((row) => ({
+        ...row,
+        shortfallMilli: bigintToDecimalString(row.shortfallMilli)
+      })),
+      transfers: overview.transfers
+    });
+  })
+);
+
+vendorsRouter.post(
+  '/:id/payments/settlement/bank-change/otp',
+  requireVendorAccess((req) => req.params.id),
+  settingsRateLimit,
+  asyncHandlerWithContext(async (req: any, res: any) => {
+    const result = await requestSettlementBankChangeOtp(req.params.id);
+    res.status(201).json(result);
+  })
+);
+
+vendorsRouter.post(
+  '/:id/payments/settlement/bank-change',
+  requireVendorAccess((req) => req.params.id),
+  settingsRateLimit,
+  asyncHandlerWithContext(async (req: any, res: any) => {
+    const body = settlementBankChangeSchema.parse(req.body);
+    const result = await confirmSettlementBankChange(req.params.id, body);
+    res.json(result);
+  })
+);
+
+vendorsRouter.get(
+  '/:id/payments/settlement/admin',
+  requireRole('admin'),
+  asyncHandlerWithContext(async (req: any, res: any) => {
+    const view = await getAdminSettlementView(req.params.id);
+    res.json(view);
+  })
+);
+
+vendorsRouter.post(
+  '/:id/payments/settlement/freeze',
+  requireRole('admin'),
+  asyncHandlerWithContext(async (req: any, res: any) => {
+    const reason = String(req.body?.reason ?? '').trim();
+    await freezeVendorReleases({
+      vendorId: req.params.id,
+      reason,
+      changedBy: req.user?.id ?? 'admin'
+    });
+    res.status(204).send();
+  })
+);
+
+vendorsRouter.post(
+  '/:id/payments/settlement/unfreeze',
+  requireRole('admin'),
+  asyncHandlerWithContext(async (req: any, res: any) => {
+    await unfreezeVendorReleases({
+      vendorId: req.params.id,
+      changedBy: req.user?.id ?? 'admin'
+    });
+    res.status(204).send();
+  })
+);
+
+vendorsRouter.patch(
+  '/:id/payments/settlement/reserve',
+  requireRole('admin'),
+  asyncHandlerWithContext(async (req: any, res: any) => {
+    const rollingReserveBps = Number(req.body?.rollingReserveBps);
+    const result = await setVendorRollingReserveBps({
+      vendorId: req.params.id,
+      rollingReserveBps,
+      changedBy: req.user?.id ?? 'admin'
+    });
+    res.json(result);
+  })
+);
+
+vendorsRouter.post(
+  '/:id/payments/collection/disable',
+  requireRole('admin'),
+  asyncHandlerWithContext(async (req: any, res: any) => {
+    const result = await disableCollectionPreservingLedger({
+      vendorId: req.params.id,
+      changedBy: req.user?.id ?? 'admin'
+    });
+    res.json(result);
+  })
+);
+
+vendorsRouter.post(
+  '/:id/payments/offboard',
+  requireRole('admin'),
+  asyncHandlerWithContext(async (req: any, res: any) => {
+    const result = await offboardVendor({
+      vendorId: req.params.id,
+      changedBy: req.user?.id ?? 'admin'
+    });
+    res.json(result);
+  })
+);
+
+vendorsRouter.patch(
+  '/:id/payments/settings',
+  requireVendorAccess((req) => req.params.id),
+  settingsRateLimit,
+  asyncHandlerWithContext(async (req: any, res: any) => {
+    const vendorId = req.params.id;
+    const paymentLinkAutoSend = req.body?.paymentLinkAutoSend;
+    if (typeof paymentLinkAutoSend !== 'boolean') {
+      throw createValidationError('paymentLinkAutoSend must be a boolean', 'paymentLinkAutoSend');
+    }
+    const vendor = await prisma.vendor.update({
+      where: { id: vendorId },
+      data: { paymentLinkAutoSend },
+      select: { paymentLinkAutoSend: true, paymentsManagedByChatlogix: true }
+    });
+    res.json(vendor);
+  })
+);
+
 vendorsRouter.put(
   '/:id/timezone',
   requireVendorAccess(req => req.params.id),

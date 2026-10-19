@@ -14,6 +14,7 @@ const customerInsightsFindUnique = vi.fn();
 const orderAuditLogCreate = vi.fn();
 const orderAuditLogFindFirst = vi.fn();
 const vendorFindUnique = vi.fn();
+const customerPaymentFindFirst = vi.fn();
 
 const txStub = {
   order: {
@@ -34,6 +35,9 @@ const txStub = {
   },
   vendor: {
     findUnique: (...args: unknown[]) => vendorFindUnique(...args)
+  },
+  customerPayment: {
+    findFirst: (...args: unknown[]) => customerPaymentFindFirst(...args)
   }
 };
 
@@ -120,7 +124,8 @@ beforeEach(() => {
   customerInsightsFindUnique.mockResolvedValue(null);
   orderAuditLogCreate.mockResolvedValue({});
   orderAuditLogFindFirst.mockResolvedValue(null); // no prior application by default -- individual retry-guard tests override this
-  vendorFindUnique.mockResolvedValue({ orderPrefix: 'TEST' });
+  vendorFindUnique.mockResolvedValue({ orderPrefix: 'TEST', paymentsManagedByChatlogix: false });
+  customerPaymentFindFirst.mockResolvedValue(null);
   orderCount.mockResolvedValue(0);
 });
 
@@ -606,16 +611,18 @@ describe('CartEngine.apply — refund_request and historical cancel (#3)', () =>
     });
   }
 
-  it('refund_request: eligible (pending, within 7 days) cancels the order and reports refund_approved', async () => {
+  it('refund_request: eligible COD (pending, within 7 days) does not cancel and reports refund_request_received', async () => {
     const historicalOrder = {
       id: 'order-hist-1',
       orderNumber: 'ORD-HIST-0001',
       status: 'pending',
+      paymentMethod: 'cod',
       totalAmount: 129900,
       createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) // 2 days ago
     };
     mockNoLiveDraftThenHistoricalOrder(historicalOrder);
-    orderUpdate.mockResolvedValue({});
+    customerPaymentFindFirst.mockResolvedValue(null);
+    vendorFindUnique.mockResolvedValue({ paymentsManagedByChatlogix: false });
 
     const result = await apply({
       vendorId: VENDOR_ID,
@@ -626,30 +633,15 @@ describe('CartEngine.apply — refund_request and historical cancel (#3)', () =>
       traceId: 'wamid.20'
     });
 
-    expect(orderUpdate).toHaveBeenCalledWith({
-      where: { id: 'order-hist-1' },
-      data: { status: 'cancelled', cancelledAt: expect.any(Date), cancellationReason: 'changed my mind' }
-    });
-    expect(result.mutated).toBe(true);
+    expect(orderUpdate).not.toHaveBeenCalled();
+    expect(result.mutated).toBe(false);
     expect(result.postSalesOutcome).toEqual({
-      type: 'refund_approved',
+      type: 'refund_request_received',
       orderId: 'order-hist-1',
       orderNumber: 'ORD-HIST-0001',
-      detail: expect.stringContaining('₹1299.00')
+      detail: expect.stringContaining('shop will review')
     });
-    // Regression: this order is NOT `order` (the conversation's own live
-    // draft — there is none here), so it must not be silently skipped by
-    // the shared mutated-gated audit write.
-    expect(orderAuditLogCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          orderId: 'order-hist-1',
-          action: 'refund_request',
-          previousState: { status: 'pending' },
-          newState: { status: 'cancelled' }
-        })
-      })
-    );
+    expect(orderAuditLogCreate).not.toHaveBeenCalled();
   });
 
   it('refund_request: ineligible status (already delivered) leaves the order untouched and reports refund_denied', async () => {
@@ -657,10 +649,13 @@ describe('CartEngine.apply — refund_request and historical cancel (#3)', () =>
       id: 'order-hist-2',
       orderNumber: 'ORD-HIST-0002',
       status: 'delivered',
+      paymentMethod: 'cod',
       totalAmount: 50000,
       createdAt: new Date()
     };
     mockNoLiveDraftThenHistoricalOrder(historicalOrder);
+    customerPaymentFindFirst.mockResolvedValue(null);
+    vendorFindUnique.mockResolvedValue({ paymentsManagedByChatlogix: false });
 
     const result = await apply({
       vendorId: VENDOR_ID,
@@ -685,6 +680,7 @@ describe('CartEngine.apply — refund_request and historical cancel (#3)', () =>
     const historicalOrder = {
       id: 'order-hist-3',
       orderNumber: 'ORD-HIST-0003',
+      paymentMethod: 'cod',
       status: 'confirmed',
       totalAmount: 50000,
       createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000) // 10 days ago
