@@ -68,6 +68,7 @@ const deliveredOrder: OrderHistoryEntry = {
   status: 'delivered',
   items: [{ productId: 'p1', qty: 2 }],
   totalAmount: 20000,
+  paymentMethod: null,
   createdAt: new Date(),
   estimatedDelivery: null,
   confirmedAt: null,

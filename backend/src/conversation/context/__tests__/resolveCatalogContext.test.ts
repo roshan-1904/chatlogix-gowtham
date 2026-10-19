@@ -56,6 +56,7 @@ function hotSetWithCatalog(n: number): HotSet {
     memory: null,
     pendingOrder: null,
     orderHistory: [],
+    orderPaymentStatuses: [],
     faqs: [],
     insights: null,
     recentMessages: []

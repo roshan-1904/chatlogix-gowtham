@@ -91,7 +91,10 @@ class HttpRouteClient implements RouteClient {
         }
       ],
       payment_id: input.paymentId
-    }).then((body: { items?: RouteTransfer[] }) => body.items?.[0] ?? { id: 'trf_unknown', amount: input.amountPaise });
+    }).then((body) => {
+      const parsed = body as { items?: RouteTransfer[] };
+      return parsed.items?.[0] ?? { id: 'trf_unknown', amount: input.amountPaise };
+    });
   }
 
   fetchPaymentTransfers(paymentId: string): Promise<RouteTransfer[]> {

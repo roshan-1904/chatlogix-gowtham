@@ -43,6 +43,10 @@ export interface SettlementStatementResponse {
   };
 }
 
+function bigintField(value: bigint | null | undefined): string {
+  return bigintToDecimalString(value) ?? '0';
+}
+
 function serializeMovements(m: StatementMovements): SettlementStatementResponse['movements'] {
   return {
     grossCollectedPaise: m.grossCollectedPaise,
@@ -52,14 +56,14 @@ function serializeMovements(m: StatementMovements): SettlementStatementResponse[
     platformFeeGstPaise: m.platformFeeGstPaise,
     gstTcsPaise: m.gstTcsPaise,
     tdsPaise: m.tdsPaise,
-    netCollectedMilli: bigintToDecimalString(m.netCollectedMilli),
+    netCollectedMilli: bigintField(m.netCollectedMilli),
     reservePaise: m.reservePaise,
-    releasesMilli: bigintToDecimalString(m.releasesMilli),
-    refundsMilli: bigintToDecimalString(m.refundsMilli),
-    fundingMilli: bigintToDecimalString(m.fundingMilli),
-    disputeCreditsMilli: bigintToDecimalString(m.disputeCreditsMilli),
-    disputeDebitsMilli: bigintToDecimalString(m.disputeDebitsMilli),
-    adjustmentsMilli: bigintToDecimalString(m.adjustmentsMilli)
+    releasesMilli: bigintField(m.releasesMilli),
+    refundsMilli: bigintField(m.refundsMilli),
+    fundingMilli: bigintField(m.fundingMilli),
+    disputeCreditsMilli: bigintField(m.disputeCreditsMilli),
+    disputeDebitsMilli: bigintField(m.disputeDebitsMilli),
+    adjustmentsMilli: bigintField(m.adjustmentsMilli)
   };
 }
 
@@ -80,10 +84,10 @@ function serializeStatement(
     timezone: SETTLEMENT_STATEMENT_TZ,
     periodStart: start.toISOString(),
     periodEndExclusive: endExclusive.toISOString(),
-    openingBalanceMilli: bigintToDecimalString(built.openingBalanceMilli),
-    closingBalanceMilli: bigintToDecimalString(built.closingBalanceMilli),
-    ledgerNetChangeMilli: bigintToDecimalString(built.ledgerNetChangeMilli),
-    ledgerSumAtCloseMilli: bigintToDecimalString(built.ledgerSumAtCloseMilli),
+    openingBalanceMilli: bigintField(built.openingBalanceMilli),
+    closingBalanceMilli: bigintField(built.closingBalanceMilli),
+    ledgerNetChangeMilli: bigintField(built.ledgerNetChangeMilli),
+    ledgerSumAtCloseMilli: bigintField(built.ledgerSumAtCloseMilli),
     balances: built.balances,
     ledgerMatchesClosing: built.ledgerMatchesClosing,
     movements: serializeMovements(built.movements)

@@ -1,5 +1,5 @@
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
-import RedisStore from 'rate-limit-redis';
+import RedisStore, { type RedisReply } from 'rate-limit-redis';
 import { getRedisClient } from '../utils/redis.js';
 
 /** Limits Checkout order minting per vendor (payments go-live §4.7). */
@@ -13,9 +13,8 @@ export const walletTopUpIntentRateLimit = rateLimit({
     if (redisClient) {
       try {
         return new RedisStore({
-          sendCommand: (command: string, ...args: (string | number)[]) => {
-            return redisClient.call(command, ...args) as ReturnType<typeof redisClient.call>;
-          },
+          sendCommand: (command: string, ...args: (string | number)[]) =>
+            redisClient.call(command, ...args) as Promise<RedisReply>,
           prefix: 'rate_limit:wallet_topup_intent:'
         });
       } catch (error) {

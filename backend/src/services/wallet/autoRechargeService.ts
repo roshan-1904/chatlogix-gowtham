@@ -506,7 +506,7 @@ export async function handleTokenPausedOrCancelledInTx(
 ): Promise<void> {
   const mandateId = token.id?.trim();
   const notes = token.notes ?? {};
-  let vendorId = notes.vendorId?.trim();
+  let vendorId: string | undefined = notes.vendorId?.trim();
 
   if (!vendorId && mandateId) {
     const vendor = await tx.vendor.findFirst({

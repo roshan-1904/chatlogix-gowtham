@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 interface VendorRow {
@@ -218,12 +219,12 @@ const hoisted = vi.hoisted(() => {
       transfers.find((t) => t.id === where.id) ?? null,
     create: async ({ data }: { data: Omit<TransferRow, 'createdAt' | 'releasedAt' | 'reversedPaise' | 'razorpayTransferId'> }) => {
       const row: TransferRow = {
-        id: data.id ?? `tr-${++transferSeq}`,
         reversedPaise: 0,
         releasedAt: null,
         razorpayTransferId: null,
         createdAt: new Date(),
-        ...data
+        ...data,
+        id: data.id ?? `tr-${++transferSeq}`
       };
       transfers.push(row);
       return row;
@@ -316,7 +317,8 @@ const hoisted = vi.hoisted(() => {
   };
 
   resetStore();
-  const runTx = async <T>(fn: (tx: typeof db) => Promise<T>): Promise<T> => fn(db);
+  const runTx = async <T>(fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> =>
+    fn(db as unknown as Prisma.TransactionClient);
   return {
     db,
     runTx,

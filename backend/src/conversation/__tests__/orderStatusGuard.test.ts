@@ -25,6 +25,7 @@ const pendingTin: OrderHistoryEntry = {
     }
   ],
   totalAmount: 129900,
+  paymentMethod: null,
   status: 'pending',
   createdAt: new Date('2026-09-02T07:48:07.000Z'),
   estimatedDelivery: null,

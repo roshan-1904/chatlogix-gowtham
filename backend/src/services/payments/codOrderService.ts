@@ -50,7 +50,7 @@ export async function switchAwaitingPaymentOrderToCod(input: {
     return row;
   });
 
-  return updated;
+  return { ...updated, paymentMethod: updated.paymentMethod ?? 'cod' };
 }
 
 /**
