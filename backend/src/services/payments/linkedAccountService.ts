@@ -126,6 +126,59 @@ export async function handleLinkedAccountWebhookInTx(
   await tx.vendor.update({ where: { id: vendor.id }, data: updates });
 }
 
+/**
+ * Clears a non-active Route opt-in so the shop can submit again (e.g. wrong mode, Route not enabled).
+ * Does not touch Razorpay remotely — only ChatLogix DB state.
+ */
+export async function clearLinkedAccountOptIn(vendorId: string): Promise<{ cleared: true }> {
+  const vendor = await prisma.vendor.findUnique({
+    where: { id: vendorId },
+    select: {
+      paymentsManagedByChatlogix: true,
+      linkedAccountStatus: true,
+      razorpayLinkedAccountId: true
+    }
+  });
+  if (!vendor) {
+    throw Object.assign(new Error('Vendor not found'), { statusCode: 404 });
+  }
+  if (vendor.paymentsManagedByChatlogix || vendor.linkedAccountStatus === 'activated') {
+    throw Object.assign(
+      new Error('Cannot clear an active payment collection profile'),
+      { statusCode: 409 }
+    );
+  }
+  if (!vendor.razorpayLinkedAccountId) {
+    return { cleared: true };
+  }
+
+  await prisma.vendor.update({
+    where: { id: vendorId },
+    data: {
+      razorpayLinkedAccountId: null,
+      linkedAccountStatus: null,
+      collectionStartedAt: null,
+      paymentsManagedByChatlogix: false,
+      legalName: null,
+      panEncrypted: null,
+      gstin: null,
+      gstExempt: false,
+      businessType: null,
+      settlementBankAccountMasked: null,
+      settlementBankIfsc: null,
+      settlementAccountHolderName: null,
+      settlementContactEmail: null,
+      settlementContactPhone: null
+    }
+  });
+
+  logger.info(
+    { vendorId, previousLinkedAccountId: vendor.razorpayLinkedAccountId },
+    'Route linked account opt-in cleared (vendor may resubmit)'
+  );
+  return { cleared: true };
+}
+
 export async function getLinkedAccountStatus(vendorId: string) {
   const vendor = await prisma.vendor.findUnique({
     where: { id: vendorId },

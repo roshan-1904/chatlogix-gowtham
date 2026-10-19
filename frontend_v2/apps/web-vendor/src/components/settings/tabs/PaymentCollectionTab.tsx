@@ -195,11 +195,36 @@ export function PaymentCollectionTab({ vendorId }: PaymentCollectionTabProps) {
 
   if (status?.razorpayLinkedAccountId && status.linkedAccountStatus !== 'activated') {
     return (
-      <div className="rounded-lg bg-amber-50 border border-amber-200 p-4">
+      <div className="rounded-lg bg-amber-50 border border-amber-200 p-4 space-y-3">
         <p className="font-medium text-amber-900">Linked account pending activation</p>
-        <p className="text-sm text-amber-800 mt-1">
+        <p className="text-sm text-amber-800">
           Status: {status.linkedAccountStatus}. Collection turns on when Razorpay activates the account.
         </p>
+        <p className="text-xs text-amber-800">
+          If onboarding failed or you need to submit again (for example after Razorpay enables Route), you can clear
+          this attempt and start over. This only updates ChatLogix; it does not delete anything at Razorpay.
+        </p>
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          isLoading={submitting}
+          onClick={async () => {
+            setSubmitting(true);
+            setError(null);
+            try {
+              await apiClient.delete(`/vendors/${vendorId}/payments/linked-account`);
+              await load();
+            } catch (err: unknown) {
+              setError(err instanceof Error ? err.message : 'Could not clear onboarding');
+            } finally {
+              setSubmitting(false);
+            }
+          }}
+        >
+          Clear and start over
+        </Button>
       </div>
     );
   }

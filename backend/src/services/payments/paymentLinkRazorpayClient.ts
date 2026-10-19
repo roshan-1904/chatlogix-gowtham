@@ -3,7 +3,7 @@
  */
 
 import { env } from '../../config/env.js';
-import { logger } from '../../logger.js';
+import { readRazorpayErrorBody, throwRazorpayHttpError } from './razorpayHttpErrors.js';
 
 export interface RazorpayPaymentLinkEntity {
   id: string;
@@ -65,9 +65,19 @@ class HttpPaymentLinkRazorpayClient implements PaymentLinkRazorpayClient {
       })
     });
     if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      logger.error({ status: res.status, body: text.slice(0, 500) }, 'Razorpay create payment link failed');
-      throw new Error(`Razorpay payment_links returned ${res.status}`);
+      const text = await readRazorpayErrorBody(res);
+      throwRazorpayHttpError({
+        operation: 'create_payment_link',
+        httpStatus: res.status,
+        rawBody: text,
+        method: 'POST',
+        path: '/v1/payment_links',
+        logContext: {
+          orderId: input.notes.orderId,
+          vendorId: input.notes.vendorId,
+          amountPaise: input.amountPaise
+        }
+      });
     }
     return (await res.json()) as RazorpayPaymentLinkEntity;
   }
@@ -77,9 +87,15 @@ class HttpPaymentLinkRazorpayClient implements PaymentLinkRazorpayClient {
       headers: { Authorization: authHeader(), Accept: 'application/json' }
     });
     if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      logger.error({ linkId, status: res.status, body: text.slice(0, 500) }, 'Razorpay fetch payment link failed');
-      throw new Error(`Razorpay fetch payment_link returned ${res.status}`);
+      const text = await readRazorpayErrorBody(res);
+      throwRazorpayHttpError({
+        operation: 'fetch_payment_link',
+        httpStatus: res.status,
+        rawBody: text,
+        method: 'GET',
+        path: `/v1/payment_links/${linkId}`,
+        logContext: { linkId }
+      });
     }
     return (await res.json()) as RazorpayPaymentLinkEntity;
   }
@@ -95,9 +111,15 @@ class HttpPaymentLinkRazorpayClient implements PaymentLinkRazorpayClient {
       body: JSON.stringify({})
     });
     if (!res.ok && res.status !== 404) {
-      const text = await res.text().catch(() => '');
-      logger.error({ linkId, status: res.status, body: text.slice(0, 500) }, 'Razorpay cancel payment link failed');
-      throw new Error(`Razorpay cancel payment_link returned ${res.status}`);
+      const text = await readRazorpayErrorBody(res);
+      throwRazorpayHttpError({
+        operation: 'cancel_payment_link',
+        httpStatus: res.status,
+        rawBody: text,
+        method: 'POST',
+        path: `/v1/payment_links/${linkId}/cancel`,
+        logContext: { linkId }
+      });
     }
   }
 }

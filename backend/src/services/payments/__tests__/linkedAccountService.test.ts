@@ -3,7 +3,11 @@ import {
   FakeLinkedAccountClient,
   setLinkedAccountClientForTests
 } from '../linkedAccountClient.js';
-import { submitLinkedAccountOptIn, handleLinkedAccountWebhookInTx } from '../linkedAccountService.js';
+import {
+  clearLinkedAccountOptIn,
+  submitLinkedAccountOptIn,
+  handleLinkedAccountWebhookInTx
+} from '../linkedAccountService.js';
 
 const vendorFindUnique = vi.fn();
 const vendorUpdate = vi.fn();
@@ -54,6 +58,25 @@ describe('linkedAccountService', () => {
         data: expect.objectContaining({
           razorpayLinkedAccountId: result.linkedAccountId,
           settlementBankAccountMasked: '****9012'
+        })
+      })
+    );
+  });
+
+  it('clears pending linked account opt-in', async () => {
+    vendorFindUnique.mockResolvedValue({
+      paymentsManagedByChatlogix: false,
+      linkedAccountStatus: 'created',
+      razorpayLinkedAccountId: 'acc_fake_1'
+    });
+    const result = await clearLinkedAccountOptIn('v1');
+    expect(result.cleared).toBe(true);
+    expect(vendorUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'v1' },
+        data: expect.objectContaining({
+          razorpayLinkedAccountId: null,
+          linkedAccountStatus: null
         })
       })
     );

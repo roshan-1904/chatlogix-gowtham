@@ -29,6 +29,7 @@ import { invalidateVendorFlagCache } from '../config/featureFlags.js';
 import { TURN_AUDIT_FLAG } from '../observability/turnAuditLog.js';
 import { logger } from '../logger.js';
 import {
+  clearLinkedAccountOptIn,
   getLinkedAccountStatus,
   submitLinkedAccountOptIn
 } from '../services/payments/linkedAccountService.js';
@@ -1344,7 +1345,17 @@ vendorsRouter.post(
       gstExempt: body.gstExempt ?? false
     });
     res.status(201).json(result);
-  })
+  }, ErrorType.PAYMENT, ErrorSeverity.MEDIUM)
+);
+
+vendorsRouter.delete(
+  '/:id/payments/linked-account',
+  requireVendorAccess((req) => req.params.id),
+  settingsRateLimit,
+  asyncHandlerWithContext(async (req: any, res: any) => {
+    const result = await clearLinkedAccountOptIn(req.params.id);
+    res.json(result);
+  }, ErrorType.PAYMENT, ErrorSeverity.MEDIUM)
 );
 
 const settlementBankChangeSchema = z.object({

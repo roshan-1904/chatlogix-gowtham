@@ -2,6 +2,8 @@
  * Razorpay Route API surface used by settlement. Unit tests use FakeRouteClient.
  */
 
+import { readRazorpayErrorBody, throwRazorpayHttpError } from './razorpayHttpErrors.js';
+
 export interface RouteTransfer {
   id: string;
   amount: number;
@@ -56,7 +58,16 @@ class HttpRouteClient implements RouteClient {
       headers: { Authorization: auth, Accept: 'application/json', 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
-    if (!res.ok) throw new Error(`Route API ${path} returned ${res.status}`);
+    if (!res.ok) {
+      const text = await readRazorpayErrorBody(res);
+      throwRazorpayHttpError({
+        operation: 'route_api_post',
+        httpStatus: res.status,
+        rawBody: text,
+        method: 'POST',
+        path: `/v1${path}`
+      });
+    }
     return (await res.json()) as T;
   }
 
@@ -69,7 +80,16 @@ class HttpRouteClient implements RouteClient {
     const res = await fetch(`https://api.razorpay.com/v1${path}`, {
       headers: { Authorization: auth, Accept: 'application/json' }
     });
-    if (!res.ok) throw new Error(`Route API ${path} returned ${res.status}`);
+    if (!res.ok) {
+      const text = await readRazorpayErrorBody(res);
+      throwRazorpayHttpError({
+        operation: 'route_api_get',
+        httpStatus: res.status,
+        rawBody: text,
+        method: 'GET',
+        path: `/v1${path}`
+      });
+    }
     return (await res.json()) as T;
   }
 

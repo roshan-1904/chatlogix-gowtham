@@ -3,6 +3,7 @@ import { prisma } from '../../db/prisma.js';
 import { logger } from '../../logger.js';
 import { isValidRazorpayWebhookSignature } from '../../utils/razorpaySignature.js';
 import { env } from '../../config/env.js';
+import { isPaymentAppError } from './razorpayHttpErrors.js';
 import {
   getRazorpayApiClient,
   type RazorpayApiClient
@@ -136,7 +137,23 @@ export async function processRazorpayWebhook(
   try {
     fetched = await fetchEntitiesForEvent(eventType, body, getRazorpayApiClient());
   } catch (err) {
-    logger.error({ err, providerEventId, eventType }, 'Razorpay webhook pre-fetch failed');
+    if (isPaymentAppError(err)) {
+      logger.error(
+        {
+          providerEventId,
+          eventType,
+          paymentProvider: 'razorpay',
+          paymentOperation: err.context?.operation,
+          httpStatus: err.context?.httpStatus,
+          razorpay: err.context?.razorpay,
+          routeNotEnabled: err.context?.routeNotEnabled,
+          message: err.message
+        },
+        'Razorpay webhook pre-fetch failed (payment provider error)'
+      );
+    } else {
+      logger.error({ err, providerEventId, eventType }, 'Razorpay webhook pre-fetch failed');
+    }
     return { status: 500 };
   }
 
@@ -187,7 +204,23 @@ export async function processRazorpayWebhook(
     if (isUniqueViolation(err)) {
       return { status: 200 };
     }
-    logger.error({ err, providerEventId, eventType }, 'Razorpay webhook transaction failed');
+    if (isPaymentAppError(err)) {
+      logger.error(
+        {
+          providerEventId,
+          eventType,
+          paymentProvider: 'razorpay',
+          paymentOperation: err.context?.operation,
+          httpStatus: err.context?.httpStatus,
+          razorpay: err.context?.razorpay,
+          routeNotEnabled: err.context?.routeNotEnabled,
+          message: err.message
+        },
+        'Razorpay webhook transaction failed (payment provider error)'
+      );
+    } else {
+      logger.error({ err, providerEventId, eventType }, 'Razorpay webhook transaction failed');
+    }
     return { status: 500 };
   }
 

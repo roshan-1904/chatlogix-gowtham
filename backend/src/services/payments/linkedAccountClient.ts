@@ -4,6 +4,7 @@
 
 import { env } from '../../config/env.js';
 import { logger } from '../../logger.js';
+import { readRazorpayErrorBody, throwRazorpayHttpError } from './razorpayHttpErrors.js';
 
 export interface LinkedAccountEntity {
   id: string;
@@ -74,9 +75,14 @@ class HttpLinkedAccountClient implements LinkedAccountClient {
       body: JSON.stringify(body)
     });
     if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      logger.error({ status: res.status, body: text.slice(0, 500) }, 'Razorpay patch linked account failed');
-      throw new Error(`Razorpay accounts returned ${res.status}`);
+      const text = await readRazorpayErrorBody(res);
+      throwRazorpayHttpError({
+        operation: 'patch_linked_account',
+        httpStatus: res.status,
+        rawBody: text,
+        method: 'PATCH',
+        path: `/v2/accounts/${accountId}`
+      });
     }
     const parsed = (await res.json()) as { id: string; status?: string };
     return { id: parsed.id, status: parsed.status ?? 'updated' };
@@ -103,9 +109,18 @@ class HttpLinkedAccountClient implements LinkedAccountClient {
       })
     });
     if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      logger.error({ status: res.status, body: text.slice(0, 500) }, 'Razorpay create linked account failed');
-      throw new Error(`Razorpay accounts returned ${res.status}`);
+      const text = await readRazorpayErrorBody(res);
+      throwRazorpayHttpError({
+        operation: 'create_linked_account',
+        httpStatus: res.status,
+        rawBody: text,
+        method: 'POST',
+        path: '/v2/accounts',
+        logContext: {
+          vendorId: input.notes?.vendorId,
+          businessType: input.businessType
+        }
+      });
     }
     const body = (await res.json()) as { id: string; status?: string };
     return { id: body.id, status: body.status ?? 'created' };

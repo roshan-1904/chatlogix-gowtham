@@ -328,6 +328,10 @@ export function asyncHandlerWithContext(
 ) {
   return (req: Request, res: Response, next: NextFunction) => {
     Promise.resolve(fn(req, res, next)).catch((error) => {
+      if (error instanceof CustomError) {
+        next(error);
+        return;
+      }
       // Create enhanced error with context
       const enhancedError = new CustomError(
         error.message || 'An unexpected error occurred',

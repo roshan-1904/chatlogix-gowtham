@@ -4,7 +4,7 @@
  */
 
 import { env } from '../../config/env.js';
-import { logger } from '../../logger.js';
+import { readRazorpayErrorBody, throwRazorpayHttpError } from './razorpayHttpErrors.js';
 
 export interface RazorpayPaymentEntity {
   id: string;
@@ -136,9 +136,14 @@ async function razorpayRequest<T>(method: 'GET' | 'POST', path: string, body?: u
     ...(body !== undefined ? { body: JSON.stringify(body) } : {})
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    logger.error({ path, status: res.status, body: text.slice(0, 500) }, 'Razorpay API request failed');
-    throw new Error(`Razorpay API ${path} returned ${res.status}`);
+    const text = await readRazorpayErrorBody(res);
+    throwRazorpayHttpError({
+      operation: 'api_request',
+      httpStatus: res.status,
+      rawBody: text,
+      method,
+      path: `/v1${path}`
+    });
   }
   return (await res.json()) as T;
 }
