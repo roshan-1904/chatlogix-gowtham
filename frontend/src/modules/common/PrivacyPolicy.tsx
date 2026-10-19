@@ -134,7 +134,7 @@ export function PrivacyPolicy() {
             borderRadius: '8px',
             marginTop: '1rem'
           }}>
-            <p><strong>Email:</strong> privacy@chatlogix.in</p>
+            <p><strong>Email:</strong> support@chatlogix.in</p>
             <p><strong>Website:</strong> https://chatlogix.in</p>
           </div>
         </section>

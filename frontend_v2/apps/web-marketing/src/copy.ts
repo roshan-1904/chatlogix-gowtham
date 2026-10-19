@@ -848,7 +848,7 @@ export const legalLastUpdated = 'October 19, 2026';
 
 /** The only published inbox in marketing copy. No postal address or phone is on file. */
 export const legalContact = {
-  privacyEmail: 'privacy@chatlogix.in',
+  privacyEmail: 'support@chatlogix.in',
 };
 
 export const termsMeta = {
@@ -865,5 +865,5 @@ export const refundsMeta = {
 
 export const contactMeta = {
   title: 'Contact | ChatLogix',
-  description: 'Contact ChatLogix about privacy, terms, or a payment. Email privacy@chatlogix.in.',
+  description: 'Contact ChatLogix about privacy, terms, or a payment. Email support@chatlogix.in.',
 };
