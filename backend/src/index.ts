@@ -11,6 +11,7 @@ import { conversationsRouter } from './routes/conversations.js';
 import { messagesRouter } from './routes/messages.js';
 import { usageRouter } from './routes/usage.js';
 import { ordersRouter } from './routes/orders.js';
+import { publicPayRouter } from './routes/publicPay.js';
 import { paymentsRouter } from './routes/payments.js';
 import { shippingRouter } from './routes/shipping.js';
 import { productsRouter } from './routes/products.js';
@@ -90,6 +91,8 @@ async function bootstrap() {
   app.get('/health', (req, res) => {
     res.json({ status: 'ok', env: env.NODE_ENV, time: new Date().toISOString() });
   });
+
+  app.use('/pay', publicPayRouter);
 
   // Error monitoring endpoint
   app.get('/api/errors/stats', authenticate, requireRole('admin'), (req, res) => {

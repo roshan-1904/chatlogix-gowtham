@@ -337,6 +337,11 @@
       "id": "marketing-pricing-estimate-calculator",
       "decision": "Marketing Pricing is an estimate calculator (pay-as-you-go monthly spend hint from 1 Oct 2026 WhatsApp rates), not plan tiers. /#pricing is the calculator; the trial section is #try. Do not print ₹0.20 as an all-in per-reply rate. The result card includes a four-point promise checklist: instant replies, one order portal, customers keep the shop WhatsApp, and the vendor can take over any chat.",
       "date": "2026-09-19"
+    },
+    {
+      "id": "orders-collect-payment-layout",
+      "decision": "Vendor Orders and order detail use the existing navy and green tokens only. The list is a short stat strip plus one toolbar (white Today/Week/Month segments with a navy border when selected; sort is a solid white z-30 menu). Columns are Order, Customer, Payment, Fulfillment, Amount, When. Detail is an 8/4 split: items, delivery, timeline, and a sticky rail with one navy fulfillment button, red Cancel text, and an inline payment panel. Green is paid/success only. Payment settings adds a direct UPI block above Razorpay opt-in.",
+      "date": "2026-10-20"
     }
   ],
   "evidence": [
@@ -354,5 +359,5 @@
     }
   ],
   "generatedAt": "2026-09-05T17:29:11.983Z",
-  "updatedAt": "2026-09-19T00:00:00.000Z"
+  "updatedAt": "2026-10-20T00:00:00.000Z"
 }

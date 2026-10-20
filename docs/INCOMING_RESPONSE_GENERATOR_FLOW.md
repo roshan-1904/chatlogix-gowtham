@@ -1,9 +1,9 @@
 # Incoming Response Generator — How We Prepare a WhatsApp Reply
 
 <!-- DOC_SYNC
-  last_verified_commit: stage-8-cod-chat
-  last_verified_at: 2026-10-19
-  scope: As-implemented incoming-response-generator pipeline; managed order payment status in hot set; orderPaymentPipeline auto-send gate; conversation lock in Postgres (ConversationLock)
+  last_verified_commit: order-pages-revamp-backend
+  last_verified_at: 2026-10-20
+  scope: As-implemented incoming-response-generator pipeline; ask-before-send payment link; upi_pending and payment_link_offered in the hot set; payment-screenshot short-circuit before CartEngine; conversation lock in Postgres (ConversationLock)
 -->
 
 **Living document.** This describes the **as-implemented** text path in `chatlogix-incoming-response-generator`, not the locked design spec. When the pipeline in `backend/src/conversation/` changes, update this file in the same change (see `.cursor/rules/incoming-response-generator-flow.mdc`).
@@ -135,7 +135,7 @@ flowchart TD
   CTX --> LLM1[9. LLM-1: ops + draftReply<br/>prompt uses catalogSlice]
   LLM1 --> NORM[9b. normalizeSetFieldOps<br/>name/address/notes → English/Latin]
   NORM --> CART[10. CartEngine.apply in one Postgres txn]
-  CART --> PAY[10b. orderPaymentPipeline<br/>auto payment link if collection on]
+  CART --> PAY[10b. orderPaymentPipeline<br/>ask before Razorpay link if collection on]
   PAY --> BRANCH{11. Which reply path?}
 
   BRANCH -->|ops contains handoff| HO[triggerHandoff<br/>pause AI + canned customer copy]
@@ -375,9 +375,9 @@ flowchart TD
 
 **Confirm:** requires name + address + ≥1 item. Status stays `pending`. AI never sets `estimatedDelivery`.
 
-**Online collection (phases 5 + 8):** When `Vendor.paymentsManagedByChatlogix` is true and the customer did not choose COD (`CustomerInsights.paymentPreferences`), a successful `confirm` sets `Order.status` to `awaiting_payment` (not `pending`). If `paymentLinkAutoSend` is on, `orderPaymentPipeline.ts` creates a Razorpay Payment Link and queues `sendPaymentLink` (utility template outside the 24h window). When auto-send is off, the shop sends the link from the dashboard — the bot does not queue one. Cart edits while `awaiting_payment` cancel the open link and issue a new one for the updated total the same way.
+**Online collection (phases 5 + 8 + order-pages revamp):** When `Vendor.paymentsManagedByChatlogix` is true and the customer did not choose COD (`CustomerInsights.paymentPreferences`), a successful `confirm` sets `Order.status` to `awaiting_payment` (not `pending`). If `paymentLinkAutoSend` is on, `orderPaymentPipeline.ts` writes `payment_link_offered` and appends a deterministic ask to the reply — no link until the next turn’s `accept_payment_link` op. When the switch is off, the shop sends the link from the order page. Cart edits while `awaiting_payment` still cancel/replace open links; with the switch on, replacement links are sent (customer already agreed to pay by link). **Direct UPI:** vendor `POST /api/orders/:id/send-upi-qr` sends a PNG QR in the 24h window and writes `upi_qr_sent`; prefetch exposes `upi_pending`. **Payment screenshots:** captionless (or paid-phrase) images on unpaid orders skip CartEngine — vision/caption heuristics write `OrderAlert` type `payment_initiated` and reply that the shop will confirm; order stays unpaid.
 
-**Payment status in chat (phase 8):** `prefetchHotSet` loads `orderPaymentStatuses` from Postgres (`CustomerPayment`, open `PaymentLink`, and `cash_collected` audit rows) when collection is on. LLM-1’s dynamic prompt block **ORDER PAYMENT STATUS** grounds “did my payment go through?” answers — no Razorpay API on the customer message. Turn audit `context_plan` includes the same array for debugging.
+**Payment status in chat (phase 8 + order-pages revamp):** `prefetchHotSet` loads `orderPaymentStatuses` from Postgres (`CustomerPayment`, open `PaymentLink`, and audit rows `cash_collected`, `upi_qr_sent`, `payment_link_offered` / `accepted` / `declined`). Statuses include `upi_pending` (QR sent, not confirmed) and `payment_link_offered` (waiting for a yes). When collection is off, the list still includes orders that already have a UPI QR or a cash-collected mark; otherwise it stays empty. LLM-1’s dynamic prompt block **ORDER PAYMENT STATUS** grounds “did my payment go through?” answers — no Razorpay API on the customer message. Turn audit `context_plan` includes the same array for debugging. A captionless image on an unpaid order is answered in `mediaFetchProcessor` before this pipeline runs.
 
 **Cancel / refund:** `orderNumber` is scoped to `customerId` + `vendorId`. A successful cancel of a `pending`, `awaiting_payment`, or `confirmed` order — including a live-cart cancel with no `orderNumber` — sets `postSalesOutcome: order_cancelled`. A target that is already `cancelled` sets `already_cancelled` (no vendor alert). Any other non-cancellable status sets `not_cancellable_at_this_stage` and alerts the vendor. Refund auto-approves only if status is `pending`/`confirmed` **and** placed within 7 days. Otherwise `postSalesOutcome: refund_denied`. CartEngine never sends messages; it only reports state. The snapshot's `orderPlaced` is true when `confirmedAt` is set, status is past `pending`, or a prior audit action includes `confirm` (customer confirm leaves status `pending`).
 

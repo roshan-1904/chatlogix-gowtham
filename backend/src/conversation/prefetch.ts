@@ -399,45 +399,21 @@ async function loadOrderPaymentStatuses(
     where: { id: vendorId },
     select: { paymentsManagedByChatlogix: true }
   });
-  if (!vendor?.paymentsManagedByChatlogix) return [];
+  const managed = vendor?.paymentsManagedByChatlogix === true;
 
   const orderIds = orders.map((o) => o.id);
-  const [payments, openLinks, cashCollectedRows] = await Promise.all([
-    prisma.customerPayment.findMany({
-      where: { orderId: { in: orderIds } },
-      orderBy: { capturedAt: 'desc' },
-      select: {
-        orderId: true,
-        status: true,
-        amountPaise: true,
-        refundedPaise: true,
-        capturedAt: true,
-        settlementAlert: true,
-        netMilli: true
-      }
-    }),
-    prisma.paymentLink.findMany({
-      where: { orderId: { in: orderIds }, status: 'created' },
-      orderBy: { createdAt: 'desc' },
-      select: { orderId: true, amountPaise: true, expiresAt: true }
-    }),
-    prisma.orderAuditLog.findMany({
-      where: { orderId: { in: orderIds }, action: 'cash_collected' },
-      select: { orderId: true }
-    })
-  ]);
+  const { loadOrderPaymentContext, computePrefetchPaymentStatus } = await import(
+    '../services/payments/orderPaymentState.js'
+  );
+  const ctx = await loadOrderPaymentContext(orderIds);
+  const visible = managed
+    ? orders
+    : orders.filter(
+        (o) => ctx.upiQrSentOrderIds.has(o.id) || ctx.cashCollectedOrderIds.has(o.id)
+      );
+  if (visible.length === 0) return [];
 
-  const paymentByOrder = new Map<string, (typeof payments)[0]>();
-  for (const row of payments) {
-    if (!paymentByOrder.has(row.orderId)) paymentByOrder.set(row.orderId, row);
-  }
-  const linkByOrder = new Map<string, (typeof openLinks)[0]>();
-  for (const row of openLinks) {
-    if (!linkByOrder.has(row.orderId)) linkByOrder.set(row.orderId, row);
-  }
-  const cashCollected = new Set(cashCollectedRows.map((r) => r.orderId));
-
-  return orders.map((o) => {
+  return visible.map((o) => {
     const base = {
       orderId: o.id,
       orderNumber: o.orderNumber,
@@ -446,33 +422,18 @@ async function loadOrderPaymentStatuses(
       amountPaise: o.totalAmount
     };
 
-    if (isCodPaymentMethod(o.paymentMethod) || o.paymentMethod === 'vendor_collected') {
+    const paymentStatus = computePrefetchPaymentStatus(o, ctx);
+    const captured = ctx.capturedByOrderId.get(o.id);
+    if (captured && paymentStatus === captured.status) {
       return {
         ...base,
-        paymentStatus: cashCollected.has(o.id) ? 'cash_collected' : 'cod_unpaid'
-      };
-    }
-
-    const captured = paymentByOrder.get(o.id);
-    if (captured && captured.netMilli > 0n && !captured.settlementAlert) {
-      return {
-        ...base,
-        paymentStatus: captured.status,
+        paymentStatus,
         amountPaise: captured.amountPaise,
         refundedPaise: captured.refundedPaise,
         capturedAt: captured.capturedAt.toISOString()
       };
     }
-
-    if (linkByOrder.has(o.id)) {
-      return { ...base, paymentStatus: 'link_pending' };
-    }
-
-    if (o.status === 'awaiting_payment') {
-      return { ...base, paymentStatus: 'awaiting_payment' };
-    }
-
-    return { ...base, paymentStatus: 'no_payment_record' };
+    return { ...base, paymentStatus };
   });
 }
 

@@ -484,6 +484,7 @@ export async function apply(input: ApplyOpsInput): Promise<ApplyOpsResult> {
               break;
             }
 
+            case 'accept_payment_link':
             case 'handoff':
             case 'knowledge_gap':
             case 'send_product_media':

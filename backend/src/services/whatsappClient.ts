@@ -327,6 +327,36 @@ export async function sendWhatsAppImage(input: MediaSendInput): Promise<WhatsApp
   return postToGraph(creds.phoneNumberId, buildMediaPayload('image', input), creds.accessToken);
 }
 
+export async function sendWhatsAppCtaUrl(input: {
+  to: string;
+  bodyText: string;
+  displayText: string;
+  url: string;
+  phoneNumberId?: string;
+}): Promise<WhatsAppSendResult | undefined> {
+  const creds = await requireTargetCredentials(input.phoneNumberId);
+  return postToGraph(
+    creds.phoneNumberId,
+    {
+      messaging_product: 'whatsapp',
+      to: input.to,
+      type: 'interactive',
+      interactive: {
+        type: 'cta_url',
+        body: { text: input.bodyText },
+        action: {
+          name: 'cta_url',
+          parameters: {
+            display_text: input.displayText,
+            url: input.url
+          }
+        }
+      }
+    },
+    creds.accessToken
+  );
+}
+
 export async function sendWhatsAppAudio(input: MediaSendInput): Promise<WhatsAppSendResult | undefined> {
   const creds = await requireTargetCredentials(input.phoneNumberId);
   return postToGraph(creds.phoneNumberId, buildMediaPayload('audio', input), creds.accessToken);

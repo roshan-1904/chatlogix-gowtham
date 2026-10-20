@@ -12,7 +12,13 @@ import { OrderChange } from './orderTrackingService.js';
 export interface OrderAlert {
   id: string;
   orderId: string;
-  type: 'price_drop' | 'items_lost' | 'total_mismatch' | 'suspicious_change' | 'recovery_attempted';
+  type:
+    | 'price_drop'
+    | 'items_lost'
+    | 'total_mismatch'
+    | 'suspicious_change'
+    | 'recovery_attempted'
+    | 'payment_initiated';
   severity: 'low' | 'medium' | 'high' | 'critical';
   message: string;
   resolved: boolean;

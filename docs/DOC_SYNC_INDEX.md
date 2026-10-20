@@ -7,7 +7,7 @@ Tracks which docs were last verified against the codebase. Each synced doc has a
 | Document | Scope | Last verified commit | Last verified at |
 |---|---|---|---|
 | [CONVERSATION_CATALOG_CONTEXT_SLICING.md](./CONVERSATION_CATALOG_CONTEXT_SLICING.md) | **Implemented** catalog slice + **gpt-5.6-luna** (slicing flag off until rollout) | `b54bbdcc56cda764213d334c9e39dfb5f410ae69` | 2026-09-20 |
-| [INCOMING_RESPONSE_GENERATOR_FLOW.md](./INCOMING_RESPONSE_GENERATOR_FLOW.md) | As-implemented pipeline; `orderPaymentStatuses` in hot set + LLM-1 block; orderPaymentPipeline auto-send gate; conversation lock in Postgres | `stage-8-cod-chat` | 2026-10-19 |
+| [INCOMING_RESPONSE_GENERATOR_FLOW.md](./INCOMING_RESPONSE_GENERATOR_FLOW.md) | As-implemented pipeline; ask-before-send payment link; `upi_pending` and `payment_link_offered` in the hot set; payment-screenshot short-circuit; conversation lock in Postgres | `order-pages-revamp-backend` | 2026-10-20 |
 | [BILLING_AND_PRICING.md](./BILLING_AND_PRICING.md) | Wallet unit, charge formula, markup, charge sources, trial grant, **OpenAI model rates** (`gpt-5.6-luna` code default) | `b54bbdcc56cda764213d334c9e39dfb5f410ae69` | 2026-09-20 |
 | [CONVERSATION_PROCESSOR_LAMBDA.md](./CONVERSATION_PROCESSOR_LAMBDA.md) | Locked design spec + drift notes (Q10 luna default in code; billing → `BILLING_AND_PRICING.md` §2) | `547b10e7701dc88fd4f0463a37c009964dfea7f4` | 2026-09-20 |
 | [CONVERSATION_PROCESSOR_IMPLEMENTATION_PLAN.md](./CONVERSATION_PROCESSOR_IMPLEMENTATION_PLAN.md) | Build plan, progress (§15 catalog slicing done; flag off until rollout) | `b54bbdcc56cda764213d334c9e39dfb5f410ae69` | 2026-09-20 |

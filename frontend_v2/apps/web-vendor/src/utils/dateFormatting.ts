@@ -7,6 +7,19 @@ export function formatOrderDate(date: string | Date): string {
   return formatDate(date, 'short');
 }
 
+/** Compact list date, e.g. "6 Oct". Includes the year when it is not the current year. */
+export function formatOrderWhen(date: string | Date | null | undefined): string {
+  if (!date) return '—';
+  const d = typeof date === 'string' ? new Date(date) : date;
+  if (Number.isNaN(d.getTime())) return '—';
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  return d.toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    ...(sameYear ? {} : { year: 'numeric' }),
+  });
+}
+
 /**
  * Format date with time
  */

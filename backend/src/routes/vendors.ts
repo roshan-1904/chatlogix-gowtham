@@ -1570,14 +1570,30 @@ vendorsRouter.patch(
   settingsRateLimit,
   asyncHandlerWithContext(async (req: any, res: any) => {
     const vendorId = req.params.id;
-    const paymentLinkAutoSend = req.body?.paymentLinkAutoSend;
-    if (typeof paymentLinkAutoSend !== 'boolean') {
-      throw createValidationError('paymentLinkAutoSend must be a boolean', 'paymentLinkAutoSend');
+    const stored = await prisma.vendor.findUnique({
+      where: { id: vendorId },
+      select: { upiVpa: true, upiPayeeName: true }
+    });
+    if (!stored) return res.status(404).json({ error: 'not_found' });
+
+    const { resolvePaymentSettingsPatch } = await import('../services/payments/vendorUpiSettings.js');
+    const resolved = resolvePaymentSettingsPatch(req.body ?? {}, {
+      upiVpa: stored.upiVpa,
+      upiPayeeName: stored.upiPayeeName
+    });
+    if (!resolved.ok) {
+      throw createValidationError(resolved.message, resolved.field);
     }
+
     const vendor = await prisma.vendor.update({
       where: { id: vendorId },
-      data: { paymentLinkAutoSend },
-      select: { paymentLinkAutoSend: true, paymentsManagedByChatlogix: true }
+      data: resolved.data,
+      select: {
+        paymentLinkAutoSend: true,
+        paymentsManagedByChatlogix: true,
+        upiVpa: true,
+        upiPayeeName: true
+      }
     });
     res.json(vendor);
   })

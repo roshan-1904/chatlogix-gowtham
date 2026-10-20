@@ -16,16 +16,18 @@ The AI wallet can be ₹50 while the shop has ₹966.40 on hold, or the other wa
 
 | Person | Role |
 |---|---|
-| Shop | Turns on “ChatLogix collects payments” and completes KYC. Chooses whether the bot sends payment links. Issues refunds, and funds any refund its held money cannot cover. Sets auto-recharge on the AI wallet if it wants it. |
+| Shop | Turns on “ChatLogix collects payments” and completes KYC. Chooses whether the bot asks before sending a Razorpay link. Can save a UPI ID and payee name and send a GPay QR from the order. Issues refunds, and funds any refund its held money cannot cover. Sets auto-recharge on the AI wallet if it wants it. |
 | Admin | Sets `paymentFeeBps` and, if needed, a rolling reserve for the shop. Can freeze a shop’s releases. Does not edit balances by hand. |
-| Customer | Pays a WhatsApp link, or pays cash on delivery. Asks for a refund in chat. |
+| Customer | Pays a WhatsApp link, a GPay QR to the shop’s own UPI, or cash on delivery. Asks for a refund in chat. |
 | Razorpay | Takes the card or UPI payment and reports the real fee. Holds each shop’s money in its Route linked account. Settles released money to the shop’s bank. Sends refunds back to the same instrument. |
 
 ## 1. Shop turns collection on
 
 Collection is off until the shop opts in.
 
-**Off.** The bot can still place the order. The customer pays the shop directly (its own UPI, if saved) or cash on delivery. ChatLogix does not create a Razorpay link, transfers nothing, and charges no platform fee.
+**Off.** The bot can still place the order. The customer pays the shop directly or cash on delivery. The shop can still save `upiVpa` and `upiPayeeName` and send a GPay QR from the order; that QR does not mark the order paid. ChatLogix does not create a Razorpay link, transfers nothing, and charges no platform fee.
+
+`paymentLinkAutoSend` means ask-before-send. On (the default): after the customer confirms, the bot asks whether to send the Razorpay link and sends it only after a clear yes. Off: the bot does not ask and does not send. The shop sends from the order page. Shops that already had the switch on move from an immediate send to this ask-first step.
 
 **On.** The shop gives its legal name, business type, PAN, GSTIN or an exemption declaration, and a settlement bank account. ChatLogix creates the shop’s Route linked account at Razorpay. Razorpay verifies the details and the bank account. Collection starts only when Razorpay activates the account. That moment is `collectionStartedAt`, which starts the new-shop period (§2, Hold).
 
@@ -36,7 +38,7 @@ Cash on delivery stays available after opt-in. A COD order transfers nothing, be
 ## 2. Customer pays an order
 
 1. The customer confirms the order in chat. `Order.totalAmount` is in paise. The order’s status is `awaiting_payment`.
-2. ChatLogix creates one Razorpay Payment Link for that amount. If the shop’s auto-send setting is on (the default), the bot sends it on WhatsApp. If it is off, the shop presses Send on the order.
+2. ChatLogix creates one Razorpay Payment Link for that amount when the customer agrees (if “ask before sending the payment link” is on — the default) or when the shop presses Send on the order. The shop can instead send a GPay QR to their own UPI ID; that never marks the order paid until the vendor presses Payment received. A customer payment screenshot only raises a “Payment initiated” alert.
 3. The customer pays by UPI, card, or netbanking. Razorpay notifies ChatLogix with a signed webhook.
 4. ChatLogix reads the fee Razorpay actually charged (`fee` and `tax`, both paise) and works out the split:
 
@@ -103,7 +105,7 @@ The shop’s “Order payments” page shows: **On hold** (with the next release
 | Moment | What happens |
 |---|---|
 | Before payment | The order is `awaiting_payment`. The shop does not prepare it. It can switch the order to COD. |
-| Cart changes before payment | The open link is cancelled at Razorpay. A new link for the new total goes out, from the bot or the shop according to the setting. An order never has two open links. |
+| Cart changes before payment | If a Razorpay link is already open, it is cancelled and a new link for the new total is created. With ask-before-send on, that replacement is sent (the customer already agreed). With it off, the replacement is saved and the shop sends it. A cart edit before the customer has agreed does not create a link. An order never has two open links. |
 | Two hours before expiry | One reminder to the customer. |
 | Link expires unpaid | The order stays `awaiting_payment`. The shop is told, and chooses to resend, switch to COD, or cancel. |
 | Payment lands on a cancelled or already-paid order | It is refunded through Razorpay, not transferred. ChatLogix bears the gateway fee on it. |
@@ -156,6 +158,8 @@ When Razorpay deducts the disputed amount from ChatLogix, ChatLogix recovers it 
 
 The customer chooses COD in chat, or the shop marks the order COD. No payment link is created, or the open one is cancelled. Nothing is transferred. The platform fee is ₹0. When the shop marks the cash collected, the order is paid **to the shop**, not to ChatLogix. That action never writes a settlement entry.
 
+A GPay QR is the same kind of money. The shop sends it from the order (`upi_qr_sent`). The order stays unpaid until the shop marks payment received with method `vendor_collected`. That writes `cash_collected`, stores an optional reference, and never writes a `CustomerPayment`, a settlement entry, or a wallet change. A payment screenshot only raises a `payment_initiated` alert.
+
 ## 6. AI wallet top-up
 
 This is the existing wallet, specified in [wallet-top-up-p2g.md](../../documentation/modules/features/vendor-onboarding/guides/wallet-top-up-p2g.md).
@@ -178,7 +182,10 @@ The mandate is for one amount. Changing the preset means approving a new mandate
 
 | Moment | Message |
 |---|---|
-| Order confirmed, collection on | Payment link, amount, order number (from the bot, or when the shop presses Send) |
+| Order confirmed, ask-before-send on | The bot asks whether to send the payment link, with the order number and amount. The link goes out only after a clear yes (`accept_payment_link`). |
+| Ask-before-send off | No payment question. The shop sends the Razorpay link or a GPay QR from the order. |
+| GPay QR sent | Payee name, UPI ID, amount, and order number. The order stays unpaid until the shop marks payment received. |
+| Customer sends a payment screenshot | The shop will confirm once they see the payment. The picture does not mark the order paid. |
 | Link still unpaid, two hours before expiry | One reminder |
 | Payment captured | Paid confirmation |
 | Payment failed | The link again, and COD if the shop allows it |

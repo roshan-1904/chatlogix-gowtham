@@ -70,6 +70,8 @@ model Vendor {
   linkedAccountStatus            String?
   collectionStartedAt            DateTime?
   paymentLinkAutoSend            Boolean               @default(true)
+  upiVpa                         String?               @db.VarChar(100)
+  upiPayeeName                   String?               @db.VarChar(100)
   releasesFrozenAt               DateTime?
   releasesFrozenReason           String?
   rollingReserveBps              Int                   @default(0)

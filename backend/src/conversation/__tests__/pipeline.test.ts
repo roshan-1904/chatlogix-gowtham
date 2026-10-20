@@ -130,7 +130,9 @@ vi.mock('../prefetch.js', () => ({ prefetchHotSet: (...args: unknown[]) => prefe
 vi.mock('../llm/llm1.js', () => ({ runLlm1: (...args: unknown[]) => runLlm1Mock(...args) }));
 vi.mock('../cart/engine.js', () => ({ apply: (...args: unknown[]) => applyMock(...args) }));
 vi.mock('../orderPaymentPipeline.js', () => ({
-  handleOrderPaymentLinksAfterCartApply: vi.fn().mockResolvedValue(undefined)
+  handleOrderPaymentLinksAfterCartApply: vi.fn().mockResolvedValue({}),
+  maybeDeclinePaymentLinkOffer: vi.fn().mockResolvedValue(undefined),
+  buildPaymentLinkQuestion: vi.fn().mockReturnValue('Shall I send the payment link?')
 }));
 vi.mock('../llm/llm2.js', () => ({
   runLlm2: (...args: unknown[]) => runLlm2Mock(...args),

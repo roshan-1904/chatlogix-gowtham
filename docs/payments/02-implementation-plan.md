@@ -94,7 +94,8 @@ It is positive while money is on hold and negative only when the shop owes money
 | `razorpayLinkedAccountId String? @unique` | The shop’s Route linked account. |
 | `linkedAccountStatus String?` | Mirrors Razorpay’s account status. Collection needs `activated`. |
 | `collectionStartedAt DateTime?` | Set when the linked account is activated and the shop has opted in. Starts the new-shop period. |
-| `paymentLinkAutoSend Boolean @default(true)` | D5. The bot sends the link when on. |
+| `paymentLinkAutoSend Boolean @default(true)` | D5. When on, the bot asks before sending a Razorpay link (`payment_link_offered` → `accept_payment_link`). When off, the shop sends from the order page. It does not mean “send the link the moment the cart is confirmed.” |
+| `upiVpa String? @db.VarChar(100)`, `upiPayeeName String? @db.VarChar(100)` | Shop UPI for the GPay QR. Saved even when collection is off. A non-empty VPA requires a payee name. |
 | `releasesFrozenAt DateTime?`, `releasesFrozenReason String?` | Admin or dispute freeze (D4). |
 | `rollingReserveBps Int @default(0)` | Admin-set reserve share (D4). 0 = off. |
 | `settlementBankChangedAt DateTime?` | Start of the 48-hour release pause after a bank change. |
@@ -342,7 +343,7 @@ The attempt is scheduled 25 hours out. A vendor who burns through ₹100 faster 
 ### Order lifecycle (D5)
 
 7. Add `awaiting_payment` to `OrderStatus` in this phase’s migration. Audit every `switch`, filter, and label on `OrderStatus` in the backend and `frontend_v2`, the order-recovery sweep, and notifications.
-8. When the customer confirms an order in chat and the shop has collection on, the CartEngine creates the order as `awaiting_payment`, unless the customer chose COD. If `paymentLinkAutoSend` is on, the pipeline creates and sends the link. If it is off, the shop sees Send. Update [INCOMING_RESPONSE_GENERATOR_FLOW.md](../INCOMING_RESPONSE_GENERATOR_FLOW.md) in the same change.
+8. When the customer confirms an order in chat and the shop has collection on, the CartEngine creates the order as `awaiting_payment`, unless the customer chose COD. If `paymentLinkAutoSend` is on, the pipeline writes `payment_link_offered` and asks the customer; a yes emits `accept_payment_link` and then creates/sends the link. If it is off, the shop sends from the order page. GPay QR, payment-initiated screenshots, and vendor UPI settings are documented in the order-pages revamp. Update [INCOMING_RESPONSE_GENERATOR_FLOW.md](../INCOMING_RESPONSE_GENERATOR_FLOW.md) in the same change.
 9. A cart change before payment cancels the open link and creates a new one for the new total. It is sent the same way as the first.
 10. On capture, the order moves to `confirmed`.
 11. On `payment_link.expired`, the order stays `awaiting_payment` and the shop is notified to resend, switch to COD, or cancel.

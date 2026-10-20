@@ -6,6 +6,8 @@ import { confirmBankChange, requestBankChangeOtp } from '../../../lib/settlement
 interface CollectionStatus {
   paymentsManagedByChatlogix: boolean;
   paymentLinkAutoSend: boolean;
+  upiVpa?: string | null;
+  upiPayeeName?: string | null;
   linkedAccountStatus: string | null;
   razorpayLinkedAccountId: string | null;
   collectionStartedAt: string | null;
@@ -31,6 +33,10 @@ export function PaymentCollectionTab({ vendorId }: PaymentCollectionTabProps) {
     bankAccountHolderName: ''
   });
   const [bankBusy, setBankBusy] = useState(false);
+  const [upiForm, setUpiForm] = useState({ upiVpa: '', upiPayeeName: '' });
+  const [upiSaving, setUpiSaving] = useState(false);
+  const [upiError, setUpiError] = useState<string | null>(null);
+
   const [form, setForm] = useState({
     legalName: '',
     businessType: 'proprietorship',
@@ -49,6 +55,10 @@ export function PaymentCollectionTab({ vendorId }: PaymentCollectionTabProps) {
     try {
       const data = await apiClient.get<CollectionStatus>(`/vendors/${vendorId}/payments/collection`);
       setStatus(data);
+      setUpiForm({
+        upiVpa: data.upiVpa ?? '',
+        upiPayeeName: data.upiPayeeName ?? ''
+      });
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to load payment settings');
     } finally {
@@ -83,6 +93,81 @@ export function PaymentCollectionTab({ vendorId }: PaymentCollectionTabProps) {
     setStatus({ ...status, paymentLinkAutoSend: next });
   };
 
+  const directUpiBlock = (
+    <div className="border border-gray-200 rounded-lg p-4 space-y-3">
+      <p className="text-sm font-medium text-gray-900">Customer pays you directly</p>
+      <p className="text-xs text-gray-600">Used when you send a GPay QR from an order. Saved even if Razorpay collection is off.</p>
+      {upiError && <p className="text-sm text-red-600">{upiError}</p>}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <label className="text-sm block">
+          <span className="text-gray-700">UPI ID</span>
+          <input
+            className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+            value={upiForm.upiVpa}
+            onChange={(e) => setUpiForm((f) => ({ ...f, upiVpa: e.target.value }))}
+            placeholder="shopname@okicici"
+          />
+        </label>
+        <label className="text-sm block">
+          <span className="text-gray-700">Name shown in GPay</span>
+          <input
+            className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+            value={upiForm.upiPayeeName}
+            onChange={(e) => setUpiForm((f) => ({ ...f, upiPayeeName: e.target.value }))}
+          />
+        </label>
+      </div>
+      <Button
+        type="button"
+        variant="primary"
+        size="sm"
+        isLoading={upiSaving}
+        onClick={async () => {
+          const upiVpa = upiForm.upiVpa.trim();
+          const upiPayeeName = upiForm.upiPayeeName.trim();
+          if (upiVpa && !/^[\w.\-]+@[\w.\-]+$/.test(upiVpa)) {
+            setUpiError('Enter a UPI ID like name@bank');
+            return;
+          }
+          if (upiVpa && !upiPayeeName) {
+            setUpiError('Enter the name shown in GPay');
+            return;
+          }
+          setUpiSaving(true);
+          setUpiError(null);
+          try {
+            const updated = await apiClient.patch<{
+              upiVpa: string | null;
+              upiPayeeName: string | null;
+            }>(`/vendors/${vendorId}/payments/settings`, {
+              upiVpa: upiVpa || null,
+              upiPayeeName: upiPayeeName || null
+            });
+            setUpiForm({
+              upiVpa: updated.upiVpa ?? '',
+              upiPayeeName: updated.upiPayeeName ?? ''
+            });
+            setStatus((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    upiVpa: updated.upiVpa ?? null,
+                    upiPayeeName: updated.upiPayeeName ?? null
+                  }
+                : prev
+            );
+          } catch (e: unknown) {
+            setUpiError(e instanceof Error ? e.message : 'Could not save UPI details');
+          } finally {
+            setUpiSaving(false);
+          }
+        }}
+      >
+        Save
+      </Button>
+    </div>
+  );
+
   if (loading) {
     return <p className="text-sm text-gray-500">Loading payment collection…</p>;
   }
@@ -90,6 +175,7 @@ export function PaymentCollectionTab({ vendorId }: PaymentCollectionTabProps) {
   if (status?.paymentsManagedByChatlogix) {
     return (
       <div className="space-y-4">
+        {directUpiBlock}
         <div className="rounded-lg bg-green-50 border border-green-200 p-4">
           <p className="font-medium text-green-900">ChatLogix payment collection is active</p>
           <p className="text-sm text-green-800 mt-1">
@@ -108,8 +194,9 @@ export function PaymentCollectionTab({ vendorId }: PaymentCollectionTabProps) {
             onChange={() => void toggleAutoSend()}
             className="rounded border-gray-300"
           />
-          Automatically send payment links in WhatsApp when customers confirm orders
+          Ask the customer before sending the payment link
         </label>
+        {error && <p className="text-sm text-red-600">{error}</p>}
         <div className="border border-gray-200 rounded-lg p-4 space-y-3">
           <p className="text-sm font-medium text-gray-900">Change settlement bank account</p>
           <p className="text-xs text-gray-600">
@@ -195,6 +282,8 @@ export function PaymentCollectionTab({ vendorId }: PaymentCollectionTabProps) {
 
   if (status?.razorpayLinkedAccountId && status.linkedAccountStatus !== 'activated') {
     return (
+      <div className="space-y-4">
+        {directUpiBlock}
       <div className="rounded-lg bg-amber-50 border border-amber-200 p-4 space-y-3">
         <p className="font-medium text-amber-900">Linked account pending activation</p>
         <p className="text-sm text-amber-800">
@@ -226,11 +315,13 @@ export function PaymentCollectionTab({ vendorId }: PaymentCollectionTabProps) {
           Clear and start over
         </Button>
       </div>
+      </div>
     );
   }
 
   return (
     <form onSubmit={onSubmit} className="space-y-4 max-w-xl">
+      {directUpiBlock}
       <p className="text-sm text-gray-600">
         Opt in to let ChatLogix collect order payments via Razorpay Route. PAN is stored encrypted; only a masked bank
         account is shown after submit.

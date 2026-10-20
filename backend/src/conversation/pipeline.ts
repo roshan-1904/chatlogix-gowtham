@@ -501,17 +501,37 @@ export async function processMessage(
     logStage('cart_apply_done', { traceId, vendorId, conversationId }, { mutated: applyResult.mutated });
 
     const preApplyTotalPaise = hotSet.pendingOrder?.totalPaise;
-    if (!sandbox && applyResult.mutated) {
-      const { handleOrderPaymentLinksAfterCartApply } = await import('./orderPaymentPipeline.js');
-      await handleOrderPaymentLinksAfterCartApply({
-        vendorId,
-        conversationId,
-        phoneNumberId: input.phoneNumberId,
-        orderId: applyResult.snapshot.orderId,
-        mutated: applyResult.mutated,
-        ops: normalizedOps,
-        previousTotalPaise: preApplyTotalPaise
-      });
+    let paymentPipelineResult: import('./orderPaymentPipeline.js').OrderPaymentPipelineResult = {};
+    let paymentLinkQuestion: string | null = null;
+    if (!sandbox) {
+      const {
+        handleOrderPaymentLinksAfterCartApply,
+        maybeDeclinePaymentLinkOffer,
+        buildPaymentLinkQuestion
+      } = await import('./orderPaymentPipeline.js');
+      paymentPipelineResult =
+        (await handleOrderPaymentLinksAfterCartApply({
+          vendorId,
+          conversationId,
+          phoneNumberId: input.phoneNumberId,
+          orderId: applyResult.snapshot.orderId,
+          mutated: applyResult.mutated,
+          ops: normalizedOps,
+          previousTotalPaise: preApplyTotalPaise,
+          traceId
+        })) ?? {};
+      if (!paymentPipelineResult.paymentLinkOffered) {
+        await maybeDeclinePaymentLinkOffer({
+          orderId: applyResult.snapshot.orderId,
+          ops: normalizedOps,
+          traceId
+        });
+      } else {
+        paymentLinkQuestion = buildPaymentLinkQuestion({
+          ...paymentPipelineResult.paymentLinkOffered,
+          language: llm1Result.language
+        });
+      }
     }
     logTurnAudit(turnAuditEnabled, auditCtx, 'cart_apply', {
       normalizedOps,
@@ -643,6 +663,10 @@ export async function processMessage(
         cartMutated: applyResult.mutated
       });
       finalText = decision.finalReply;
+    }
+
+    if (paymentLinkQuestion) {
+      finalText = `${finalText.trim()}\n\n${paymentLinkQuestion}`;
     }
 
     const tokenMeta = {

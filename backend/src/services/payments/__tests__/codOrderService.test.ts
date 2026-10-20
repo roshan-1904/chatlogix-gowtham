@@ -85,5 +85,69 @@ describe('markOrderCashCollected', () => {
       expect.objectContaining({ data: expect.objectContaining({ action: 'cash_collected' }) })
     );
     expect(vendorFindUnique).not.toHaveBeenCalled();
+    expect(cancelOpenLinksForOrder).toHaveBeenCalledWith('ord_1');
+  });
+
+  it('stores an optional reference and does not write an amount field', async () => {
+    orderFindUnique.mockResolvedValue({
+      id: 'ord_1',
+      vendorId: 'v1',
+      status: 'awaiting_payment',
+      paymentMethod: 'razorpay',
+      totalAmount: 12_000
+    });
+
+    await markOrderCashCollected({
+      orderId: 'ord_1',
+      vendorId: 'v1',
+      paymentMethod: 'vendor_collected',
+      reference: 'UPI-9981'
+    });
+
+    const changes = orderAuditLogCreate.mock.calls[0][0].data.changes;
+    expect(changes.reference).toBe('UPI-9981');
+    expect(changes.amountPaise).toBeUndefined();
+    expect(orderUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { paymentMethod: 'vendor_collected' } })
+    );
+  });
+
+  it('rejects a captured order', async () => {
+    orderFindUnique.mockResolvedValue({
+      id: 'ord_1',
+      vendorId: 'v1',
+      status: 'confirmed',
+      paymentMethod: 'razorpay',
+      totalAmount: 12_000
+    });
+    customerPaymentFindFirst.mockResolvedValue({ id: 'pay-1', netMilli: 1n });
+
+    await expect(
+      markOrderCashCollected({
+        orderId: 'ord_1',
+        vendorId: 'v1',
+        paymentMethod: 'vendor_collected'
+      })
+    ).rejects.toThrow(/already paid online/);
+    expect(orderAuditLogCreate).not.toHaveBeenCalled();
+  });
+
+  it('rejects an amount that is not the order total', async () => {
+    orderFindUnique.mockResolvedValue({
+      id: 'ord_1',
+      vendorId: 'v1',
+      status: 'confirmed',
+      paymentMethod: 'cod',
+      totalAmount: 12_000
+    });
+
+    await expect(
+      markOrderCashCollected({
+        orderId: 'ord_1',
+        vendorId: 'v1',
+        amountPaise: 100
+      })
+    ).rejects.toThrow(/order total/);
+    expect(cancelOpenLinksForOrder).not.toHaveBeenCalled();
   });
 });

@@ -197,6 +197,19 @@ export interface Order {
   };
   productIds?: string[]; // Array of product IDs (for future mapping)
   productMapping?: { [productName: string]: string }; // Product name to ID mapping
+  paymentMethod?: string | null;
+  /** Top-level aliases. Detail may instead nest these on `payment`. */
+  upiQrSentAt?: string | null;
+  cashCollectedAt?: string | null;
+  paymentReference?: string | null;
+  paymentBadge?: string;
+  paymentBadgeLabel?: string;
+  hasPaymentInitiatedAlert?: boolean;
+  paymentInitiatedAlert?: {
+    id: string;
+    createdAt: string;
+    message: string;
+  } | null;
   payment?: {
     status: string;
     amountPaise: number;
@@ -207,6 +220,10 @@ export interface Order {
     paymentLinkId?: string;
     paymentLinkUrl?: string;
     expiresAt?: string;
+    upiPayeeName?: string;
+    upiSentAt?: string;
+    collectedAt?: string;
+    reference?: string;
   } | null;
 }
 

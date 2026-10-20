@@ -345,7 +345,8 @@ async function handoffAfterFetch(
   bytes: Buffer,
   effectiveMime: string | undefined,
   caption: string | null,
-  stepLogger: StepLogger
+  stepLogger: StepLogger,
+  conversationContext?: { conversationId: string; customerId: string; visionModel: string }
 ): Promise<void> {
   if (job.messageType === 'audio') {
     if (!env.AUDIO_QUEUE_URL) {
@@ -390,6 +391,26 @@ async function handoffAfterFetch(
 
   if (job.messageType === 'image') {
     const captionText = (caption ?? '').trim();
+    if (conversationContext) {
+      const { handlePaymentScreenshotIfApplicable } = await import(
+        './payments/paymentScreenshotService.js'
+      );
+      const shot = await handlePaymentScreenshotIfApplicable({
+        conversationId: conversationContext.conversationId,
+        vendorId: job.vendorId,
+        customerId: conversationContext.customerId,
+        messageId: job.messageId,
+        imageBuffer: bytes,
+        contentType: effectiveMime ?? 'image/jpeg',
+        caption,
+        visionModel: conversationContext.visionModel
+      });
+      if (shot.handled) {
+        stepLogger.step('Payment screenshot handled; skipping conversation pipeline');
+        await sendTemplatedReply(job, shot.customerReply, stepLogger);
+        return;
+      }
+    }
     if (!captionText) {
       stepLogger.step('Image has no caption; sending templated reply');
       await sendTemplatedReply(job, IMAGE_NO_CAPTION_REPLY, stepLogger);
@@ -451,7 +472,14 @@ export async function processJob(job: MediaFetchJob, stepLogger: StepLogger): Pr
     where: { id: job.messageId },
     select: {
       id: true,
-      conversation: { select: { vendorId: true, customerId: true } }
+      conversationId: true,
+      conversation: {
+        select: {
+          vendorId: true,
+          customerId: true,
+          vendor: { select: { aiModel: true } }
+        }
+      }
     }
   });
   if (!message) {
@@ -527,7 +555,11 @@ export async function processJob(job: MediaFetchJob, stepLogger: StepLogger): Pr
     // not flip the fetch outcome to retry — S3 upload already succeeded and
     // we don't want a transcription hiccup to redownload the audio from WhatsApp.
     try {
-      await handoffAfterFetch(job, bytes, effectiveMime, media.caption, stepLogger);
+      await handoffAfterFetch(job, bytes, effectiveMime, media.caption, stepLogger, {
+        conversationId: message.conversationId,
+        customerId: message.conversation.customerId,
+        visionModel: message.conversation.vendor.aiModel ?? 'gpt-4.1-mini'
+      });
       await ensureCaptionContentEn(job.messageId, media.caption, stepLogger);
     } catch (handoffErr) {
       stepLogger.warn('Post-fetch handoff failed; media remains in S3', {

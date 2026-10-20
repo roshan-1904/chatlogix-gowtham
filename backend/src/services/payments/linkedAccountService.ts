@@ -196,7 +196,9 @@ export async function getLinkedAccountStatus(vendorId: string) {
       settlementAccountHolderName: true,
       businessType: true,
       settlementContactEmail: true,
-      settlementContactPhone: true
+      settlementContactPhone: true,
+      upiVpa: true,
+      upiPayeeName: true
     }
   });
   if (!vendor) return null;

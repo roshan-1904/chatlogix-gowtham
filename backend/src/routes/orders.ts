@@ -19,6 +19,9 @@ import {
   markOrderCashCollected,
   switchAwaitingPaymentOrderToCod
 } from '../services/payments/codOrderService.js';
+import { sendUpiQrForOrder } from '../services/payments/upiQrService.js';
+import { getTapToPayUrlForOrder } from '../services/payments/upiTapToPayUrl.js';
+import { resolveAlert } from '../services/orderAlertService.js';
 
 // Helper function to parse DD/MM/YYYY date format
 function parseDate(dateString: string): Date {
@@ -216,17 +219,97 @@ ordersRouter.post('/:id/mark-cash-collected', asyncHandlerWithContext(async (req
   }
   ensureOrderAccess(req, existingOrder.vendorId);
 
+  const rawMethod = req.body?.paymentMethod;
+  if (
+    rawMethod !== undefined &&
+    rawMethod !== null &&
+    rawMethod !== 'cod' &&
+    rawMethod !== 'vendor_collected'
+  ) {
+    throw createValidationError(
+      'paymentMethod must be cod or vendor_collected',
+      'paymentMethod',
+      rawMethod
+    );
+  }
   const paymentMethod =
-    req.body?.paymentMethod === 'vendor_collected' ? 'vendor_collected' : undefined;
+    rawMethod === 'cod' || rawMethod === 'vendor_collected' ? rawMethod : undefined;
+  const reference = typeof req.body?.reference === 'string' ? req.body.reference : undefined;
 
   const result = await markOrderCashCollected({
     orderId,
     vendorId: existingOrder.vendorId,
     changedBy: req.user?.id ?? req.user?.vendorId ?? 'vendor',
-    paymentMethod
+    paymentMethod,
+    reference,
+    amount: req.body?.amount,
+    amountPaise: req.body?.amountPaise
   });
   res.json(result);
 }, ErrorType.PAYMENT, ErrorSeverity.MEDIUM));
+
+ordersRouter.get('/:id/tap-to-pay-url', asyncHandlerWithContext(async (req: any, res: any) => {
+  const orderId = req.params.id;
+  const existingOrder = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { vendorId: true }
+  });
+  if (!existingOrder) {
+    throw createValidationError('Order not found', 'orderId', orderId);
+  }
+  ensureOrderAccess(req, existingOrder.vendorId);
+
+  const tapToPayUrl = await getTapToPayUrlForOrder(orderId);
+  if (!tapToPayUrl) {
+    throw createValidationError(
+      'Tap-to-pay is not available for this order',
+      'orderId',
+      orderId
+    );
+  }
+  res.json({ tapToPayUrl });
+}, ErrorType.PAYMENT, ErrorSeverity.LOW));
+
+ordersRouter.post('/:id/send-upi-qr', asyncHandlerWithContext(async (req: any, res: any) => {
+  const orderId = req.params.id;
+  const existingOrder = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { vendorId: true }
+  });
+  if (!existingOrder) {
+    throw createValidationError('Order not found', 'orderId', orderId);
+  }
+  ensureOrderAccess(req, existingOrder.vendorId);
+
+  const result = await sendUpiQrForOrder({
+    orderId,
+    vendorId: existingOrder.vendorId,
+    changedBy: req.user?.id ?? req.user?.vendorId ?? 'vendor'
+  });
+  res.json(result);
+}, ErrorType.PAYMENT, ErrorSeverity.MEDIUM));
+
+ordersRouter.post('/:id/alerts/:alertId/dismiss', asyncHandlerWithContext(async (req: any, res: any) => {
+  const orderId = req.params.id;
+  const alertId = req.params.alertId;
+  const existingOrder = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { vendorId: true }
+  });
+  if (!existingOrder) {
+    throw createValidationError('Order not found', 'orderId', orderId);
+  }
+  ensureOrderAccess(req, existingOrder.vendorId);
+
+  const alert = await prisma.orderAlert.findFirst({
+    where: { id: alertId, orderId }
+  });
+  if (!alert) {
+    throw createValidationError('Alert not found', 'alertId', alertId);
+  }
+  await resolveAlert(alertId);
+  res.json({ dismissed: true });
+}, ErrorType.BUSINESS_LOGIC, ErrorSeverity.LOW));
 
 // POST /api/orders/:id/payment-link - Generate payment link for order
 // Note: This route must come before /:id to ensure proper matching

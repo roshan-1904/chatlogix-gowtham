@@ -46,6 +46,7 @@ export type CartOp =
       /** When the customer asked for a specific variant's photo, echo that variant's sku from PRODUCT VARIANTS. */
       variantSku?: string | null;
     }
+  | { type: 'accept_payment_link' }
   | { type: 'noop' };
 
 /**

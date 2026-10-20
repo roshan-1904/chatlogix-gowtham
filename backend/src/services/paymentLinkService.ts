@@ -209,6 +209,12 @@ export class PaymentLinkService {
     });
     if (!vendor?.paymentsManagedByChatlogix) return;
 
+    const open = await prisma.paymentLink.findFirst({
+      where: { orderId, status: 'created' },
+      select: { id: true }
+    });
+    if (!open) return;
+
     await this.createPaymentLinkForOrder(orderId, {
       sendWhatsApp: vendor.paymentLinkAutoSend,
       phoneNumberId: options.phoneNumberId

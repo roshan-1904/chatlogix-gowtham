@@ -35,6 +35,7 @@ const orderFindMany = vi.fn();
 const customerPaymentFindMany = vi.fn();
 const paymentLinkFindMany = vi.fn();
 const orderAuditLogFindMany = vi.fn();
+const orderAlertFindMany = vi.fn();
 const faqCount = vi.fn();
 const queryRaw = vi.fn();
 const productMediaFindMany = vi.fn();
@@ -58,6 +59,7 @@ vi.mock('../../db/prisma.js', () => ({
     customerPayment: { findMany: (...args: unknown[]) => customerPaymentFindMany(...args) },
     paymentLink: { findMany: (...args: unknown[]) => paymentLinkFindMany(...args) },
     orderAuditLog: { findMany: (...args: unknown[]) => orderAuditLogFindMany(...args) },
+    orderAlert: { findMany: (...args: unknown[]) => orderAlertFindMany(...args) },
     faq: { count: (...args: unknown[]) => faqCount(...args) },
     // Tagged-template mock: prefetch.ts calls prisma.$queryRaw`...` — a plain
     // vi.fn() can't be invoked as a tag function, so wrap it.
@@ -120,6 +122,7 @@ beforeEach(() => {
   customerPaymentFindMany.mockResolvedValue([]);
   paymentLinkFindMany.mockResolvedValue([]);
   orderAuditLogFindMany.mockResolvedValue([]);
+  orderAlertFindMany.mockResolvedValue([]);
 });
 
 describe('prefetchHotSet', () => {
@@ -457,5 +460,62 @@ describe('prefetchHotSet', () => {
         amountPaise: 50000
       })
     ]);
+  });
+
+  it('reports upi_pending instead of cod_unpaid after a QR send', async () => {
+    vendorFindUnique.mockImplementation(({ select }: { select?: Record<string, boolean> }) => {
+      if (select?.paymentsManagedByChatlogix) {
+        return Promise.resolve({ paymentsManagedByChatlogix: true });
+      }
+      return Promise.resolve({
+        id: VENDOR_ID,
+        businessName: 'Test Bakery',
+        aiBotName: null,
+        aiPersonality: null,
+        aiSystemPrompt: null,
+        aiGreeting: null,
+        aiClosing: null,
+        aiToneExample: null,
+        aiContentResponsibilities: null,
+        aiContentConversationRules: null,
+        aiContentImportantInstructions: null,
+        aiDeliveryInstructions: null,
+        aiPickupDeliveryAddress: null,
+        orderPreparationConfig: null,
+        timezone: 'Asia/Kolkata',
+        aiModel: null,
+        askForPreferredDeliveryDate: false
+      });
+    });
+    orderFindMany.mockResolvedValue([
+      {
+        id: 'ord-1',
+        orderNumber: 'ORD-1',
+        items: [],
+        totalAmount: 120000,
+        paymentMethod: 'vendor_collected',
+        status: 'awaiting_payment',
+        createdAt: new Date(),
+        estimatedDelivery: null,
+        confirmedAt: null,
+        preparedAt: null,
+        deliveredAt: null,
+        cancelledAt: null,
+        cancellationReason: null
+      }
+    ]);
+    customerPaymentFindMany.mockResolvedValue([]);
+    paymentLinkFindMany.mockResolvedValue([]);
+    orderAuditLogFindMany.mockResolvedValue([{ orderId: 'ord-1', action: 'upi_qr_sent', timestamp: new Date() }]);
+
+    const hotSet = await prefetchHotSet(VENDOR_ID, CONVERSATION_ID, CUSTOMER_ID, 'did you get the payment?');
+
+    expect(hotSet.orderPaymentStatuses).toEqual([
+      expect.objectContaining({
+        orderNumber: 'ORD-1',
+        paymentStatus: 'upi_pending'
+      })
+    ]);
+    expect(hotSet.orderPaymentStatuses[0]?.paymentStatus).not.toBe('cod_unpaid');
   });
 });

@@ -1,51 +1,39 @@
-import { Card } from '@chatlogix/ui';
 import { formatAmountWithSymbol } from '../../utils/currency';
 
 interface OrderStatsCardsProps {
   stats: {
     totalOrders: number;
     todayOrders: number;
-    pendingOrders: number;
+    needAttention: number;
     totalRevenue: number;
   };
   isLoading?: boolean;
 }
 
+const LABELS = ['Orders', 'Today', 'Need attention', 'Collected'] as const;
+
 export function OrderStatsCards({ stats, isLoading }: OrderStatsCardsProps) {
-  if (isLoading) {
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 animate-pulse">
-            <div className="h-4 bg-gray-200 rounded w-1/2 mb-2"></div>
-            <div className="h-8 bg-gray-200 rounded w-1/3"></div>
-          </div>
-        ))}
-      </div>
-    );
-  }
+  const values = isLoading
+    ? null
+    : [
+        String(stats.totalOrders),
+        String(stats.todayOrders),
+        String(stats.needAttention),
+        formatAmountWithSymbol(stats.totalRevenue ?? 0),
+      ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-      <Card>
-        <div className="text-sm text-gray-500 mb-1">Total Orders</div>
-        <div className="text-2xl font-bold text-gray-900">{stats.totalOrders}</div>
-      </Card>
-      <Card>
-        <div className="text-sm text-gray-500 mb-1">Today's Orders</div>
-        <div className="text-2xl font-bold text-gray-900">{stats.todayOrders}</div>
-      </Card>
-      <Card>
-        <div className="text-sm text-gray-500 mb-1">Pending Orders</div>
-        <div className="text-2xl font-bold text-orange-600">{stats.pendingOrders}</div>
-      </Card>
-      <Card>
-        <div className="text-sm text-gray-500 mb-1">Total Revenue</div>
-        <div className="text-2xl font-bold text-green-600">
-          {formatAmountWithSymbol(stats.totalRevenue ?? 0)}
+    <div className="mb-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
+      {LABELS.map((label, index) => (
+        <div key={label} className="rounded-xl border border-gray-200 bg-white px-3 py-2.5">
+          <p className="text-xs text-gray-500">{label}</p>
+          {values ? (
+            <p className="mt-0.5 text-lg font-semibold tabular-nums text-gray-900">{values[index]}</p>
+          ) : (
+            <div className="mt-1 h-6 w-16 animate-pulse rounded bg-gray-200" />
+          )}
         </div>
-      </Card>
+      ))}
     </div>
   );
 }
-

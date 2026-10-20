@@ -23,69 +23,15 @@ export interface ExtractedOrder {
 }
 
 async function attachPaymentSummary(order: Record<string, unknown>) {
-  const orderId = order.id as string;
-
-  const cashCollected = await prisma.orderAuditLog.findFirst({
-    where: { orderId, action: 'cash_collected' },
-    orderBy: { timestamp: 'desc' }
+  const { buildOrderPaymentPayload } = await import('./payments/orderPaymentSummary.js');
+  const summary = await buildOrderPaymentPayload({
+    id: order.id as string,
+    status: order.status as string,
+    paymentMethod: (order.paymentMethod as string | null) ?? null,
+    totalAmount: order.totalAmount as number,
+    conversationId: order.conversationId as string | undefined
   });
-  if (cashCollected) {
-    return {
-      ...order,
-      payment: {
-        status: 'cash_collected',
-        amountPaise: order.totalAmount as number,
-        netMilli: null,
-        transferStatus: null,
-        eligibleAt: null,
-        refundedPaise: 0
-      }
-    };
-  }
-
-  const captured = await prisma.customerPayment.findFirst({
-    where: { orderId, settlementAlert: null, netMilli: { gt: 0 } },
-    orderBy: { capturedAt: 'desc' },
-    include: {
-      settlementTransfers: {
-        orderBy: { createdAt: 'asc' },
-        take: 1
-      }
-    }
-  });
-  const openLink = await prisma.paymentLink.findFirst({
-    where: { orderId, status: 'created' },
-    orderBy: { createdAt: 'desc' }
-  });
-
-  if (!captured && !openLink) {
-    return { ...order, payment: null };
-  }
-
-  const transfer = captured?.settlementTransfers[0];
-  return {
-    ...order,
-    payment: captured
-      ? {
-          status: captured.status,
-          amountPaise: captured.amountPaise,
-          netMilli: captured.netMilli.toString(),
-          transferStatus: transfer?.status ?? null,
-          eligibleAt: transfer?.eligibleAt?.toISOString() ?? null,
-          refundedPaise: captured.refundedPaise
-        }
-      : {
-          status: 'pending',
-          amountPaise: openLink!.amountPaise,
-          netMilli: null,
-          transferStatus: null,
-          eligibleAt: null,
-          refundedPaise: 0,
-          paymentLinkId: openLink!.id,
-          paymentLinkUrl: openLink!.url,
-          expiresAt: openLink!.expiresAt.toISOString()
-        }
-  };
+  return { ...order, ...summary };
 }
 
 export class OrderService {
@@ -386,7 +332,8 @@ export class OrderService {
           }
         });
 
-        return orders;
+        const { attachListPaymentBadges } = await import('./payments/orderPaymentSummary.js');
+        return attachListPaymentBadges(orders);
       } catch (dbError: any) {
         // If customerNotes column doesn't exist, fetch without it
         if (dbError.code === 'P2022' && dbError.meta?.column === 'Order.customerNotes') {
@@ -402,6 +349,7 @@ export class OrderService {
               conversationId: true,
               orderNumber: true,
               status: true,
+              paymentMethod: true,
               items: true,
               totalAmount: true,
               deliveryAddress: true,
@@ -430,11 +378,13 @@ export class OrderService {
             }
           });
 
-          // Add null customerNotes to maintain API compatibility
-          return orders.map(order => ({
-            ...order,
-            customerNotes: null
-          }));
+          const { attachListPaymentBadges } = await import('./payments/orderPaymentSummary.js');
+          return attachListPaymentBadges(
+            orders.map((order) => ({
+              ...order,
+              customerNotes: null
+            }))
+          );
         }
         
         // Re-throw if it's a different error
@@ -487,6 +437,7 @@ export class OrderService {
               conversationId: true,
               orderNumber: true,
               status: true,
+              paymentMethod: true,
               items: true,
               totalAmount: true,
               deliveryAddress: true,

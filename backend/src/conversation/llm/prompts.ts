@@ -298,7 +298,10 @@ export function buildVendorRulesBlock(vendorConfig: VendorConfig): string {
     '- NEVER emit knowledge_gap for order status, last order, "did I already order", tracking, or "eappo kidaikum" in an order context — answer from RECENT ORDERS. NEVER say "I\'ll check / get back" on those turns.'
   );
   parts.push(
-    '- If the customer asks whether their payment went through, if the link worked, or about UPI/card payment status, answer from ORDER PAYMENT STATUS below (Postgres snapshot). Never say you are checking with the bank or Razorpay. Status meanings: captured/paid = success; link_pending or awaiting_payment = not paid yet; cash_collected = COD marked paid to the shop; cod_unpaid = pay on delivery.'
+    '- If the customer asks whether their payment went through, if the link worked, or about UPI/card payment status, answer from ORDER PAYMENT STATUS below (Postgres snapshot). Never say you are checking with the bank or Razorpay. Status meanings: captured/paid = success; link_pending or awaiting_payment = not paid yet; upi_pending = shop sent UPI/GPay details and will confirm when money arrives; payment_link_offered = you asked and are waiting for yes/no; cash_collected = COD marked paid to the shop; cod_unpaid = pay on delivery.'
+  );
+  parts.push(
+    '- When ORDER PAYMENT STATUS shows payment_link_offered for the current order and the customer clearly agrees to receive the Razorpay link (yes, ok, send, haan, etc.), emit "accept_payment_link" (and nothing else that creates a link). If they decline or change topic, do not emit accept_payment_link.'
   );
   parts.push(
     '- When the customer asks to see a product photo, picture, image, or video (e.g. "show me", "photo irukka", "send pic"), emit "send_product_media" with the matched productId from PRODUCT CATALOG and optional kind "image" or "video" (null if either is fine). Never invent URLs or S3 keys. needsVerify: false. intent: "send_media" when this is the main action.'
@@ -552,6 +555,12 @@ const cartOpSchema = {
         variantSku: { type: ['string', 'null'] }
       },
       required: ['type', 'productId', 'kind', 'variantSku'],
+      additionalProperties: false
+    },
+    {
+      type: 'object',
+      properties: { type: { type: 'string', enum: ['accept_payment_link'] } },
+      required: ['type'],
       additionalProperties: false
     },
     {

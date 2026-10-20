@@ -57,11 +57,20 @@ export async function switchAwaitingPaymentOrderToCod(input: {
  * Marks a COD / vendor-collected order as paid to the shop. Never writes
  * settlement entries or changes wallet balances.
  */
+function suppliedAmountMismatches(totalAmount: number, value: unknown): boolean {
+  if (value === undefined || value === null) return false;
+  return typeof value !== 'number' || !Number.isFinite(value) || value !== totalAmount;
+}
+
 export async function markOrderCashCollected(input: {
   orderId: string;
   vendorId: string;
   changedBy?: string;
   paymentMethod?: 'cod' | 'vendor_collected';
+  reference?: string;
+  /** Present and not equal to Order.totalAmount (paise) is rejected. */
+  amount?: unknown;
+  amountPaise?: unknown;
 }): Promise<{ id: string; paymentMethod: string; cashCollected: true }> {
   const order = await prisma.order.findUnique({
     where: { id: input.orderId },
@@ -76,7 +85,7 @@ export async function markOrderCashCollected(input: {
   if (!order || order.vendorId !== input.vendorId) {
     throw createError('Order not found', 404, ErrorType.NOT_FOUND);
   }
-  if (order.paymentMethod === 'razorpay') {
+  if (order.paymentMethod === 'razorpay' && input.paymentMethod !== 'vendor_collected') {
     throw createError('Online payment orders use Razorpay capture, not cash collection', 409, ErrorType.PAYMENT);
   }
 
@@ -106,6 +115,15 @@ export async function markOrderCashCollected(input: {
     throw createError('Order is not a cash-on-delivery order', 400, ErrorType.VALIDATION);
   }
 
+  if (
+    suppliedAmountMismatches(order.totalAmount, input.amount) ||
+    suppliedAmountMismatches(order.totalAmount, input.amountPaise)
+  ) {
+    throw createError('Amount must match the order total', 400, ErrorType.VALIDATION);
+  }
+
+  await getPaymentLinkService().cancelOpenLinksForOrder(order.id);
+
   const now = new Date();
   await prisma.$transaction(async (tx) => {
     await tx.order.update({
@@ -120,7 +138,7 @@ export async function markOrderCashCollected(input: {
         changes: {
           vendorInitiated: true,
           changedBy: input.changedBy ?? 'vendor',
-          amountPaise: order.totalAmount
+          ...(input.reference?.trim() ? { reference: input.reference.trim() } : {})
         },
         previousState: { paymentMethod: order.paymentMethod },
         newState: { paymentMethod: method, cashCollectedAt: now.toISOString() },
