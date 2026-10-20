@@ -32,13 +32,14 @@ export default defineConfig(({ mode }) => {
     console.warn('\n⚠️  VITE_API_URL is not set; defaulting to http://localhost:8000/api at runtime.\n');
   }
 
+  // Production index.html CSP: Razorpay checkout + Firebase phone auth (reCAPTCHA loads from google.com).
   const razorpayCsp =
     "default-src 'self'; " +
-    "script-src 'self' https://checkout.razorpay.com; " +
-    "frame-src https://api.razorpay.com https://checkout.razorpay.com; " +
-    "connect-src 'self' https: wss: https://api.razorpay.com https://lumberjack.razorpay.com; " +
+    "script-src 'self' https://checkout.razorpay.com https://www.google.com https://www.gstatic.com; " +
+    "frame-src https://api.razorpay.com https://checkout.razorpay.com https://www.google.com https://www.recaptcha.net https://recaptcha.google.com; " +
+    "connect-src 'self' https: wss: https://api.razorpay.com https://lumberjack.razorpay.com https://www.google.com https://www.gstatic.com; " +
     "img-src 'self' data: https:; " +
-    "style-src 'self' 'unsafe-inline';";
+    "style-src 'self' 'unsafe-inline' https://www.gstatic.com;";
 
   return {
     plugins: [

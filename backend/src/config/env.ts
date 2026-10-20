@@ -149,6 +149,8 @@ const EnvSchema = z.object({
   AUTH_TOKEN_EXPIRES_IN: z.string().default('1h'),
   AUTH_REFRESH_TOKEN_EXPIRES_IN: z.string().default('7d'),
   AUTH_COOKIE_SECURE: z.string().optional(),
+  /** Optional e.g. `.chatlogix.in` when API and SPA use different subdomains */
+  AUTH_COOKIE_DOMAIN: z.string().optional(),
   CORS_ALLOWED_ORIGINS: z
     .string()
     .default('http://localhost:3000,http://127.0.0.1:3000'),

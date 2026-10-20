@@ -31,12 +31,14 @@ export function getRefreshCookieMaxAgeMs(): number {
 
 export function buildRefreshCookieOptions(): CookieOptions {
   const secure = isSecureCookie();
+  const domain = env.AUTH_COOKIE_DOMAIN?.trim();
   return {
     httpOnly: true,
     path: '/api/auth',
     sameSite: secure ? 'none' : 'lax',
     secure,
-    maxAge: getRefreshCookieMaxAgeMs()
+    maxAge: getRefreshCookieMaxAgeMs(),
+    ...(domain ? { domain } : {})
   };
 }
 

@@ -59,6 +59,10 @@ async function bootstrap() {
 
   const app = express();
 
+  // Behind nginx/Lightsail TLS termination; required so Secure refresh cookies are set
+  // (req.secure / X-Forwarded-Proto) and rate limits see the real client IP.
+  app.set('trust proxy', 1);
+
   // Add request logging middleware before other middleware
   app.use(requestLogger());
 
