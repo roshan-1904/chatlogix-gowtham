@@ -11,7 +11,6 @@ const settlementEntryCreate = vi.fn();
 const vendorUpdate = vi.fn();
 const cancelOpenLinksForOrder = vi.fn();
 const uploadWhatsAppMedia = vi.fn();
-const sendWhatsAppImage = vi.fn();
 const sendWhatsAppCtaUrl = vi.fn();
 const getTapToPayUrlForOrder = vi.fn();
 
@@ -43,7 +42,6 @@ vi.mock('../../paymentLinkService.js', () => ({
 
 vi.mock('../../whatsappClient.js', () => ({
   uploadWhatsAppMedia: (...args: unknown[]) => uploadWhatsAppMedia(...args),
-  sendWhatsAppImage: (...args: unknown[]) => sendWhatsAppImage(...args),
   sendWhatsAppCtaUrl: (...args: unknown[]) => sendWhatsAppCtaUrl(...args)
 }));
 
@@ -67,8 +65,7 @@ describe('sendUpiQrForOrder', () => {
     orderAuditLogFindFirst.mockResolvedValue(null);
     messageFindFirst.mockResolvedValue({ timestamp: new Date() });
     uploadWhatsAppMedia.mockResolvedValue({ mediaId: 'media-1' });
-    sendWhatsAppImage.mockResolvedValue({ messageId: 'wamid.1' });
-    sendWhatsAppCtaUrl.mockResolvedValue({ messageId: 'wamid.2' });
+    sendWhatsAppCtaUrl.mockResolvedValue({ messageId: 'wamid.1' });
     getTapToPayUrlForOrder.mockResolvedValue('https://pay.example/pay/u/token');
     orderAuditLogCreate.mockResolvedValue({});
     messageCreate.mockResolvedValue({});
@@ -95,10 +92,13 @@ describe('sendUpiQrForOrder', () => {
       amountPaise: 219800,
       tapToPayUrl: 'https://pay.example/pay/u/token'
     });
+    expect(sendWhatsAppCtaUrl).toHaveBeenCalledTimes(1);
     expect(sendWhatsAppCtaUrl).toHaveBeenCalledWith(
       expect.objectContaining({
         displayText: 'Tap to pay',
-        url: 'https://pay.example/pay/u/token'
+        url: 'https://pay.example/pay/u/token',
+        headerImageMediaId: 'media-1',
+        bodyText: expect.stringContaining('Annapoorna Sweets')
       })
     );
     expect(cancelOpenLinksForOrder).toHaveBeenCalledWith('ord_1');

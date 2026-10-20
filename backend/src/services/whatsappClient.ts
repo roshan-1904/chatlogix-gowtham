@@ -333,25 +333,34 @@ export async function sendWhatsAppCtaUrl(input: {
   displayText: string;
   url: string;
   phoneNumberId?: string;
+  /** When set, shows the image above the body (e.g. UPI QR in the same bubble as Tap to pay). */
+  headerImageMediaId?: string;
 }): Promise<WhatsAppSendResult | undefined> {
   const creds = await requireTargetCredentials(input.phoneNumberId);
+  const interactive: Record<string, unknown> = {
+    type: 'cta_url',
+    body: { text: input.bodyText },
+    action: {
+      name: 'cta_url',
+      parameters: {
+        display_text: input.displayText,
+        url: input.url
+      }
+    }
+  };
+  if (input.headerImageMediaId) {
+    interactive.header = {
+      type: 'image',
+      image: { id: input.headerImageMediaId }
+    };
+  }
   return postToGraph(
     creds.phoneNumberId,
     {
       messaging_product: 'whatsapp',
       to: input.to,
       type: 'interactive',
-      interactive: {
-        type: 'cta_url',
-        body: { text: input.bodyText },
-        action: {
-          name: 'cta_url',
-          parameters: {
-            display_text: input.displayText,
-            url: input.url
-          }
-        }
-      }
+      interactive
     },
     creds.accessToken
   );

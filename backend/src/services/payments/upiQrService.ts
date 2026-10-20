@@ -3,7 +3,7 @@ import QRCode from 'qrcode';
 import { prisma } from '../../db/prisma.js';
 import { createError, ErrorType } from '../../middleware/errorHandler.js';
 import { getPaymentLinkService } from '../paymentLinkService.js';
-import { uploadWhatsAppMedia, sendWhatsAppImage, sendWhatsAppCtaUrl } from '../whatsappClient.js';
+import { uploadWhatsAppMedia, sendWhatsAppCtaUrl } from '../whatsappClient.js';
 import { resolveVendorSendingPhoneNumberId } from '../whatsapp/vendorSendingNumber.js';
 import { getTapToPayUrlForOrder } from './upiTapToPayUrl.js';
 
@@ -105,7 +105,15 @@ export async function sendUpiQrForOrder(input: {
   if (!phoneNumberId) {
     throw createError('WhatsApp sending number is not configured for this shop', 409, ErrorType.PAYMENT);
   }
-  const caption = `${payeeName}\nUPI: ${vpa}\nAmount: ₹${amountRupees}\nOrder: ${order.orderNumber}`;
+  const tapToPayUrl = await getTapToPayUrlForOrder(order.id);
+  if (!tapToPayUrl) {
+    throw createError('Could not build tap-to-pay link for this order', 500, ErrorType.PAYMENT);
+  }
+
+  const bodyText =
+    `Pay ₹${amountRupees} for order ${order.orderNumber}\n\n` +
+    `${payeeName}\nUPI: ${vpa}\nAmount: ₹${amountRupees}\n\n` +
+    'Scan the QR or tap below to open your UPI app (GPay, PhonePe, or bank).';
 
   const { mediaId } = await uploadWhatsAppMedia(
     phoneNumberId,
@@ -113,24 +121,13 @@ export async function sendUpiQrForOrder(input: {
     pngBuffer,
     `upi-${order.orderNumber}.png`
   );
-  const sendResult = await sendWhatsAppImage({
+  const sendResult = await sendWhatsAppCtaUrl({
     phoneNumberId,
     to: order.customer.phone,
-    mediaId,
-    caption
-  });
-
-  const tapToPayUrl = await getTapToPayUrlForOrder(order.id);
-  if (!tapToPayUrl) {
-    throw createError('Could not build tap-to-pay link for this order', 500, ErrorType.PAYMENT);
-  }
-
-  await sendWhatsAppCtaUrl({
-    phoneNumberId,
-    to: order.customer.phone,
-    bodyText: `Pay ${amountRupees} for order ${order.orderNumber}. Open your UPI app (GPay, PhonePe, or bank).`,
+    bodyText,
     displayText: 'Tap to pay',
-    url: tapToPayUrl
+    url: tapToPayUrl,
+    headerImageMediaId: mediaId
   });
 
   const now = new Date();
@@ -154,8 +151,8 @@ export async function sendUpiQrForOrder(input: {
         id: messageId,
         conversationId: order.conversationId,
         senderType: 'assistant',
-        type: 'image',
-        content: caption,
+        type: 'interactive',
+        content: bodyText,
         timestamp: now,
         whatsappMessageId: sendResult?.messageId ?? null,
         status: sendResult ? 'sent' : 'pending'
