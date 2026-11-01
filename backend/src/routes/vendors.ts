@@ -60,6 +60,8 @@ import {
   getVendorSettlementStatement,
   getVendorSettlementStatementCsv
 } from '../services/payments/settlementStatementService.js';
+import { recordInMemoryAuditLog } from '../services/adminControlsService.js';
+import { recordStaffAuditLog } from '../services/adminSupportService.js';
 
 export const vendorsRouter = express.Router();
 
@@ -99,6 +101,8 @@ const vendorListSelect = {
   email: true,
   subscriptionPlan: true,
   subscriptionStatus: true,
+  registrationStatus: true,
+  submittedAt: true,
   walletBalanceMilli: true,
   markupPercent: true,
   createdAt: true
@@ -252,13 +256,30 @@ vendorsRouter.post('/:id/recharge-wallet', requireRole('admin'), async (req, res
   const amount = Number(req.body?.amount || 0);
   // Millirupees are stored as Int, and creditWalletFromTopUp rejects non-integers.
   if (!Number.isInteger(amount) || amount <= 0) return res.status(400).json({ error: 'invalid_amount' });
+
+  const rawReason = req.body?.reason;
+  if (typeof rawReason !== 'string') {
+    return res.status(400).json({ error: 'invalid_reason' });
+  }
+  const reason = rawReason.trim();
+  if (reason.length < 3 || reason.length > 200) {
+    return res.status(400).json({ error: 'invalid_reason' });
+  }
+
+  let idempotencyKey: string;
+  if (req.body?.idempotencyKey === undefined || req.body?.idempotencyKey === null) {
+    idempotencyKey = newAdminRechargeIdempotencyKey();
+  } else if (
+    typeof req.body.idempotencyKey !== 'string' ||
+    req.body.idempotencyKey.trim().length === 0
+  ) {
+    return res.status(400).json({ error: 'invalid_idempotency_key' });
+  } else {
+    idempotencyKey = req.body.idempotencyKey.trim();
+  }
+
   const vendor = await prisma.vendor.findUnique({ where: { id: vendorId } });
   if (!vendor) return res.status(404).json({ error: 'not_found' });
-
-  const idempotencyKey =
-    typeof req.body?.idempotencyKey === 'string' && req.body.idempotencyKey.length > 0
-      ? req.body.idempotencyKey
-      : newAdminRechargeIdempotencyKey();
 
   const credit = await creditWalletFromTopUp({
     vendorId,
@@ -270,7 +291,34 @@ vendorsRouter.post('/:id/recharge-wallet', requireRole('admin'), async (req, res
       idempotencyKey,
       amountMilli: amount,
       currency: 'INR',
-      adminUserId: req.user?.id
+      adminUserId: req.user?.id,
+      reason
+    }
+  });
+
+  recordInMemoryAuditLog({
+    actorId: req.user?.id || 'admin',
+    action: 'wallet_credited',
+    vendorId,
+    summary: `Admin credited ₹${(amount / 1000).toFixed(2)} to ${vendor.businessName || 'vendor'}: ${reason}`,
+    metadata: {
+      amountMilli: amount,
+      reason,
+      idempotencyKey,
+      balanceAfterMilli: credit.balanceAfterMilli
+    }
+  });
+
+  void recordStaffAuditLog({
+    actorId: req.user?.id || 'admin',
+    action: 'wallet_credited',
+    vendorId,
+    summary: `Admin credited ₹${(amount / 1000).toFixed(2)} to ${vendor.businessName || 'vendor'}: ${reason}`,
+    metadata: {
+      amountMilli: amount,
+      reason,
+      idempotencyKey,
+      balanceAfterMilli: credit.balanceAfterMilli
     }
   });
 
@@ -378,6 +426,22 @@ vendorsRouter.patch('/:id/feature-flags', requireRole('admin'), async (req, res,
       invalidateVendorFlagCache(req.params.id, TURN_AUDIT_FLAG);
     }
 
+    recordInMemoryAuditLog({
+      actorId: req.user?.id || 'admin',
+      action: 'feature_flag_changed',
+      vendorId: req.params.id,
+      summary: `Updated feature flags: conversation_turn_audit=${parsed.data.conversation_turn_audit}`,
+      metadata: parsed.data
+    });
+
+    void recordStaffAuditLog({
+      actorId: req.user?.id || 'admin',
+      action: 'feature_flag_changed',
+      vendorId: req.params.id,
+      summary: `Updated feature flags: conversation_turn_audit=${parsed.data.conversation_turn_audit}`,
+      metadata: parsed.data
+    });
+
     const body = vendorFeatureFlagsResponseSchema.parse({
       conversation_turn_audit: readConversationTurnAudit(vendor.featureFlags)
     });
@@ -407,6 +471,23 @@ vendorsRouter.patch('/:id/billing-config', requireRole('admin'), async (req, res
       markupPercent: parsed.data.markupPercent,
       paymentFeeBps: parsed.data.paymentFeeBps
     });
+
+    recordInMemoryAuditLog({
+      actorId: req.user?.id || 'admin',
+      action: 'markup_changed',
+      vendorId: req.params.id,
+      summary: `Updated billing config for vendor (markup: ${parsed.data.markupPercent ?? 'unchanged'}%)`,
+      metadata: parsed.data
+    });
+
+    void recordStaffAuditLog({
+      actorId: req.user?.id || 'admin',
+      action: 'markup_changed',
+      vendorId: req.params.id,
+      summary: `Updated billing config for vendor (markup: ${parsed.data.markupPercent ?? 'unchanged'}%)`,
+      metadata: parsed.data
+    });
+
     return res.json(vendor);
   } catch (error: any) {
     if (error?.statusCode === 404) {
@@ -713,19 +794,111 @@ vendorsRouter.get(
   },
 );
 
-// Map vendor to a WhatsApp phone_number_id
+const safeWhatsAppNumberSelect = {
+  id: true,
+  vendorId: true,
+  phoneNumberId: true,
+  wabaId: true,
+  connectStatus: true,
+  connectPath: true,
+  displayPhone: true,
+  displayName: true,
+  primaryFundingId: true,
+  lastErrorCode: true,
+  lastErrorMessage: true,
+  connectedAt: true,
+  liveAt: true,
+  metaBusinessId: true,
+  createdAt: true
+} as const;
+
+// List mapped WhatsApp numbers for a vendor (admin only)
+vendorsRouter.get('/:id/whatsapp-numbers', requireRole('admin'), async (req, res) => {
+  const vendorId = req.params.id;
+  const vendor = await prisma.vendor.findUnique({ where: { id: vendorId }, select: { id: true } });
+  if (!vendor) return res.status(404).json({ error: 'not_found' });
+
+  const numbers = await prisma.whatsAppNumber.findMany({
+    where: { vendorId },
+    select: safeWhatsAppNumberSelect,
+    orderBy: { createdAt: 'desc' }
+  });
+  res.json(numbers);
+});
+
+// Map vendor to a WhatsApp phone_number_id (admin only)
 vendorsRouter.post('/:id/map-wa-number', requireRole('admin'), async (req, res) => {
   const vendorId = req.params.id;
-  const phoneNumberId = req.body?.phoneNumberId as string;
-  const wabaId = req.body?.wabaId as string;
-  if (!phoneNumberId || !wabaId) return res.status(400).json({ error: 'missing_fields' });
-  // Upsert mapping
-  const wa = await prisma.whatsAppNumber.upsert({
+  const vendor = await prisma.vendor.findUnique({ where: { id: vendorId }, select: { id: true } });
+  if (!vendor) return res.status(404).json({ error: 'not_found' });
+
+  const rawPhoneNumberId = req.body?.phoneNumberId;
+  const rawWabaId = req.body?.wabaId;
+  if (typeof rawPhoneNumberId !== 'string' || typeof rawWabaId !== 'string') {
+    return res.status(400).json({ error: 'missing_fields' });
+  }
+
+  const phoneNumberId = rawPhoneNumberId.trim();
+  const wabaId = rawWabaId.trim();
+  if (!phoneNumberId || !wabaId) {
+    return res.status(400).json({ error: 'missing_fields' });
+  }
+
+  const existing = await prisma.whatsAppNumber.findUnique({
     where: { phoneNumberId },
-    update: { vendorId, wabaId },
-    create: { vendorId, phoneNumberId, wabaId }
+    include: { vendor: { select: { id: true, businessName: true } } }
   });
-  res.json(wa);
+
+  if (existing && existing.vendorId !== vendorId) {
+    if (req.body?.confirmMove !== true) {
+      return res.status(409).json({
+        error: 'already_mapped',
+        currentVendorId: existing.vendorId,
+        currentVendorName: existing.vendor?.businessName ?? null
+      });
+    }
+  }
+
+  try {
+    const wa = await prisma.whatsAppNumber.upsert({
+      where: { phoneNumberId },
+      update: { vendorId, wabaId },
+      create: { vendorId, phoneNumberId, wabaId },
+      select: safeWhatsAppNumberSelect
+    });
+
+    logger.info(
+      {
+        vendorId,
+        phoneNumberId,
+        wabaId,
+        previousVendorId: existing && existing.vendorId !== vendorId ? existing.vendorId : undefined,
+        adminUserId: req.user?.id
+      },
+      'WhatsApp number mapped to vendor (whatsapp_mapped)'
+    );
+
+    recordInMemoryAuditLog({
+      actorId: req.user?.id || 'admin',
+      action: 'whatsapp_mapped',
+      vendorId,
+      summary: `Mapped WhatsApp phone number ${phoneNumberId} (WABA: ${wabaId})`,
+      metadata: { phoneNumberId, wabaId }
+    });
+
+    void recordStaffAuditLog({
+      actorId: req.user?.id || 'admin',
+      action: 'whatsapp_mapped',
+      vendorId,
+      summary: `Mapped WhatsApp phone number ${phoneNumberId} (WABA: ${wabaId})`,
+      metadata: { phoneNumberId, wabaId }
+    });
+
+    res.json(wa);
+  } catch (error: any) {
+    logger.error({ err: error, vendorId, phoneNumberId }, 'Failed to map WhatsApp number');
+    res.status(500).json({ error: 'failed_to_map_number' });
+  }
 });
 
 // GET /api/vendors/:id/ai-config - Get complete AI configuration

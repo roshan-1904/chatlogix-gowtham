@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "type-check": "tsc --noEmit",
+    "test": "vitest run",
     "clean": "rm -rf dist node_modules"
   },
   "dependencies": {

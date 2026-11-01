@@ -35,10 +35,6 @@ export function Login() {
   const [error, setError] = useState<string | null>(null);
   const [devOtpHint, setDevOtpHint] = useState(false);
 
-  if (isAuthenticated && hasRole('admin')) {
-    return <Navigate to="/dashboard" replace />;
-  }
-
   const phoneForm = useForm<PhoneFormData>({
     resolver: zodResolver(phoneSchema),
     defaultValues: {
@@ -50,6 +46,10 @@ export function Login() {
   const otpForm = useForm<OtpFormData>({
     resolver: zodResolver(otpSchema),
   });
+
+  if (isAuthenticated && hasRole('admin')) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   const resolveRecaptchaToken = async (): Promise<string | undefined> => {
     try {
@@ -177,7 +177,9 @@ export function Login() {
           {step === 'phone' ? (
             <PhoneLoginForm
               form={phoneForm}
-              onSubmit={handleSendCode}
+              onSubmit={(data) => {
+                void handleSendCode(data);
+              }}
               isLoading={isLoading}
               phoneLabel="Mobile number"
               submitLabel="Send code"
@@ -192,7 +194,9 @@ export function Login() {
               )}
               <OtpVerificationForm
                 form={otpForm}
-                onSubmit={handleVerifyCode}
+                onSubmit={(data) => {
+                  void handleVerifyCode(data);
+                }}
                 phoneNumber={phoneNumber}
                 isLoading={isLoading}
                 onBack={handleBack}

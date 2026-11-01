@@ -15,9 +15,14 @@ const loginMeta: PageMeta = {
 const appTitles: ReadonlyArray<readonly [string, string]> = [
   ['/dashboard', 'Dashboard'],
   ['/vendors', 'Vendors'],
+  ['/usage', 'Usage'],
+  ['/reliability', 'Reliability'],
+  ['/support', 'Support'],
+  ['/controls', 'Controls'],
   ['/templates', 'Templates'],
-  ['/logs', 'Logs'],
   ['/billing', 'Billing'],
+  ['/payments', 'Payments'],
+  ['/tax-reports', 'Tax Reports'],
 ];
 
 export function resolveAdminPageMeta(pathname: string): PageMeta {

@@ -153,7 +153,7 @@ const EnvSchema = z.object({
   AUTH_COOKIE_DOMAIN: z.string().optional(),
   CORS_ALLOWED_ORIGINS: z
     .string()
-    .default('http://localhost:3000,http://127.0.0.1:3000'),
+    .default('http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,http://localhost:3002,http://127.0.0.1:3002'),
   /** Public base URL for customer UPI tap-to-pay pages (no trailing slash). Defaults to http://localhost:PORT */
   PUBLIC_PAY_BASE_URL: z.string().optional(),
   FIREBASE_PROJECT_ID: z.string().optional(),

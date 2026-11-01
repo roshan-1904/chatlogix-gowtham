@@ -298,7 +298,7 @@ function BillingForm({ settings }: { settings: PlatformSettings }) {
 
       <Section
         title="Platform fees"
-        hint="Added to AI cost on each charge, before vendor markup. ₹0 means ChatLogix does not add a fee."
+        hint="Added to AI cost on each charge, before vendor markup. ₹0 means ChatLogix does not add a fee. This is not Meta's WhatsApp fee. Meta's cost is on Usage, and we do not charge it to shops yet."
       >
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field
@@ -331,6 +331,7 @@ function BillingForm({ settings }: { settings: PlatformSettings }) {
           <Field
             id="trial-grant"
             label="Trial grant"
+            hint="This changes the grant for shops that sign up after you save. Shops that already signed up keep the grant they received."
             prefix="₹"
             inputMode="decimal"
             min={0}

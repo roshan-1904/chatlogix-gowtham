@@ -3,7 +3,7 @@ import { usePageMeta } from '@chatlogix/hooks';
 import { resolveAdminPageMeta } from '../../lib/seo';
 
 export function AdminRouteMeta() {
-  const { pathname } = useLocation();
-  usePageMeta(resolveAdminPageMeta(pathname));
+  const location = useLocation() as { pathname: string };
+  usePageMeta(resolveAdminPageMeta(location.pathname));
   return null;
 }

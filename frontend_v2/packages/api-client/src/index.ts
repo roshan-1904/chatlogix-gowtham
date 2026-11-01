@@ -9,6 +9,18 @@ export interface ApiClientConfig {
   retries?: number;
 }
 
+export class ApiError extends Error {
+  status: number;
+  data?: any;
+
+  constructor(message: string, status: number, data?: any) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.data = data;
+  }
+}
+
 export class ApiClient {
   private baseURL: string;
   private getToken?: () => string | null;
@@ -71,8 +83,9 @@ export class ApiClient {
         // alone is undefined and every failure collapses into the generic
         // status text. Callers map on the message, so unwrap both shapes.
         let errorMessage = `API Error: ${response.status} ${response.statusText}`;
+        let errorData: any = undefined;
         try {
-          const errorData = await response.json();
+          errorData = await response.json();
           const nested =
             errorData?.error && typeof errorData.error === 'object'
               ? errorData.error.message
@@ -92,7 +105,7 @@ export class ApiClient {
           return this.requestWithRetry<T>(endpoint, options, retryCount + 1, refreshAttempted);
         }
 
-        throw new Error(errorMessage);
+        throw new ApiError(errorMessage, response.status, errorData);
       }
 
       if (response.status === 204) {

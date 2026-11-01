@@ -28,6 +28,11 @@ import { vendorWalletRouter } from './routes/vendorWallet.js';
 import { vendorWhatsAppRouter } from './routes/vendorWhatsApp.js';
 import { adminSettingsRouter } from './routes/adminSettings.js';
 import { adminTaxReportsRouter } from './routes/adminTaxReports.js';
+import { adminDashboardRouter } from './routes/adminDashboard.js';
+import { adminUsageRouter } from './routes/adminUsage.js';
+import { adminReliabilityRouter } from './routes/adminReliability.js';
+import { adminSupportRouter } from './routes/adminSupport.js';
+import { adminControlsRouter } from './routes/adminControls.js';
 import { startFxRateRefreshLoop } from './services/platformSettingsService.js';
 import { startAutoRechargeBackgroundLoops } from './services/wallet/autoRechargeService.js';
 import { walletEnv } from './config/env.js';
@@ -71,7 +76,14 @@ async function bootstrap() {
     .filter(Boolean);
 
   app.use(cors({
-    origin: corsOrigins,
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (corsOrigins.includes(origin)) return callback(null, true);
+      if (env.NODE_ENV === 'development' && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+        return callback(null, true);
+      }
+      callback(new Error(`Origin ${origin} not allowed by CORS`));
+    },
     credentials: true
   }));
   app.use(cookieParser());
@@ -145,6 +157,11 @@ async function bootstrap() {
   app.use('/api', authenticate, shippingRouter);
   app.use('/api/admin/settings', authenticate, requireRole('admin'), adminSettingsRouter);
   app.use('/api/admin/tax-reports', authenticate, requireRole('admin'), adminTaxReportsRouter);
+  app.use('/api/admin', authenticate, requireRole('admin'), adminDashboardRouter);
+  app.use('/api/admin/usage', authenticate, requireRole('admin'), adminUsageRouter);
+  app.use('/api/admin/reliability', authenticate, requireRole('admin'), adminReliabilityRouter);
+  app.use('/api/admin/support', authenticate, requireRole('admin'), adminSupportRouter);
+  app.use('/api/admin', authenticate, requireRole('admin'), adminControlsRouter);
 
   // Error handling middleware (must be last)
   app.use(notFoundHandler);

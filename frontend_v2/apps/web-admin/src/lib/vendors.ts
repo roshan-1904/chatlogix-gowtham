@@ -8,6 +8,8 @@ export interface AdminVendorListRow {
   email: string | null;
   subscriptionPlan: string | null;
   subscriptionStatus: string | null;
+  registrationStatus: string | null;
+  submittedAt?: string | null;
   walletBalanceMilli: number;
   markupPercent: number;
   createdAt: string;
@@ -166,3 +168,111 @@ export function formatSettlementMilli(milli: string | number | bigint): string {
   if (!Number.isFinite(n)) return '—';
   return `₹${(n / 1000).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
+
+export interface AdminDashboardSummary {
+  totalVendors: number;
+  approvedVendors: number;
+  pendingApproval: number;
+  orderRevenuePaiseMonth: number;
+}
+
+export async function getDashboardSummary(): Promise<AdminDashboardSummary> {
+  return apiClient.get<AdminDashboardSummary>('/admin/dashboard-summary');
+}
+
+export interface RechargeVendorWalletPayload {
+  amount: number;
+  reason: string;
+  idempotencyKey: string;
+}
+
+export interface RechargeVendorWalletResponse {
+  vendorId: string;
+  walletBalanceMilli: number;
+  idempotent: boolean;
+}
+
+export async function rechargeVendorWallet(
+  vendorId: string,
+  payload: RechargeVendorWalletPayload
+): Promise<RechargeVendorWalletResponse> {
+  return apiClient.post<RechargeVendorWalletResponse>(
+    `/vendors/${vendorId}/recharge-wallet`,
+    payload
+  );
+}
+
+export interface AdminWhatsAppNumber {
+  id: string;
+  vendorId: string;
+  phoneNumberId: string;
+  wabaId: string;
+  connectStatus: string | null;
+  connectPath: string | null;
+  displayPhone: string | null;
+  displayName: string | null;
+  primaryFundingId: string | null;
+  lastErrorCode: string | null;
+  lastErrorMessage: string | null;
+  connectedAt: string | null;
+  liveAt: string | null;
+  metaBusinessId: string | null;
+  createdAt: string;
+}
+
+export interface MapWhatsAppNumberPayload {
+  phoneNumberId: string;
+  wabaId: string;
+  confirmMove?: boolean;
+}
+
+export interface WhatsAppAlreadyMappedDetails {
+  currentVendorId?: string;
+  currentVendorName?: string | null;
+}
+
+export class WhatsAppAlreadyMappedError extends Error {
+  currentVendorId?: string;
+  currentVendorName?: string | null;
+
+  constructor(details?: WhatsAppAlreadyMappedDetails) {
+    super('already_mapped');
+    this.name = 'WhatsAppAlreadyMappedError';
+    this.currentVendorId = details?.currentVendorId;
+    this.currentVendorName = details?.currentVendorName;
+  }
+}
+
+export async function getVendorWhatsAppNumbers(vendorId: string): Promise<AdminWhatsAppNumber[]> {
+  return apiClient.get<AdminWhatsAppNumber[]>(`/vendors/${vendorId}/whatsapp-numbers`);
+}
+
+export async function mapVendorWhatsAppNumber(
+  vendorId: string,
+  payload: MapWhatsAppNumberPayload
+): Promise<AdminWhatsAppNumber> {
+  try {
+    return await apiClient.post<AdminWhatsAppNumber>(
+      `/vendors/${vendorId}/map-wa-number`,
+      payload
+    );
+  } catch (err: unknown) {
+    const errorObj = err as {
+      status?: number;
+      data?: { error?: string; currentVendorId?: string; currentVendorName?: string | null };
+      message?: string;
+    };
+    if (
+      errorObj?.status === 409 ||
+      errorObj?.data?.error === 'already_mapped' ||
+      errorObj?.message === 'already_mapped'
+    ) {
+      throw new WhatsAppAlreadyMappedError({
+        currentVendorId: errorObj?.data?.currentVendorId,
+        currentVendorName: errorObj?.data?.currentVendorName,
+      });
+    }
+    throw err;
+  }
+}
+

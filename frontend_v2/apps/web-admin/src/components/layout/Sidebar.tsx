@@ -3,15 +3,18 @@ import { Link, useLocation } from 'react-router-dom';
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: '📊' },
   { name: 'Vendors', href: '/vendors', icon: '🏪' },
+  { name: 'Usage', href: '/usage', icon: '📈' },
+  { name: 'Reliability', href: '/reliability', icon: '🛡️' },
+  { name: 'Support', href: '/support', icon: '🎧' },
+  { name: 'Controls', href: '/controls', icon: '🎛️' },
   { name: 'Payments', href: '/payments', icon: '💰' },
   { name: 'Tax reports', href: '/tax-reports', icon: '🧾' },
   { name: 'Billing', href: '/billing', icon: '💳' },
   { name: 'Templates', href: '/templates', icon: '📝' },
-  { name: 'Logs', href: '/logs', icon: '📋' },
 ];
 
 export function Sidebar() {
-  const location = useLocation();
+  const location = useLocation() as { pathname: string };
 
   return (
     <aside className="w-64 bg-white shadow-sm border-r border-gray-200">
