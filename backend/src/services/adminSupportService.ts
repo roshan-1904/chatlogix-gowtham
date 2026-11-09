@@ -16,6 +16,7 @@ export interface StaffCase {
     id: string;
     businessName: string;
   };
+  notes?: StaffCaseNote[];
 }
 
 export interface StaffCaseNote {
@@ -148,6 +149,19 @@ export async function recordStaffAuditLog(
   }
 
   try {
+    if ((prisma as any).staffAuditLog?.create) {
+      await (prisma as any).staffAuditLog.create({
+        data: {
+          actorId: entry.actorId,
+          action: entry.action,
+          vendorId: entry.vendorId ?? null,
+          summary: entry.summary,
+          metadata: (entry.metadata as any) ?? undefined,
+        },
+      });
+      return true;
+    }
+
     await (prisma as any).$executeRawUnsafe?.(
       `INSERT INTO "StaffAuditLog" ("id", "actorId", "action", "vendorId", "summary", "metadata", "createdAt")
        VALUES (gen_random_uuid(), $1, $2, $3, $4, $5::jsonb, NOW())`,

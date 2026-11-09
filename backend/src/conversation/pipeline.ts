@@ -34,6 +34,7 @@ import { persistKnowledgeGapIfNeeded } from './customerQuery.js';
 import { enrichCustomerInsightsIfNeeded } from './customerInsightsEnrichment.js';
 import { notifyVendorOfPostSalesEvent } from './postSalesAlert.js';
 import { WALLET_EMPTY_TEMPLATE } from './templates.js';
+import { createOrGetWalletBlockEvent, markWalletBlockEnqueued } from '../services/walletBlockService.js';
 import { logStage, logLatency, logCount } from './metrics.js';
 import { ensureMessageContentEn, normalizeSetFieldOps } from '../utils/vendorEnglish.js';
 import { aiCostMilliForTokens } from '../services/pricing/pricingService.js';
@@ -391,16 +392,50 @@ export async function processMessage(
           tokenMeta: { model: 'none', promptTokens: 0, completionTokens: 0 }
         };
       }
-      await publishToQueue(env.RESPONSE_QUEUE_URL, {
-        type: 'text',
-        to: input.customerPhone,
-        text: WALLET_EMPTY_TEMPLATE,
-        vendorId,
-        customerId,
-        conversationId,
-        phoneNumberId: input.phoneNumberId,
-        metadata: { intent: 'guard_no_credit', processor: 'conversation-v1', traceId }
-      });
+      let walletBlockId: string | undefined;
+
+      // Whitelist: ONLY documented reasons 'insufficient_balance' | 'trial_expired' are persisted
+      if (creditCheck.reason === 'insufficient_balance' || creditCheck.reason === 'trial_expired') {
+        const blockResult = await createOrGetWalletBlockEvent({
+          vendorId,
+          conversationId,
+          whatsappMessageId: input.whatsappMessageId,
+          messageId: inboundMessageId,
+          reason: creditCheck.reason,
+          customerPhone: input.customerPhone
+        });
+        walletBlockId = blockResult.id;
+
+        if (blockResult.shouldEnqueue) {
+          await publishToQueue(env.RESPONSE_QUEUE_URL, {
+            type: 'text',
+            to: input.customerPhone,
+            text: WALLET_EMPTY_TEMPLATE,
+            vendorId,
+            customerId,
+            conversationId,
+            phoneNumberId: input.phoneNumberId,
+            metadata: {
+              intent: 'guard_no_credit',
+              processor: 'conversation-v1',
+              traceId,
+              walletBlockId
+            }
+          });
+          await markWalletBlockEnqueued(walletBlockId);
+        } else {
+          logger.info(
+            { traceId, vendorId, conversationId, walletBlockId, status: blockResult.status },
+            'WalletBlockEvent already enqueued or sent — skipping duplicate template publish'
+          );
+        }
+      } else {
+        logger.warn(
+          { traceId, vendorId, conversationId, reason: creditCheck.reason },
+          'Credit guard blocked for non-documented reason — skipping WalletBlockEvent'
+        );
+      }
+
       logger.info({ traceId, vendorId, conversationId, reason: creditCheck.reason }, 'Credit guard blocked — templated reply sent, no LLM, no debit');
       return;
     }

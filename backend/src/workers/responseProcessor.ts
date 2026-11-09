@@ -12,6 +12,7 @@ import { AsyncDatabaseService } from '../services/asyncDatabaseService.js';
 import { CustomerInsightsService } from '../services/customerInsightsService.js';
 import { prisma } from '../db/prisma.js';
 import { isTurnAuditEnabled, logTurnAudit, turnAuditServiceFromRuntime } from '../observability/turnAuditLog.js';
+import { claimWalletBlockForSending, markWalletBlockSent, markWalletBlockFailed } from '../services/walletBlockService.js';
 
 export type ResponseMediaAttachment = {
   messageId: string;
@@ -137,6 +138,19 @@ export async function processResponseMessage(body: ResponseQueueMessage, parentO
               }
             : {};
 
+        const walletBlockId =
+          body.type === 'text' && body.metadata && typeof body.metadata.walletBlockId === 'string'
+            ? body.metadata.walletBlockId
+            : undefined;
+
+        if (walletBlockId) {
+          const claimed = await claimWalletBlockForSending(walletBlockId, operationId);
+          if (!claimed) {
+            logger.info({ walletBlockId }, 'WalletBlockEvent already sent or actively claimed by another worker — skipping send');
+            return;
+          }
+        }
+
         let textSendResult: Awaited<ReturnType<typeof sendWhatsAppText>>;
         try {
           const { result, quoteApplied } = await sendTextWithQuoteFallback(
@@ -151,6 +165,12 @@ export async function processResponseMessage(body: ResponseQueueMessage, parentO
             whatsappMessageId: textSendResult?.messageId,
             quoteApplied
           });
+
+          if (walletBlockId) {
+            await markWalletBlockSent(walletBlockId, textSendResult?.messageId).catch(updateErr => {
+              logger.warn({ err: updateErr, walletBlockId }, 'Failed to mark WalletBlockEvent as sent');
+            });
+          }
 
           const traceId =
             body.type === 'text' && body.metadata && typeof body.metadata.traceId === 'string'
@@ -183,6 +203,16 @@ export async function processResponseMessage(body: ResponseQueueMessage, parentO
             });
           }
         } catch (sendErr) {
+          if (walletBlockId) {
+            const isRecoverable = !(sendErr instanceof WhatsAppSendError && sendErr.status >= 400 && sendErr.status < 500);
+            await markWalletBlockFailed(
+              walletBlockId,
+              sendErr instanceof Error ? sendErr.message : String(sendErr),
+              isRecoverable
+            ).catch(updateErr => {
+              logger.warn({ err: updateErr, walletBlockId }, 'Failed to mark WalletBlockEvent as failed');
+            });
+          }
           if (textBody.messageId) {
             await markAssistantMessageFailed(
               textBody.messageId,

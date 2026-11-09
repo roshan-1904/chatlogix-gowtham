@@ -119,6 +119,8 @@ model Vendor {
   whatsappNumbers                WhatsAppNumber[]
   customerQueries                CustomerQuery[]
   productMedia                   ProductMedia[]
+  walletBlockEvents              WalletBlockEvent[]
+  staffCases                     StaffCase[]
 
   @@map("Vendor")
 }
@@ -156,6 +158,8 @@ model Conversation {
   qualityMetrics     QualityMetrics[]
   stageExecutionLogs StageExecutionLog[]
   customerQueries    CustomerQuery[]
+  walletBlockEvents  WalletBlockEvent[]
+  staffCases         StaffCase[]
 
   @@index([vendorId, createdAt(sort: Desc)], map: "idx_conversation_vendor_created")
   @@index([vendorId, status], map: "idx_conversation_vendor_status")
@@ -377,6 +381,88 @@ model VendorSettlementControlAudit {
   @@index([vendorId, createdAt(sort: Desc)])
   @@map("VendorSettlementControlAudit")
 }
+
+model WalletBlockEvent {
+  id                        String            @id @default(uuid())
+  vendorId                  String
+  conversationId            String?
+  whatsappMessageId         String            @unique
+  messageId                 String?
+  reason                    String
+  status                    WalletBlockStatus @default(pending_enqueue)
+  templateSent              Boolean           @default(false)
+  customerPhone             String?
+  claimToken                String?
+  retryCount                Int               @default(0)
+  maxRetries                Int               @default(3)
+  isRecoverable             Boolean           @default(true)
+  outboundWhatsappMessageId String?
+  errorCode                 String?
+  errorMessage              String?
+  createdAt                 DateTime          @default(now())
+  updatedAt                 DateTime          @updatedAt
+  queuedAt                  DateTime?
+  claimedAt                 DateTime?
+  sentAt                    DateTime?
+  failedAt                  DateTime?
+  vendor                    Vendor            @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  conversation              Conversation?     @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  @@index([vendorId, createdAt(sort: Desc)], map: "idx_wallet_block_vendor_created")
+  @@index([createdAt(sort: Desc)], map: "idx_wallet_block_created")
+  @@index([status, createdAt], map: "idx_wallet_block_status_created")
+  @@index([status, claimedAt], map: "idx_wallet_block_status_claimed")
+  @@index([conversationId], map: "idx_wallet_block_conversation")
+  @@map("WalletBlockEvent")
+}
+model StaffCase {
+  id             String          @id @default(uuid())
+  vendorId       String
+  subject        String          @db.VarChar(140)
+  status         StaffCaseStatus @default(open)
+  conversationId String?
+  openedBy       String
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  vendor         Vendor          @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  conversation   Conversation?   @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  notes          StaffCaseNote[]
+
+  @@index([vendorId, status], map: "idx_staff_case_vendor_status")
+  @@index([status, updatedAt(sort: Desc)], map: "idx_staff_case_status_updated")
+  @@index([vendorId, updatedAt(sort: Desc)], map: "idx_staff_case_vendor_updated")
+  @@map("StaffCase")
+}
+
+model StaffCaseNote {
+  id        String    @id @default(uuid())
+  caseId    String
+  authorId  String
+  body      String    @db.Text
+  createdAt DateTime  @default(now())
+
+  case      StaffCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId, createdAt(sort: Asc)], map: "idx_staff_case_note_case_created")
+  @@map("StaffCaseNote")
+}
+
+model StaffAuditLog {
+  id        String   @id @default(uuid())
+  actorId   String
+  action    String   @db.VarChar(50)
+  vendorId  String?
+  summary   String   @db.Text
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([action, createdAt(sort: Desc)], map: "idx_staff_audit_action_created")
+  @@index([vendorId, createdAt(sort: Desc)], map: "idx_staff_audit_vendor_created")
+  @@index([actorId, createdAt(sort: Desc)], map: "idx_staff_audit_actor_created")
+  @@map("StaffAuditLog")
+}
+
 
 /// One Razorpay payment for a customer order. `netMilli` is what settlement
 /// was credited. Order `totalAmount` stays paise. This balance is not the AI wallet.
@@ -1228,4 +1314,23 @@ enum NotificationStatus {
   retrying
 
   @@map("NotificationStatus")
+}
+
+
+enum WalletBlockStatus {
+  pending_enqueue
+  queued
+  sending
+  sent
+  failed
+
+  @@map("WalletBlockStatus")
+}
+
+enum StaffCaseStatus {
+  open
+  waiting
+  resolved
+
+  @@map("StaffCaseStatus")
 }

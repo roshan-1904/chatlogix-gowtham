@@ -283,6 +283,50 @@ export async function listAuditLogs(params: {
     };
   }
 
+  // Live Database Query via Prisma when table exists and no in-memory test overrides
+  if (tableExists && inMemoryAuditLogs.length === 0 && (prisma as any).staffAuditLog) {
+    const whereClause: any = {};
+    if (params.action && params.action !== 'all') {
+      whereClause.action = params.action;
+    }
+    if (params.vendorId) {
+      whereClause.vendorId = params.vendorId;
+    }
+    if (params.search) {
+      const q = params.search.trim();
+      whereClause.OR = [
+        { summary: { contains: q, mode: 'insensitive' } },
+        { actorId: { contains: q, mode: 'insensitive' } },
+      ];
+    }
+
+    const [totalCount, dbLogs] = await Promise.all([
+      (prisma as any).staffAuditLog.count({ where: whereClause }),
+      (prisma as any).staffAuditLog.findMany({
+        where: whereClause,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+
+    return {
+      supported: true,
+      items: dbLogs.map((l: any) => ({
+        id: l.id,
+        actorId: l.actorId,
+        action: l.action,
+        vendorId: l.vendorId,
+        summary: l.summary,
+        metadata: l.metadata,
+        createdAt: l.createdAt.toISOString(),
+      })),
+      count: totalCount,
+      page,
+      limit,
+    };
+  }
+
   let logs = [...inMemoryAuditLogs];
 
   if (params.action && params.action !== 'all') {

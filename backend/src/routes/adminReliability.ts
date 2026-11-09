@@ -147,24 +147,65 @@ adminReliabilityRouter.get(
 
 /**
  * GET /api/admin/reliability/wallet-blocks
- * WalletBlockEvent table requires schema migration per Decision 2 (Option A).
- * Until the migration and pipeline writer land, this returns a pending_migration status
- * to prevent misleading fake-zero counts as specified in docs/admin-portal/reliability.
+ * Lists turns blocked at the wallet gate before LLM execution (Decision 2 Option A).
  */
 adminReliabilityRouter.get(
   '/wallet-blocks',
   asyncHandler(async (req, res) => {
+    const limit = parseLimit(req.query.limit, 50, 100);
+    const vendorId = typeof req.query.vendorId === 'string' && req.query.vendorId.trim()
+      ? req.query.vendorId.trim()
+      : undefined;
+
     const toDate = parseDateParam(req.query.to) ?? new Date();
     const fromDate = parseDateParam(req.query.from) ?? new Date(toDate.getTime() - 24 * 60 * 60 * 1000);
 
+    if (fromDate > toDate) {
+      return res.status(400).json({
+        error: 'Invalid date range: "from" must be before or equal to "to".',
+      });
+    }
+
+    const events = await prisma.walletBlockEvent.findMany({
+      where: {
+        createdAt: {
+          gte: fromDate,
+          lte: toDate,
+        },
+        ...(vendorId ? { vendorId } : {}),
+      },
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        vendor: {
+          select: {
+            id: true,
+            businessName: true,
+          },
+        },
+      },
+    });
+
+    const items = events.map((ev) => ({
+      id: ev.id,
+      vendorId: ev.vendorId,
+      conversationId: ev.conversationId ?? undefined,
+      businessName: ev.vendor?.businessName ?? 'Unknown Vendor',
+      customerPhone: ev.customerPhone ?? '—',
+      reason: ev.reason,
+      status: ev.status,
+      templateSent: ev.templateSent,
+      createdAt: ev.createdAt.toISOString(),
+    }));
+
     return res.json({
-      supported: false,
-      status: 'pending_migration',
-      message: 'WalletBlockEvent persistence requires schema migration (Decision 2 Option A).',
+      supported: true,
+      status: 'ready',
+      message: 'WalletBlockEvent persistence active.',
       from: fromDate.toISOString(),
       to: toDate.toISOString(),
-      items: [],
-      count: 0,
+      items,
+      count: items.length,
     });
   })
 );

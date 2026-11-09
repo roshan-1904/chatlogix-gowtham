@@ -53,7 +53,57 @@ adminSupportRouter.get(
       });
     }
 
-    // Filter in-memory or database cases
+    // Live Database Query via Prisma when table exists and no in-memory test overrides
+    if (tableExists && inMemoryCases.size === 0 && (prisma as any).staffCase) {
+      const whereClause: any = {};
+      if (statusParam !== 'all' && ['open', 'waiting', 'resolved'].includes(statusParam)) {
+        whereClause.status = statusParam;
+      }
+      if (searchParam) {
+        whereClause.OR = [
+          { subject: { contains: searchParam, mode: 'insensitive' } },
+          { vendor: { businessName: { contains: searchParam, mode: 'insensitive' } } },
+        ];
+      }
+
+      const [totalCount, dbCases] = await Promise.all([
+        (prisma as any).staffCase.count({ where: whereClause }),
+        (prisma as any).staffCase.findMany({
+          where: whereClause,
+          include: {
+            vendor: { select: { id: true, businessName: true } },
+          },
+          orderBy: { updatedAt: 'desc' },
+          skip: (page - 1) * limit,
+          take: limit,
+        }),
+      ]);
+
+      return res.json({
+        supported: true,
+        items: dbCases.map((c: any) => ({
+          id: c.id,
+          vendorId: c.vendorId,
+          subject: c.subject,
+          status: c.status,
+          conversationId: c.conversationId,
+          openedBy: c.openedBy,
+          createdAt: c.createdAt.toISOString(),
+          updatedAt: c.updatedAt.toISOString(),
+          vendor: c.vendor
+            ? {
+                id: c.vendor.id,
+                businessName: c.vendor.businessName,
+              }
+            : undefined,
+        })),
+        count: totalCount,
+        page,
+        limit,
+      });
+    }
+
+    // Filter in-memory test cases
     let allCases = Array.from(inMemoryCases.values());
 
     if (statusParam !== 'all') {
@@ -139,33 +189,67 @@ adminSupportRouter.post(
     const actorId = (req.user as any)?.id || (req.user as any)?.uid || 'admin';
 
     // In production without schema migration: fail closed / report pending migration
-    if (!tableExists && process.env.NODE_ENV !== 'test') {
+    if (!tableExists && inMemoryCases.size === 0 && process.env.NODE_ENV !== 'test') {
       return res.status(503).json({
         error: 'pending_migration',
         message: 'StaffCase persistence requires schema migration approval (Decision 3).',
       });
     }
 
-    const caseId = (globalThis as any).crypto?.randomUUID?.() || `case-${Date.now()}`;
-    const nowIso = new Date().toISOString();
+    let createdCase: StaffCase;
 
-    const newCase: StaffCase = {
-      id: caseId,
-      vendorId,
-      subject: trimmedSubject,
-      status: 'open',
-      conversationId: conversationId?.trim() || null,
-      openedBy: actorId,
-      createdAt: nowIso,
-      updatedAt: nowIso,
-      vendor: {
-        id: vendor.id,
-        businessName: vendor.businessName,
-      },
-    };
+    if (tableExists && (prisma as any).staffCase) {
+      const dbCase = await (prisma as any).staffCase.create({
+        data: {
+          vendorId,
+          subject: trimmedSubject,
+          status: 'open',
+          conversationId: conversationId?.trim() || null,
+          openedBy: actorId,
+        },
+        include: {
+          vendor: { select: { id: true, businessName: true } },
+        },
+      });
 
-    inMemoryCases.set(caseId, newCase);
-    inMemoryNotes.set(caseId, []);
+      createdCase = {
+        id: dbCase.id,
+        vendorId: dbCase.vendorId,
+        subject: dbCase.subject,
+        status: dbCase.status,
+        conversationId: dbCase.conversationId,
+        openedBy: dbCase.openedBy,
+        createdAt: dbCase.createdAt.toISOString(),
+        updatedAt: dbCase.updatedAt.toISOString(),
+        vendor: dbCase.vendor
+          ? {
+              id: dbCase.vendor.id,
+              businessName: dbCase.vendor.businessName,
+            }
+          : undefined,
+      };
+    } else {
+      const caseId = (globalThis as any).crypto?.randomUUID?.() || `case-${Date.now()}`;
+      const nowIso = new Date().toISOString();
+
+      createdCase = {
+        id: caseId,
+        vendorId,
+        subject: trimmedSubject,
+        status: 'open',
+        conversationId: conversationId?.trim() || null,
+        openedBy: actorId,
+        createdAt: nowIso,
+        updatedAt: nowIso,
+        vendor: {
+          id: vendor.id,
+          businessName: vendor.businessName,
+        },
+      };
+
+      inMemoryCases.set(caseId, createdCase);
+      inMemoryNotes.set(caseId, []);
+    }
 
     // Record audit entry
     void recordStaffAuditLog({
@@ -173,10 +257,10 @@ adminSupportRouter.post(
       action: 'case_opened',
       vendorId,
       summary: `Case opened for ${vendor.businessName}: ${trimmedSubject}`,
-      metadata: { caseId, conversationId: conversationId?.trim() || null },
+      metadata: { caseId: createdCase.id, conversationId: conversationId?.trim() || null },
     });
 
-    return res.status(201).json(newCase);
+    return res.status(201).json(createdCase);
   })
 );
 
@@ -187,20 +271,62 @@ adminSupportRouter.get(
   '/cases/:id',
   asyncHandler(async (req: Request, res: Response) => {
     const caseId = req.params.id;
-    const foundCase = inMemoryCases.get(caseId);
 
-    if (!foundCase) {
-      return res.status(404).json({
-        error: 'case_not_found',
-        message: 'Support case not found.',
+    // Check in-memory first (for test mocks or local state)
+    const inMemCase = inMemoryCases.get(caseId);
+    if (inMemCase) {
+      const notes = inMemoryNotes.get(caseId) || [];
+      return res.json({
+        ...inMemCase,
+        notes,
       });
     }
 
-    const notes = inMemoryNotes.get(caseId) || [];
+    const tableExists = await checkCaseTableExists();
+    if (tableExists && (prisma as any).staffCase) {
+      const dbCase = await (prisma as any).staffCase.findUnique({
+        where: { id: caseId },
+        include: {
+          vendor: { select: { id: true, businessName: true } },
+          notes: { orderBy: { createdAt: 'asc' } },
+        },
+      });
 
-    return res.json({
-      ...foundCase,
-      notes,
+      if (!dbCase) {
+        return res.status(404).json({
+          error: 'case_not_found',
+          message: 'Support case not found.',
+        });
+      }
+
+      return res.json({
+        id: dbCase.id,
+        vendorId: dbCase.vendorId,
+        subject: dbCase.subject,
+        status: dbCase.status,
+        conversationId: dbCase.conversationId,
+        openedBy: dbCase.openedBy,
+        createdAt: dbCase.createdAt.toISOString(),
+        updatedAt: dbCase.updatedAt.toISOString(),
+        vendor: dbCase.vendor
+          ? {
+              id: dbCase.vendor.id,
+              businessName: dbCase.vendor.businessName,
+            }
+          : undefined,
+        notes: (dbCase.notes || []).map((n: any) => ({
+          id: n.id,
+          caseId: n.caseId,
+          authorId: n.authorId,
+          body: n.body,
+          createdAt: n.createdAt.toISOString(),
+        })),
+      });
+    }
+
+    return res.status(404).json({
+      error: 'case_not_found',
+      message: 'Support case not found.',
     });
   })
 );
@@ -215,7 +341,49 @@ adminSupportRouter.patch(
     const caseId = req.params.id;
     const { status: targetStatus } = req.body ?? {};
 
-    const foundCase = inMemoryCases.get(caseId);
+    // 1. Fetch case from in-memory or database
+    let foundCase: StaffCase | null = inMemoryCases.get(caseId) || null;
+    let isDbCase = false;
+
+    if (!foundCase) {
+      const tableExists = await checkCaseTableExists();
+      if (tableExists && (prisma as any).staffCase) {
+        const dbCase = await (prisma as any).staffCase.findUnique({
+          where: { id: caseId },
+          include: {
+            vendor: { select: { id: true, businessName: true } },
+            notes: { orderBy: { createdAt: 'asc' } },
+          },
+        });
+        if (dbCase) {
+          isDbCase = true;
+          foundCase = {
+            id: dbCase.id,
+            vendorId: dbCase.vendorId,
+            subject: dbCase.subject,
+            status: dbCase.status,
+            conversationId: dbCase.conversationId,
+            openedBy: dbCase.openedBy,
+            createdAt: dbCase.createdAt.toISOString(),
+            updatedAt: dbCase.updatedAt.toISOString(),
+            vendor: dbCase.vendor
+              ? {
+                  id: dbCase.vendor.id,
+                  businessName: dbCase.vendor.businessName,
+                }
+              : undefined,
+            notes: (dbCase.notes || []).map((n: any) => ({
+              id: n.id,
+              caseId: n.caseId,
+              authorId: n.authorId,
+              body: n.body,
+              createdAt: n.createdAt.toISOString(),
+            })),
+          };
+        }
+      }
+    }
+
     if (!foundCase) {
       return res.status(404).json({
         error: 'case_not_found',
@@ -235,22 +403,72 @@ adminSupportRouter.patch(
 
     const actorId = (req.user as any)?.id || (req.user as any)?.uid || 'admin';
     const nowIso = new Date().toISOString();
+    const systemNoteBody = `Status set to ${newStatus} by ${actorId}.`;
 
-    foundCase.status = newStatus;
-    foundCase.updatedAt = nowIso;
-    inMemoryCases.set(caseId, foundCase);
+    let returnNotes: StaffCaseNote[] = [];
 
-    // Append system note
-    const systemNote: StaffCaseNote = {
-      id: (globalThis as any).crypto?.randomUUID?.() || `note-${Date.now()}`,
-      caseId,
-      authorId: 'system',
-      body: `Status set to ${newStatus} by ${actorId}.`,
-      createdAt: nowIso,
-    };
-    const notes = inMemoryNotes.get(caseId) || [];
-    notes.push(systemNote);
-    inMemoryNotes.set(caseId, notes);
+    if (isDbCase && (prisma as any).staffCase) {
+      const [updatedDbCase] = await (prisma as any).$transaction([
+        (prisma as any).staffCase.update({
+          where: { id: caseId },
+          data: { status: newStatus },
+          include: { vendor: { select: { id: true, businessName: true } } },
+        }),
+        (prisma as any).staffCaseNote.create({
+          data: {
+            caseId,
+            authorId: 'system',
+            body: systemNoteBody,
+          },
+        }),
+      ]);
+
+      const allDbNotes = await (prisma as any).staffCaseNote.findMany({
+        where: { caseId },
+        orderBy: { createdAt: 'asc' },
+      });
+
+      returnNotes = allDbNotes.map((n: any) => ({
+        id: n.id,
+        caseId: n.caseId,
+        authorId: n.authorId,
+        body: n.body,
+        createdAt: n.createdAt.toISOString(),
+      }));
+
+      foundCase = {
+        id: updatedDbCase.id,
+        vendorId: updatedDbCase.vendorId,
+        subject: updatedDbCase.subject,
+        status: updatedDbCase.status,
+        conversationId: updatedDbCase.conversationId,
+        openedBy: updatedDbCase.openedBy,
+        createdAt: updatedDbCase.createdAt.toISOString(),
+        updatedAt: updatedDbCase.updatedAt.toISOString(),
+        vendor: updatedDbCase.vendor
+          ? {
+              id: updatedDbCase.vendor.id,
+              businessName: updatedDbCase.vendor.businessName,
+            }
+          : undefined,
+      };
+    } else {
+      foundCase.status = newStatus;
+      foundCase.updatedAt = nowIso;
+      inMemoryCases.set(caseId, foundCase);
+
+      const systemNote: StaffCaseNote = {
+        id: (globalThis as any).crypto?.randomUUID?.() || `note-${Date.now()}`,
+        caseId,
+        authorId: 'system',
+        body: systemNoteBody,
+        createdAt: nowIso,
+      };
+      const notes = inMemoryNotes.get(caseId) || [];
+      notes.push(systemNote);
+      inMemoryNotes.set(caseId, notes);
+      returnNotes = notes;
+    }
 
     // Record audit
     void recordStaffAuditLog({
@@ -263,7 +481,7 @@ adminSupportRouter.patch(
 
     return res.json({
       ...foundCase,
-      notes,
+      notes: returnNotes,
     });
   })
 );
@@ -278,8 +496,22 @@ adminSupportRouter.post(
     const caseId = req.params.id;
     const { body } = req.body ?? {};
 
-    const foundCase = inMemoryCases.get(caseId);
-    if (!foundCase) {
+    let inMemCase = inMemoryCases.get(caseId);
+    let isDb = false;
+
+    if (!inMemCase) {
+      const tableExists = await checkCaseTableExists();
+      if (tableExists && (prisma as any).staffCase) {
+        const dbCase = await (prisma as any).staffCase.findUnique({
+          where: { id: caseId },
+        });
+        if (dbCase) {
+          isDb = true;
+        }
+      }
+    }
+
+    if (!inMemCase && !isDb) {
       return res.status(404).json({
         error: 'case_not_found',
         message: 'Support case not found.',
@@ -297,6 +529,30 @@ adminSupportRouter.post(
     const actorId = (req.user as any)?.id || (req.user as any)?.uid || 'admin';
     const nowIso = new Date().toISOString();
 
+    if (isDb && (prisma as any).staffCaseNote) {
+      const [newNote] = await (prisma as any).$transaction([
+        (prisma as any).staffCaseNote.create({
+          data: {
+            caseId,
+            authorId: actorId,
+            body: trimmedBody,
+          },
+        }),
+        (prisma as any).staffCase.update({
+          where: { id: caseId },
+          data: { updatedAt: new Date() },
+        }),
+      ]);
+
+      return res.status(201).json({
+        id: newNote.id,
+        caseId: newNote.caseId,
+        authorId: newNote.authorId,
+        body: newNote.body,
+        createdAt: newNote.createdAt.toISOString(),
+      });
+    }
+
     const newNote: StaffCaseNote = {
       id: (globalThis as any).crypto?.randomUUID?.() || `note-${Date.now()}`,
       caseId,
@@ -309,8 +565,10 @@ adminSupportRouter.post(
     notes.push(newNote);
     inMemoryNotes.set(caseId, notes);
 
-    foundCase.updatedAt = nowIso;
-    inMemoryCases.set(caseId, foundCase);
+    if (inMemCase) {
+      inMemCase.updatedAt = nowIso;
+      inMemoryCases.set(caseId, inMemCase);
+    }
 
     return res.status(201).json(newNote);
   })

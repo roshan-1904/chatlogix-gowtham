@@ -210,7 +210,10 @@ vendorsRouter.get('/:id/config', requireVendorAccess(req => req.params.id), asyn
         aiPickupDeliveryAddress: true,
         aiToneExample: true,
         category: true,
-        catalogImportEnabled: true
+        catalogImportEnabled: true,
+        trialGrantedMilli: true,
+        trialExpiresAt: true,
+        aiModel: true
       }
     });
     if (!vendor) return res.status(404).json({ error: 'not_found' });
@@ -226,6 +229,9 @@ vendorsRouter.get('/:id/config', requireVendorAccess(req => req.params.id), asyn
       paymentLinkAutoSend: vendor.paymentLinkAutoSend,
       category: vendor.category ?? null,
       catalogImportEnabled: !!vendor.catalogImportEnabled,
+      trialGrantedMilli: vendor.trialGrantedMilli ?? null,
+      trialExpiresAt: vendor.trialExpiresAt ? vendor.trialExpiresAt.toISOString() : null,
+      aiModel: vendor.aiModel ?? null,
       ai: {
         botName: vendor.aiBotName,
         personality: vendor.aiPersonality,
