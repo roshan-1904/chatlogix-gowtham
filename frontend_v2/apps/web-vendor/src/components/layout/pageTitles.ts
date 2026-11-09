@@ -17,7 +17,8 @@ const PAGE_TITLES: Record<string, string> = {
   '/faqs/new': 'New FAQ',
   '/settings': 'Settings',
   '/settings/whatsapp': 'WhatsApp connection',
-  '/wallet': 'Wallet'
+  '/wallet': 'Wallet',
+  '/support': 'Support'
 };
 
 const PREFIXES_LONGEST_FIRST = Object.keys(PAGE_TITLES).sort((a, b) => b.length - a.length);

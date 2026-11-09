@@ -156,18 +156,15 @@ export function Header({ onMenuClick }: HeaderProps) {
                   <IconSettings className="h-4 w-4 text-gray-400" />
                   <span>Settings</span>
                 </Link>
-                {/* Support has no route yet — same Soon treatment as the sidebar. */}
-                <span
+                <Link
+                  to="/support"
                   role="menuitem"
-                  aria-disabled="true"
-                  className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-400"
+                  onClick={() => setIsUserMenuOpen(false)}
+                  className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 transition-colors hover:bg-gray-50"
                 >
-                  <IconSupport className="h-4 w-4 text-gray-300" />
+                  <IconSupport className="h-4 w-4 text-gray-400" />
                   <span>Support</span>
-                  <span className="ml-auto rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-500">
-                    Soon
-                  </span>
-                </span>
+                </Link>
                 <button
                   onClick={handleLogout}
                   role="menuitem"

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { useAuth } from '@chatlogix/auth';
 import { apiClient } from '../lib/api';
 import { orderService } from '../services/orderService';
@@ -284,7 +285,7 @@ export function Orders() {
       });
       setOrders((prev) => prev.map((order) => (order.id === orderId ? mergeOrder(order, updatedOrder) : order)));
     } catch (err: unknown) {
-      window.alert(getErrorMessage(err) || 'Failed to update order status.');
+      toast.error(getErrorMessage(err) || 'Failed to update order status.');
     } finally {
       setActionInProgressId(null);
     }

@@ -6,20 +6,7 @@ import { OnboardingLayout } from '../../components/onboarding/OnboardingLayout';
 import { OnboardingActionSkeleton } from '../../components/onboarding/OnboardingSkeleton';
 import { onboardingCopy } from '../../components/onboarding/onboardingCopy';
 import { fetchOnboardingProfile, redirectPathForStatus, type OnboardingProfile } from '../../lib/onboarding';
-
-function supportHref(): { href: string; label: string } {
-  const digits = (import.meta.env.VITE_SUPPORT_WHATSAPP ?? '').replace(/\D/g, '');
-  if (digits) {
-    return {
-      href: `https://wa.me/${digits}`,
-      label: onboardingCopy.rejected.contactSupport,
-    };
-  }
-  return {
-    href: onboardingCopy.rejected.contactFallbackUrl,
-    label: onboardingCopy.rejected.contactFallback,
-  };
-}
+import { resolveSupportContact } from '../../lib/support';
 
 export function OnboardingRejected() {
   const navigate = useNavigate();
@@ -52,7 +39,7 @@ export function OnboardingRejected() {
   }
 
   const reason = profile.rejectionReason?.trim() || copy.reasonFallback;
-  const support = supportHref();
+  const support = resolveSupportContact();
 
   return (
     <OnboardingLayout step={5} hideStepper guide={copy.guide}>

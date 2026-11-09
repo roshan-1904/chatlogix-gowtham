@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 /**
  * FAQs list page
  */
@@ -29,9 +30,10 @@ export function Faqs() {
       try {
         await deleteFaqById(deleteConfirm.id);
         setDeleteConfirm(null);
+        toast.success('FAQ deleted successfully');
       } catch (err) {
         console.error('Failed to delete FAQ:', err);
-        alert('Failed to delete FAQ. Please try again.');
+        toast.error('Failed to delete FAQ. Please try again.');
       }
     }
   };

@@ -52,11 +52,14 @@ export function parseOrderItems(items: unknown, totalAmount?: number): OrderItem
     const raw = item as OrderItem & {
       name?: string;
       unitPricePaise?: number;
+      id?: string;
       lineTotalPaise?: number;
     };
     return {
       ...raw,
       product: raw.product ?? raw.name,
+      productId: raw.productId ?? raw.matchedProductId ?? raw.id,
+      matchedProductId: raw.matchedProductId ?? raw.productId ?? raw.id,
       unitPrice: raw.unitPrice ?? (raw.unitPricePaise !== undefined ? raw.unitPricePaise / 100 : raw.unitPrice),
       totalPrice: raw.totalPrice ?? (raw.lineTotalPaise !== undefined ? raw.lineTotalPaise / 100 : raw.totalPrice),
     };

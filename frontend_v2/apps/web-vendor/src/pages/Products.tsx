@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 /**
  * Products list page
  */
@@ -106,10 +107,11 @@ export function Products() {
       try {
         await deleteProductById(deleteConfirm.id);
         setDeleteConfirm(null);
+        toast.success('Product deleted successfully');
         await refetch();
       } catch (error) {
         console.error('Failed to delete product:', error);
-        alert('Failed to delete product. Please try again.');
+        toast.error('Failed to delete product. Please try again.');
       }
     }
   };
@@ -117,10 +119,11 @@ export function Products() {
   const handleToggleStatus = async (id: string, isActive: boolean) => {
     try {
       await bulkUpdate(isActive ? 'activate' : 'deactivate', [id]);
+      toast.success(`Product ${isActive ? 'activated' : 'deactivated'}`);
       await refetch();
     } catch (error) {
       console.error('Failed to toggle status:', error);
-      alert('Failed to update product status. Please try again.');
+      toast.error('Failed to update product status. Please try again.');
     }
   };
 
@@ -130,10 +133,11 @@ export function Products() {
         await bulkUpdate(bulkAction, selectedIds);
         setSelectedIds([]);
         setBulkAction(null);
+        toast.success('Bulk action completed');
         await refetch();
       } catch (error) {
         console.error('Failed to perform bulk action:', error);
-        alert('Failed to perform bulk action. Please try again.');
+        toast.error('Failed to perform bulk action. Please try again.');
       }
     }
   };

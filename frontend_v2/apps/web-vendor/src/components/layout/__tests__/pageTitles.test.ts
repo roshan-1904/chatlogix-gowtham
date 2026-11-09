@@ -4,6 +4,7 @@ import { getPageTitle } from '../pageTitles';
 describe('getPageTitle', () => {
   it('matches a top-level route', () => {
     expect(getPageTitle('/orders')).toBe('Orders');
+    expect(getPageTitle('/support')).toBe('Support');
   });
 
   it('prefers the longest matching prefix for nested routes', () => {

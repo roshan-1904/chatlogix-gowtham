@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@chatlogix/ui';
 import { formatPhone } from '../../lib/format';
@@ -23,6 +24,13 @@ function formatPreferredLanguage(code: string): string {
   return labels[code.toLowerCase()] ?? code;
 }
 
+const DEFAULT_QUICK_REPLIES = [
+  'Thanks for your order! It has been confirmed.',
+  'Your order is prepared and on the way.',
+  'We have received your payment. Thank you!',
+  'Please share your delivery address / location.',
+];
+
 interface CustomerDetailsPanelProps {
   readonly conversation: Conversation;
   readonly customerInsights: CustomerInsights | null;
@@ -37,6 +45,70 @@ export function CustomerDetailsPanel({
   const navigate = useNavigate();
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const orderModal = useModal();
+
+  const noteStorageKey = `chatlogix:vendor_note:${conversation.customerId || conversation.id}`;
+  const [note, setNote] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return window.localStorage.getItem(noteStorageKey) || '';
+      } catch {
+        return '';
+      }
+    }
+    return '';
+  });
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(noteStorageKey) || '';
+      setNote(stored);
+      setSaveStatus('idle');
+    } catch {
+      // ignore
+    }
+  }, [noteStorageKey]);
+
+  const handleNoteChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setNote(val);
+    setSaveStatus('saving');
+  };
+
+  useEffect(() => {
+    if (saveStatus !== 'saving') return;
+    const timer = setTimeout(() => {
+      try {
+        window.localStorage.setItem(noteStorageKey, note);
+        setSaveStatus('saved');
+      } catch {
+        setSaveStatus('idle');
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [note, saveStatus, noteStorageKey]);
+
+  useEffect(() => {
+    if (saveStatus !== 'saved') return;
+    const hideTimer = setTimeout(() => {
+      setSaveStatus('idle');
+    }, 2000);
+    return () => clearTimeout(hideTimer);
+  }, [saveStatus]);
+
+  const handleCopyQuickReply = async (text: string, idx: number) => {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      }
+      setCopiedIndex(idx);
+      toast.success('Quick reply copied to clipboard');
+      setTimeout(() => setCopiedIndex(null), 2000);
+    } catch {
+      toast.error('Failed to copy quick reply');
+    }
+  };
 
   const getOrderStatusBadgeVariant = (status: string): 'default' | 'success' | 'warning' => {
     if (status === 'delivered') return 'success';
@@ -330,27 +402,65 @@ export function CustomerDetailsPanel({
           </section>
         )}
 
-        {/* Future: Vendor notes & Quick replies placeholders */}
+        {/* Vendor Notes */}
         <section>
-          <h4 className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">
-            Vendor Notes (coming soon)
-          </h4>
-          <div className="text-xs text-gray-500 bg-gray-50 border border-dashed border-gray-200 rounded-lg px-3 py-2">
-            Add private notes about this customer here.
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              Vendor Notes
+            </h4>
+            <span
+              className={`text-[10px] font-medium transition-colors ${
+                saveStatus === 'saved'
+                  ? 'text-emerald-600'
+                  : saveStatus === 'saving'
+                  ? 'text-amber-600'
+                  : 'text-gray-400'
+              }`}
+            >
+              {saveStatus === 'saved'
+                ? '✓ Saved'
+                : saveStatus === 'saving'
+                ? 'Saving…'
+                : 'Private store notes'}
+            </span>
           </div>
+          <textarea
+            value={note}
+            onChange={handleNoteChange}
+            rows={3}
+            placeholder="Add private notes about this customer (e.g. preferred delivery time, dietary restrictions)..."
+            className="w-full text-xs text-gray-800 bg-white border border-gray-200 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-primary-500 placeholder:text-gray-400 resize-none shadow-2xs"
+            aria-label="Vendor notes"
+          />
         </section>
 
+        {/* Quick Replies */}
         <section>
-          <h4 className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">
-            Quick Replies (coming soon)
-          </h4>
-          <div className="flex flex-wrap gap-2">
-            <span className="px-2 py-1 rounded-full bg-gray-100 text-[11px] text-gray-600">
-              Thanks for your order!
-            </span>
-            <span className="px-2 py-1 rounded-full bg-gray-100 text-[11px] text-gray-600">
-              Your order is on the way.
-            </span>
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              Quick Replies
+            </h4>
+            <span className="text-[10px] text-gray-400">Click to copy</span>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            {DEFAULT_QUICK_REPLIES.map((reply, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => handleCopyQuickReply(reply, idx)}
+                className={`text-left text-xs px-2.5 py-1.5 rounded-lg border transition-all flex items-center justify-between gap-2 group ${
+                  copiedIndex === idx
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800 font-medium'
+                    : 'bg-gray-50/80 hover:bg-gray-100/80 border-gray-200 text-gray-700'
+                }`}
+                title="Click to copy into composer"
+              >
+                <span className="truncate">{reply}</span>
+                <span className="text-[10px] text-gray-400 group-hover:text-primary-600 shrink-0 font-mono">
+                  {copiedIndex === idx ? '✓ Copied' : 'Copy'}
+                </span>
+              </button>
+            ))}
           </div>
         </section>
       </div>

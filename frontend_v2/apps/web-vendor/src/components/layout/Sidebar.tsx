@@ -22,7 +22,7 @@ import {
 
 const COLLAPSE_STORAGE_KEY = 'chatlogix:sidebar-collapsed';
 
-interface NavItem {
+export interface NavItem {
   name: string;
   href: string;
   icon: IconComponent;
@@ -30,12 +30,12 @@ interface NavItem {
   comingSoon?: boolean;
 }
 
-interface NavGroup {
+export interface NavGroup {
   label: string;
   items: NavItem[];
 }
 
-const navGroups: NavGroup[] = [
+export const navGroups: NavGroup[] = [
   {
     label: 'Operations',
     items: [
@@ -59,7 +59,7 @@ const navGroups: NavGroup[] = [
     items: [
       { name: 'Wallet', href: '/wallet', icon: IconWallet },
       { name: 'Settings', href: '/settings', icon: IconSettings },
-      { name: 'Support', href: '/support', icon: IconSupport, comingSoon: true }
+      { name: 'Support', href: '/support', icon: IconSupport }
     ]
   }
 ];

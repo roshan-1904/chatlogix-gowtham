@@ -170,6 +170,71 @@ export function ConversationList({
         </div>
       </div>
 
+      {/* Quick Filter Chips */}
+      <div
+        className="flex items-center gap-1.5 overflow-x-auto px-3 py-2 border-b border-[#f0f2f5] bg-white"
+        role="toolbar"
+        aria-label="Quick conversation filters"
+      >
+        <button
+          type="button"
+          onClick={handleClearFilters}
+          className={`px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
+            !hasActiveFilters
+              ? 'bg-[#e7fce3] text-[#008069] font-semibold'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          All
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            handleFilterChange(
+              'aiPauseStatus',
+              filters.aiPauseStatus === 'paused' ? 'all' : 'paused'
+            )
+          }
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
+            filters.aiPauseStatus === 'paused'
+              ? 'bg-amber-100 text-amber-800 font-semibold border border-amber-300'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+          AI Paused
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            handleFilterChange('hasOrder', filters.hasOrder === 'yes' ? 'all' : 'yes')
+          }
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
+            filters.hasOrder === 'yes'
+              ? 'bg-blue-100 text-blue-800 font-semibold border border-blue-300'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          Orders
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            handleFilterChange(
+              'customerType',
+              filters.customerType === 'new' ? 'all' : 'new'
+            )
+          }
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
+            filters.customerType === 'new'
+              ? 'bg-purple-100 text-purple-800 font-semibold border border-purple-300'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          New
+        </button>
+      </div>
+
       {/* Conversation List */}
       <div
         className="conversation-scrollbar flex-1 overflow-y-auto bg-white"
