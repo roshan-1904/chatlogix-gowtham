@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Card, Button, Badge } from '@chatlogix/ui';
 import {
@@ -49,12 +49,16 @@ function inferTimeRange(fromStr: string | null, toStr: string | null): TimeRange
 }
 
 export function Reliability() {
+  const { queue: queueParam } = useParams<{ queue?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
 
-  // 1. Queue parameter
+  // 1. Queue parameter (supports both /reliability/:queue and /reliability?queue=)
   const rawQueue = searchParams.get('queue');
   const activeTab: QueueTab =
-    rawQueue && VALID_QUEUES.includes(rawQueue as QueueTab)
+    queueParam && VALID_QUEUES.includes(queueParam as QueueTab)
+      ? (queueParam as QueueTab)
+      : rawQueue && VALID_QUEUES.includes(rawQueue as QueueTab)
       ? (rawQueue as QueueTab)
       : 'failed';
 
@@ -64,6 +68,11 @@ export function Reliability() {
       next.set('queue', tab);
       return next;
     });
+    if (queueParam) {
+      const next = new URLSearchParams(searchParams);
+      next.set('queue', tab);
+      navigate(`/reliability?${next.toString()}`);
+    }
   };
 
   // 2. Vendor parameter
@@ -494,7 +503,12 @@ export function Reliability() {
                         {formatTimestamp(row.timestamp)}
                       </td>
                       <td className="px-6 py-3.5 font-medium text-gray-900 whitespace-nowrap">
-                        {row.businessName}
+                        <Link
+                          to={`/vendors/${encodeURIComponent(row.vendorId)}`}
+                          className="hover:text-primary-600 hover:underline"
+                        >
+                          {row.businessName}
+                        </Link>
                       </td>
                       <td className="px-6 py-3.5 font-mono text-xs text-gray-600 whitespace-nowrap">
                         {row.customerPhone}
@@ -583,7 +597,12 @@ export function Reliability() {
                         {formatTimestamp(row.updatedAt)}
                       </td>
                       <td className="px-6 py-3.5 font-medium text-gray-900 whitespace-nowrap">
-                        {row.businessName}
+                        <Link
+                          to={`/vendors/${encodeURIComponent(row.vendorId)}`}
+                          className="hover:text-primary-600 hover:underline"
+                        >
+                          {row.businessName}
+                        </Link>
                       </td>
                       <td className="px-6 py-3.5 font-mono text-xs text-gray-600 whitespace-nowrap">
                         {row.customerPhone}
@@ -592,12 +611,21 @@ export function Reliability() {
                         {row.hint}
                       </td>
                       <td className="px-6 py-3.5 text-right whitespace-nowrap">
-                        <Link
-                          to={`/vendors/${encodeURIComponent(row.vendorId)}`}
-                          className="text-xs text-primary-600 hover:text-primary-800 font-medium"
-                        >
-                          Open shop
-                        </Link>
+                        <div className="inline-flex items-center gap-3">
+                          <Link
+                            to={`/support/new?vendorId=${encodeURIComponent(row.vendorId)}&conversationId=${encodeURIComponent(row.id)}`}
+                            className="text-xs text-primary-600 hover:text-primary-800 font-semibold"
+                          >
+                            Open case
+                          </Link>
+                          <span className="text-gray-300">|</span>
+                          <Link
+                            to={`/vendors/${encodeURIComponent(row.vendorId)}`}
+                            className="text-xs text-gray-500 hover:text-gray-700 font-medium"
+                          >
+                            Open shop
+                          </Link>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -689,7 +717,12 @@ export function Reliability() {
                           {formatTimestamp(row.createdAt)}
                         </td>
                         <td className="px-6 py-3.5 font-medium text-gray-900 whitespace-nowrap">
-                          {row.businessName}
+                          <Link
+                            to={`/vendors/${encodeURIComponent(row.vendorId)}`}
+                            className="hover:text-primary-600 hover:underline"
+                          >
+                            {row.businessName}
+                          </Link>
                         </td>
                         <td className="px-6 py-3.5 font-mono text-xs text-gray-600 whitespace-nowrap">
                           {row.customerPhone}
@@ -785,10 +818,20 @@ export function Reliability() {
                     {stuckData.items.map((row: StuckOrder) => (
                       <tr key={row.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-3.5 font-mono text-xs font-medium text-gray-900 whitespace-nowrap">
-                          {row.orderNumber}
+                          <Link
+                            to={`/vendors/${encodeURIComponent(row.vendorId)}/shop?tab=orders`}
+                            className="hover:text-primary-600 hover:underline"
+                          >
+                            {row.orderNumber}
+                          </Link>
                         </td>
                         <td className="px-6 py-3.5 font-medium text-gray-900 whitespace-nowrap">
-                          {row.businessName}
+                          <Link
+                            to={`/vendors/${encodeURIComponent(row.vendorId)}`}
+                            className="hover:text-primary-600 hover:underline"
+                          >
+                            {row.businessName}
+                          </Link>
                         </td>
                         <td className="px-6 py-3.5 font-mono text-xs text-gray-600 whitespace-nowrap">
                           {row.customerPhone}
@@ -875,11 +918,21 @@ export function Reliability() {
                         <td className="px-6 py-3.5 font-mono text-xs text-gray-700 whitespace-nowrap">
                           {alert.type}
                         </td>
-                        <td className="px-6 py-3.5 font-mono text-xs font-medium text-gray-900 whitespace-nowrap">
-                          {alert.orderNumber}
+                        <td className="px-6 py-3.5 font-mono text-xs font-mono font-medium text-gray-900 whitespace-nowrap">
+                          <Link
+                            to={`/vendors/${encodeURIComponent(alert.vendorId)}/shop?tab=orders`}
+                            className="hover:text-primary-600 hover:underline"
+                          >
+                            {alert.orderNumber}
+                          </Link>
                         </td>
                         <td className="px-6 py-3.5 font-medium text-gray-900 whitespace-nowrap">
-                          {alert.businessName}
+                          <Link
+                            to={`/vendors/${encodeURIComponent(alert.vendorId)}`}
+                            className="hover:text-primary-600 hover:underline"
+                          >
+                            {alert.businessName}
+                          </Link>
                         </td>
                         <td className="px-6 py-3.5 text-xs text-gray-800">
                           {alert.message}

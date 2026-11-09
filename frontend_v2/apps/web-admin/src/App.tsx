@@ -39,6 +39,7 @@ function App() {
                   <Route path="/usage" element={<Usage />} />
                   <Route path="/usage/:vendorId" element={<VendorUsage />} />
                   <Route path="/reliability" element={<Reliability />} />
+                  <Route path="/reliability/:queue" element={<Reliability />} />
                   <Route path="/support" element={<Support />} />
                   <Route path="/support/new" element={<SupportNewCase />} />
                   <Route path="/support/:caseId" element={<SupportCaseDetail />} />

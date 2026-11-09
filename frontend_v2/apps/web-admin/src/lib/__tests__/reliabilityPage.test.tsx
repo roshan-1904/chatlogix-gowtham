@@ -200,6 +200,7 @@ describe('Reliability Page Frontend Integration', () => {
             <RouterTestSpy />
             <Routes>
               <Route path="/reliability" element={<Reliability />} />
+              <Route path="/reliability/:queue" element={<Reliability />} />
             </Routes>
           </MemoryRouter>
         </QueryClientProvider>
@@ -760,6 +761,86 @@ describe('Reliability Page Frontend Integration', () => {
       await renderWithRouter('/reliability');
 
       expect(container.textContent).toContain('Could not load the API error summary.');
+    });
+  });
+
+  describe('Route-Based Tab Parameters & Deep Links', () => {
+    it('renders Paused AI queue directly via route param /reliability/paused', async () => {
+      await renderWithRouter('/reliability/paused');
+      expect(container.textContent).toContain('Paused AI Conversations');
+      expect(container.textContent).toContain('Bakery Delights');
+    });
+
+    it('renders Wallet Blocks queue directly via route param /reliability/wallet', async () => {
+      await renderWithRouter('/reliability/wallet');
+      expect(container.textContent).toContain('Wallet-Blocked Turns');
+    });
+
+    it('renders Stuck Orders & Alerts queue directly via route param /reliability/orders', async () => {
+      await renderWithRouter('/reliability/orders');
+      expect(container.textContent).toContain('Stuck Pending Orders (>24 Hours)');
+      expect(container.textContent).toContain('Open Order Alerts');
+      expect(container.textContent).toContain('Spice Junction');
+    });
+
+    it('deep-links shop names to /vendors/:vendorId in failed queue', async () => {
+      await renderWithRouter('/reliability?queue=failed');
+      const shopLink = container.querySelector('a[href="/vendors/vendor-1"]');
+      expect(shopLink).not.toBeNull();
+      expect(shopLink?.textContent).toContain('Annapoorna Foods');
+    });
+
+    it('deep-links shop names to /vendors/:vendorId in paused queue', async () => {
+      await renderWithRouter('/reliability?queue=paused');
+      const pausedShopLink = container.querySelector('a[href="/vendors/vendor-2"]');
+      expect(pausedShopLink).not.toBeNull();
+      expect(pausedShopLink?.textContent).toContain('Bakery Delights');
+    });
+
+    it('provides Open Case action in paused queue pointing to /support/new', async () => {
+      await renderWithRouter('/reliability?queue=paused');
+      const openCaseLink = container.querySelector(
+        'a[href="/support/new?vendorId=vendor-2&conversationId=conv-p1"]'
+      );
+      expect(openCaseLink).not.toBeNull();
+      expect(openCaseLink?.textContent).toContain('Open case');
+    });
+
+    it('deep-links wallet block rows to /vendors/:vendorId', async () => {
+      const mockLiveWallet: reliabilityApi.WalletBlocksResponse = {
+        supported: true,
+        status: 'ready',
+        message: 'WalletBlockEvent persistence active.',
+        from: '2026-11-08T10:00:00Z',
+        to: '2026-11-09T10:00:00Z',
+        items: [
+          {
+            id: 'wb-1',
+            vendorId: 'vendor-wb',
+            businessName: 'Wallet Test Shop',
+            customerPhone: '+919876543210',
+            reason: 'insufficient_balance',
+            createdAt: '2026-11-09T09:00:00Z',
+            templateSent: true,
+          },
+        ],
+        count: 1,
+      };
+      vi.mocked(reliabilityApi.getWalletBlocks).mockResolvedValue(mockLiveWallet);
+
+      await renderWithRouter('/reliability?queue=wallet');
+      const walletShopLink = container.querySelector('a[href="/vendors/vendor-wb"]');
+      expect(walletShopLink).not.toBeNull();
+      expect(walletShopLink?.textContent).toContain('Wallet Test Shop');
+    });
+
+    it('deep-links stuck order number and look inside to shop orders tab', async () => {
+      await renderWithRouter('/reliability?queue=orders');
+      const orderNumberLink = container.querySelector(
+        'a[href="/vendors/vendor-3/shop?tab=orders"]'
+      );
+      expect(orderNumberLink).not.toBeNull();
+      expect(orderNumberLink?.textContent).toContain('ORD-901');
     });
   });
 });

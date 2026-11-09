@@ -6,6 +6,7 @@ const messageFindMany = vi.fn();
 const conversationFindMany = vi.fn();
 const orderFindMany = vi.fn();
 const orderAlertFindMany = vi.fn();
+const walletBlockEventFindMany = vi.fn();
 
 vi.mock('../../db/prisma.js', () => ({
   prisma: {
@@ -20,6 +21,9 @@ vi.mock('../../db/prisma.js', () => ({
     },
     orderAlert: {
       findMany: (...args: unknown[]) => orderAlertFindMany(...args),
+    },
+    walletBlockEvent: {
+      findMany: (...args: unknown[]) => walletBlockEventFindMany(...args),
     },
   },
 }));
@@ -245,18 +249,80 @@ describe('Admin Reliability Endpoints', () => {
   });
 
   describe('GET /wallet-blocks', () => {
-    it('returns pending_migration state per Decision 2 Option A', async () => {
+    it('returns persisted wallet block events formatted with vendor info', async () => {
+      const now = new Date('2026-10-28T10:00:00Z');
+      walletBlockEventFindMany.mockResolvedValue([
+        {
+          id: 'wb-1',
+          vendorId: 'v-1',
+          conversationId: 'conv-1',
+          customerPhone: '+919876543210',
+          reason: 'insufficient_balance',
+          status: 'sent',
+          templateSent: true,
+          createdAt: now,
+          vendor: { id: 'v-1', businessName: 'Annapoorna Foods' },
+        },
+      ]);
+
       const res = await fetch(`${baseUrl}/wallet-blocks`);
       expect(res.status).toBe(200);
       const data = (await res.json()) as WalletBlocksResponse;
 
       expect(data).toMatchObject({
-        supported: false,
-        status: 'pending_migration',
-        count: 0,
-        items: [],
+        supported: true,
+        status: 'ready',
+        count: 1,
+        message: 'WalletBlockEvent persistence active.',
       });
-      expect(data.message).toContain('WalletBlockEvent persistence requires schema migration');
+      expect(data.items[0]).toEqual({
+        id: 'wb-1',
+        vendorId: 'v-1',
+        conversationId: 'conv-1',
+        businessName: 'Annapoorna Foods',
+        customerPhone: '+919876543210',
+        reason: 'insufficient_balance',
+        status: 'sent',
+        templateSent: true,
+        createdAt: now.toISOString(),
+      });
+      expect(walletBlockEventFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          take: 50,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            vendor: {
+              select: {
+                id: true,
+                businessName: true,
+              },
+            },
+          },
+        })
+      );
+    });
+
+    it('filters wallet blocks by vendorId when provided', async () => {
+      walletBlockEventFindMany.mockResolvedValue([]);
+
+      const res = await fetch(`${baseUrl}/wallet-blocks?vendorId=v-2`);
+      expect(res.status).toBe(200);
+      expect(walletBlockEventFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            vendorId: 'v-2',
+          }),
+        })
+      );
+    });
+
+    it('rejects invalid date range with 400 when from is after to', async () => {
+      const res = await fetch(
+        `${baseUrl}/wallet-blocks?from=2026-10-30T00:00:00Z&to=2026-10-20T00:00:00Z`
+      );
+      expect(res.status).toBe(400);
+      const data = (await res.json()) as any;
+      expect(data.error).toContain('Invalid date range');
     });
   });
 
