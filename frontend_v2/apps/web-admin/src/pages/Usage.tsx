@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useMemo, useEffect } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Card, Button } from '@chatlogix/ui';
 import { formatWalletAmount } from '../lib/money';
@@ -39,19 +39,57 @@ function formatDateDisplay(ymd: string): string {
 }
 
 export function Usage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const defaultPreset = useMemo(() => getLast7DaysPreset(), []);
 
-  const [preset, setPreset] = useState<'last7' | 'thisMonth' | 'custom'>('last7');
-  const [fromInput, setFromInput] = useState<string>(defaultPreset.from);
-  const [toInput, setToInput] = useState<string>(defaultPreset.to);
+  const initialRange = useMemo(() => {
+    const fromParam = searchParams.get('from');
+    const toParam = searchParams.get('to');
+    if (
+      fromParam &&
+      toParam &&
+      /^\d{4}-\d{2}-\d{2}$/.test(fromParam) &&
+      /^\d{4}-\d{2}-\d{2}$/.test(toParam)
+    ) {
+      return { from: fromParam, to: toParam, isCustom: true };
+    }
+    return { from: defaultPreset.from, to: defaultPreset.to, isCustom: false };
+  }, [searchParams, defaultPreset]);
+
+  const [preset, setPreset] = useState<'last7' | 'thisMonth' | 'custom'>(
+    initialRange.isCustom ? 'custom' : 'last7'
+  );
+  const [fromInput, setFromInput] = useState<string>(initialRange.from);
+  const [toInput, setToInput] = useState<string>(initialRange.to);
 
   // Active query parameters sent to the server
-  const [appliedRange, setAppliedRange] = useState<{ from: string; to: string }>(defaultPreset);
+  const [appliedRange, setAppliedRange] = useState<{ from: string; to: string }>({
+    from: initialRange.from,
+    to: initialRange.to,
+  });
   const [page, setPage] = useState<number>(1);
   const limit = 25;
 
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [exportError, setExportError] = useState<string | null>(null);
+
+  // Keep state synchronized if URL parameters change out-of-band (e.g. Back/Forward)
+  useEffect(() => {
+    const fromParam = searchParams.get('from');
+    const toParam = searchParams.get('to');
+    if (
+      fromParam &&
+      toParam &&
+      /^\d{4}-\d{2}-\d{2}$/.test(fromParam) &&
+      /^\d{4}-\d{2}-\d{2}$/.test(toParam)
+    ) {
+      setFromInput(fromParam);
+      setToInput(toParam);
+      setAppliedRange({ from: fromParam, to: toParam });
+      setPreset('custom');
+      setPage(1);
+    }
+  }, [searchParams]);
 
   // Validation error state for custom date inputs
   const validationError = useMemo<string | null>(() => {
@@ -81,6 +119,7 @@ export function Usage() {
     setAppliedRange(range);
     setPage(1);
     setExportError(null);
+    setSearchParams({ from: range.from, to: range.to }, { replace: true });
   };
 
   const handleApplyCustomDates = (e?: React.FormEvent) => {
@@ -90,6 +129,7 @@ export function Usage() {
     setAppliedRange({ from: fromInput, to: toInput });
     setPage(1);
     setExportError(null);
+    setSearchParams({ from: fromInput, to: toInput }, { replace: true });
   };
 
   const handleExportCsv = async () => {

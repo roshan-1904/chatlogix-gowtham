@@ -3,6 +3,15 @@ import express from 'express';
 import type { NextFunction, Request, Response } from 'express';
 import type { AddressInfo } from 'node:net';
 
+process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://mock:mock@localhost:5432/mock';
+process.env.RESPONSE_QUEUE_URL = process.env.RESPONSE_QUEUE_URL || 'https://mock';
+
+vi.mock('../../logger.js', () => ({
+  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+  StepLogger: class {},
+  createOperationId: () => 'op-1'
+}));
+
 const vendorFindUnique = vi.fn();
 const creditUsageFindMany = vi.fn();
 const walletTransactionFindMany = vi.fn();

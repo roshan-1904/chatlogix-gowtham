@@ -52,7 +52,7 @@ function formatIstTime(isoString: string): string {
 
 export function VendorUsage() {
   const { vendorId } = useParams<{ vendorId: string }>();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const defaultPreset = useMemo(() => {
     const fromParam = searchParams.get('from');
@@ -99,6 +99,7 @@ export function VendorUsage() {
     setToInput(range.to);
     setAppliedRange(range);
     setSelectedDay(undefined);
+    setSearchParams({ from: range.from, to: range.to }, { replace: true });
   };
 
   const handleApplyCustomDates = (e?: React.FormEvent) => {
@@ -107,6 +108,7 @@ export function VendorUsage() {
     setPreset('custom');
     setAppliedRange({ from: fromInput, to: toInput });
     setSelectedDay(undefined);
+    setSearchParams({ from: fromInput, to: toInput }, { replace: true });
   };
 
   const {
@@ -132,7 +134,11 @@ export function VendorUsage() {
   });
 
   const totals = data?.totals;
-  const is404 = isError && (error.message.includes('404') || error.message.includes('not_found'));
+  const is404 =
+    isError &&
+    (error.message.includes('404') ||
+      error.message.includes('not_found') ||
+      (error as any).status === 404);
 
   return (
     <div className="space-y-6">
@@ -158,7 +164,7 @@ export function VendorUsage() {
               </code>{' '}
               &bull;{' '}
               <Link
-                to={`/vendors`}
+                to={vendorId ? `/vendors/${vendorId}#wallet` : '/vendors'}
                 className="text-primary-600 hover:underline"
               >
                 View in Vendors &rarr;
