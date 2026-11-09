@@ -163,7 +163,9 @@ describe('Controls & Shop Inspection Page Integration', () => {
           <MemoryRouter initialEntries={[initialPath]}>
             <Routes>
               <Route path="/controls" element={<Controls />} />
+              <Route path="/controls/:tab" element={<Controls />} />
               <Route path="/vendors/:vendorId/shop" element={<ShopInspection />} />
+              <Route path="/vendors/:vendorId" element={<div>Vendor Detail Page</div>} />
               <Route path="/vendors" element={<div>Vendors Page</div>} />
               <Route path="/reliability" element={<div>Reliability Page</div>} />
             </Routes>
@@ -318,5 +320,40 @@ describe('Controls & Shop Inspection Page Integration', () => {
 
     expect(exportSpy).toHaveBeenCalledWith(mockAuditLogs);
     exportSpy.mockRestore();
+  });
+
+  it('renders tabs directly via route path param /controls/alerts', async () => {
+    await renderComponent('/controls/alerts');
+    expect(container?.textContent).toContain('Phase 1: Real-Time Evaluated Alerts');
+    expect(container?.textContent).toContain('Sri Krishna Sweets');
+  });
+
+  it('renders tabs directly via route path param /controls/trials', async () => {
+    await renderComponent('/controls/trials');
+    expect(container?.textContent).toContain('Filter Window:');
+    expect(container?.textContent).toContain('Chennai Tiffin House');
+  });
+
+  it('deep-links vendor references to /vendors/:vendorId in audit log', async () => {
+    await renderComponent('/controls?tab=audit');
+    const auditVendorLink = container?.querySelector('a[href="/vendors/vendor-sri-krishna"]');
+    expect(auditVendorLink).not.toBeNull();
+    expect(auditVendorLink?.getAttribute('href')).toBe('/vendors/vendor-sri-krishna');
+  });
+
+  it('deep-links vendor references to /vendors/:vendorId in trial clocks', async () => {
+    await renderComponent('/controls?tab=trials');
+    const trialVendorLink = container?.querySelector('a[href="/vendors/vendor-trial-1"]');
+    expect(trialVendorLink).not.toBeNull();
+    expect(trialVendorLink?.getAttribute('href')).toBe('/vendors/vendor-trial-1');
+    expect(trialVendorLink?.textContent).toContain('Chennai Tiffin House');
+  });
+
+  it('deep-links back navigation in Shop Inspection to /vendors/:vendorId', async () => {
+    await renderComponent('/vendors/vendor-sri-krishna/shop');
+    const backLink = container?.querySelector('a[href="/vendors/vendor-sri-krishna"]');
+    expect(backLink).not.toBeNull();
+    expect(backLink?.getAttribute('href')).toBe('/vendors/vendor-sri-krishna');
+    expect(backLink?.textContent).toContain('Back to Shop');
   });
 });

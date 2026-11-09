@@ -44,6 +44,7 @@ function App() {
                   <Route path="/support/:caseId" element={<SupportCaseDetail />} />
                   <Route path="/support/conversations/:conversationId" element={<SupportConversation />} />
                   <Route path="/controls" element={<Controls />} />
+                  <Route path="/controls/:tab" element={<Controls />} />
                   <Route path="/vendors/:vendorId/shop" element={<ShopInspection />} />
                   <Route path="/templates" element={<Templates />} />
                   <Route path="/logs" element={<Navigate to="/reliability" replace />} />

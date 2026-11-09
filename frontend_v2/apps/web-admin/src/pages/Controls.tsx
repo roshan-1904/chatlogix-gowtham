@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useParams, useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Card, Badge, Input, Button } from '@chatlogix/ui';
 import {
@@ -14,10 +14,15 @@ import {
 } from '../lib/controls';
 
 export function Controls() {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const { tab: tabParam } = useParams<{ tab?: string }>();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
 
-  // Active tab: 'audit' | 'alerts' | 'trials'
-  const activeTab = searchParams.get('tab') || 'audit';
+  // Active tab: 'audit' | 'alerts' | 'trials' (supports both /controls/:tab and /controls?tab=)
+  const activeTab: 'audit' | 'alerts' | 'trials' =
+    tabParam && ['audit', 'alerts', 'trials'].includes(tabParam)
+      ? (tabParam as 'audit' | 'alerts' | 'trials')
+      : (searchParams.get('tab') as 'audit' | 'alerts' | 'trials') || 'audit';
 
   // Audit filters
   const [actionFilter, setActionFilter] = useState('all');
@@ -68,7 +73,7 @@ export function Controls() {
   });
 
   const handleTabChange = (tab: 'audit' | 'alerts' | 'trials') => {
-    setSearchParams({ tab });
+    navigate(`/controls?tab=${tab}`);
   };
 
   const handleExportCsv = () => {
@@ -269,7 +274,7 @@ export function Controls() {
                           </td>
                           <td className="px-6 py-4 text-xs font-medium text-gray-900 whitespace-nowrap">
                             {row.vendorId ? (
-                              <Link to={`/vendors`} className="text-primary-600 hover:underline">
+                              <Link to={`/vendors/${row.vendorId}`} className="text-primary-600 hover:underline">
                                 {row.vendorId.slice(0, 12)}…
                               </Link>
                             ) : (
@@ -479,7 +484,7 @@ export function Controls() {
                       return (
                         <tr key={row.vendorId} className="hover:bg-gray-50/70 transition-colors">
                           <td className="px-6 py-4 font-semibold text-gray-900 whitespace-nowrap">
-                            <Link to={`/vendors`} className="text-primary-600 hover:underline">
+                            <Link to={`/vendors/${row.vendorId}`} className="text-primary-600 hover:underline">
                               {row.businessName}
                             </Link>
                           </td>

@@ -188,12 +188,18 @@ describe('Admin Controls Module', () => {
 
       const lowWalletAlert = data.alerts.find((a: any) => a.type === 'low_wallet');
       expect(lowWalletAlert.summary).toContain('₹15.00');
+      expect(lowWalletAlert.targetLink).toBe('/vendors/v-low#wallet');
 
       const failingAlert = data.alerts.find((a: any) => a.type === 'failing_replies');
       expect(failingAlert.summary).toContain('3 failed outbound replies');
+      expect(failingAlert.targetLink).toBe('/reliability?queue=failed&vendorId=v-fail');
 
       const waAlert = data.alerts.find((a: any) => a.type === 'whatsapp_dropped');
       expect(waAlert.summary).toContain('disconnected');
+      expect(waAlert.targetLink).toBe('/vendors/v-wa#whatsapp');
+
+      const fxAlert = data.alerts.find((a: any) => a.type === 'fx_stale');
+      expect(fxAlert.targetLink).toBe('/billing');
     });
   });
 

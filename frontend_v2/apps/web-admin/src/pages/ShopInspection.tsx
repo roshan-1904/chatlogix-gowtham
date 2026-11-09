@@ -108,10 +108,10 @@ export function ShopInspection() {
       {/* Header */}
       <div>
         <Link
-          to="/vendors"
+          to={vendorId ? `/vendors/${vendorId}` : '/vendors'}
           className="text-xs font-semibold text-gray-500 hover:text-gray-900 inline-flex items-center gap-1 mb-2"
         >
-          &larr; Back to Vendors
+          &larr; Back to Shop ({vendorConfig?.businessName || vendorId || 'Vendors'})
         </Link>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div>

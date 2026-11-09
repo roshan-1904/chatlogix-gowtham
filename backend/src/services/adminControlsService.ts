@@ -80,7 +80,7 @@ export async function evaluateComputedAlerts(): Promise<ComputedAlert[]> {
         vendorId: v.id,
         businessName: v.businessName,
         summary: `Balance is ₹${balanceRupees} (evaluated now)`,
-        targetLink: `/vendors`,
+        targetLink: `/vendors/${v.id}#wallet`,
         evaluatedAt: nowIso,
       });
     }
@@ -126,7 +126,7 @@ export async function evaluateComputedAlerts(): Promise<ComputedAlert[]> {
           vendorId: item.vendorId,
           businessName: item.businessName,
           summary: `${item.count} failed outbound replies in last 24h`,
-          targetLink: `/reliability?vendorId=${item.vendorId}`,
+          targetLink: `/reliability?queue=failed&vendorId=${item.vendorId}`,
           evaluatedAt: nowIso,
         });
       }
@@ -153,7 +153,7 @@ export async function evaluateComputedAlerts(): Promise<ComputedAlert[]> {
         vendorId: wa.vendorId,
         businessName: wa.vendor?.businessName ?? 'Unknown Vendor',
         summary: `WhatsApp connection status is ${wa.connectStatus}`,
-        targetLink: `/vendors`,
+        targetLink: `/vendors/${wa.vendorId}#whatsapp`,
         evaluatedAt: nowIso,
       });
     }
