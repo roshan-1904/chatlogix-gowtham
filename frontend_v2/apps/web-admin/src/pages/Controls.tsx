@@ -7,6 +7,7 @@ import {
   getComputedAlerts,
   getTrialClocks,
   formatAuditAction,
+  exportAuditLogsCsv,
   type StaffAuditLogEntry,
   type ComputedAlert,
   type TrialClockRow,
@@ -68,6 +69,15 @@ export function Controls() {
 
   const handleTabChange = (tab: 'audit' | 'alerts' | 'trials') => {
     setSearchParams({ tab });
+  };
+
+  const handleExportCsv = () => {
+    if (!auditData?.items?.length) return;
+    try {
+      exportAuditLogsCsv(auditData.items);
+    } catch (err) {
+      console.error('Failed to export audit log CSV:', err);
+    }
   };
 
   const isAuditPendingMigration =
@@ -170,14 +180,30 @@ export function Controls() {
                 </select>
               </div>
 
-              <div className="w-full md:w-72">
-                <Input
-                  type="search"
-                  placeholder="Search staff or summary..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="text-xs py-1.5"
-                />
+              <div className="flex items-center gap-3 w-full md:w-auto">
+                <div className="w-full md:w-72">
+                  <Input
+                    type="search"
+                    placeholder="Search staff or summary..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="text-xs py-1.5"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleExportCsv}
+                  disabled={!auditData?.items?.length}
+                  className="border border-gray-300 text-xs font-semibold text-gray-700 hover:bg-gray-50 flex items-center gap-1.5 whitespace-nowrap"
+                  title="Download filtered audit log as CSV"
+                >
+                  <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Export CSV
+                </Button>
               </div>
             </div>
           </Card>

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Card, Button, Badge } from '@chatlogix/ui';
@@ -17,9 +17,11 @@ import {
   type PausedConversation,
   type StuckOrder,
   type OrderAlert,
+  type WalletBlockEventItem,
 } from '../lib/reliability';
 
 type QueueTab = 'failed' | 'paused' | 'wallet' | 'orders';
+const VALID_QUEUES: QueueTab[] = ['failed', 'paused', 'wallet', 'orders'];
 type TimeRange = '24h' | '7d' | '30d';
 
 function calculateRangeDates(range: TimeRange): { from: string; to: string } {
@@ -35,26 +37,99 @@ function calculateRangeDates(range: TimeRange): { from: string; to: string } {
   };
 }
 
+function inferTimeRange(fromStr: string | null, toStr: string | null): TimeRange {
+  if (!fromStr || !toStr) return '24h';
+  const fromTime = new Date(fromStr).getTime();
+  const toTime = new Date(toStr).getTime();
+  if (isNaN(fromTime) || isNaN(toTime) || fromTime >= toTime) return '24h';
+  const diffHours = (toTime - fromTime) / (3600 * 1000);
+  if (diffHours > 20 * 24) return '30d';
+  if (diffHours > 3 * 24) return '7d';
+  return '24h';
+}
+
 export function Reliability() {
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const activeQueueParam = searchParams.get('queue') as QueueTab | null;
-  const initialQueue: QueueTab =
-    activeQueueParam && ['failed', 'paused', 'wallet', 'orders'].includes(activeQueueParam)
-      ? activeQueueParam
+  // 1. Queue parameter
+  const rawQueue = searchParams.get('queue');
+  const activeTab: QueueTab =
+    rawQueue && VALID_QUEUES.includes(rawQueue as QueueTab)
+      ? (rawQueue as QueueTab)
       : 'failed';
 
-  const [activeTab, setActiveTab] = useState<QueueTab>(initialQueue);
-  const [timeRange, setTimeRange] = useState<TimeRange>('24h');
-  const [vendorFilter, setVendorFilter] = useState<string>(searchParams.get('vendorId') || '');
-
-  const rangeDates = useMemo(() => calculateRangeDates(timeRange), [timeRange]);
-
   const updateTab = (tab: QueueTab) => {
-    setActiveTab(tab);
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       next.set('queue', tab);
+      return next;
+    });
+  };
+
+  // 2. Vendor parameter
+  const vendorParam = searchParams.get('vendorId') || '';
+  const [vendorFilter, setVendorFilter] = useState<string>(vendorParam);
+
+  useEffect(() => {
+    const currentParam = searchParams.get('vendorId') || '';
+    setVendorFilter((prev) => (prev === currentParam ? prev : currentParam));
+  }, [searchParams]);
+
+  const updateVendorFilter = (val: string) => {
+    setVendorFilter(val);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        const trimmed = val.trim();
+        if (trimmed) {
+          next.set('vendorId', trimmed);
+        } else {
+          next.delete('vendorId');
+        }
+        return next;
+      },
+      { replace: true }
+    );
+  };
+
+  // 3. Date range parameters (from, to)
+  const fromParam = searchParams.get('from');
+  const toParam = searchParams.get('to');
+
+  const isValidDate = (str: string | null): boolean => {
+    if (!str) return false;
+    const d = new Date(str);
+    return !isNaN(d.getTime());
+  };
+
+  const hasValidCustomDates = Boolean(
+    fromParam &&
+      toParam &&
+      isValidDate(fromParam) &&
+      isValidDate(toParam) &&
+      new Date(fromParam).getTime() <= new Date(toParam).getTime()
+  );
+
+  const timeRange: TimeRange = useMemo(() => {
+    if (hasValidCustomDates) {
+      return inferTimeRange(fromParam, toParam);
+    }
+    return '24h';
+  }, [hasValidCustomDates, fromParam, toParam]);
+
+  const rangeDates = useMemo(() => {
+    if (hasValidCustomDates) {
+      return { from: fromParam!, to: toParam! };
+    }
+    return calculateRangeDates(timeRange);
+  }, [hasValidCustomDates, fromParam, toParam, timeRange]);
+
+  const updateTimeRange = (range: TimeRange) => {
+    const dates = calculateRangeDates(range);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('from', dates.from);
+      next.set('to', dates.to);
       return next;
     });
   };
@@ -107,8 +182,10 @@ export function Reliability() {
 
   // 4. Wallet blocks query
   const {
+    data: walletData,
     isLoading: walletLoading,
     isError: walletError,
+    refetch: refetchWallet,
   } = useQuery({
     queryKey: ['reliability-wallet', rangeDates.from, rangeDates.to, vendorFilter],
     queryFn: () =>
@@ -191,7 +268,7 @@ export function Reliability() {
                 </div>
                 <div>
                   <span className="text-xs text-slate-500 block">Current error rate</span>
-                  <span className="text-lg font-bold text-slate-900">
+                  <span className="text-lg font-bold text-slate-900" aria-live="polite">
                     {typeof errorStats.currentErrorRate === 'number'
                       ? `${errorStats.currentErrorRate.toFixed(2)} / min`
                       : '0.00 / min'}
@@ -230,9 +307,28 @@ export function Reliability() {
         </div>
       </Card>
 
+      {/* Mobile Select Tab Navigation (below sm) */}
+      <div className="sm:hidden">
+        <label htmlFor="queue-select" className="sr-only">
+          Select reliability queue
+        </label>
+        <select
+          id="queue-select"
+          value={activeTab}
+          onChange={(e) => updateTab(e.target.value as QueueTab)}
+          className="w-full rounded-lg border border-gray-300 bg-white py-2 px-3 text-sm font-medium text-gray-700 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+          aria-label="Select reliability queue"
+        >
+          <option value="failed">Failed replies</option>
+          <option value="paused">Paused AI</option>
+          <option value="wallet">Wallet blocks</option>
+          <option value="orders">Stuck orders & Alerts</option>
+        </select>
+      </div>
+
       {/* Queue Tabs Navigation */}
-      <div className="border-b border-gray-200">
-        <nav className="flex space-x-6">
+      <div className="hidden sm:block border-b border-gray-200">
+        <nav className="flex space-x-6" aria-label="Reliability queues">
           <button
             type="button"
             onClick={() => updateTab('failed')}
@@ -290,14 +386,14 @@ export function Reliability() {
             id="vendorSearch"
             type="text"
             value={vendorFilter}
-            onChange={(e) => setVendorFilter(e.target.value)}
+            onChange={(e) => updateVendorFilter(e.target.value)}
             placeholder="Filter by vendor ID…"
             className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
           {vendorFilter && (
             <button
               type="button"
-              onClick={() => setVendorFilter('')}
+              onClick={() => updateVendorFilter('')}
               className="text-xs text-gray-500 hover:text-gray-700 underline"
             >
               Clear
@@ -311,7 +407,7 @@ export function Reliability() {
             <div className="inline-flex rounded-lg border border-gray-300 p-0.5 bg-gray-50">
               <button
                 type="button"
-                onClick={() => setTimeRange('24h')}
+                onClick={() => updateTimeRange('24h')}
                 className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
                   timeRange === '24h'
                     ? 'bg-white text-gray-900 shadow-sm'
@@ -322,7 +418,7 @@ export function Reliability() {
               </button>
               <button
                 type="button"
-                onClick={() => setTimeRange('7d')}
+                onClick={() => updateTimeRange('7d')}
                 className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
                   timeRange === '7d'
                     ? 'bg-white text-gray-900 shadow-sm'
@@ -333,7 +429,7 @@ export function Reliability() {
               </button>
               <button
                 type="button"
-                onClick={() => setTimeRange('30d')}
+                onClick={() => updateTimeRange('30d')}
                 className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
                   timeRange === '30d'
                     ? 'bg-white text-gray-900 shadow-sm'
@@ -422,7 +518,7 @@ export function Reliability() {
                           </Link>
                           <span className="text-gray-300">|</span>
                           <Link
-                            to={`/vendors`}
+                            to={`/vendors/${encodeURIComponent(row.vendorId)}`}
                             className="text-xs text-gray-500 hover:text-gray-700 font-medium"
                           >
                             Open shop
@@ -497,7 +593,7 @@ export function Reliability() {
                       </td>
                       <td className="px-6 py-3.5 text-right whitespace-nowrap">
                         <Link
-                          to={`/vendors`}
+                          to={`/vendors/${encodeURIComponent(row.vendorId)}`}
                           className="text-xs text-primary-600 hover:text-primary-800 font-medium"
                         >
                           Open shop
@@ -515,40 +611,124 @@ export function Reliability() {
       {/* TAB 3: Wallet Blocks */}
       {activeTab === 'wallet' && (
         <div className="space-y-4">
-          <Card className="bg-amber-50 border-amber-200 p-4">
-            <div className="flex items-start gap-3">
-              <span className="text-xl">⚠️</span>
-              <div>
-                <h3 className="text-sm font-semibold text-amber-900">
-                  WalletBlockEvent Persistence Pending Schema Migration (Decision 2 Option A)
-                </h3>
-                <p className="text-xs text-amber-800 mt-1">
-                  Per <code>docs/admin-portal/DECISIONS.md</code> Decision #2 (Locked), wallet-empty turns are blocked before LLM execution without failing the message.
-                  Durable event logging into a dedicated <code>WalletBlockEvent</code> table is scheduled for the schema migration slice.
-                  To avoid misleading zero counts, this queue will become active once the database table and pipeline writer ship.
-                </p>
-                <div className="mt-2 text-xs text-amber-900 font-medium">
-                  Vendors with insufficient balance remain visible on the <Link to="/vendors" className="underline font-semibold">Vendors</Link> page and <Link to="/usage" className="underline font-semibold">Usage</Link> platform drill-down.
+          {walletData?.status === 'pending_migration' && (
+            <Card className="bg-amber-50 border-amber-200 p-4">
+              <div className="flex items-start gap-3">
+                <span className="text-xl">⚠️</span>
+                <div>
+                  <h3 className="text-sm font-semibold text-amber-900">
+                    WalletBlockEvent Persistence Pending Schema Migration (Decision 2 Option A)
+                  </h3>
+                  <p className="text-xs text-amber-800 mt-1">
+                    Per <code>docs/admin-portal/DECISIONS.md</code> Decision #2 (Locked), wallet-empty turns are blocked before LLM execution without failing the message.
+                    Durable event logging into a dedicated <code>WalletBlockEvent</code> table is scheduled for the schema migration slice.
+                    To avoid misleading zero counts, this queue will become active once the database table and pipeline writer ship.
+                  </p>
+                  <div className="mt-2 text-xs text-amber-900 font-medium">
+                    Vendors with insufficient balance remain visible on the{' '}
+                    <Link
+                      to={vendorFilter.trim() ? `/vendors/${encodeURIComponent(vendorFilter.trim())}#wallet` : '/vendors'}
+                      className="underline font-semibold"
+                    >
+                      Vendors
+                    </Link>{' '}
+                    page and <Link to="/usage" className="underline font-semibold">Usage</Link> platform drill-down.
+                  </div>
                 </div>
               </div>
-            </div>
-          </Card>
+            </Card>
+          )}
 
           <Card className="p-0 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-              <h2 className="text-base font-semibold text-gray-900">Wallet-Blocked Turns</h2>
-              <p className="text-xs text-gray-500">
-                Lists turns where insufficient wallet balance prevented AI reply generation.
-              </p>
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">Wallet-Blocked Turns</h2>
+                <p className="text-xs text-gray-500">
+                  Lists turns where insufficient wallet balance prevented AI reply generation.
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                className="border border-gray-300"
+                size="sm"
+                onClick={() => {
+                  void refetchWallet();
+                }}
+              >
+                Refresh
+              </Button>
             </div>
 
             {walletLoading ? (
               <div className="p-8 text-center text-sm text-gray-500">Loading wallet blocks…</div>
             ) : walletError ? (
               <div className="p-8 text-center text-sm text-red-600">Could not load wallet blocks.</div>
-            ) : (
+            ) : !walletData || walletData.items.length === 0 ? (
               <div className="p-8 text-center text-sm text-gray-500">
-                No persisted block events in this range (pending table migration).
+                {walletData?.status === 'pending_migration'
+                  ? 'No persisted block events in this range (pending table migration).'
+                  : 'No wallet blocks in this range.'}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-200 text-xs font-semibold uppercase text-gray-600">
+                    <tr>
+                      <th className="px-6 py-3">Time</th>
+                      <th className="px-6 py-3">Shop</th>
+                      <th className="px-6 py-3">Customer</th>
+                      <th className="px-6 py-3">Reason</th>
+                      <th className="px-6 py-3">Template</th>
+                      <th className="px-6 py-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {walletData.items.map((row: WalletBlockEventItem) => (
+                      <tr key={row.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-6 py-3.5 whitespace-nowrap text-xs text-gray-500">
+                          {formatTimestamp(row.createdAt)}
+                        </td>
+                        <td className="px-6 py-3.5 font-medium text-gray-900 whitespace-nowrap">
+                          {row.businessName}
+                        </td>
+                        <td className="px-6 py-3.5 font-mono text-xs text-gray-600 whitespace-nowrap">
+                          {row.customerPhone}
+                        </td>
+                        <td className="px-6 py-3.5 whitespace-nowrap">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">
+                            {row.reason}
+                          </span>
+                        </td>
+                        <td className="px-6 py-3.5 whitespace-nowrap">
+                          <Badge variant={row.templateSent ? 'success' : 'default'}>
+                            {row.templateSent ? 'Sent' : 'Skipped / Queued'}
+                          </Badge>
+                        </td>
+                        <td className="px-6 py-3.5 text-right whitespace-nowrap">
+                          <div className="inline-flex items-center gap-3">
+                            <Link
+                              to={
+                                row.conversationId
+                                  ? `/support/new?vendorId=${encodeURIComponent(row.vendorId)}&conversationId=${encodeURIComponent(row.conversationId)}`
+                                  : `/support/new?vendorId=${encodeURIComponent(row.vendorId)}`
+                              }
+                              className="text-xs text-primary-600 hover:text-primary-800 font-semibold"
+                            >
+                              Open case
+                            </Link>
+                            <span className="text-gray-300">|</span>
+                            <Link
+                              to={`/vendors/${encodeURIComponent(row.vendorId)}`}
+                              className="text-xs text-gray-500 hover:text-gray-700 font-medium"
+                            >
+                              Open shop
+                            </Link>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </Card>
@@ -622,10 +802,19 @@ export function Reliability() {
                         <td className="px-6 py-3.5 whitespace-nowrap text-xs text-gray-500">
                           {formatTimestamp(row.updatedAt)}
                         </td>
-                        <td className="px-6 py-3.5 text-right whitespace-nowrap">
+                        <td className="px-6 py-3.5 text-right whitespace-nowrap space-x-3">
                           <Link
-                            to={`/vendors`}
+                            to={`/vendors/${encodeURIComponent(row.vendorId)}/shop?tab=orders`}
                             className="text-xs text-primary-600 hover:text-primary-800 font-medium"
+                            title="Look inside shop orders"
+                          >
+                            Look inside orders
+                          </Link>
+                          <span className="text-gray-300">|</span>
+                          <Link
+                            to={`/vendors/${encodeURIComponent(row.vendorId)}`}
+                            className="text-xs text-gray-600 hover:text-gray-900 font-medium"
+                            title="Open vendor details"
                           >
                             Open shop
                           </Link>
@@ -666,6 +855,7 @@ export function Reliability() {
                       <th className="px-6 py-3">Shop</th>
                       <th className="px-6 py-3">Message</th>
                       <th className="px-6 py-3">Created</th>
+                      <th className="px-6 py-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
@@ -696,6 +886,23 @@ export function Reliability() {
                         </td>
                         <td className="px-6 py-3.5 whitespace-nowrap text-xs text-gray-500">
                           {formatTimestamp(alert.createdAt)}
+                        </td>
+                        <td className="px-6 py-3.5 text-right whitespace-nowrap space-x-3">
+                          <Link
+                            to={`/vendors/${encodeURIComponent(alert.vendorId)}/shop?tab=orders`}
+                            className="text-xs text-primary-600 hover:text-primary-800 font-medium"
+                            title="Look inside shop orders"
+                          >
+                            Look inside orders
+                          </Link>
+                          <span className="text-gray-300">|</span>
+                          <Link
+                            to={`/vendors/${encodeURIComponent(alert.vendorId)}`}
+                            className="text-xs text-gray-600 hover:text-gray-900 font-medium"
+                            title="Open vendor details"
+                          >
+                            Open shop
+                          </Link>
                         </td>
                       </tr>
                     ))}

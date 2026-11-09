@@ -15,6 +15,7 @@ import { SupportConversation } from './pages/SupportConversation';
 import { Controls } from './pages/Controls';
 import { ShopInspection } from './pages/ShopInspection';
 import { Templates } from './pages/Templates';
+import { NotFound } from './pages/NotFound';
 import { Login } from './pages/Login';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { AdminRouteMeta } from './components/seo/AdminRouteMeta';
@@ -34,6 +35,7 @@ function App() {
                   <Route path="/" element={<Navigate to="/dashboard" replace />} />
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/vendors" element={<Vendors />} />
+                  <Route path="/vendors/:vendorId" element={<Vendors />} />
                   <Route path="/usage" element={<Usage />} />
                   <Route path="/usage/:vendorId" element={<VendorUsage />} />
                   <Route path="/reliability" element={<Reliability />} />
@@ -48,7 +50,7 @@ function App() {
                   <Route path="/billing" element={<Billing />} />
                   <Route path="/payments" element={<Payments />} />
                   <Route path="/tax-reports" element={<TaxReports />} />
-                  <Route path="*" element={<div>404 - Page Not Found</div>} />
+                  <Route path="*" element={<NotFound />} />
                 </Routes>
               </Layout>
             </ProtectedRoute>

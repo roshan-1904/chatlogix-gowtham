@@ -188,7 +188,7 @@ export function ShopContextCard({ vendorId, conversationId, caseId }: ShopContex
             </Link>
           )}
 
-          <Link to={`/vendors`}>
+          <Link to={`/vendors/${encodeURIComponent(vendorId)}#wallet`}>
             <Button
               variant="ghost"
               size="sm"

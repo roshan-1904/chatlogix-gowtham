@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Badge, Card, type BadgeVariant } from '@chatlogix/ui';
+import { Badge, Card } from '@chatlogix/ui';
 import { formatWalletAmount } from '../lib/money';
-import { listVendors, type AdminVendorListRow } from '../lib/vendors';
+import { listVendors, getRegistrationBadge, type AdminVendorListRow } from '../lib/vendors';
 import { VendorDetailPanel } from '../components/vendors/VendorDetailPanel';
 
 export const STATUS_OPTIONS = [
@@ -15,25 +15,9 @@ export const STATUS_OPTIONS = [
 ] as const;
 
 export type StatusFilterValue = (typeof STATUS_OPTIONS)[number]['value'];
+export { getRegistrationBadge };
 
-export function getRegistrationBadge(status: string | null | undefined): {
-  label: string;
-  variant: BadgeVariant;
-  className?: string;
-} {
-  switch (status) {
-    case 'approved':
-      return { label: 'Approved', variant: 'success' };
-    case 'pending_approval':
-      return { label: 'Pending Approval', variant: 'warning' };
-    case 'rejected':
-      return { label: 'Rejected', variant: 'default', className: 'bg-red-50 text-red-700 border border-red-200' };
-    case 'onboarding':
-      return { label: 'Onboarding', variant: 'info' };
-    default:
-      return { label: status?.trim() ? status : 'Not set', variant: 'default' };
-  }
-}
+
 
 function matches(
   vendor: AdminVendorListRow,
@@ -57,6 +41,9 @@ export function Vendors() {
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
+  const { vendorId: routeVendorId } = useParams<{ vendorId?: string }>();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const rawStatus = searchParams.get('status');
   const statusFilter: StatusFilterValue = STATUS_OPTIONS.some((o) => o.value === rawStatus)
@@ -86,8 +73,25 @@ export function Vendors() {
     [vendors, search, statusFilter]
   );
 
-  // Keep a vendor selected as the list loads or the search narrows.
+  // Auto-selection:
+  // 1. If routeVendorId is present in URL (/vendors/:vendorId):
+  //    - If found in vendors list, select that vendor (even if filtered out of current search/status).
+  //    - If not found in loaded vendors, leave selectedId null so the clear Not-Found UI is displayed.
+  // 2. If routeVendorId is absent (standard /vendors list view):
+  //    - Auto-select the first visible vendor if no vendor is selected or previous selection was filtered out.
   useEffect(() => {
+    if (routeVendorId) {
+      if (vendors.length > 0) {
+        const found = vendors.find((v) => v.id === routeVendorId);
+        if (found) {
+          setSelectedId(found.id);
+        } else {
+          setSelectedId(null);
+        }
+      }
+      return;
+    }
+
     if (visible.length === 0) {
       setSelectedId(null);
       return;
@@ -95,9 +99,16 @@ export function Vendors() {
     if (!selectedId || !visible.some((v) => v.id === selectedId)) {
       setSelectedId(visible[0].id);
     }
-  }, [visible, selectedId]);
+  }, [visible, vendors, selectedId, routeVendorId]);
 
-  const selected = visible.find((v) => v.id === selectedId) ?? null;
+  const selected = useMemo(() => {
+    if (routeVendorId) {
+      return vendors.find((v) => v.id === routeVendorId) ?? null;
+    }
+    return visible.find((v) => v.id === selectedId) ?? null;
+  }, [vendors, visible, selectedId, routeVendorId]);
+
+  const isVendorNotFound = Boolean(routeVendorId && !vendorsQuery.isLoading && !selected);
 
   return (
     <div className="space-y-4">
@@ -164,13 +175,18 @@ export function Vendors() {
               ) : (
                 <ul className="divide-y divide-gray-100">
                   {visible.map((vendor) => {
-                    const isSelected = vendor.id === selectedId;
+                    const isSelected = vendor.id === (selected?.id ?? selectedId);
                     const badge = getRegistrationBadge(vendor.registrationStatus);
                     return (
                       <li key={vendor.id}>
                         <button
                           type="button"
-                          onClick={() => setSelectedId(vendor.id)}
+                          onClick={() => {
+                            setSelectedId(vendor.id);
+                            if (routeVendorId) {
+                              navigate(`/vendors/${vendor.id}${location.search}${location.hash}`);
+                            }
+                          }}
                           aria-current={isSelected ? 'true' : undefined}
                           className={`flex w-full items-start justify-between gap-3 px-4 py-3 text-left transition-colors ${
                             isSelected ? 'bg-primary-50' : 'hover:bg-gray-50'
@@ -207,6 +223,27 @@ export function Vendors() {
           <div className="lg:col-span-7 xl:col-span-8">
             {selected ? (
               <VendorDetailPanel key={selected.id} vendor={selected} />
+            ) : isVendorNotFound ? (
+              <Card className="p-5">
+                <div className="space-y-2">
+                  <h3 className="text-base font-semibold text-red-700">Could not load this shop.</h3>
+                  <p className="text-sm text-gray-500">
+                    The shop with ID{' '}
+                    <code className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-gray-800">
+                      {routeVendorId}
+                    </code>{' '}
+                    could not be found or may have been removed.
+                  </p>
+                  <div className="pt-2">
+                    <Link
+                      to={`/vendors${location.search}`}
+                      className="inline-flex items-center text-xs font-semibold text-primary-600 hover:underline"
+                    >
+                      &larr; Back to all vendors
+                    </Link>
+                  </div>
+                </div>
+              </Card>
             ) : (
               <Card className="p-5">
                 <p className="text-sm text-gray-500">Pick a vendor to see their wallet and markup.</p>

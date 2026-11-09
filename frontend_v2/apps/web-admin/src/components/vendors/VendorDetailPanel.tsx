@@ -1,12 +1,14 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge, Button, Card, Modal } from '@chatlogix/ui';
 import { formatWalletAmount } from '../../lib/money';
 import {
+  getRegistrationBadge,
   getVendorConfig,
   getVendorWalletTransactions,
   rechargeVendorWallet,
+  LOW_BALANCE_THRESHOLD_MILLI,
   type AdminVendorListRow,
   type AdminWalletTransaction,
 } from '../../lib/vendors';
@@ -73,6 +75,30 @@ export function validateRechargeReason(reason: string): string | null {
     return 'Reason cannot exceed 200 characters';
   }
   return null;
+}
+
+export function formatTrialGranted(milli: number | null | undefined): string {
+  if (milli == null || !Number.isFinite(milli)) return 'No trial granted';
+  return formatWalletAmount(milli);
+}
+
+export function formatTrialExpiry(expiresAt: string | null | undefined): string {
+  if (!expiresAt) return 'No expiry set';
+  const d = new Date(expiresAt);
+  if (isNaN(d.getTime())) return 'No expiry set';
+  return d.toLocaleString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
+export function formatAiModel(model: string | null | undefined): string {
+  if (!model || !model.trim()) return 'Not configured';
+  return model.trim();
 }
 
 interface RechargeWalletCardProps {
@@ -349,6 +375,32 @@ export function RechargeWalletCard({ vendorId, businessName }: RechargeWalletCar
 }
 
 export function VendorDetailPanel({ vendor }: VendorDetailPanelProps) {
+  const location = useLocation();
+  const scrolledRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (location.hash === '#wallet') {
+      const scrollKey = `${vendor.id}-wallet`;
+      if (scrolledRef.current === scrollKey) return;
+
+      const timer = setTimeout(() => {
+        const el = document.getElementById('wallet');
+        if (el) {
+          scrolledRef.current = scrollKey;
+          if (typeof el.scrollIntoView === 'function') {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }
+      }, 50);
+
+      return () => {
+        clearTimeout(timer);
+      };
+    }
+    scrolledRef.current = null;
+    return undefined;
+  }, [location.hash, vendor.id]);
+
   const configQuery = useQuery({
     queryKey: ['admin-vendor', vendor.id],
     queryFn: () => getVendorConfig(vendor.id),
@@ -365,6 +417,7 @@ export function VendorDetailPanel({ vendor }: VendorDetailPanelProps) {
   const paymentsManaged = configQuery.data?.paymentsManagedByChatlogix ?? false;
   const paymentLinkAutoSend = configQuery.data?.paymentLinkAutoSend ?? false;
   const transactions = transactionsQuery.data ?? [];
+  const regBadge = getRegistrationBadge(vendor.registrationStatus);
 
   return (
     <div className="space-y-4">
@@ -375,6 +428,7 @@ export function VendorDetailPanel({ vendor }: VendorDetailPanelProps) {
             <p className="mt-0.5 text-sm text-gray-500">
               {vendor.phone || 'No phone'}
               {vendor.email ? ` · ${vendor.email}` : ''}
+              {configQuery.data?.category ? ` · ${configQuery.data.category}` : ''}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -383,6 +437,9 @@ export function VendorDetailPanel({ vendor }: VendorDetailPanelProps) {
                 View catalog and orders &rarr;
               </Button>
             </Link>
+            <Badge variant={regBadge.variant} className={regBadge.className}>
+              {regBadge.label}
+            </Badge>
             <Badge variant={vendor.subscriptionStatus === 'active' ? 'success' : 'default'}>
               {vendor.subscriptionStatus || 'unknown'}
             </Badge>
@@ -391,9 +448,16 @@ export function VendorDetailPanel({ vendor }: VendorDetailPanelProps) {
 
         <dl className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3">
           <div>
-            <dt className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
-              AI wallet
-            </dt>
+            <div className="flex items-center gap-1.5">
+              <dt className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                AI wallet
+              </dt>
+              {balanceMilli < LOW_BALANCE_THRESHOLD_MILLI && (
+                <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 border border-amber-200">
+                  Low balance
+                </span>
+              )}
+            </div>
             <dd className="mt-1 text-2xl font-bold text-[#072349]">{formatWalletAmount(balanceMilli)}</dd>
             <dd className="mt-0.5 text-xs text-gray-500">Message &amp; AI usage</dd>
           </div>
@@ -416,7 +480,71 @@ export function VendorDetailPanel({ vendor }: VendorDetailPanelProps) {
             )}
           </div>
         </dl>
+
+        <div className="mt-5 border-t border-gray-100 pt-4">
+          <dl className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div>
+              <dt className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                Trial granted
+              </dt>
+              <dd className="mt-1 text-sm font-semibold text-[#072349]">
+                {formatTrialGranted(configQuery.data?.trialGrantedMilli)}
+              </dd>
+              <dd className="mt-0.5 text-xs text-gray-500">Initial signup credit</dd>
+            </div>
+            <div>
+              <dt className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                Trial expiry
+              </dt>
+              <dd className="mt-1 text-sm font-semibold text-[#072349]">
+                {formatTrialExpiry(configQuery.data?.trialExpiresAt)}
+              </dd>
+              <dd className="mt-0.5 text-xs text-gray-500">Free usage window</dd>
+            </div>
+            <div>
+              <dt className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                AI model
+              </dt>
+              <dd className="mt-1 text-sm font-semibold text-[#072349]">
+                {formatAiModel(configQuery.data?.aiModel)}
+              </dd>
+              <dd className="mt-0.5 text-xs text-gray-500">Active conversation model</dd>
+            </div>
+          </dl>
+        </div>
       </Card>
+
+      {vendor.registrationStatus === 'pending_approval' && (
+        <Card className="border-amber-200 bg-amber-50/60 p-4">
+          <div className="flex items-start gap-3">
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-100 text-xs font-bold text-amber-700">
+              !
+            </span>
+            <div>
+              <h4 className="text-sm font-semibold text-amber-900">Waiting for review</h4>
+              <p className="mt-0.5 text-xs text-amber-700">
+                This shop has submitted its onboarding profile and is pending approval.
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {vendor.registrationStatus === 'rejected' && (
+        <Card className="border-red-200 bg-red-50/60 p-4">
+          <div className="flex items-start gap-3">
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-100 text-xs font-bold text-red-700">
+              &times;
+            </span>
+            <div>
+              <h4 className="text-sm font-semibold text-red-900">Registration rejected</h4>
+              <p className="mt-0.5 text-xs text-red-700">
+                This shop's onboarding registration was rejected. The vendor must resubmit profile details to re-apply.
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
 
       <WhatsAppCard vendorId={vendor.id} businessName={vendor.businessName} />
 

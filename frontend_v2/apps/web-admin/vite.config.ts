@@ -8,6 +8,8 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
+      react: path.resolve(__dirname, './node_modules/react'),
+      'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
       '@': path.resolve(__dirname, './src'),
       '@chatlogix/ui': path.resolve(__dirname, '../../packages/ui/src'),
       '@chatlogix/design-tokens': path.resolve(__dirname, '../../packages/design-tokens/src'),
@@ -18,6 +20,7 @@ export default defineConfig({
       '@chatlogix/config': path.resolve(__dirname, '../../packages/config/src'),
       '@chatlogix/auth': path.resolve(__dirname, '../../packages/auth/src'),
     },
+    dedupe: ['react', 'react-dom'],
   },
   server: {
     port: 3001,
@@ -31,6 +34,10 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    server: {
+      deps: {
+        inline: [/@tanstack\/react-query/],
+      },
+    },
   },
 });
-

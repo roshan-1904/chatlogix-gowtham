@@ -5,7 +5,11 @@ import {
   recordStaffAudit,
   getComputedAlerts,
   getTrialClocks,
+  generateAuditLogsCsv,
+  exportAuditLogsCsv,
+  type StaffAuditLogEntry,
 } from '../controls';
+import * as usageModule from '../usage';
 import { apiClient } from '../api';
 
 vi.mock('../api', () => ({
@@ -107,6 +111,47 @@ describe('Controls module helpers and API client', () => {
 
       await getTrialClocks('past');
       expect(apiClient.get).toHaveBeenCalledWith('/admin/trials?filter=past');
+    });
+  });
+  describe('generateAuditLogsCsv and exportAuditLogsCsv', () => {
+    const mockLogs: StaffAuditLogEntry[] = [
+      {
+        id: 'log-1',
+        actorId: 'admin-1',
+        action: 'wallet_credited',
+        vendorId: 'vendor-123',
+        summary: 'Credited ₹50.00 to wallet',
+        metadata: { amountMilli: 50000, reason: 'Trial top-up' },
+        createdAt: '2026-11-09T10:00:00.000Z',
+      },
+      {
+        id: 'log-2',
+        actorId: 'admin-2',
+        action: 'settings_changed',
+        vendorId: null,
+        summary: 'Platform markup updated to 20%',
+        metadata: null,
+        createdAt: '2026-11-09T09:30:00.000Z',
+      },
+    ];
+
+    it('generates standard RFC-4180 CSV header and rows', () => {
+      const csv = generateAuditLogsCsv(mockLogs);
+      expect(csv).toContain('Time (UTC),Actor,Action,Vendor,Summary,Metadata');
+      expect(csv).toContain('2026-11-09T10:00:00.000Z,admin-1,wallet_credited,vendor-123,Credited ₹50.00 to wallet');
+      expect(csv).toContain('2026-11-09T09:30:00.000Z,admin-2,settings_changed,Platform,Platform markup updated to 20%');
+    });
+
+    it('calls triggerBlobDownload with CSV blob and filename', () => {
+      const triggerSpy = vi.spyOn(usageModule, 'triggerBlobDownload').mockImplementation(() => {});
+
+      exportAuditLogsCsv(mockLogs, 'custom-audit.csv');
+
+      expect(triggerSpy).toHaveBeenCalledWith(
+        expect.any(Blob),
+        'custom-audit.csv'
+      );
+      triggerSpy.mockRestore();
     });
   });
 });

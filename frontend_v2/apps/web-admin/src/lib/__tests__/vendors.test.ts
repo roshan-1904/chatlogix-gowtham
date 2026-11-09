@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest';
 import {
   parseRupeesToMilli,
   validateRechargeReason,
+  formatTrialGranted,
+  formatTrialExpiry,
+  formatAiModel,
 } from '../../components/vendors/VendorDetailPanel';
 import {
   getRegistrationBadge,
@@ -11,6 +14,7 @@ import {
   WhatsAppAlreadyMappedError,
   MIN_MARKUP_PERCENT,
   MAX_MARKUP_PERCENT,
+  LOW_BALANCE_THRESHOLD_MILLI,
 } from '../vendors';
 
 describe('Vendors Module — Frontend Logic', () => {
@@ -144,6 +148,51 @@ describe('Vendors Module — Frontend Logic', () => {
     });
   });
 
+  describe('Trial and AI Model Formatters', () => {
+    describe('formatTrialGranted', () => {
+      it('formats millirupees to Indian Rupee string correctly', () => {
+        expect(formatTrialGranted(50000)).toBe('₹50.00');
+        expect(formatTrialGranted(100000)).toBe('₹100.00');
+        expect(formatTrialGranted(1250)).toBe('₹1.25');
+      });
+
+      it('handles null, undefined, and non-finite values safely', () => {
+        expect(formatTrialGranted(null)).toBe('No trial granted');
+        expect(formatTrialGranted(undefined)).toBe('No trial granted');
+        expect(formatTrialGranted(NaN)).toBe('No trial granted');
+      });
+    });
+
+    describe('formatTrialExpiry', () => {
+      it('formats valid ISO date strings to readable Indian locale', () => {
+        const iso = '2026-11-20T10:30:00.000Z';
+        const formatted = formatTrialExpiry(iso);
+        expect(formatted).toContain('2026');
+        expect(formatted).not.toBe('No expiry set');
+      });
+
+      it('handles null, empty, and invalid dates safely', () => {
+        expect(formatTrialExpiry(null)).toBe('No expiry set');
+        expect(formatTrialExpiry('')).toBe('No expiry set');
+        expect(formatTrialExpiry(undefined)).toBe('No expiry set');
+        expect(formatTrialExpiry('not-a-date')).toBe('No expiry set');
+      });
+    });
+
+    describe('formatAiModel', () => {
+      it('displays the configured AI model string', () => {
+        expect(formatAiModel('gpt-5.6-luna')).toBe('gpt-5.6-luna');
+        expect(formatAiModel('gpt-4.1-mini')).toBe('gpt-4.1-mini');
+      });
+
+      it('handles null, undefined, and whitespace-only strings safely', () => {
+        expect(formatAiModel(null)).toBe('Not configured');
+        expect(formatAiModel(undefined)).toBe('Not configured');
+        expect(formatAiModel('   ')).toBe('Not configured');
+      });
+    });
+  });
+
   describe('WhatsAppAlreadyMappedError', () => {
     it('stores collision metadata correctly', () => {
       const err = new WhatsAppAlreadyMappedError({
@@ -154,6 +203,14 @@ describe('Vendors Module — Frontend Logic', () => {
       expect(err.currentVendorId).toBe('vendor-99');
       expect(err.currentVendorName).toBe('Other Shop');
       expect(err.name).toBe('WhatsAppAlreadyMappedError');
+    });
+  });
+
+  describe('Wallet Low Balance Threshold', () => {
+    it('defines the low balance warning threshold as 20000 millirupees (₹20)', () => {
+      expect(LOW_BALANCE_THRESHOLD_MILLI).toBe(20000);
+      expect(19999 < LOW_BALANCE_THRESHOLD_MILLI).toBe(true);
+      expect(20000 < LOW_BALANCE_THRESHOLD_MILLI).toBe(false);
     });
   });
 });

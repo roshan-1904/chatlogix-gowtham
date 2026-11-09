@@ -136,3 +136,26 @@ export async function getComputedAlerts(): Promise<ComputedAlertsResponse> {
 export async function getTrialClocks(filter: 'next7' | 'past' | 'all' = 'next7'): Promise<TrialsResponse> {
   return apiClient.get<TrialsResponse>(`/admin/trials?filter=${filter}`);
 }
+
+import { escapeCsvCell, triggerBlobDownload } from './usage';
+
+export function generateAuditLogsCsv(items: StaffAuditLogEntry[]): string {
+  const headers = ['Time (UTC)', 'Actor', 'Action', 'Vendor', 'Summary', 'Metadata'];
+  const rows = items.map((entry) => [
+    escapeCsvCell(entry.createdAt),
+    escapeCsvCell(entry.actorId),
+    escapeCsvCell(entry.action),
+    escapeCsvCell(entry.vendorId || 'Platform'),
+    escapeCsvCell(entry.summary),
+    escapeCsvCell(entry.metadata ? JSON.stringify(entry.metadata) : ''),
+  ]);
+
+  return [headers.join(','), ...rows.map((r) => r.join(','))].join('\r\n');
+}
+
+export function exportAuditLogsCsv(items: StaffAuditLogEntry[], filename?: string): void {
+  const csvContent = generateAuditLogsCsv(items);
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const defaultFilename = `chatlogix-audit-logs-${new Date().toISOString().slice(0, 10)}.csv`;
+  triggerBlobDownload(blob, filename || defaultFilename);
+}

@@ -40,9 +40,18 @@ export function SupportCaseDetail() {
 
   const noteMutation = useMutation({
     mutationFn: (body: string) => addCaseNote(caseId!, body),
-    onSuccess: () => {
+    onSuccess: (newNote) => {
       setNewNoteBody('');
       setActionError(null);
+      queryClient.setQueryData<StaffCase>(['support-case', caseId], (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          notes: [...(old.notes || []), newNote],
+          updatedAt: newNote.createdAt,
+        };
+      });
+      void queryClient.invalidateQueries({ queryKey: ['support-cases'] });
       void refetch();
     },
     onError: (err: any) => {

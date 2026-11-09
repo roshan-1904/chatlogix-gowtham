@@ -45,6 +45,7 @@ export interface PausedConversationsResponse {
 export interface WalletBlockEventItem {
   id: string;
   vendorId: string;
+  conversationId?: string;
   businessName: string;
   customerPhone: string;
   reason: string;

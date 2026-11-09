@@ -1,3 +1,4 @@
+import type { BadgeVariant } from '@chatlogix/ui';
 import { apiClient } from './api';
 
 /** Every `*Milli` amount below is wallet money: 1 rupee = 1000 millirupees. */
@@ -27,6 +28,9 @@ export interface AdminVendorConfig {
   paymentLinkAutoSend: boolean;
   category: string | null;
   catalogImportEnabled: boolean;
+  trialGrantedMilli?: number | null;
+  trialExpiresAt?: string | null;
+  aiModel?: string | null;
   ai: Record<string, unknown>;
 }
 
@@ -43,6 +47,26 @@ export interface AdminWalletTransaction {
 
 export const MIN_MARKUP_PERCENT = 0;
 export const MAX_MARKUP_PERCENT = 500;
+export const LOW_BALANCE_THRESHOLD_MILLI = 20000;
+
+export function getRegistrationBadge(status: string | null | undefined): {
+  label: string;
+  variant: BadgeVariant;
+  className?: string;
+} {
+  switch (status) {
+    case 'approved':
+      return { label: 'Approved', variant: 'success' };
+    case 'pending_approval':
+      return { label: 'Pending Approval', variant: 'warning' };
+    case 'rejected':
+      return { label: 'Rejected', variant: 'default', className: 'bg-red-50 text-red-700 border border-red-200' };
+    case 'onboarding':
+      return { label: 'Onboarding', variant: 'info' };
+    default:
+      return { label: status?.trim() ? status : 'Not set', variant: 'default' };
+  }
+}
 
 export async function listVendors(): Promise<AdminVendorListRow[]> {
   return apiClient.get<AdminVendorListRow[]>('/vendors');
