@@ -11,6 +11,9 @@ import {
   type PlatformSettingsPatch
 } from '../services/platformSettingsService.js';
 
+import { recordInMemoryAuditLog } from '../services/adminControlsService.js';
+import { recordStaffAuditLog } from '../services/adminSupportService.js';
+
 export const adminSettingsRouter = Router();
 
 const optionalNonNegInt = z.number().int().min(0);
@@ -68,6 +71,30 @@ adminSettingsRouter.patch(
       parsed.data as PlatformSettingsPatch,
       typeof updatedBy === 'string' ? updatedBy : undefined
     );
+
+    const actorId = typeof updatedBy === 'string' ? updatedBy : 'admin';
+    const changedFields = Object.keys(parsed.data);
+
+    recordInMemoryAuditLog({
+      actorId,
+      action: 'settings_changed',
+      summary: `Platform settings updated (${changedFields.join(', ')})`,
+      metadata: {
+        changedKeys: changedFields,
+        changes: parsed.data
+      }
+    });
+
+    void recordStaffAuditLog({
+      actorId,
+      action: 'settings_changed',
+      summary: `Platform settings updated (${changedFields.join(', ')})`,
+      metadata: {
+        changedKeys: changedFields,
+        changes: parsed.data
+      }
+    });
+
     res.json(settings);
   })
 );

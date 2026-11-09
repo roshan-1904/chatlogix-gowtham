@@ -4,19 +4,33 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+const { createMock } = vi.hoisted(() => ({
+  createMock: vi.fn(),
+}));
+
+vi.mock('../../config/env.js', () => ({
+  env: { OPENAI_API_KEY: 'test-key' }
+}));
+
+vi.mock('../../db/prisma.js');
+vi.mock('../customerInsightsService.js');
+
+vi.mock('openai', () => {
+  const MockOpenAI = vi.fn().mockImplementation(() => ({
+    chat: { completions: { create: createMock } }
+  }));
+  return {
+    default: MockOpenAI,
+    OpenAI: MockOpenAI,
+  };
+});
+
 import { generateMessageSummary } from '../messageSummaryService.js';
 import { CustomerInsightsService } from '../customerInsightsService.js';
 import { prisma } from '../../db/prisma.js';
 import { env } from '../../config/env.js';
 import OpenAI from 'openai';
-
-// Mock dependencies
-vi.mock('../../db/prisma.js');
-vi.mock('../../config/env.js');
-vi.mock('../customerInsightsService.js');
-vi.mock('openai', () => ({
-  default: vi.fn()
-}));
 vi.mock('../../logger.js', () => ({
   logger: {
     info: vi.fn(),
@@ -85,14 +99,7 @@ Expected Next: Customer will provide delivery address or confirm order`;
         }
       };
 
-      const mockCreate = vi.fn().mockResolvedValue(mockCompletion);
-      vi.mocked(OpenAI).mockImplementation(() => ({
-        chat: {
-          completions: {
-            create: mockCreate
-          }
-        }
-      } as any));
+      createMock.mockResolvedValue(mockCompletion);
 
       const result = await generateMessageSummary(
         mockMessageId,
@@ -151,14 +158,7 @@ Expected Next: Customer will wait for order update`;
         }
       };
 
-      const mockCreate = vi.fn().mockResolvedValue(mockCompletion);
-      vi.mocked(OpenAI).mockImplementation(() => ({
-        chat: {
-          completions: {
-            create: mockCreate
-          }
-        }
-      } as any));
+      createMock.mockResolvedValue(mockCompletion);
 
       const result = await generateMessageSummary(
         mockMessageId,
@@ -216,14 +216,7 @@ Expected Next: Customer will provide more order details`;
         }
       };
 
-      const mockCreate = vi.fn().mockResolvedValue(mockCompletion);
-      vi.mocked(OpenAI).mockImplementation(() => ({
-        chat: {
-          completions: {
-            create: mockCreate
-          }
-        }
-      } as any));
+      createMock.mockResolvedValue(mockCompletion);
 
       const result = await generateMessageSummary(
         mockMessageId,
@@ -267,14 +260,7 @@ Expected Next: Customer will provide more order details`;
         communicationStyle: ''
       } as any);
 
-      const mockCreate = vi.fn().mockRejectedValue(new Error('API Error'));
-      vi.mocked(OpenAI).mockImplementation(() => ({
-        chat: {
-          completions: {
-            create: mockCreate
-          }
-        }
-      } as any));
+      createMock.mockRejectedValue(new Error('API Error'));
 
       const result = await generateMessageSummary(
         mockMessageId,
@@ -351,14 +337,7 @@ Expected Next: Customer will ask about products or place order`;
         }
       };
 
-      const mockCreate = vi.fn().mockResolvedValue(mockCompletion);
-      vi.mocked(OpenAI).mockImplementation(() => ({
-        chat: {
-          completions: {
-            create: mockCreate
-          }
-        }
-      } as any));
+      createMock.mockResolvedValue(mockCompletion);
 
       const result = await generateMessageSummary(
         mockMessageId,
@@ -419,14 +398,7 @@ Expected Next: Order will be confirmed and processed`;
         }
       };
 
-      const mockCreate = vi.fn().mockResolvedValue(mockCompletion);
-      vi.mocked(OpenAI).mockImplementation(() => ({
-        chat: {
-          completions: {
-            create: mockCreate
-          }
-        }
-      } as any));
+      createMock.mockResolvedValue(mockCompletion);
 
       const result = await generateMessageSummary(
         mockMessageId,

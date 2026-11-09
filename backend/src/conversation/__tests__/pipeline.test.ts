@@ -102,7 +102,17 @@ vi.mock('../../db/prisma.js', () => ({
       updateMany: (...args: unknown[]) => messageProcessingUpdateMany(...args),
       findUnique: (...args: unknown[]) => messageProcessingFindUnique(...args)
     },
-    conversation: { findUnique: (...args: unknown[]) => conversationFindUnique(...args) }
+    conversation: { findUnique: (...args: unknown[]) => conversationFindUnique(...args) },
+    walletBlockEvent: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockImplementation((args: any) => ({
+        id: 'wb-mock-id',
+        status: 'pending_enqueue',
+        ...args.data,
+      })),
+      update: vi.fn().mockResolvedValue({ id: 'wb-mock-id' }),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+    },
   }
 }));
 vi.mock('../../logger.js', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } }));

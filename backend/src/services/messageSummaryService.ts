@@ -46,7 +46,7 @@ export async function generateMessageSummary(
     memory?: ConversationMemory;
   }
 ): Promise<MessageSummaryResult> {
-  if (!openai) {
+  if (!env.OPENAI_API_KEY || !openai) {
     logger.warn({ messageId }, 'OpenAI not configured, skipping summary generation');
     return { summary: '', expectedNext: '' };
   }

@@ -437,6 +437,11 @@ export function VendorDetailPanel({ vendor }: VendorDetailPanelProps) {
                 View catalog and orders &rarr;
               </Button>
             </Link>
+            <Link to={`/usage/${vendor.id}`}>
+              <Button variant="ghost" size="sm" className="border border-gray-300 text-xs font-semibold">
+                Usage analytics &rarr;
+              </Button>
+            </Link>
             <Badge variant={regBadge.variant} className={regBadge.className}>
               {regBadge.label}
             </Badge>

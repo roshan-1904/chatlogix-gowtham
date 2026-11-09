@@ -153,6 +153,31 @@ function normalizeString(str: string, preserveDiacritics: boolean = false): stri
  * @param str2 - Second string
  * @returns Levenshtein distance
  */
+/**
+ * Check if target appears as a complete word/phrase in text (respects word boundaries)
+ */
+function matchesWordBoundary(text: string, target: string): boolean {
+  if (!text || !target) return false;
+  if (text === target) return true;
+  let startPos = 0;
+  while (true) {
+    const idx = text.indexOf(target, startPos);
+    if (idx === -1) return false;
+    let ok = true;
+    if (idx > 0) {
+      const prevChar = text.charAt(idx - 1);
+      if (/\p{L}|\p{N}/u.test(prevChar)) ok = false;
+    }
+    const endIdx = idx + target.length;
+    if (endIdx < text.length) {
+      const nextChar = text.charAt(endIdx);
+      if (/\p{L}|\p{N}/u.test(nextChar)) ok = false;
+    }
+    if (ok) return true;
+    startPos = idx + 1;
+  }
+}
+
 function levenshteinDistance(str1: string, str2: string): number {
   const len1 = str1.length;
   const len2 = str2.length;
@@ -178,8 +203,8 @@ function levenshteinDistance(str1: string, str2: string): number {
       const cost = str1.charAt(i - 1) === str2.charAt(j - 1) ? 0 : 1;
       const current = Math.min(
         matrix[j] + 1,     // deletion
-        prev + 1,          // insertion
-        matrix[j - 1] + cost // substitution
+        matrix[j - 1] + 1, // insertion
+        prev + cost        // substitution
       );
       prev = matrix[j];
       matrix[j] = current;
@@ -517,18 +542,14 @@ export async function findBestProductMatch(
       };
     }
     
-    // 2. Partial match (fast, substring check)
-    if (bestScore < 0.8) {
-      const productIncludesInput = productNameFull.includes(normalizedName);
-      const inputIncludesProduct = normalizedName.includes(productNameFull);
+    // 2. Partial match (fast, substring check with word boundaries)
+    if (bestScore < 0.9) {
+      const isPartial = matchesWordBoundary(productNameFull, normalizedName) ||
+                        matchesWordBoundary(normalizedName, productNameFull);
       
-      if (productIncludesInput || inputIncludesProduct) {
-        // Calculate similarity based on length ratio
-        const minLen = Math.min(normalizedName.length, productNameFull.length);
-        const maxLen = Math.max(normalizedName.length, productNameFull.length);
-        const score = minLen / maxLen;
-        
-        if (score > bestScore && score >= 0.8) {
+      if (isPartial) {
+        const score = 0.9;
+        if (score > bestScore) {
           bestScore = score;
           bestMatch = {
             product,
@@ -536,13 +557,13 @@ export async function findBestProductMatch(
             matchType: 'partial',
             originalName: productName,
             matchedName: productNameValue,
-            confidence: score >= 0.9 ? 'high' : 'medium'
+            confidence: 'high'
           };
         }
       }
     }
     
-    // 3. Keyword match (fast, array lookup)
+    // 3. Keyword match (fast, array lookup with word boundaries)
     if (bestScore < 0.85) {
       const keywords = product[keywordsField];
       if (keywords && Array.isArray(keywords)) {
@@ -550,10 +571,10 @@ export async function findBestProductMatch(
           if (!keyword || typeof keyword !== 'string') continue;
           
           const keywordNormalized = normalizeString(keyword, false);
-          const keywordIncludes = keywordNormalized.includes(normalizedName);
-          const inputIncludesKeyword = normalizedName.includes(keywordNormalized);
+          const isKeywordMatch = matchesWordBoundary(normalizedName, keywordNormalized) ||
+                                 matchesWordBoundary(keywordNormalized, normalizedName);
           
-          if (keywordIncludes || inputIncludesKeyword) {
+          if (isKeywordMatch) {
             const score = 0.85; // High score for keyword match
             if (score > bestScore) {
               bestScore = score;

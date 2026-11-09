@@ -18,13 +18,14 @@ vi.mock('../../logger.js', () => ({
   logger: {
     info: vi.fn(),
     warn: vi.fn(),
-    error: vi.fn()
+    error: vi.fn(),
+    debug: vi.fn()
   }
 }));
 vi.mock('../../utils/cacheStrategy.js', () => ({
   getCachedConversationMemory: vi.fn().mockResolvedValue(null),
   cacheConversationMemory: vi.fn(),
-  invalidateConversationCache: vi.fn()
+  invalidateConversationCache: vi.fn().mockResolvedValue(undefined)
 }));
 vi.mock('../../utils/redis.js', () => ({
   getCached: vi.fn().mockResolvedValue(null),
@@ -39,6 +40,34 @@ describe('Memory Extraction Integration Tests', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (env as any).USE_AI_MEMORY_EXTRACTION = 'true';
+    (prisma as any).$transaction = vi.fn().mockImplementation(async (cb: any) => {
+      if (typeof cb === 'function') {
+        return await cb(prisma);
+      }
+      return cb;
+    });
+    (prisma as any).product = {
+      findMany: vi.fn().mockResolvedValue([
+        { id: 'prod-1', name: 'boxes', basePrice: 100 }
+      ]),
+      findUnique: vi.fn().mockResolvedValue({ id: 'prod-1', name: 'boxes', basePrice: 100 })
+    };
+    (prisma as any).order = {
+      findFirst: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockResolvedValue({ id: 'order-123' }),
+      count: vi.fn().mockResolvedValue(1)
+    };
+    (prisma as any).vendor = {
+      findUnique: vi.fn().mockResolvedValue({ id: mockVendorId, orderPrefix: 'ORD' })
+    };
+    (prisma as any).customerInsights = {
+      findFirst: vi.fn().mockResolvedValue(null),
+      findUnique: vi.fn().mockResolvedValue(null),
+      upsert: vi.fn().mockResolvedValue({}),
+      update: vi.fn().mockResolvedValue({})
+    };
+    (prisma as any).$queryRawUnsafe = vi.fn().mockResolvedValue([]);
+    (prisma as any).$queryRaw = vi.fn().mockResolvedValue([]);
   });
 
   describe('Full Conversation Flow', () => {
@@ -145,7 +174,8 @@ describe('Memory Extraction Integration Tests', () => {
 
       (prisma as any).order = {
         findFirst: vi.fn().mockResolvedValue(null),
-        create: vi.fn().mockResolvedValue({ id: 'order-123' })
+        create: vi.fn().mockResolvedValue({ id: 'order-123' }),
+        count: vi.fn().mockResolvedValue(1)
       };
 
       (prisma as any).conversationMemory = {
@@ -363,7 +393,7 @@ describe('Memory Extraction Integration Tests', () => {
       );
 
       // Should still return facts even if database update fails
-      expect(Array.isArray(result)).toBe(true);
+      expect(Array.isArray(result.keyFacts)).toBe(true);
     });
   });
 });
