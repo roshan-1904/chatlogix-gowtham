@@ -34,6 +34,14 @@ describe('Usage CSV client utilities', () => {
       expect(escapeCsvCell('Line1\nLine2')).toBe('"Line1\nLine2"');
       expect(escapeCsvCell('Line1\r\nLine2')).toBe('"Line1\r\nLine2"');
     });
+
+    it('prefixes formula trigger characters with a single quote to prevent CSV injection', () => {
+      expect(escapeCsvCell('=HYPERLINK("http://evil.com","Refund")')).toBe('"\'=HYPERLINK(""http://evil.com"",""Refund"")"');
+      expect(escapeCsvCell('+12345')).toBe('\'+12345');
+      expect(escapeCsvCell('-50')).toBe('\'-50');
+      expect(escapeCsvCell('@SUM(1)')).toBe('\'@SUM(1)');
+      expect(escapeCsvCell('@SUM(1,2)')).toBe('"\'@SUM(1,2)"');
+    });
   });
 
   describe('Date preset helpers for IST', () => {

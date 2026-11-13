@@ -8,7 +8,7 @@ import { DatabaseRetryService } from './databaseRetryService.js';
  * Wallet balance below this triggers the low-balance warning (₹20 in millirupees).
  * Must stay under the trial grant (PlatformSettings.trialGrantPaise → milli), or every trial vendor starts out warned.
  */
-const LOW_BALANCE_THRESHOLD_MILLI = 20000;
+export const LOW_BALANCE_THRESHOLD_MILLI = 20000;
 
 /** Number of trailing days reported in `billing.dailySpend`. */
 const DAILY_SPEND_WINDOW_DAYS = 7;

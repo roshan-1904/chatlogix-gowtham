@@ -149,7 +149,9 @@ export function Support() {
                 {data.items.map((row: StaffCase) => (
                   <tr
                     key={row.id}
-                    onClick={() => navigate(`/support/${row.id}`)}
+                    onClick={() => {
+                      void navigate(`/support/${row.id}`);
+                    }}
                     className="hover:bg-gray-50/80 transition-colors cursor-pointer group"
                   >
                     <td className="px-6 py-4 font-semibold text-gray-900 max-w-md truncate group-hover:text-primary-600">

@@ -57,6 +57,7 @@ export class ProductMediaError extends Error {
 export interface ProductMediaActor {
   vendorId?: string;
   isAdmin: boolean;
+  expectedVendorId?: string;
 }
 
 export interface ProductMediaDto {
@@ -244,7 +245,8 @@ export function toProductMediaDto(row: ProductMediaRecord & { variantSku?: strin
  */
 export async function requireProductForActor(
   productId: string,
-  actor: ProductMediaActor
+  actor: ProductMediaActor,
+  expectedVendorId?: string
 ): Promise<{ id: string; vendorId: string }> {
   if (!actor.isAdmin && !actor.vendorId) {
     throw new ProductMediaError(403, 'VENDOR_CONTEXT_REQUIRED', 'Vendor context required');
@@ -261,6 +263,16 @@ export async function requireProductForActor(
   if (!product) {
     throw new ProductMediaError(404, 'PRODUCT_NOT_FOUND', 'Product not found');
   }
+
+  const targetShopId = expectedVendorId ?? actor.expectedVendorId;
+  if (actor.isAdmin && targetShopId && product.vendorId !== targetShopId) {
+    throw new ProductMediaError(404, 'PRODUCT_NOT_FOUND', 'Product not found');
+  }
+
+  if (!actor.isAdmin && actor.vendorId && product.vendorId !== actor.vendorId) {
+    throw new ProductMediaError(404, 'PRODUCT_NOT_FOUND', 'Product not found');
+  }
+
   return product;
 }
 

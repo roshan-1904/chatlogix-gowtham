@@ -32,8 +32,9 @@ export function SupportCaseDetail() {
       queryClient.setQueryData(['support-case', caseId], updated);
       void queryClient.invalidateQueries({ queryKey: ['support-cases'] });
     },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.message || err?.message || 'Failed to update status.';
+    onError: (err: unknown) => {
+      const errorObj = err as { response?: { data?: { message?: string } }; message?: string };
+      const msg = errorObj?.response?.data?.message || errorObj?.message || 'Failed to update status.';
       setActionError(msg);
     },
   });
@@ -45,8 +46,9 @@ export function SupportCaseDetail() {
       setActionError(null);
       void refetch();
     },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.message || err?.message || 'Failed to append note.';
+    onError: (err: unknown) => {
+      const errorObj = err as { response?: { data?: { message?: string } }; message?: string };
+      const msg = errorObj?.response?.data?.message || errorObj?.message || 'Failed to append note.';
       setActionError(msg);
     },
   });
@@ -244,10 +246,11 @@ export function SupportCaseDetail() {
 
             {/* Add Note Form */}
             <form onSubmit={handleAddNote} className="space-y-3 pt-4 border-t border-gray-100">
-              <label className="block text-xs font-bold uppercase tracking-wider text-gray-700">
+              <label htmlFor="case-note-textarea" className="block text-xs font-bold uppercase tracking-wider text-gray-700">
                 Add Note
               </label>
               <textarea
+                id="case-note-textarea"
                 rows={3}
                 placeholder="Add a case note (do not paste passwords, tokens or full card numbers)..."
                 value={newNoteBody}

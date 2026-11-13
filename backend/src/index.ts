@@ -82,7 +82,7 @@ async function bootstrap() {
       if (env.NODE_ENV === 'development' && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
         return callback(null, true);
       }
-      callback(new Error(`Origin ${origin} not allowed by CORS`));
+      callback(null, false);
     },
     credentials: true
   }));
@@ -103,6 +103,16 @@ async function bootstrap() {
     razorpayWebhookHandler
   );
   app.use(express.json({ limit: '2mb' }));
+
+  app.get('/', (_req, res) => {
+    res.json({
+      name: 'ChatLogix API',
+      status: 'ok',
+      adminPortal: 'http://localhost:3001',
+      health: '/health',
+      docs: '/api/docs',
+    });
+  });
 
   app.get('/health', (req, res) => {
     res.json({ status: 'ok', env: env.NODE_ENV, time: new Date().toISOString() });

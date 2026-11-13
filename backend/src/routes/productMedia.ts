@@ -61,13 +61,18 @@ const ReorderSchema = z.object({
 interface RequestActor {
   vendorId?: string;
   isAdmin: boolean;
+  expectedVendorId?: string;
 }
 
 function actorFrom(req: express.Request): RequestActor {
   const user = req.user as { vendorId?: string; roles?: string[] } | undefined;
+  const requestedVendorId = typeof req.query?.vendorId === 'string' && req.query.vendorId.trim()
+    ? req.query.vendorId.trim()
+    : undefined;
   return {
     vendorId: user?.vendorId,
-    isAdmin: Boolean(user?.roles?.includes('admin'))
+    isAdmin: Boolean(user?.roles?.includes('admin')),
+    expectedVendorId: requestedVendorId
   };
 }
 

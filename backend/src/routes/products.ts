@@ -38,22 +38,60 @@ const ProductCreateSchema = z.object({
   variants: z.array(VariantSchema).optional(),
   imageUrl: z.string().url().optional(),
   isActive: z.boolean().optional().default(true),
-  inStock: z.boolean().optional().default(true)
+  inStock: z.boolean().optional().default(true),
+  vendorId: z.string().optional()
 });
+
+export class TenantIsolationError extends Error {
+  statusCode: number;
+  constructor(statusCode: number, message: string) {
+    super(message);
+    this.name = 'TenantIsolationError';
+    this.statusCode = statusCode;
+  }
+}
+
+/**
+ * Resolves the target vendorId for product and catalog routes.
+ *
+ * Rules (docs/launch/02-catalog-tenant-isolation.md):
+ * - Admin: use req.query.vendorId or req.body.vendorId when it is a non-empty string.
+ *   Ignore req.user.vendorId. If no shop id is provided, respond 400.
+ * - Vendor: use req.user.vendorId only. If a query or body vendorId is present
+ *   and different, respond 403.
+ */
+export function resolveProductVendorId(req: express.Request): string {
+  const user = req.user as { vendorId?: string; roles?: string[] } | undefined;
+  const isAdmin = Boolean(user?.roles?.includes('admin'));
+
+  const requestedVendorId =
+    (typeof req.query?.vendorId === 'string' && req.query.vendorId.trim() ? req.query.vendorId.trim() : undefined) ||
+    (typeof req.body?.vendorId === 'string' && req.body.vendorId.trim() ? req.body.vendorId.trim() : undefined);
+
+  if (isAdmin) {
+    if (requestedVendorId) {
+      return requestedVendorId;
+    }
+    throw new TenantIsolationError(400, 'Vendor ID required');
+  }
+
+  const tokenVendorId = user?.vendorId;
+  if (!tokenVendorId) {
+    throw new TenantIsolationError(403, 'Vendor context required');
+  }
+
+  if (requestedVendorId && requestedVendorId !== tokenVendorId) {
+    throw new TenantIsolationError(403, 'Unauthorized');
+  }
+
+  return tokenVendorId;
+}
 
 // GET /api/products - List products for vendor with filtering and pagination
 // Query parameters: ?category={cat}&isActive={true|false}&search={query}&inStock={true|false}&page={page}&pageSize={size}
 productsRouter.get('/', requireRole('vendor', 'admin'), async (req, res) => {
   try {
-    const vendorId = req.user?.vendorId || req.query.vendorId;
-    if (!vendorId) {
-      return res.status(400).json({ error: 'Vendor ID required' });
-    }
-    
-    // Ensure vendor can only access their own products (unless admin)
-    if (!req.user?.roles?.includes('admin') && req.user?.vendorId !== vendorId) {
-      return res.status(403).json({ error: 'Unauthorized' });
-    }
+    const vendorId = resolveProductVendorId(req);
 
     // Build where clause with filters
     const where: any = { vendorId };
@@ -126,6 +164,9 @@ productsRouter.get('/', requireRole('vendor', 'admin'), async (req, res) => {
       pageSize
     });
   } catch (error) {
+    if (error instanceof TenantIsolationError) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
     logger.error({ error, vendorId: req.user?.vendorId }, 'Failed to fetch products');
     res.status(500).json({ error: 'Failed to fetch products' });
   }
@@ -134,15 +175,7 @@ productsRouter.get('/', requireRole('vendor', 'admin'), async (req, res) => {
 // GET /api/products/categories - Get all unique categories for vendor
 productsRouter.get('/categories', requireRole('vendor', 'admin'), async (req, res) => {
   try {
-    const vendorId = req.user?.vendorId || req.query.vendorId;
-    if (!vendorId) {
-      return res.status(400).json({ error: 'Vendor ID required' });
-    }
-    
-    // Ensure vendor can only access their own categories (unless admin)
-    if (!req.user?.roles?.includes('admin') && req.user?.vendorId !== vendorId) {
-      return res.status(403).json({ error: 'Unauthorized' });
-    }
+    const vendorId = resolveProductVendorId(req);
 
     try {
       // Get all products for this vendor and extract unique categories
@@ -171,6 +204,9 @@ productsRouter.get('/categories', requireRole('vendor', 'admin'), async (req, re
       throw error;
     }
   } catch (error) {
+    if (error instanceof TenantIsolationError) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
     logger.error({ error, vendorId: req.user?.vendorId }, 'Failed to fetch categories');
     res.status(500).json({ error: 'Failed to fetch categories' });
   }
@@ -179,12 +215,12 @@ productsRouter.get('/categories', requireRole('vendor', 'admin'), async (req, re
 // GET /api/products/:id - Get single product
 productsRouter.get('/:id', requireRole('vendor', 'admin'), async (req, res) => {
   try {
-    const vendorId = req.user?.vendorId;
+    const vendorId = resolveProductVendorId(req);
     
     const product = await prisma.product.findFirst({
       where: {
         id: req.params.id,
-        ...(vendorId && !req.user?.roles?.includes('admin') ? { vendorId } : {})
+        vendorId
       }
     });
     
@@ -198,6 +234,9 @@ productsRouter.get('/:id', requireRole('vendor', 'admin'), async (req, res) => {
 
     res.json({ ...product, media });
   } catch (error) {
+    if (error instanceof TenantIsolationError) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
     logger.error({ error, productId: req.params.id }, 'Failed to fetch product');
     res.status(500).json({ error: 'Failed to fetch product' });
   }
@@ -206,10 +245,7 @@ productsRouter.get('/:id', requireRole('vendor', 'admin'), async (req, res) => {
 // POST /api/products - Create product
 productsRouter.post('/', requireRole('vendor', 'admin'), async (req, res) => {
   try {
-    const vendorId = req.user?.vendorId;
-    if (!vendorId) {
-      return res.status(403).json({ error: 'Vendor context required' });
-    }
+    const vendorId = resolveProductVendorId(req);
     
     // Validate input
     const validated = await normalizeProductEnglish(ProductCreateSchema.parse(req.body));
@@ -237,10 +273,12 @@ productsRouter.post('/', requireRole('vendor', 'admin'), async (req, res) => {
       return res.status(409).json({ error: 'Product with this name already exists' });
     }
     
+    const { vendorId: _ignored, ...productData } = validated;
+
     // Create product
     const product = await prisma.product.create({
       data: {
-        ...validated,
+        ...productData,
         vendorId
       }
     });
@@ -251,6 +289,9 @@ productsRouter.post('/', requireRole('vendor', 'admin'), async (req, res) => {
 
     res.status(201).json(product);
   } catch (error) {
+    if (error instanceof TenantIsolationError) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
     if (error instanceof z.ZodError) {
       return res.status(400).json({ 
         error: 'Validation failed', 
@@ -270,16 +311,13 @@ productsRouter.post('/', requireRole('vendor', 'admin'), async (req, res) => {
 // PUT /api/products/:id - Update product
 productsRouter.put('/:id', requireRole('vendor', 'admin'), async (req, res) => {
   try {
-    const vendorId = req.user?.vendorId;
-    if (!vendorId && !req.user?.roles?.includes('admin')) {
-      return res.status(403).json({ error: 'Vendor context required' });
-    }
+    const vendorId = resolveProductVendorId(req);
 
     // Check if product exists and user has access
     const existing = await prisma.product.findFirst({
       where: {
         id: req.params.id,
-        ...(vendorId && !req.user?.roles?.includes('admin') ? { vendorId } : {})
+        vendorId
       }
     });
     
@@ -316,16 +354,21 @@ productsRouter.put('/:id', requireRole('vendor', 'admin'), async (req, res) => {
       }
     }
     
+    const { vendorId: _ignored, ...productData } = validated;
+
     // Update product
     const product = await prisma.product.update({
       where: { id: req.params.id },
-      data: validated
+      data: productData
     });
 
     await invalidateCompactCatalog(existing.vendorId);
 
     res.json(product);
   } catch (error) {
+    if (error instanceof TenantIsolationError) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
     if (error instanceof z.ZodError) {
       return res.status(400).json({ 
         error: 'Validation failed', 
@@ -345,16 +388,13 @@ productsRouter.put('/:id', requireRole('vendor', 'admin'), async (req, res) => {
 // DELETE /api/products/:id - Delete product (soft delete by setting isActive=false)
 productsRouter.delete('/:id', requireRole('vendor', 'admin'), async (req, res) => {
   try {
-    const vendorId = req.user?.vendorId;
-    if (!vendorId && !req.user?.roles?.includes('admin')) {
-      return res.status(403).json({ error: 'Vendor context required' });
-    }
+    const vendorId = resolveProductVendorId(req);
 
     // Check if product exists and user has access
     const existing = await prisma.product.findFirst({
       where: {
         id: req.params.id,
-        ...(vendorId && !req.user?.roles?.includes('admin') ? { vendorId } : {})
+        vendorId
       }
     });
     
@@ -372,6 +412,9 @@ productsRouter.delete('/:id', requireRole('vendor', 'admin'), async (req, res) =
 
     res.json(product);
   } catch (error) {
+    if (error instanceof TenantIsolationError) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
     logger.error({ error, productId: req.params.id }, 'Failed to delete product');
     res.status(500).json({ error: 'Failed to delete product' });
   }
@@ -380,13 +423,13 @@ productsRouter.delete('/:id', requireRole('vendor', 'admin'), async (req, res) =
 // GET /api/products/:id/stats - Get product statistics
 productsRouter.get('/:id/stats', requireRole('vendor', 'admin'), async (req, res) => {
   try {
-    const vendorId = req.user?.vendorId;
+    const vendorId = resolveProductVendorId(req);
     
     // Check if product exists and user has access
     const product = await prisma.product.findFirst({
       where: {
         id: req.params.id,
-        ...(vendorId && !req.user?.roles?.includes('admin') ? { vendorId } : {})
+        vendorId
       }
     });
     
@@ -462,6 +505,9 @@ productsRouter.get('/:id/stats', requireRole('vendor', 'admin'), async (req, res
       lastOrderedAt: lastOrderedAt?.toISOString() || null
     });
   } catch (error) {
+    if (error instanceof TenantIsolationError) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
     logger.error({ error, productId: req.params.id }, 'Failed to fetch product stats');
     res.status(500).json({ error: 'Failed to fetch product statistics' });
   }
@@ -470,10 +516,7 @@ productsRouter.get('/:id/stats', requireRole('vendor', 'admin'), async (req, res
 // POST /api/products/bulk - Bulk operations
 productsRouter.post('/bulk', requireRole('vendor', 'admin'), async (req, res) => {
   try {
-    const vendorId = req.user?.vendorId;
-    if (!vendorId && !req.user?.roles?.includes('admin')) {
-      return res.status(403).json({ error: 'Vendor context required' });
-    }
+    const vendorId = resolveProductVendorId(req);
 
     const { action, ids } = req.body;
     
@@ -490,18 +533,15 @@ productsRouter.post('/bulk', requireRole('vendor', 'admin'), async (req, res) =>
       return res.status(400).json({ error: 'Maximum 100 products per bulk operation' });
     }
     
-    // Find products that belong to the vendor
-    const where: any = {
-      id: { in: ids }
-    };
+    // Find products that belong to the resolved vendor
+    const products = await prisma.product.findMany({
+      where: {
+        id: { in: ids },
+        vendorId
+      }
+    });
     
-    if (vendorId && !req.user?.roles?.includes('admin')) {
-      where.vendorId = vendorId;
-    }
-    
-    const products = await prisma.product.findMany({ where });
-    
-    if (products.length === 0) {
+    if (products.length === 0 || products.length !== ids.length) {
       return res.status(404).json({ error: 'No products found' });
     }
     
@@ -517,15 +557,13 @@ productsRouter.post('/bulk', requireRole('vendor', 'admin'), async (req, res) =>
     
     const result = await prisma.product.updateMany({
       where: {
-        id: { in: products.map(p => p.id) }
+        id: { in: products.map(p => p.id) },
+        vendorId
       },
       data: updateData
     });
 
-    // Bulk edits can span multiple vendors under an admin caller — invalidate
-    // each affected vendor's compact catalog, not just the caller's own.
-    const affectedVendorIds = [...new Set(products.map(p => p.vendorId))];
-    await Promise.all(affectedVendorIds.map(id => invalidateCompactCatalog(id)));
+    await invalidateCompactCatalog(vendorId);
 
     res.json({
       success: true,
@@ -533,6 +571,9 @@ productsRouter.post('/bulk', requireRole('vendor', 'admin'), async (req, res) =>
       errors: []
     });
   } catch (error) {
+    if (error instanceof TenantIsolationError) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
     logger.error({ error, vendorId: req.user?.vendorId }, 'Failed to perform bulk operation');
     res.status(500).json({ error: 'Failed to perform bulk operation' });
   }

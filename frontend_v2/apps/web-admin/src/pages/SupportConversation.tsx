@@ -79,7 +79,7 @@ export function SupportConversation() {
               Could not record this read. The conversation was not opened.
             </h3>
             <p className="text-xs text-red-700 mt-1 max-w-md mx-auto">
-              {(error as any)?.response?.data?.message ||
+              {(error as unknown as { response?: { data?: { message?: string } } })?.response?.data?.message ||
                 'Audit logging failed or StaffAuditLog schema migration is pending. In accordance with security protocol, conversation content is blocked.'}
             </p>
           </div>
@@ -98,7 +98,7 @@ export function SupportConversation() {
         </Card>
       ) : (
         <Card className="p-6 border border-gray-200/80 shadow-sm bg-gray-50/40">
-          <ul role="list" className="space-y-4">
+          <ul className="space-y-4">
             {data.messages.map((msg) => {
               const isCustomer = msg.senderType === 'customer';
               const isFailed = msg.status === 'failed';
@@ -106,7 +106,6 @@ export function SupportConversation() {
               return (
                 <li
                   key={msg.id}
-                  role="listitem"
                   className={`flex flex-col ${isCustomer ? 'items-start' : 'items-end'}`}
                 >
                   {/* Sender & Timestamp */}

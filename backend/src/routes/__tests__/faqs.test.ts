@@ -74,15 +74,39 @@ beforeEach(() => {
 });
 
 describe('POST /faqs', () => {
-  it('always creates under req.user.vendorId, ignoring any vendorId in the body', async () => {
+  it('returns 403 when a vendor tries to supply someone elses vendorId in the body', async () => {
     const res = await fetch(baseUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ question: 'Do you deliver on Sundays?', answer: 'Yes.', vendorId: 'someone-elses-vendor' })
     });
 
+    expect(res.status).toBe(403);
+    expect(faqCreate).not.toHaveBeenCalled();
+  });
+
+  it('creates under req.user.vendorId for vendor caller without explicit vendorId', async () => {
+    const res = await fetch(baseUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: 'Do you deliver on Sundays?', answer: 'Yes.' })
+    });
+
     expect(res.status).toBe(201);
-    expect(faqCreate).toHaveBeenCalledWith({ data: { question: 'Do you deliver on Sundays?', answer: 'Yes.', isActive: true, vendorId: VENDOR_ID } });
+    expect(faqCreate).toHaveBeenCalledWith({ data: expect.objectContaining({ question: 'Do you deliver on Sundays?', answer: 'Yes.', isActive: true, vendorId: VENDOR_ID }) });
+  });
+
+  it('allows an admin to create an FAQ for target shop-B', async () => {
+    currentUser = { vendorId: 'shop-A', roles: ['admin'] };
+    const res = await fetch(baseUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: 'Do you deliver to Coimbatore?', answer: 'Yes.', vendorId: 'shop-B' })
+    });
+
+    expect(res.status).toBe(201);
+    expect(faqCreate).toHaveBeenCalledWith({ data: expect.objectContaining({ vendorId: 'shop-B' }) });
+    expect(invalidateFaqsMock).toHaveBeenCalledWith('shop-B');
   });
 
   it('returns 400 on a Zod validation failure', async () => {
@@ -188,5 +212,32 @@ describe('DELETE /faqs/:id', () => {
     expect(res.status).toBe(200);
     expect(faqUpdate).toHaveBeenCalledWith({ where: { id: 'faq-1' }, data: { isActive: false } });
     expect(invalidateFaqsMock).toHaveBeenCalledWith(VENDOR_ID);
+  });
+});
+
+describe('GET /faqs tenant isolation', () => {
+  it('admin queries target shop-B with ?vendorId=shop-B', async () => {
+    currentUser = { vendorId: 'shop-A', roles: ['admin'] };
+    faqFindMany.mockResolvedValueOnce([{ id: 'faq-b', vendorId: 'shop-B', question: 'QB?', answer: 'AB' }]);
+
+    const res = await fetch(`${baseUrl}?vendorId=shop-B`);
+    expect(res.status).toBe(200);
+    expect(faqFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ vendorId: 'shop-B' })
+      })
+    );
+  });
+
+  it('admin without vendorId receives 400', async () => {
+    currentUser = { vendorId: 'shop-A', roles: ['admin'] };
+    const res = await fetch(baseUrl);
+    expect(res.status).toBe(400);
+  });
+
+  it('vendor querying different shopId receives 403', async () => {
+    currentUser = { vendorId: 'shop-A', roles: ['vendor'] };
+    const res = await fetch(`${baseUrl}?vendorId=shop-B`);
+    expect(res.status).toBe(403);
   });
 });

@@ -79,7 +79,7 @@ adminReliabilityRouter.get(
       vendorId: msg.conversation.vendorId,
       businessName: msg.conversation.vendor?.businessName ?? 'Unknown Vendor',
       customerPhone: msg.conversation.customer?.phone ?? '—',
-      content: (msg.content || '').slice(0, 120),
+      content: (msg.content || '').slice(0, 80),
       failureReason: msg.failureReason ?? null,
       senderType: msg.senderType,
     }));

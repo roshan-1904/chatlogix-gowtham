@@ -37,10 +37,13 @@ export function formatSourceLabel(source: string): string {
   return SOURCE_LABELS[source] ?? source;
 }
 
-/** Escapes a CSV cell according to RFC 4180 rules. */
+/** Escapes a CSV cell according to RFC 4180 rules, and mitigates CSV formula injection (OWASP). */
 export function escapeCsvCell(val: unknown): string {
   if (val === null || val === undefined) return '';
-  const str = String(val);
+  let str = String(val);
+  if (/^[=+\-@\t\r]/.test(str)) {
+    str = `'${str}`;
+  }
   if (/[",\r\n]/.test(str)) {
     return `"${str.replace(/"/g, '""')}"`;
   }
@@ -203,8 +206,42 @@ export async function fetchPlatformUsageData(fromQuery?: unknown, toQuery?: unkn
   const dateRange = parseUsageDateRange(fromQuery, toQuery);
   const { fromDate, toDate, fromIso, toIso } = dateRange;
 
-  const [creditUsageRows, deductions, recharges, conversationCount] = await Promise.all([
-    prisma.creditUsage.findMany({
+  const fetchCreditUsage = async () => {
+    // Finding 8: Use groupBy aggregate to prevent loading every single row into memory
+    if (typeof (prisma.creditUsage as any)?.groupBy === 'function') {
+      try {
+        const groups = await (prisma.creditUsage as any).groupBy({
+          by: ['vendorId', 'source'],
+          where: {
+            usageDate: {
+              gte: fromDate,
+              lte: toDate
+            }
+          },
+          _sum: { chargedMilli: true },
+          _count: { _all: true }
+        });
+        const vendorIds: string[] = Array.from(new Set(groups.map((g: any) => g.vendorId as string)));
+        const vendors = vendorIds.length > 0
+          ? await prisma.vendor.findMany({
+              where: { id: { in: vendorIds } },
+              select: { id: true, businessName: true }
+            })
+          : [];
+        const vendorMap = new Map(vendors.map(v => [v.id, v.businessName]));
+
+        return groups.map((g: any) => ({
+          vendorId: g.vendorId,
+          source: g.source,
+          chargedMilli: g._sum?.chargedMilli ?? 0,
+          count: g._count?._all ?? 1,
+          vendor: { businessName: vendorMap.get(g.vendorId) ?? 'Unknown Vendor' }
+        }));
+      } catch {
+        // Fallback to findMany if groupBy fails in test or unsupported environment
+      }
+    }
+    return prisma.creditUsage.findMany({
       where: {
         usageDate: {
           gte: fromDate,
@@ -221,7 +258,11 @@ export async function fetchPlatformUsageData(fromQuery?: unknown, toQuery?: unkn
           }
         }
       }
-    }),
+    });
+  };
+
+  const [creditUsageRows, deductions, recharges, conversationCount] = await Promise.all([
+    fetchCreditUsage(),
     prisma.walletTransaction.findMany({
       where: {
         transactionType: 'deduction',
@@ -259,7 +300,7 @@ export async function fetchPlatformUsageData(fromQuery?: unknown, toQuery?: unkn
   ]);
 
   // 1. Totals
-  const totalChargedMilli = creditUsageRows.reduce((sum, r) => sum + r.chargedMilli, 0);
+  const totalChargedMilli = (creditUsageRows as any[]).reduce((sum: number, r: any) => sum + r.chargedMilli, 0);
 
   let openAiCostMilli = 0;
   for (const tx of deductions) {
@@ -291,8 +332,9 @@ export async function fetchPlatformUsageData(fromQuery?: unknown, toQuery?: unkn
   const bySourceMap = new Map<string, { chargedMilli: number; count: number }>();
   for (const row of creditUsageRows) {
     const cur = bySourceMap.get(row.source) ?? { chargedMilli: 0, count: 0 };
+    const rowCount = (row as any).count ?? 1;
     cur.chargedMilli += row.chargedMilli;
-    cur.count += 1;
+    cur.count += rowCount;
     bySourceMap.set(row.source, cur);
   }
 
@@ -327,9 +369,10 @@ export async function fetchPlatformUsageData(fromQuery?: unknown, toQuery?: unkn
       };
       byVendorMap.set(row.vendorId, cur);
     }
+    const rowCount = (row as any).count ?? 1;
     cur.chargedMilli += row.chargedMilli;
-    cur.count += 1;
-    cur.sourceCounts.set(row.source, (cur.sourceCounts.get(row.source) ?? 0) + 1);
+    cur.count += rowCount;
+    cur.sourceCounts.set(row.source, (cur.sourceCounts.get(row.source) ?? 0) + rowCount);
   }
 
   const allVendors = Array.from(byVendorMap.values())

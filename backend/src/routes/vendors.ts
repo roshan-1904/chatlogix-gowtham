@@ -309,7 +309,7 @@ vendorsRouter.post('/:id/recharge-wallet', requireRole('admin'), async (req, res
     }
   });
 
-  void recordStaffAuditLog({
+  const auditRecorded = await recordStaffAuditLog({
     actorId: req.user?.id || 'admin',
     action: 'wallet_credited',
     vendorId,
@@ -321,6 +321,9 @@ vendorsRouter.post('/:id/recharge-wallet', requireRole('admin'), async (req, res
       balanceAfterMilli: credit.balanceAfterMilli
     }
   });
+  if (!auditRecorded) {
+    logger.error({ vendorId, amount, reason }, 'Staff audit log failed closed for wallet credit');
+  }
 
   res.json({ vendorId, walletBalanceMilli: credit.balanceAfterMilli, idempotent: credit.idempotent });
 });
@@ -434,13 +437,16 @@ vendorsRouter.patch('/:id/feature-flags', requireRole('admin'), async (req, res,
       metadata: parsed.data
     });
 
-    void recordStaffAuditLog({
+    const auditRecorded = await recordStaffAuditLog({
       actorId: req.user?.id || 'admin',
       action: 'feature_flag_changed',
       vendorId: req.params.id,
       summary: `Updated feature flags: conversation_turn_audit=${parsed.data.conversation_turn_audit}`,
       metadata: parsed.data
     });
+    if (!auditRecorded) {
+      logger.error({ vendorId: req.params.id, patch: parsed.data }, 'Staff audit log failed closed for feature flag change');
+    }
 
     const body = vendorFeatureFlagsResponseSchema.parse({
       conversation_turn_audit: readConversationTurnAudit(vendor.featureFlags)
@@ -480,13 +486,16 @@ vendorsRouter.patch('/:id/billing-config', requireRole('admin'), async (req, res
       metadata: parsed.data
     });
 
-    void recordStaffAuditLog({
+    const auditRecorded = await recordStaffAuditLog({
       actorId: req.user?.id || 'admin',
       action: 'markup_changed',
       vendorId: req.params.id,
       summary: `Updated billing config for vendor (markup: ${parsed.data.markupPercent ?? 'unchanged'}%)`,
       metadata: parsed.data
     });
+    if (!auditRecorded) {
+      logger.error({ vendorId: req.params.id, patch: parsed.data }, 'Staff audit log failed closed for markup change');
+    }
 
     return res.json(vendor);
   } catch (error: any) {
@@ -878,21 +887,29 @@ vendorsRouter.post('/:id/map-wa-number', requireRole('admin'), async (req, res) 
       'WhatsApp number mapped to vendor (whatsapp_mapped)'
     );
 
+    const previousVendorId = existing && existing.vendorId !== vendorId ? existing.vendorId : null;
+    const prevShopText = previousVendorId ? ` (moved from ${previousVendorId})` : '';
+    const auditSummary = `Mapped WhatsApp phone number ${phoneNumberId} (WABA: ${wabaId})${prevShopText}`;
+    const auditMetadata = { phoneNumberId, wabaId, previousVendorId };
+
     recordInMemoryAuditLog({
       actorId: req.user?.id || 'admin',
       action: 'whatsapp_mapped',
       vendorId,
-      summary: `Mapped WhatsApp phone number ${phoneNumberId} (WABA: ${wabaId})`,
-      metadata: { phoneNumberId, wabaId }
+      summary: auditSummary,
+      metadata: auditMetadata
     });
 
-    void recordStaffAuditLog({
+    const auditRecorded = await recordStaffAuditLog({
       actorId: req.user?.id || 'admin',
       action: 'whatsapp_mapped',
       vendorId,
-      summary: `Mapped WhatsApp phone number ${phoneNumberId} (WABA: ${wabaId})`,
-      metadata: { phoneNumberId, wabaId }
+      summary: auditSummary,
+      metadata: auditMetadata
     });
+    if (!auditRecorded) {
+      logger.error({ vendorId, phoneNumberId, wabaId, previousVendorId }, 'Staff audit log failed closed for WhatsApp mapping');
+    }
 
     res.json(wa);
   } catch (error: any) {

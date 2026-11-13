@@ -41,11 +41,12 @@ export function SupportNewCase() {
         conversationId: conversationId.trim() || undefined,
       }),
     onSuccess: (newCase) => {
-      navigate(`/support/${newCase.id}`);
+      void navigate(`/support/${newCase.id}`);
     },
-    onError: (err: any) => {
+    onError: (err: unknown) => {
+      const errorObj = err as { response?: { data?: { message?: string } }; message?: string };
       const message =
-        err?.response?.data?.message || err?.message || 'Failed to create support case.';
+        errorObj?.response?.data?.message || errorObj?.message || 'Failed to create support case.';
       setFormError(message);
     },
   });
@@ -90,7 +91,7 @@ export function SupportNewCase() {
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Shop Selection */}
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1.5">
+            <label htmlFor="support-vendor-select" className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1.5">
               Shop (Vendor) <span className="text-red-500">*</span>
             </label>
 
@@ -110,6 +111,7 @@ export function SupportNewCase() {
               </div>
             ) : (
               <select
+                id="support-vendor-select"
                 value={selectedVendorId}
                 onChange={(e) => setSelectedVendorId(e.target.value)}
                 disabled={vendorsLoading}
@@ -128,7 +130,7 @@ export function SupportNewCase() {
           {/* Subject Field */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-gray-700">
+              <label htmlFor="support-case-subject" className="text-xs font-bold uppercase tracking-wider text-gray-700">
                 Subject <span className="text-red-500">*</span>
               </label>
               <span
@@ -144,6 +146,7 @@ export function SupportNewCase() {
               </span>
             </div>
             <Input
+              id="support-case-subject"
               type="text"
               placeholder="e.g. Graph 500 on outbound replies or Wallet empty block"
               value={subject}
@@ -158,10 +161,11 @@ export function SupportNewCase() {
 
           {/* Optional Chat ID */}
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1.5">
+            <label htmlFor="support-case-conv-id" className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1.5">
               Conversation ID <span className="text-gray-400 font-normal">(Optional)</span>
             </label>
             <Input
+              id="support-case-conv-id"
               type="text"
               placeholder="UUID of associated customer conversation"
               value={conversationId}
@@ -177,7 +181,9 @@ export function SupportNewCase() {
           <div className="pt-4 border-t border-gray-100 flex items-center justify-end gap-3">
             <Button
               variant="ghost"
-              onClick={() => navigate('/support')}
+              onClick={() => {
+                void navigate('/support');
+              }}
               className="border border-gray-300"
             >
               Cancel

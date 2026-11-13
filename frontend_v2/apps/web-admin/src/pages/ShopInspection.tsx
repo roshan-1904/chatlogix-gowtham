@@ -65,8 +65,9 @@ export function ShopInspection() {
   } = useQuery<ProductItem[]>({
     queryKey: ['inspect-products', vendorId],
     queryFn: async () => {
-      const res = await apiClient.get<any>(`/products?vendorId=${vendorId}`);
-      return Array.isArray(res) ? res : res.products || [];
+      const res = await apiClient.get<ProductItem[] | { products?: ProductItem[] }>(`/products?vendorId=${vendorId}`);
+      if (Array.isArray(res)) return res;
+      return res.products ?? [];
     },
     enabled: Boolean(vendorId) && activeTab === 'catalog',
   });
@@ -79,8 +80,9 @@ export function ShopInspection() {
   } = useQuery<OrderItem[]>({
     queryKey: ['inspect-orders', vendorId],
     queryFn: async () => {
-      const res = await apiClient.get<any>(`/orders?vendorId=${vendorId}`);
-      return Array.isArray(res) ? res : res.orders || [];
+      const res = await apiClient.get<OrderItem[] | { orders?: OrderItem[] }>(`/orders?vendorId=${vendorId}`);
+      if (Array.isArray(res)) return res;
+      return res.orders ?? [];
     },
     enabled: Boolean(vendorId) && activeTab === 'orders',
   });
@@ -93,8 +95,11 @@ export function ShopInspection() {
   } = useQuery<CustomerQueryItem[]>({
     queryKey: ['inspect-queries', vendorId],
     queryFn: async () => {
-      const res = await apiClient.get<any>(`/customer-queries?vendorId=${vendorId}&status=open`);
-      return Array.isArray(res) ? res : res.queries || res.items || [];
+      const res = await apiClient.get<CustomerQueryItem[] | { queries?: CustomerQueryItem[]; items?: CustomerQueryItem[] }>(
+        `/customer-queries?vendorId=${vendorId}&status=open`
+      );
+      if (Array.isArray(res)) return res;
+      return res.queries ?? res.items ?? [];
     },
     enabled: Boolean(vendorId) && activeTab === 'queries',
   });

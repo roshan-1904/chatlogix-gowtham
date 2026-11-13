@@ -4,6 +4,7 @@ import {
   checkAuditTableExists,
   type StaffAuditLogEntry,
 } from './adminSupportService.js';
+import { LOW_BALANCE_THRESHOLD_MILLI } from './dashboardStatsService.js';
 
 export interface ComputedAlert {
   id: string;
@@ -27,7 +28,7 @@ export interface TrialClockRow {
   caption: string;
 }
 
-// In-memory audit log store (used for test harnesses or when table is not yet migrated)
+// In-memory audit log store (fallback for test harnesses when table is mocked)
 const inMemoryAuditLogs: StaffAuditLogEntry[] = [];
 
 export function clearInMemoryAuditStoreForTest(): void {
@@ -49,7 +50,7 @@ export function recordInMemoryAuditLog(entry: Omit<StaffAuditLogEntry, 'id' | 'c
 }
 
 /**
- * Evaluates platform-level and shop-level alert rules in memory.
+ * Evaluates platform-level and shop-level alert rules.
  * Completely non-destructive: does not write to the database.
  */
 export async function evaluateComputedAlerts(): Promise<ComputedAlert[]> {
@@ -58,10 +59,10 @@ export async function evaluateComputedAlerts(): Promise<ComputedAlert[]> {
   const alerts: ComputedAlert[] = [];
 
   try {
-    // 1. Low Wallet Alert: walletBalanceMilli < 20000 (₹20.00)
+    // 1. Low Wallet Alert: walletBalanceMilli < LOW_BALANCE_THRESHOLD_MILLI (₹20.00)
     const lowWalletVendors = await prisma.vendor.findMany({
       where: {
-        walletBalanceMilli: { lt: 20000 },
+        walletBalanceMilli: { lt: LOW_BALANCE_THRESHOLD_MILLI },
       },
       select: {
         id: true,
@@ -80,7 +81,7 @@ export async function evaluateComputedAlerts(): Promise<ComputedAlert[]> {
         vendorId: v.id,
         businessName: v.businessName,
         summary: `Balance is ₹${balanceRupees} (evaluated now)`,
-        targetLink: `/vendors`,
+        targetLink: `/vendors/${v.id}`,
         evaluatedAt: nowIso,
       });
     }
@@ -101,7 +102,7 @@ export async function evaluateComputedAlerts(): Promise<ComputedAlert[]> {
           },
         },
       },
-      take: 500,
+      orderBy: { timestamp: 'desc' },
     });
 
     const failedCountsByVendor = new Map<string, { vendorId: string; businessName: string; count: number }>();
@@ -126,7 +127,7 @@ export async function evaluateComputedAlerts(): Promise<ComputedAlert[]> {
           vendorId: item.vendorId,
           businessName: item.businessName,
           summary: `${item.count} failed outbound replies in last 24h`,
-          targetLink: `/reliability?vendorId=${item.vendorId}`,
+          targetLink: `/reliability?queue=failed&vendorId=${item.vendorId}`,
           evaluatedAt: nowIso,
         });
       }
@@ -153,7 +154,7 @@ export async function evaluateComputedAlerts(): Promise<ComputedAlert[]> {
         vendorId: wa.vendorId,
         businessName: wa.vendor?.businessName ?? 'Unknown Vendor',
         summary: `WhatsApp connection status is ${wa.connectStatus}`,
-        targetLink: `/vendors`,
+        targetLink: `/vendors/${wa.vendorId}`,
         evaluatedAt: nowIso,
       });
     }
@@ -178,37 +179,35 @@ export async function evaluateComputedAlerts(): Promise<ComputedAlert[]> {
     }
   } catch (err) {
     logger.error({ err }, 'Error evaluating computed alerts');
+    throw err;
   }
 
   return alerts;
 }
 
 /**
- * Retrieves and formats trial clocks based on filter ('next7' | 'past' | 'all')
+ * Lists shops with active trial clocks for the controls banner.
  */
-export async function getTrialClocks(filter: 'next7' | 'past' | 'all' = 'next7'): Promise<TrialClockRow[]> {
+export async function listTrialClocks(
+  filter: 'next7' | 'past' | 'all' = 'next7'
+): Promise<TrialClockRow[]> {
   const now = new Date();
-  const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const next7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-  let whereClause: any = { trialExpiresAt: { not: null } };
+  const where: any = {
+    trialExpiresAt: {
+      not: null,
+    },
+  };
 
-  if (filter === 'next7') {
-    whereClause = {
-      trialExpiresAt: {
-        gte: now,
-        lte: sevenDaysFromNow,
-      },
-    };
-  } else if (filter === 'past') {
-    whereClause = {
-      trialExpiresAt: {
-        lt: now,
-      },
-    };
+  if (filter === 'past') {
+    where.trialExpiresAt = { lt: now };
+  } else if (filter === 'next7') {
+    where.trialExpiresAt = { gte: now, lte: next7Days };
   }
 
   const vendors = await prisma.vendor.findMany({
-    where: whereClause,
+    where,
     select: {
       id: true,
       businessName: true,
@@ -249,8 +248,11 @@ export async function getTrialClocks(filter: 'next7' | 'past' | 'all' = 'next7')
   });
 }
 
+export const getTrialClocks = listTrialClocks;
+
 /**
- * Fetches staff audit logs with filters and search
+ * Fetches staff audit logs with filters and search.
+ * Backed by StaffAuditLog table in postgres (Decision 3).
  */
 export async function listAuditLogs(params: {
   vendorId?: string;
@@ -271,7 +273,31 @@ export async function listAuditLogs(params: {
   const page = Math.max(params.page || 1, 1);
   const tableExists = await checkAuditTableExists();
 
-  if (!tableExists && inMemoryAuditLogs.length === 0) {
+  if (!tableExists) {
+    if (inMemoryAuditLogs.length > 0) {
+      let logs = [...inMemoryAuditLogs];
+      if (params.action && params.action !== 'all') {
+        logs = logs.filter((l) => l.action === params.action);
+      }
+      if (params.vendorId) {
+        logs = logs.filter((l) => l.vendorId === params.vendorId);
+      }
+      if (params.search) {
+        const q = params.search.toLowerCase();
+        logs = logs.filter(
+          (l) => l.summary.toLowerCase().includes(q) || l.actorId.toLowerCase().includes(q)
+        );
+      }
+      logs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      const startIndex = (page - 1) * limit;
+      return {
+        supported: true,
+        items: logs.slice(startIndex, startIndex + limit),
+        count: logs.length,
+        page,
+        limit,
+      };
+    }
     return {
       supported: false,
       status: 'pending_migration',
@@ -283,32 +309,45 @@ export async function listAuditLogs(params: {
     };
   }
 
-  let logs = [...inMemoryAuditLogs];
-
+  const where: any = {};
   if (params.action && params.action !== 'all') {
-    logs = logs.filter((l) => l.action === params.action);
+    where.action = params.action;
   }
-
   if (params.vendorId) {
-    logs = logs.filter((l) => l.vendorId === params.vendorId);
+    where.vendorId = params.vendorId;
+  }
+  if (params.search && params.search.trim()) {
+    const q = params.search.trim();
+    where.OR = [
+      { summary: { contains: q, mode: 'insensitive' } },
+      { actorId: { contains: q, mode: 'insensitive' } },
+    ];
   }
 
-  if (params.search) {
-    const q = params.search.toLowerCase();
-    logs = logs.filter(
-      (l) => l.summary.toLowerCase().includes(q) || l.actorId.toLowerCase().includes(q)
-    );
-  }
+  const [count, rows] = await Promise.all([
+    (prisma as any).staffAuditLog.count({ where }),
+    (prisma as any).staffAuditLog.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+  ]);
 
-  logs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-  const startIndex = (page - 1) * limit;
-  const items = logs.slice(startIndex, startIndex + limit);
+  const items: StaffAuditLogEntry[] = rows.map((r: any) => ({
+    id: r.id,
+    actorId: r.actorId,
+    action: r.action,
+    vendorId: r.vendorId,
+    summary: r.summary,
+    metadata: (r.metadata as Record<string, unknown>) ?? {},
+    createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : new Date(r.createdAt).toISOString(),
+  }));
 
   return {
     supported: true,
     items,
-    count: logs.length,
+    count,
     page,
     limit,
   };

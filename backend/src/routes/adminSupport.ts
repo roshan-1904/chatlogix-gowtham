@@ -13,20 +13,6 @@ import {
 
 export const adminSupportRouter = Router();
 
-// Test-friendly in-memory case store (used when table does not exist or in test harness)
-const inMemoryCases = new Map<string, StaffCase>();
-const inMemoryNotes = new Map<string, StaffCaseNote[]>();
-
-export function clearInMemorySupportStoreForTest(): void {
-  inMemoryCases.clear();
-  inMemoryNotes.clear();
-}
-
-export function seedInMemoryCaseForTest(c: StaffCase, notes: StaffCaseNote[] = []): void {
-  inMemoryCases.set(c.id, c);
-  inMemoryNotes.set(c.id, [...notes]);
-}
-
 /**
  * GET /api/admin/support/cases
  * Query parameters: status ('open' | 'waiting' | 'resolved' | 'all'), search, limit, page
@@ -41,7 +27,7 @@ adminSupportRouter.get(
 
     const tableExists = await checkCaseTableExists();
 
-    if (!tableExists && inMemoryCases.size === 0) {
+    if (!tableExists) {
       return res.json({
         supported: false,
         status: 'pending_migration',
@@ -53,30 +39,50 @@ adminSupportRouter.get(
       });
     }
 
-    // Filter in-memory or database cases
-    let allCases = Array.from(inMemoryCases.values());
-
-    if (statusParam !== 'all') {
-      allCases = allCases.filter((c) => c.status === statusParam);
+    const where: any = {};
+    if (statusParam !== 'all' && ['open', 'waiting', 'resolved'].includes(statusParam)) {
+      where.status = statusParam;
     }
-
     if (searchParam) {
-      allCases = allCases.filter(
-        (c) =>
-          c.subject.toLowerCase().includes(searchParam) ||
-          c.vendor?.businessName?.toLowerCase().includes(searchParam)
-      );
+      where.OR = [
+        { subject: { contains: searchParam, mode: 'insensitive' } },
+        { vendor: { businessName: { contains: searchParam, mode: 'insensitive' } } },
+      ];
     }
 
-    allCases.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-
-    const startIndex = (page - 1) * limit;
-    const items = allCases.slice(startIndex, startIndex + limit);
+    const [totalCount, dbCases] = await Promise.all([
+      (prisma as any).staffCase.count({ where }),
+      (prisma as any).staffCase.findMany({
+        where,
+        include: {
+          vendor: { select: { id: true, businessName: true } },
+        },
+        orderBy: { updatedAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
 
     return res.json({
       supported: true,
-      items,
-      count: allCases.length,
+      items: dbCases.map((c: any) => ({
+        id: c.id,
+        vendorId: c.vendorId,
+        subject: c.subject,
+        status: c.status,
+        conversationId: c.conversationId,
+        openedBy: c.openedBy,
+        resolvedAt: c.resolvedAt ? c.resolvedAt.toISOString() : null,
+        createdAt: c.createdAt.toISOString(),
+        updatedAt: c.updatedAt.toISOString(),
+        vendor: c.vendor
+          ? {
+              id: c.vendor.id,
+              businessName: c.vendor.businessName,
+            }
+          : undefined,
+      })),
+      count: totalCount,
       page,
       limit,
     });
@@ -139,41 +145,54 @@ adminSupportRouter.post(
     const actorId = (req.user as any)?.id || (req.user as any)?.uid || 'admin';
 
     // In production without schema migration: fail closed / report pending migration
-    if (!tableExists && process.env.NODE_ENV !== 'test') {
+    if (!tableExists) {
       return res.status(503).json({
         error: 'pending_migration',
         message: 'StaffCase persistence requires schema migration approval (Decision 3).',
       });
     }
 
-    const caseId = (globalThis as any).crypto?.randomUUID?.() || `case-${Date.now()}`;
-    const nowIso = new Date().toISOString();
+    const dbCase = await (prisma as any).staffCase.create({
+      data: {
+        vendorId,
+        subject: trimmedSubject,
+        status: 'open',
+        conversationId: conversationId?.trim() || null,
+        openedBy: actorId,
+      },
+      include: {
+        vendor: { select: { id: true, businessName: true } },
+      },
+    });
 
     const newCase: StaffCase = {
-      id: caseId,
-      vendorId,
-      subject: trimmedSubject,
-      status: 'open',
-      conversationId: conversationId?.trim() || null,
-      openedBy: actorId,
-      createdAt: nowIso,
-      updatedAt: nowIso,
-      vendor: {
-        id: vendor.id,
-        businessName: vendor.businessName,
-      },
+      id: dbCase.id,
+      vendorId: dbCase.vendorId,
+      subject: dbCase.subject,
+      status: dbCase.status,
+      conversationId: dbCase.conversationId,
+      openedBy: dbCase.openedBy,
+      resolvedAt: dbCase.resolvedAt ? dbCase.resolvedAt.toISOString() : null,
+      createdAt: dbCase.createdAt.toISOString(),
+      updatedAt: dbCase.updatedAt.toISOString(),
+      vendor: dbCase.vendor
+        ? {
+            id: dbCase.vendor.id,
+            businessName: dbCase.vendor.businessName,
+          }
+        : {
+            id: vendor.id,
+            businessName: vendor.businessName,
+          },
     };
 
-    inMemoryCases.set(caseId, newCase);
-    inMemoryNotes.set(caseId, []);
-
-    // Record audit entry
-    void recordStaffAuditLog({
+    // Record audit entry (awaited as per Finding 3)
+    await recordStaffAuditLog({
       actorId,
       action: 'case_opened',
       vendorId,
       summary: `Case opened for ${vendor.businessName}: ${trimmedSubject}`,
-      metadata: { caseId, conversationId: conversationId?.trim() || null },
+      metadata: { caseId: dbCase.id, conversationId: conversationId?.trim() || null },
     });
 
     return res.status(201).json(newCase);
@@ -187,7 +206,24 @@ adminSupportRouter.get(
   '/cases/:id',
   asyncHandler(async (req: Request, res: Response) => {
     const caseId = req.params.id;
-    const foundCase = inMemoryCases.get(caseId);
+    const tableExists = await checkCaseTableExists();
+
+    if (!tableExists) {
+      return res.status(503).json({
+        error: 'pending_migration',
+        message: 'StaffCase persistence requires schema migration approval (Decision 3).',
+      });
+    }
+
+    const foundCase = await (prisma as any).staffCase.findUnique({
+      where: { id: caseId },
+      include: {
+        vendor: { select: { id: true, businessName: true } },
+        notes: {
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
 
     if (!foundCase) {
       return res.status(404).json({
@@ -196,11 +232,29 @@ adminSupportRouter.get(
       });
     }
 
-    const notes = inMemoryNotes.get(caseId) || [];
-
     return res.json({
-      ...foundCase,
-      notes,
+      id: foundCase.id,
+      vendorId: foundCase.vendorId,
+      subject: foundCase.subject,
+      status: foundCase.status,
+      conversationId: foundCase.conversationId,
+      openedBy: foundCase.openedBy,
+      resolvedAt: foundCase.resolvedAt ? foundCase.resolvedAt.toISOString() : null,
+      createdAt: foundCase.createdAt.toISOString(),
+      updatedAt: foundCase.updatedAt.toISOString(),
+      vendor: foundCase.vendor
+        ? {
+            id: foundCase.vendor.id,
+            businessName: foundCase.vendor.businessName,
+          }
+        : undefined,
+      notes: (foundCase.notes || []).map((n: any) => ({
+        id: n.id,
+        caseId: n.caseId,
+        authorId: n.authorId,
+        body: n.body,
+        createdAt: n.createdAt.toISOString(),
+      })),
     });
   })
 );
@@ -215,7 +269,18 @@ adminSupportRouter.patch(
     const caseId = req.params.id;
     const { status: targetStatus } = req.body ?? {};
 
-    const foundCase = inMemoryCases.get(caseId);
+    const tableExists = await checkCaseTableExists();
+    if (!tableExists) {
+      return res.status(503).json({
+        error: 'pending_migration',
+        message: 'StaffCase persistence requires schema migration approval (Decision 3).',
+      });
+    }
+
+    const foundCase = await (prisma as any).staffCase.findUnique({
+      where: { id: caseId },
+    });
+
     if (!foundCase) {
       return res.status(404).json({
         error: 'case_not_found',
@@ -234,36 +299,66 @@ adminSupportRouter.patch(
     }
 
     const actorId = (req.user as any)?.id || (req.user as any)?.uid || 'admin';
-    const nowIso = new Date().toISOString();
+    const systemNoteBody = `Status set to ${newStatus} by ${actorId}.`;
 
-    foundCase.status = newStatus;
-    foundCase.updatedAt = nowIso;
-    inMemoryCases.set(caseId, foundCase);
+    // Note constraint: resolvedAt must be set if resolved, cleared if reopened
+    const resolvedAt = newStatus === 'resolved' ? new Date() : null;
 
-    // Append system note
-    const systemNote: StaffCaseNote = {
-      id: (globalThis as any).crypto?.randomUUID?.() || `note-${Date.now()}`,
-      caseId,
-      authorId: 'system',
-      body: `Status set to ${newStatus} by ${actorId}.`,
-      createdAt: nowIso,
-    };
-    const notes = inMemoryNotes.get(caseId) || [];
-    notes.push(systemNote);
-    inMemoryNotes.set(caseId, notes);
+    const [updatedDbCase] = await (prisma as any).$transaction([
+      (prisma as any).staffCase.update({
+        where: { id: caseId },
+        data: {
+          status: newStatus,
+          resolvedAt,
+        },
+        include: { vendor: { select: { id: true, businessName: true } } },
+      }),
+      (prisma as any).staffCaseNote.create({
+        data: {
+          caseId,
+          authorId: 'system',
+          body: systemNoteBody,
+        },
+      }),
+    ]);
 
-    // Record audit
-    void recordStaffAuditLog({
+    const allNotes = await (prisma as any).staffCaseNote.findMany({
+      where: { caseId },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    // Record audit (awaited as per Finding 3)
+    await recordStaffAuditLog({
       actorId,
       action: 'case_status_changed',
-      vendorId: foundCase.vendorId,
+      vendorId: updatedDbCase.vendorId,
       summary: `Case ${caseId} status changed from ${currentStatus} to ${newStatus}`,
       metadata: { caseId, from: currentStatus, to: newStatus },
     });
 
     return res.json({
-      ...foundCase,
-      notes,
+      id: updatedDbCase.id,
+      vendorId: updatedDbCase.vendorId,
+      subject: updatedDbCase.subject,
+      status: updatedDbCase.status,
+      conversationId: updatedDbCase.conversationId,
+      openedBy: updatedDbCase.openedBy,
+      resolvedAt: updatedDbCase.resolvedAt ? updatedDbCase.resolvedAt.toISOString() : null,
+      createdAt: updatedDbCase.createdAt.toISOString(),
+      updatedAt: updatedDbCase.updatedAt.toISOString(),
+      vendor: updatedDbCase.vendor
+        ? {
+            id: updatedDbCase.vendor.id,
+            businessName: updatedDbCase.vendor.businessName,
+          }
+        : undefined,
+      notes: allNotes.map((n: any) => ({
+        id: n.id,
+        caseId: n.caseId,
+        authorId: n.authorId,
+        body: n.body,
+        createdAt: n.createdAt.toISOString(),
+      })),
     });
   })
 );
@@ -278,7 +373,18 @@ adminSupportRouter.post(
     const caseId = req.params.id;
     const { body } = req.body ?? {};
 
-    const foundCase = inMemoryCases.get(caseId);
+    const tableExists = await checkCaseTableExists();
+    if (!tableExists) {
+      return res.status(503).json({
+        error: 'pending_migration',
+        message: 'StaffCase persistence requires schema migration approval (Decision 3).',
+      });
+    }
+
+    const foundCase = await (prisma as any).staffCase.findUnique({
+      where: { id: caseId },
+    });
+
     if (!foundCase) {
       return res.status(404).json({
         error: 'case_not_found',
@@ -295,24 +401,28 @@ adminSupportRouter.post(
     }
 
     const actorId = (req.user as any)?.id || (req.user as any)?.uid || 'admin';
-    const nowIso = new Date().toISOString();
 
-    const newNote: StaffCaseNote = {
-      id: (globalThis as any).crypto?.randomUUID?.() || `note-${Date.now()}`,
-      caseId,
-      authorId: actorId,
-      body: trimmedBody,
-      createdAt: nowIso,
-    };
+    const [newNote] = await (prisma as any).$transaction([
+      (prisma as any).staffCaseNote.create({
+        data: {
+          caseId,
+          authorId: actorId,
+          body: trimmedBody,
+        },
+      }),
+      (prisma as any).staffCase.update({
+        where: { id: caseId },
+        data: { updatedAt: new Date() },
+      }),
+    ]);
 
-    const notes = inMemoryNotes.get(caseId) || [];
-    notes.push(newNote);
-    inMemoryNotes.set(caseId, notes);
-
-    foundCase.updatedAt = nowIso;
-    inMemoryCases.set(caseId, foundCase);
-
-    return res.status(201).json(newNote);
+    return res.status(201).json({
+      id: newNote.id,
+      caseId: newNote.caseId,
+      authorId: newNote.authorId,
+      body: newNote.body,
+      createdAt: newNote.createdAt.toISOString(),
+    });
   })
 );
 
@@ -361,9 +471,10 @@ adminSupportRouter.get(
     }
 
     // 3. Load messages only after successful audit record
+    // Finding 10: Take newest 200 messages (desc) and reverse to display oldest to newest
     const rawMessages = await prisma.message.findMany({
       where: { conversationId },
-      orderBy: { timestamp: 'asc' },
+      orderBy: { timestamp: 'desc' },
       take: 200,
       select: {
         id: true,
@@ -374,6 +485,8 @@ adminSupportRouter.get(
         status: true,
       },
     });
+
+    rawMessages.reverse();
 
     return res.json({
       conversationId,

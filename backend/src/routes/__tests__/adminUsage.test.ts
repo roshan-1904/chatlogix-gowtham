@@ -603,6 +603,14 @@ describe('Admin Usage API', () => {
         expect(escapeCsvCell('Line 1\nLine 2')).toBe('"Line 1\nLine 2"');
         expect(escapeCsvCell('Line 1\r\nLine 2')).toBe('"Line 1\r\nLine 2"');
       });
+
+      it('prefixes cells starting with formula trigger characters with a single quote', () => {
+        expect(escapeCsvCell('=HYPERLINK("http://evil.com","Refund")')).toBe('"\'=HYPERLINK(""http://evil.com"",""Refund"")"');
+        expect(escapeCsvCell('+12345')).toBe('\'+12345');
+        expect(escapeCsvCell('-50')).toBe('\'-50');
+        expect(escapeCsvCell('@SUM(1)')).toBe('\'@SUM(1)');
+        expect(escapeCsvCell('@SUM(1,2)')).toBe('"\'@SUM(1,2)"');
+      });
     });
 
     describe('formatUsageCsv', () => {

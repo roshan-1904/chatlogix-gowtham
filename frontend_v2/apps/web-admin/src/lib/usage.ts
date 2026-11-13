@@ -149,10 +149,13 @@ export function getThisMonthPreset(): { from: string; to: string } {
   return { from, to: todayIst };
 }
 
-/** Escapes a CSV cell according to RFC 4180 rules. */
+/** Escapes a CSV cell according to RFC 4180 rules, and mitigates CSV formula injection (OWASP). */
 export function escapeCsvCell(val: unknown): string {
   if (val === null || val === undefined) return '';
-  const str = String(val);
+  let str = String(val);
+  if (/^[=+\-@\t\r]/.test(str)) {
+    str = `'${str}`;
+  }
   if (/[",\r\n]/.test(str)) {
     return `"${str.replace(/"/g, '""')}"`;
   }

@@ -6,13 +6,15 @@ import { z } from 'zod';
 import { invalidateFaqs } from '../conversation/prefetch.js';
 import { embedText, toVectorLiteral, FAQ_EMBEDDING_MODEL } from '../conversation/faq/embedding.js';
 import { normalizeFaqEnglish } from '../utils/englishStorage.js';
+import { resolveProductVendorId, TenantIsolationError } from './products.js';
 
 export const faqsRouter = express.Router();
 
 const FaqCreateSchema = z.object({
   question: z.string().min(1).max(300),
   answer: z.string().min(1).max(1500),
-  isActive: z.boolean().optional().default(true)
+  isActive: z.boolean().optional().default(true),
+  vendorId: z.string().optional()
 });
 
 /**
@@ -38,10 +40,7 @@ async function embedAndStore(faqId: string, question: string): Promise<boolean> 
 // GET /api/faqs - List FAQs for vendor
 faqsRouter.get('/', requireRole('vendor', 'admin'), async (req, res) => {
   try {
-    const vendorId = req.user?.vendorId;
-    if (!vendorId) {
-      return res.status(403).json({ error: 'Vendor context required' });
-    }
+    const vendorId = resolveProductVendorId(req);
 
     const where: any = { vendorId };
     if (req.query.isActive !== undefined) {
@@ -51,6 +50,9 @@ faqsRouter.get('/', requireRole('vendor', 'admin'), async (req, res) => {
     const faqs = await prisma.faq.findMany({ where, orderBy: { createdAt: 'desc' } });
     res.json({ faqs });
   } catch (error) {
+    if (error instanceof TenantIsolationError) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
     logger.error({ error, vendorId: req.user?.vendorId }, 'Failed to fetch FAQs');
     res.status(500).json({ error: 'Failed to fetch FAQs' });
   }
@@ -59,12 +61,12 @@ faqsRouter.get('/', requireRole('vendor', 'admin'), async (req, res) => {
 // GET /api/faqs/:id - Get single FAQ
 faqsRouter.get('/:id', requireRole('vendor', 'admin'), async (req, res) => {
   try {
-    const vendorId = req.user?.vendorId;
+    const vendorId = resolveProductVendorId(req);
 
     const faq = await prisma.faq.findFirst({
       where: {
         id: req.params.id,
-        ...(vendorId && !req.user?.roles?.includes('admin') ? { vendorId } : {})
+        vendorId
       }
     });
 
@@ -74,6 +76,9 @@ faqsRouter.get('/:id', requireRole('vendor', 'admin'), async (req, res) => {
 
     res.json(faq);
   } catch (error) {
+    if (error instanceof TenantIsolationError) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
     logger.error({ error, faqId: req.params.id }, 'Failed to fetch FAQ');
     res.status(500).json({ error: 'Failed to fetch FAQ' });
   }
@@ -82,16 +87,15 @@ faqsRouter.get('/:id', requireRole('vendor', 'admin'), async (req, res) => {
 // POST /api/faqs - Create FAQ
 faqsRouter.post('/', requireRole('vendor', 'admin'), async (req, res) => {
   try {
-    const vendorId = req.user?.vendorId;
-    if (!vendorId) {
-      return res.status(403).json({ error: 'Vendor context required' });
-    }
+    const vendorId = resolveProductVendorId(req);
 
     const validated = FaqCreateSchema.parse(req.body);
     const english = await normalizeFaqEnglish(validated);
 
+    const { vendorId: _ignored, ...faqData } = validated;
+
     const faq = await prisma.faq.create({
-      data: { ...validated, ...english, vendorId }
+      data: { ...faqData, ...english, vendorId }
     });
 
     const embedded = await embedAndStore(faq.id, english.question ?? validated.question);
@@ -102,6 +106,9 @@ faqsRouter.post('/', requireRole('vendor', 'admin'), async (req, res) => {
 
     res.status(201).json({ ...faq, embeddingPending: !embedded });
   } catch (error) {
+    if (error instanceof TenantIsolationError) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Validation failed', details: error.errors });
     }
@@ -114,15 +121,12 @@ faqsRouter.post('/', requireRole('vendor', 'admin'), async (req, res) => {
 // PUT /api/faqs/:id - Update FAQ
 faqsRouter.put('/:id', requireRole('vendor', 'admin'), async (req, res) => {
   try {
-    const vendorId = req.user?.vendorId;
-    if (!vendorId && !req.user?.roles?.includes('admin')) {
-      return res.status(403).json({ error: 'Vendor context required' });
-    }
+    const vendorId = resolveProductVendorId(req);
 
     const existing = await prisma.faq.findFirst({
       where: {
         id: req.params.id,
-        ...(vendorId && !req.user?.roles?.includes('admin') ? { vendorId } : {})
+        vendorId
       }
     });
 
@@ -133,9 +137,11 @@ faqsRouter.put('/:id', requireRole('vendor', 'admin'), async (req, res) => {
     const validated = FaqCreateSchema.partial().parse(req.body);
     const english = await normalizeFaqEnglish(validated);
 
+    const { vendorId: _ignored, ...faqData } = validated;
+
     const faq = await prisma.faq.update({
       where: { id: req.params.id },
-      data: { ...validated, ...english }
+      data: { ...faqData, ...english }
     });
 
     // Re-embed only on a question change — matching is question-to-question,
@@ -146,6 +152,9 @@ faqsRouter.put('/:id', requireRole('vendor', 'admin'), async (req, res) => {
 
     res.json({ ...faq, embeddingPending: !embedded });
   } catch (error) {
+    if (error instanceof TenantIsolationError) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: 'Validation failed', details: error.errors });
     }
@@ -158,15 +167,12 @@ faqsRouter.put('/:id', requireRole('vendor', 'admin'), async (req, res) => {
 // DELETE /api/faqs/:id - Delete FAQ (soft delete by setting isActive=false)
 faqsRouter.delete('/:id', requireRole('vendor', 'admin'), async (req, res) => {
   try {
-    const vendorId = req.user?.vendorId;
-    if (!vendorId && !req.user?.roles?.includes('admin')) {
-      return res.status(403).json({ error: 'Vendor context required' });
-    }
+    const vendorId = resolveProductVendorId(req);
 
     const existing = await prisma.faq.findFirst({
       where: {
         id: req.params.id,
-        ...(vendorId && !req.user?.roles?.includes('admin') ? { vendorId } : {})
+        vendorId
       }
     });
 
@@ -183,6 +189,9 @@ faqsRouter.delete('/:id', requireRole('vendor', 'admin'), async (req, res) => {
 
     res.json(faq);
   } catch (error) {
+    if (error instanceof TenantIsolationError) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
     logger.error({ error, faqId: req.params.id }, 'Failed to delete FAQ');
     res.status(500).json({ error: 'Failed to delete FAQ' });
   }

@@ -6,12 +6,14 @@ import {
   getComputedAlerts,
   getTrialClocks,
 } from '../controls';
-import { apiClient } from '../api';
+
+const mockGet = vi.fn<(...args: unknown[]) => Promise<unknown>>();
+const mockPost = vi.fn<(...args: unknown[]) => Promise<unknown>>();
 
 vi.mock('../api', () => ({
   apiClient: {
-    get: vi.fn(),
-    post: vi.fn(),
+    get: (...args: unknown[]) => mockGet(...args),
+    post: (...args: unknown[]) => mockPost(...args),
   },
 }));
 
@@ -58,7 +60,7 @@ describe('Controls module helpers and API client', () => {
 
   describe('API functions', () => {
     it('listAuditLogs calls /admin/audit with query parameters', async () => {
-      (apiClient.get as any).mockResolvedValueOnce({
+      mockGet.mockResolvedValueOnce({
         supported: true,
         items: [],
         count: 0,
@@ -71,13 +73,13 @@ describe('Controls module helpers and API client', () => {
         page: 2,
       });
 
-      expect(apiClient.get).toHaveBeenCalledWith(
+      expect(mockGet).toHaveBeenCalledWith(
         '/admin/audit?action=markup_changed&search=annapoorna&limit=25&page=2'
       );
     });
 
     it('recordStaffAudit posts to /admin/audit/record', async () => {
-      (apiClient.post as any).mockResolvedValueOnce({ recorded: true });
+      mockPost.mockResolvedValueOnce({ recorded: true });
 
       const res = await recordStaffAudit(
         'shop_viewed',
@@ -87,7 +89,7 @@ describe('Controls module helpers and API client', () => {
       );
 
       expect(res.recorded).toBe(true);
-      expect(apiClient.post).toHaveBeenCalledWith('/admin/audit/record', {
+      expect(mockPost).toHaveBeenCalledWith('/admin/audit/record', {
         action: 'shop_viewed',
         vendorId: 'v-1',
         summary: 'Staff viewed catalog',
@@ -96,17 +98,17 @@ describe('Controls module helpers and API client', () => {
     });
 
     it('getComputedAlerts calls /admin/alerts/computed', async () => {
-      (apiClient.get as any).mockResolvedValueOnce({ alerts: [], count: 0 });
+      mockGet.mockResolvedValueOnce({ alerts: [], count: 0 });
 
       await getComputedAlerts();
-      expect(apiClient.get).toHaveBeenCalledWith('/admin/alerts/computed');
+      expect(mockGet).toHaveBeenCalledWith('/admin/alerts/computed');
     });
 
     it('getTrialClocks calls /admin/trials with filter parameter', async () => {
-      (apiClient.get as any).mockResolvedValueOnce({ filter: 'past', items: [], count: 0 });
+      mockGet.mockResolvedValueOnce({ filter: 'past', items: [], count: 0 });
 
       await getTrialClocks('past');
-      expect(apiClient.get).toHaveBeenCalledWith('/admin/trials?filter=past');
+      expect(mockGet).toHaveBeenCalledWith('/admin/trials?filter=past');
     });
   });
 });

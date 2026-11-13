@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from 'express';
+import { z } from 'zod';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import {
   evaluateComputedAlerts,
@@ -9,6 +10,19 @@ import {
 import { recordStaffAuditLog } from '../services/adminSupportService.js';
 
 export const adminControlsRouter = Router();
+
+const ClientAuditRecordSchema = z.object({
+  action: z.enum(['shop_viewed']),
+  vendorId: z.string().min(1, 'vendorId is required'),
+  summary: z.string().min(1).max(500).optional(),
+  metadata: z
+    .record(z.unknown())
+    .optional()
+    .refine(
+      (val) => !val || JSON.stringify(val).length <= 2048,
+      'Metadata payload exceeds maximum size of 2048 characters'
+    ),
+});
 
 /**
  * GET /api/admin/audit
@@ -38,32 +52,33 @@ adminControlsRouter.get(
 adminControlsRouter.post(
   '/audit/record',
   asyncHandler(async (req: Request, res: Response) => {
-    const { action, vendorId, summary, metadata } = req.body ?? {};
-
-    if (!action || typeof action !== 'string') {
+    const parseResult = ClientAuditRecordSchema.safeParse(req.body);
+    if (!parseResult.success) {
       return res.status(400).json({
-        error: 'invalid_action',
-        message: 'Action string is required.',
+        error: 'invalid_payload',
+        message: 'Invalid audit record payload.',
+        details: parseResult.error.flatten(),
       });
     }
 
+    const { action, vendorId, summary, metadata } = parseResult.data;
     const actorId = (req.user as any)?.id || (req.user as any)?.uid || 'admin';
 
-    // Store in-memory for immediate visibility in viewer
+    // Store in-memory for immediate visibility in viewer (if pending migration)
     recordInMemoryAuditLog({
       actorId,
       action: action as any,
       vendorId: vendorId || null,
-      summary: summary || `Action ${action} performed by staff`,
+      summary: summary || `Staff inspected shop ${vendorId}`,
       metadata: metadata || null,
     });
 
-    // Also attempt persistent audit log (fails closed silently if not migrated)
-    void recordStaffAuditLog({
+    // Durable audit write - awaited
+    await recordStaffAuditLog({
       actorId,
       action: action as any,
       vendorId: vendorId || null,
-      summary: summary || `Action ${action} performed by staff`,
+      summary: summary || `Staff inspected shop ${vendorId}`,
       metadata: metadata || null,
     });
 

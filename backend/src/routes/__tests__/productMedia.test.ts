@@ -425,6 +425,18 @@ describe('tenant isolation', () => {
       data: expect.objectContaining({ vendorId: VENDOR_ID })
     });
   });
+
+  it('rejects an admin mutation when query vendorId does not match the product owning vendor', async () => {
+    // Step 4 argument: expectedVendorId passed from req.query.vendorId via actorFrom into requireProductForActor
+    currentUser = { id: 'admin-1', roles: ['admin'] };
+
+    const res = await postJson(`/${PRODUCT_ID}/media/commit?vendorId=different-shop`, {
+      s3Key: `vendor/${VENDOR_ID}/catalog/${PRODUCT_ID}/uuid-cake.jpg`
+    });
+
+    expect(res.status).toBe(404);
+    expect(mediaCreate).not.toHaveBeenCalled();
+  });
 });
 
 describe('DELETE /products/:id/media/:mediaId', () => {

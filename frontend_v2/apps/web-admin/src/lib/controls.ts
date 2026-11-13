@@ -19,7 +19,7 @@ export type StaffAuditAction =
 export interface StaffAuditLogEntry {
   id: string;
   actorId: string;
-  action: StaffAuditAction | string;
+  action: StaffAuditAction;
   vendorId?: string | null;
   summary: string;
   metadata?: Record<string, unknown> | null;
@@ -119,7 +119,7 @@ export async function recordStaffAudit(
   action: string,
   vendorId?: string,
   summary?: string,
-  metadata?: any
+  metadata?: Record<string, unknown>
 ): Promise<{ recorded: boolean }> {
   return apiClient.post<{ recorded: boolean }>('/admin/audit/record', {
     action,

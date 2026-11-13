@@ -9,8 +9,18 @@ const messageFindFirst = vi.fn();
 const customerQueryFindMany = vi.fn();
 const messageFindMany = vi.fn();
 
+let mockCases: any[] = [];
+let mockNotes: any[] = [];
+
 vi.mock('../../db/prisma.js', () => ({
   prisma: {
+    $queryRawUnsafe: vi.fn().mockResolvedValue([{ 1: 1 }]),
+    $transaction: vi.fn(async (arg: any) => {
+      if (Array.isArray(arg)) {
+        return Promise.all(arg);
+      }
+      return arg;
+    }),
     vendor: {
       findUnique: (...args: unknown[]) => vendorFindUnique(...args),
     },
@@ -27,15 +37,100 @@ vi.mock('../../db/prisma.js', () => ({
     customerQuery: {
       findMany: (...args: unknown[]) => customerQueryFindMany(...args),
     },
+    staffCase: {
+      findMany: vi.fn(async (args: any) => {
+        let list = [...mockCases];
+        if (args?.where?.status && args.where.status !== 'all') {
+          list = list.filter((c) => c.status === args.where.status);
+        }
+        if (args?.where?.vendorId) {
+          list = list.filter((c) => c.vendorId === args.where.vendorId);
+        }
+        return list.map((c) => ({
+          ...c,
+          notes: mockNotes.filter((n) => n.caseId === c.id),
+        }));
+      }),
+      findUnique: vi.fn(async (args: any) => {
+        const c = mockCases.find((x) => x.id === args?.where?.id);
+        if (!c) return null;
+        return {
+          ...c,
+          notes: mockNotes.filter((n) => n.caseId === c.id),
+        };
+      }),
+      create: vi.fn(async (args: any) => {
+        const vendorData = (await vendorFindUnique({ where: { id: args.data.vendorId } })) || {
+          id: args.data.vendorId,
+          businessName: 'Shop A',
+        };
+        const c = {
+          id: `case-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          vendorId: args.data.vendorId,
+          subject: args.data.subject,
+          status: args.data.status ?? 'open',
+          conversationId: args.data.conversationId ?? null,
+          openedBy: args.data.openedBy,
+          resolvedAt: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          vendor: vendorData,
+        };
+        mockCases.push(c);
+        return c;
+      }),
+      update: vi.fn(async (args: any) => {
+        const c = mockCases.find((x) => x.id === args?.where?.id);
+        if (!c) throw new Error('Not found');
+        if (args.data.status !== undefined) c.status = args.data.status;
+        if (args.data.resolvedAt !== undefined) c.resolvedAt = args.data.resolvedAt;
+        c.updatedAt = new Date();
+        const vendorData = (await vendorFindUnique({ where: { id: c.vendorId } })) || {
+          id: c.vendorId,
+          businessName: 'Shop A',
+        };
+        return {
+          ...c,
+          vendor: vendorData,
+          notes: mockNotes.filter((n) => n.caseId === c.id),
+        };
+      }),
+    },
+    staffCaseNote: {
+      create: vi.fn(async (args: any) => {
+        const note = {
+          id: `note-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          caseId: args.data.caseId,
+          authorId: args.data.authorId,
+          body: args.data.body,
+          createdAt: new Date(),
+        };
+        mockNotes.push(note);
+        return note;
+      }),
+      findMany: vi.fn(async (args: any) => {
+        return mockNotes.filter((n) => n.caseId === args?.where?.caseId);
+      }),
+    },
   },
 }));
 
-const {
-  adminSupportRouter,
-  clearInMemorySupportStoreForTest,
-  seedInMemoryCaseForTest,
-} = await import('../adminSupport.js');
+function seedMockCase(c: any) {
+  mockCases.push({
+    id: c.id,
+    vendorId: c.vendorId,
+    subject: c.subject,
+    status: c.status,
+    openedBy: c.openedBy || 'admin-1',
+    conversationId: c.conversationId ?? null,
+    resolvedAt: c.resolvedAt ?? null,
+    createdAt: new Date(c.createdAt || Date.now()),
+    updatedAt: new Date(c.updatedAt || Date.now()),
+    vendor: { id: c.vendorId, businessName: 'Shop A' },
+  });
+}
 
+const { adminSupportRouter } = await import('../adminSupport.js');
 const { setCustomAuditWriterForTest } = await import('../../services/adminSupportService.js');
 
 const app = express();
@@ -57,7 +152,8 @@ afterAll(() => {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  clearInMemorySupportStoreForTest();
+  mockCases = [];
+  mockNotes = [];
   setCustomAuditWriterForTest(null);
 });
 
@@ -153,7 +249,7 @@ describe('Admin Support Module', () => {
 
   describe('PATCH /cases/:id - Status transitions', () => {
     it('allows valid transition open -> waiting', async () => {
-      seedInMemoryCaseForTest({
+      seedMockCase({
         id: 'case-1',
         vendorId: 'v-1',
         subject: 'Test case',
@@ -177,7 +273,7 @@ describe('Admin Support Module', () => {
     });
 
     it('allows valid transition open -> resolved', async () => {
-      seedInMemoryCaseForTest({
+      seedMockCase({
         id: 'case-2',
         vendorId: 'v-1',
         subject: 'Test case',
@@ -199,7 +295,7 @@ describe('Admin Support Module', () => {
     });
 
     it('allows valid transition waiting -> open and waiting -> resolved', async () => {
-      seedInMemoryCaseForTest({
+      seedMockCase({
         id: 'case-3',
         vendorId: 'v-1',
         subject: 'Test case',
@@ -236,7 +332,7 @@ describe('Admin Support Module', () => {
     });
 
     it('allows reopening resolved -> open', async () => {
-      seedInMemoryCaseForTest({
+      seedMockCase({
         id: 'case-4',
         vendorId: 'v-1',
         subject: 'Test case',
@@ -258,7 +354,7 @@ describe('Admin Support Module', () => {
     });
 
     it('rejects invalid transitions with 409 invalid_status_transition', async () => {
-      seedInMemoryCaseForTest({
+      seedMockCase({
         id: 'case-5',
         vendorId: 'v-1',
         subject: 'Test case',
@@ -290,7 +386,7 @@ describe('Admin Support Module', () => {
 
   describe('POST /cases/:id/notes - Case notes timeline', () => {
     it('appends note to case timeline', async () => {
-      seedInMemoryCaseForTest({
+      seedMockCase({
         id: 'case-notes',
         vendorId: 'v-1',
         subject: 'Notes test',
@@ -318,7 +414,7 @@ describe('Admin Support Module', () => {
     });
 
     it('rejects empty or overly long notes', async () => {
-      seedInMemoryCaseForTest({
+      seedMockCase({
         id: 'case-note-val',
         vendorId: 'v-1',
         subject: 'Val test',
@@ -373,15 +469,8 @@ describe('Admin Support Module', () => {
         customer: { id: 'cust-1', phone: '+919999999999' },
       });
 
+      // Query orders by timestamp: 'desc', so m-2 is returned first by the DB
       messageFindMany.mockResolvedValueOnce([
-        {
-          id: 'm-1',
-          senderType: 'customer',
-          timestamp: new Date('2026-10-17T10:00:00Z'),
-          content: 'Do you deliver to Chennai?',
-          contentEn: null,
-          status: 'delivered',
-        },
         {
           id: 'm-2',
           senderType: 'assistant',
@@ -389,6 +478,14 @@ describe('Admin Support Module', () => {
           content: 'Yes, we deliver across Chennai.',
           contentEn: 'Yes, we deliver across Chennai.',
           status: 'sent',
+        },
+        {
+          id: 'm-1',
+          senderType: 'customer',
+          timestamp: new Date('2026-10-17T10:00:00Z'),
+          content: 'Do you deliver to Chennai?',
+          contentEn: null,
+          status: 'delivered',
         },
       ]);
 

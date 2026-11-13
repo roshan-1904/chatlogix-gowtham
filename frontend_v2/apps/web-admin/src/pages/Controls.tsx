@@ -148,10 +148,11 @@ export function Controls() {
           <Card className="p-4 border border-gray-200/80 shadow-sm bg-white">
             <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <label className="text-xs font-bold uppercase tracking-wider text-gray-600">
+                <label htmlFor="controls-action-filter" className="text-xs font-bold uppercase tracking-wider text-gray-600">
                   Action:
                 </label>
                 <select
+                  id="controls-action-filter"
                   value={actionFilter}
                   onChange={(e) => setActionFilter(e.target.value)}
                   className="px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-medium text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary-500"
