@@ -1,5 +1,8 @@
 # 7. Honest WhatsApp status
 
+> **PO review 2026-11-13** · commit `8f1a0e5` · **Status: Not started** · Competitive role: Parity · Priority: Phase 2, order 7 (unchanged)
+> Verified: the `not_started` coercion (`backend/src/services/whatsapp/whatsappConnectService.ts:186`, `:204`); `loadPrimaryRow` skips a null status (`:221-226`); the legacy tier (`vendorSendingNumber.ts:44`); the banner condition (`frontend_v2/apps/web-vendor/src/pages/Dashboard.tsx:81`, `:160`); admin `Unknown` (`WhatsAppCard.tsx:34`). Not verifiable from the repo: Ibell's `WhatsAppNumber` rows. Missing: all eight steps. Changed in this review: section 3 records the approval check in front of the status read.
+
 ## 1. Phase and why this task is in it
 
 Phase 2. Ibell already has chats. The home screen still offers Connect WhatsApp unless `connectStatus === 'live'`. Sending that shop through Embedded Signup can disturb the number customers already message. The fix is copy and a guard. It is not a new connect.
@@ -13,6 +16,8 @@ The owner follows Connect WhatsApp and starts Embedded Signup on a number that a
 `Dashboard` in `frontend_v2/apps/web-vendor/src/pages/Dashboard.tsx` sets `whatsappLive` to `whatsappQuery.data?.connectStatus === 'live'`. When that is false it renders `ConnectWhatsAppPromo`, whose button links to `/settings/whatsapp` with the label "Connect WhatsApp". `QuickActionsPanel` and `CatalogImportGoLive.tsx` use the same `=== 'live'` check.
 
 `getWhatsAppConnectStatus` in `backend/src/services/whatsapp/whatsappConnectService.ts` loads a row only when `connectStatus` is in `ACTIVE_CONNECT_STATUSES` (`meta_in_progress`, `credit_attached`, `live`), or `error`, or `disconnected` (`loadPrimaryRow`). A legacy row with `connectStatus` null is not loaded. `toStatusResponse` then returns `connectStatus: 'not_started'` when there is no row, and uses `row.connectStatus ?? 'not_started'` when a row exists. The vendor client therefore does not receive `null` for an Ibell-shaped row. `ConnectStatusPanel.statusLabel` still maps `null` to "Unknown", and maps `not_started` to "Not started".
+
+`getWhatsAppConnectStatus` calls `assertVendorApprovedForWhatsApp(vendorId)` before it loads a row. A shop that fails that check gets an error in place of a status, `whatsappQuery.data` is undefined, and the dashboard falls into the same Connect WhatsApp banner. Ibell is approved. Task 10's waiting shop is the case to keep in mind when reading the Unknown branch in step 4.
 
 `pickVendorSendingNumber` in `backend/src/services/whatsapp/vendorSendingNumber.ts` can send on that legacy shape. `tierOf` returns `TIER_LEGACY` when `connectStatus` is null and `accessTokenEncrypted` is null. That row uses the global token. The comment in that file names the pre-P2h Ibell shape. `resolveVendorSendingPhoneNumberId` is what `sendUpiQrForOrder` and other sends call. This task does not change the tier order.
 

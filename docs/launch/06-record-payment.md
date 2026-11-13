@@ -1,5 +1,8 @@
 # 6. Record payment
 
+> **PO review 2026-11-13** · commit `8f1a0e5` · **Status: Not started** · Competitive role: Parity · Priority: Phase 2, order 6 (unchanged)
+> Verified: the body omits `businessName` (`backend/src/services/payments/upiQrService.ts:113-116`); the blank-VPA 409 (`:79-82`); `prompts.ts:301` is the only payment rule and it does not forbid inventing an account. Missing: all seven steps. Changed in this review: section 3 corrects the message body and records the 24-hour refusal; the first acceptance check says when to run it.
+
 ## 1. Phase and why this task is in it
 
 Phase 2. Ibell collects on its own UPI or in cash. The owner needs a button that means "I received it" and a payment message that names this shop. Live Razorpay Route is a later project. It is not how this shop gets paid in this phase.
@@ -20,9 +23,11 @@ Pay ₹{amount} for order {orderNumber}
 {payeeName}
 UPI: {vpa}
 Amount: ₹{amount}
+
+Scan the QR or tap below to open your UPI app (GPay, PhonePe, or bank).
 ```
 
-`businessName` is selected and not included. `buildUpiUri` puts `pa` and `pn` from the VPA and payee name. Amount is `order.totalAmount / 100` because `totalAmount` is paise.
+`businessName` is selected and not included. The send is a QR image with a tap-to-pay button (`sendWhatsAppCtaUrl`, `getTapToPayUrlForOrder`). It returns 409 when the customer's last message is older than 24 hours (`isOutsideWhatsApp24hWindow`). `upiQrService.test.ts` has two cases today, the successful send and the 24-hour refusal. Neither covers a blank VPA. `buildUpiUri` puts `pa` and `pn` from the VPA and payee name. Amount is `order.totalAmount / 100` because `totalAmount` is paise.
 
 `OrderPaymentPanel.markReceived` posts to `POST /orders/:id/mark-cash-collected` via `orderPayments.markCashCollected`. For the GPay choice it sends `paymentMethod: 'vendor_collected'`. `markOrderCashCollected` writes an `OrderAuditLog` action `cash_collected`. It does not change `Vendor.walletBalanceMilli`. Customer payment money is not wallet money ([`docs/payments/README.md`](../payments/README.md)).
 
@@ -53,7 +58,7 @@ The panel already knows `upiVpa` and `upiPayeeName` through `ShopPaySettings`. I
 
 ## 6. Acceptance checks
 
-- A UPI instruction for an Ibell order contains Ibell's saved VPA, saved payee name, and `businessName`, plus the amount and order number. The order page shows the same three strings before send.
+- A UPI instruction for an Ibell order contains Ibell's saved VPA, saved payee name, and `businessName`, plus the amount and order number. The order page shows the same three strings before send. Run this on an order whose customer messaged in the last 24 hours. Outside that window the send is a 409 by design and says nothing about the body.
 - Blank VPA or blank payee: the send returns 409 and no WhatsApp message is created.
 - Marking UPI or cash received writes `cash_collected` and the panel does not offer the action again.
 - A cancelled order still has no payment action (task 4), and `mark-cash-collected` returns 409.

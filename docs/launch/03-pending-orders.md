@@ -1,5 +1,8 @@
 # 3. Pending orders
 
+> **PO review 2026-11-13** · commit `8f1a0e5` · **Status: Not started** · Competitive role: Parity · Priority: Phase 2, order 3 (unchanged)
+> Verified: the date-scoped group (`backend/src/services/dashboardStatsService.ts:145-146`); the literal `pending` match (`:473`); the tile link (`frontend_v2/apps/web-vendor/src/pages/Dashboard.tsx:170`); `Orders.tsx:45` reads only `orderListFilters`; `orderNeedsAttention` (`utils/orderPayment.ts:143-148`). Missing: all seven steps. Changed in this review: section 3 notes that the paused-chat count beside it is already unscoped.
+
 ## 1. Phase and why this task is in it
 
 Phase 2. Ibell can take the next message only after the owner can see the orders that still need a person. The home tile is the first number they read. Revenue can stay tied to the date chip. The pending count cannot.
@@ -22,7 +25,7 @@ The dashboard tile is labeled "Pending orders" and the 12 Nov walk showed 0 whil
 
 `getDashboardStats` caches the payload for 5 seconds (`shortcache`) and 30 seconds (`realtime`) under a key that includes the date range. A code change is visible after that TTL. Do not flush Redis.
 
-`frontend_v2/apps/web-vendor/src/pages/Orders.tsx` does not read `?status=pending`. Filters come from `localStorage` key `orderListFilters`. The orders page "need attention" count uses `orderNeedsAttention` in `frontend_v2/apps/web-vendor/src/utils/orderPayment.ts`, which is true for `pending`, `awaiting_payment`, and a payment-initiated badge. That helper ignores `confirmed`, `preparing`, `ready`, and `out_for_delivery`. It is a different definition from this task. The dashboard also copies a date-scoped pending count into `buildNeedsAttentionItems` (`href: '/orders?status=pending'`).
+`frontend_v2/apps/web-vendor/src/pages/Orders.tsx` does not read `?status=pending`. Filters come from `localStorage` key `orderListFilters`. The orders page "need attention" count uses `orderNeedsAttention` in `frontend_v2/apps/web-vendor/src/utils/orderPayment.ts`, which is true for `pending`, `awaiting_payment`, and a payment-initiated badge. That helper ignores `confirmed`, `preparing`, `ready`, and `out_for_delivery`. It is a different definition from this task. The dashboard also copies a date-scoped pending count into `buildNeedsAttentionItems` (`href: '/orders?status=pending'`). The paused-chat count in that same panel is already unscoped: the service loads conversations with `where: { vendorId }` and counts `aiPaused`. Pending orders are the one needs-attention number tied to the date chip.
 
 ## 4. Step-by-step implementation
 

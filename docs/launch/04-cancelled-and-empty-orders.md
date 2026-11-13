@@ -1,5 +1,8 @@
 # 4. Cancelled and empty orders
 
+> **PO review 2026-11-13** · commit `8f1a0e5` · **Status: Not started** · Competitive role: Parity · Priority: Phase 2, order 4 (unchanged)
+> Verified: the panel is always mounted (`frontend_v2/apps/web-vendor/src/pages/OrderDetails.tsx:288`); both shipment buttons (`:343-349`); four 501 routes (`backend/src/routes/shipping.ts:21-42`); the cancelled 409 in `sendUpiQrForOrder` (`upiQrService.ts:61`); no cancelled or zero-total check in `markOrderCashCollected` (`codOrderService.ts:85-107`). Missing: all six steps. Changed in this review: step 3 also unmounts `ShippingModal`.
+
 ## 1. Phase and why this task is in it
 
 Phase 2. The pending count in task 3 treats cancelled orders and zero-item or zero-total shells as not open work. The order page has to agree, or the owner still chases payment and a shipment on those rows.
@@ -26,7 +29,7 @@ Order money is paise. A shell is `totalAmount` 0 or no line items.
 
 1. Add one predicate, shared by the detail page and the list helpers: payment actions are available when status is not `cancelled` and the order has at least one line item and `totalAmount` greater than 0. Delivered orders that still have items and a positive total keep payment actions. This predicate is the payment one. Task 3's open-work count also excludes `delivered`. Do not reuse that count here to hide payment on a delivered order that still needs a receipt mark.
 2. In `OrderDetails.tsx`, skip `OrderPaymentPanel` when the predicate is false. Keep the status timeline and the customer card.
-3. Remove the Create Shipment button and the View Shipping Details button from `OrderDetails.tsx` on every order while `shipping.ts` returns 501. Leave the shipping card's "Not Created" badge if you want the section visible, with no action. Leave `backend/src/routes/shipping.ts` returning 501. Do not add Shiprocket, labels, or tracking.
+3. Remove the Create Shipment button and the View Shipping Details button from `OrderDetails.tsx` on every order while `shipping.ts` returns 501. Leave the shipping card's "Not Created" badge if you want the section visible, with no action. Leave `backend/src/routes/shipping.ts` returning 501. Do not add Shiprocket, labels, or tracking. Unmount `ShippingModal` from `OrderDetails.tsx` in the same edit. Nothing opens it once the buttons are gone, and it sends `customerName: order.customer?.id`, a raw id, as the customer's name.
 4. In `listNextStep` and `getOrderNextStep`, return null for the collect action when the predicate is false. A cancelled order and a zero-total order show no collect label.
 5. In `markOrderCashCollected` and `sendUpiQrForOrder`, reject cancelled orders and zero-item or zero-total orders with 409 before any WhatsApp send or audit write. `sendUpiQrForOrder` already rejects cancelled. Extend it for the shell case. Add a unit test on each function.
 6. Confirm `OrderPaymentPanel` is not mounted elsewhere for those orders. `CustomerConversationModal` does not mount it.

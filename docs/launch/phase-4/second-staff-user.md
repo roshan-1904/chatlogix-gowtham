@@ -1,5 +1,8 @@
 # A second staff user
 
+> **PO review 2026-11-13** · commit `8f1a0e5` · **Status: Not started (waiting by design)** · Competitive role: Later
+> Verified: `ProtectedRoute` accepts the `vendor_staff` role string (`frontend_v2/apps/web-vendor/src/components/auth/ProtectedRoute.tsx:9`). Task 2's token rule is not built. Changed in this review: nothing but this block.
+
 Phase 4. This note is a reason to wait. It is not a build spec.
 
 ## Why it waits

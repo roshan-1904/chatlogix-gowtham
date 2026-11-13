@@ -1,8 +1,11 @@
 # 13. Hardening
 
+> **PO review 2026-11-13** · commit `8f1a0e5` · **Status: Not started** · Competitive role: none (safety) · Priority: Phase 3, order 13 (unchanged)
+> Verified: `innerHTML` in `stripHtml` (`frontend_v2/apps/web-vendor/src/components/conversations/bubbles/TextBubble.tsx:26-29`), the only `innerHTML` in either app; six `expect(true).toBe(true)` cases in `useDashboardStats.test.ts`; the `alert` (`DateRangeFilter.tsx:63`); Save with no confirm (`frontend_v2/apps/web-admin/src/pages/Billing.tsx:464`). Missing: every step. Changed in this review: a fifth fix, the mock top-up env fallback, found while checking task 1 (`backend/src/services/platformSettingsService.ts:196`).
+
 ## 1. Phase and why this task is in it
 
-Phase 3. Four small fixes that are in this launch, in one change. They do not add a shop capability. They remove a message-HTML sink, a test file that cannot fail, a browser `alert`, and an unconfirmed write of the four billing fields from task 1.
+Phase 3. Five small fixes that are in this launch, in one change. They do not add a shop capability. They remove a message-HTML sink, a test file that cannot fail, a browser `alert`, an unconfirmed write of the four billing fields from task 1, and a mock top-up default that reads as on when the settings row cannot be loaded.
 
 ## 2. Problem and user impact
 
@@ -20,11 +23,13 @@ A new shop's owner hits the date control and the inbox. The operator hits the bi
 
 `Billing.tsx` `save` mutation calls `updatePlatformSettings(parsed.patch)` from the Save button with no confirm. `parseBillingDraft` in `frontend_v2/apps/web-admin/src/lib/settings.ts` converts the fee fields from rupees to paise. The four fields are per-turn fee, outbound media fee, USD/INR override, and mock wallet top-up.
 
+`envFallbackSettings` in `backend/src/services/platformSettingsService.ts` sets `mockWalletTopUpEnabled` from `envString('MOCK_WALLET_TOPUP_ENABLED', 'true') !== 'false'`. `ensurePlatformSettings` uses that fallback when Redis has no snapshot and Postgres has no row or cannot be reached. With the variable unset, a production process in that state allows simulated money whenever `WALLET_PAYMENT_PROVIDER` is `mock` (`backend/src/routes/vendorWallet.ts`).
+
 The access token stays in `localStorage` under `chatlogix_auth_token` (`frontend_v2/packages/auth/src/storage.ts`). Moving it to an httpOnly cookie is an auth change across vendor and admin. It is out of this launch.
 
 ## 4. Step-by-step implementation
 
-Do these four steps in one change. Do not split them into four releases.
+Do these five steps in one change. Do not split them into five releases.
 
 1. **HTML strip.** `TextBubble` `stripHtml` must not assign untrusted HTML to `innerHTML`. Call `stripHtmlTags` from `lib/format.ts`, or an equivalent replace that never touches `innerHTML`. Keep entity decoding to the fixed list already in `stripHtmlTags`. Add a test that a string containing `<img src=x onerror=alert(1)>` comes back as text and that the implementation source does not reference `innerHTML`. Delete the local `stripHtml` if it becomes a one-line call.
 2. **Pending-count tests.** Replace the six `expect(true).toBe(true)` cases in `useDashboardStats.test.ts`. They must assert the pending count is not taken from the date-scoped series. The hook file does not contain that logic, so:
@@ -33,6 +38,7 @@ Do these four steps in one change. Do not split them into four releases.
    - Add the backend test from task 3 if it is not already in the tree: the Prisma `where` for pending has no `createdAt`, and the revenue aggregate still has `createdAt`. The frontend file alone cannot see SQL. Both are part of this step if task 3's test was not written.
 3. **Date alert.** Remove `alert('Custom date picker coming soon')` from `DateRangeFilter.tsx`. A custom range can stay unimplemented. The "Select dates" control must not call `alert`. Replace the button with static text that a custom range is unavailable, or remove the custom option from the `<select>` until a picker exists. Presets `thisWeek` through `thisFinancialYear` keep calling `onDateRangeChange`.
 4. **Billing confirm.** In `Billing.tsx`, the Save button asks for a confirm before `save.mutate()`. The confirm names the four fields and the values about to be written: per-turn fee in rupees and the paise `parseBillingDraft` will send, outbound media fee the same way, USD/INR override or blank (blank clears the pin), and mock wallet top-up on or off. Cancel leaves the draft dirty and does not call `updatePlatformSettings`. Other money confirms (settlement freeze, invoice, tax month) stay as they are.
+5. **Mock top-up fallback.** In `envFallbackSettings`, default `MOCK_WALLET_TOPUP_ENABLED` to `false` when `NODE_ENV` is `production`, and keep `true` elsewhere. An explicit `true` or `false` in the environment still wins. Do not change the column default in `schema.prisma` and do not add a migration. The singleton row already exists and task 1 owns its value. Add a unit test: production with the variable unset gives false, development with it unset gives true, production with `MOCK_WALLET_TOPUP_ENABLED=true` gives true.
 
 No conversation-pipeline edit. No formula edit. [`docs/BILLING_AND_PRICING.md`](../BILLING_AND_PRICING.md) stays. If the confirm is the only billing change, the flow doc stays.
 
@@ -51,6 +57,7 @@ No conversation-pipeline edit. No formula edit. [`docs/BILLING_AND_PRICING.md`](
 - The six dashboard tests fail if `tilePendingCount` is switched to `statusBreakdown`'s pending count. They pass when it reads `orders.pending`. `isOpenWorkOrder` rejects cancelled, zero-total, and empty-item orders.
 - Choosing Custom Range, or the control that replaced it, does not call `alert`.
 - Saving billing settings with fee ₹222, media ₹22, override ₹50, and mock on shows those four in the confirm. Dismissing the confirm does not PATCH. The negative case is a confirm that only says "Are you sure?" and omits the four fields. That is a failed check.
+- With `NODE_ENV=production`, no `MOCK_WALLET_TOPUP_ENABLED`, and no settings row, `envFallbackSettings().mockWalletTopUpEnabled` is false. Local development with the variable unset still shows the simulated control.
 - Negative case: an httpOnly-cookie migration is not in the diff. `storage.ts` still uses `chatlogix_auth_token`.
 
 ## 7. Dependencies

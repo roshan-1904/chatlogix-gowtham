@@ -1,5 +1,8 @@
 # 9. Order status the assistant can quote
 
+> **PO review 2026-11-13** · commit `8f1a0e5` · **Status: Partial** · Competitive role: Parity · Priority: Phase 2, order 9 (unchanged)
+> Verified: the guard and its tests exist. `npx vitest run src/conversation/__tests__/pipeline.test.ts src/conversation/__tests__/customerQuery.test.ts -t "D6|skips sandbox|knowledge_gap: persists"` passed 8 tests on 2026-11-13. Missing: step 1's `finalText` assertions on the test at `pipeline.test.ts:970`, which today asserts only the `orderStatusTurn: true` call and the `CustomerQueryBlockedOrder` count. Not verifiable from the repo: the five open queries. Changed in this review: nothing but this block.
+
 ## 1. Phase and why this task is in it
 
 Phase 2. "Where is my order" is a normal Ibell message. The prompt and the guard already intend an answer from the order on file. This task locks that with a regression test. It does not add a status product. Closing the five open queries is the product owner with the shop, the same day the test is green.

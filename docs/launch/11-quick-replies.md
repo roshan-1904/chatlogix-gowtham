@@ -1,5 +1,8 @@
 # 11. Quick replies
 
+> **PO review 2026-11-13** · commit `8f1a0e5` · **Status: Not started** · Competitive role: Parity · Priority: Phase 3, order 11 (unchanged)
+> Verified: the inert "Quick Replies (coming soon)" spans (`frontend_v2/apps/web-vendor/src/components/conversations/CustomerDetailsPanel.tsx:345-352`); no quick-reply model in `backend/prisma/schema.prisma`; no quick-replies file under `backend/src/routes`. Missing: all seven steps. Blocked on task 8 for the composer. Changed in this review: nothing but this block.
+
 ## 1. Phase and why this task is in it
 
 Phase 3. Ibell can type a reply without canned lines (task 8). A new shop should not retype "Ready for pickup" and "Out for delivery" on every order. This is a short per-vendor list that fills the composer. It is not a Meta template and not a broadcast.

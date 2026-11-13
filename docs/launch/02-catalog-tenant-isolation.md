@@ -1,5 +1,8 @@
 # 2. Admin catalog tenant isolation
 
+> **PO review 2026-11-13** · commit `8f1a0e5` · **Status: Not started** · Competitive role: none (tenant safety) · Priority: Phase 1, order 2 (unchanged)
+> Verified: list and categories take the token shop first (`backend/src/routes/products.ts:48`, `:137`); create uses the token shop only (`:209`); FAQ list and create the same (`backend/src/routes/faqs.ts:41`, `:85`); the admin bypass in `requireProductForActor` (`backend/src/services/productMediaStorage.ts:256`); `ShopInspection.tsx:68` already sends `vendorId`. Missing: all six steps. Changed in this review: step 5 names the test files that already exist.
+
 ## 1. Phase and why this task is in it
 
 Phase 1. The assistant already loads a catalog by the conversation's vendor (`resolveCatalogContext` in `backend/src/conversation/context/resolveCatalogContext.ts`). The operator's screen does not. Ibell cannot be signed off while admin inspection shows another shop's products. This sits beside task 1 because a wrong catalog and a wrong price are both blockers before the next customer message is trusted.
@@ -46,7 +49,7 @@ Grep for `req.user?.vendorId || req.query.vendorId` hits only those two handlers
    - Bulk: require every selected product's `vendorId` to equal the resolved shop. Drop the path that updates several shops in one admin call.
 3. Apply the same rule on `faqs.ts` list, create, get, update, and delete. Admin list and create take the requested shop id. Vendor calls with no shop id keep using the token. Admin get and update require the FAQ's `vendorId` to match the requested shop.
 4. In `requireProductForActor`, when `isAdmin` is true, require a shop id argument (query or a new parameter the media routes already can pass) and match `product.vendorId`. When the media routes have no shop id on the request, take it from the product after a load and still refuse a vendor whose token shop differs. An admin mutation must not succeed against a product outside the shop the caller named. If the media UI never sends a shop id, the product's own `vendorId` is the scope after the load, and the vendor check stays `product.vendorId === actor.vendorId` for non-admins. State in the test which argument you used.
-5. Add a regression test (route test beside `backend/src/routes/__tests__/`):
+5. Add a regression test in `backend/src/routes/__tests__/`. `products.english.test.ts`, `faqs.test.ts`, and `productMedia.test.ts` are already there. Extend them, and state the step 4 argument in `productMedia.test.ts`:
    - Admin token whose `vendorId` is shop A, `GET /products?vendorId=` shop B, response products all have `vendorId` B.
    - Vendor token for shop A, `GET /products?vendorId=` shop B, response 403.
    - Admin `POST /products` with body `vendorId` B creates under B, including when the token shop is A.

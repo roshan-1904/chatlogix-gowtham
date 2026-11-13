@@ -1,5 +1,8 @@
 # WhatsApp catalog cards
 
+> **PO review 2026-11-13** · commit `8f1a0e5` · **Status: Not started (waiting by design)** · Competitive role: Later · first in line when Phase 4 opens
+> Verified: the admin products list still takes the token shop first (`backend/src/routes/products.ts:48`), so the Phase 1 precondition is unmet. Market: Meta's Business AI in the WhatsApp Business app recommends products from the shop's own WhatsApp catalog (Meta newsroom, May 2026, read 2026-11-13). Of the five Phase 4 notes this is the one a shop can now compare against a free tool. Changed in this review: nothing but this block.
+
 Phase 4. This note is a reason to wait. It is not a build spec.
 
 ## Why it waits

@@ -13,11 +13,14 @@ Baseline taken from `docs/PORTAL_IMPROVEMENT_AND_COMPETITIVE_REVIEW.md` (public 
 | LimeChat | Mid-market D2C (Shopify) | AI agents, catalog messages (up to 30 products), COD-to-prepaid, abandoned cart, WISMO | Closest on AI commerce, aims up-market. |
 | Zoko | Shopify-native sellers | Usage-priced early plan, order-status, reorder journeys | Usage pricing is the nearest commercial shape. |
 | DoubleTick | SMB | Keyword/catalogue bots plus AI-agent add-on (~₹3,500/mo for 3,500 credits) | Menu-style ordering ("press 1") is what ChatLogix replaces. |
+| Meta Business AI (WhatsApp Business app) | Indian small businesses, inside the app they already use | Announced May 2026: answers FAQs, recommends from the shop's WhatsApp catalog, captures leads, books appointments, owner can take over; "all native Indian languages"; UPI in chat "starting soon". Price, eligibility, cart/order record, order status and voice notes not stated. App only; the API is not mentioned. Source: https://about.fb.com/news/2026/05/introducing-business-ai-on-whatsapp-for-small-businesses-in-india/ (read 2026-11-13) | The closest threat to the core flow. Same buyer, no platform to adopt. ChatLogix's edge is the order record, payment marking, order-status answers and voice notes. Re-check on every review, hands-on if possible. |
 
 ## Newer or adjacent threats to scan on each refresh
 
 Check, and only cite what you can source:
-- Meta's own business AI features in WhatsApp / the WhatsApp Business app, and whether they reach Indian small sellers directly (this would overlap the core flow with no platform fee).
+- Meta Business AI (now in the table above): what changed since the last read. Price, eligibility, whether UPI in chat shipped, whether it takes an order, whether it works on API numbers. A separate "Meta Business Agent" was reported in July 2026 and was not verified.
+- Meta bills the Business Platform per message since 1 July 2025 (not per conversation) and changes rates on the first day of a quarter. Read the live India rate card before quoting a template price.
+- Shiprocket's Shunya.ai (reported ₹499/month, voice/text/image in Indian languages) and Zoko's AI order-taking case study. Seen 2026-11-13, not verified.
 - Shopify Inbox / Shopify's WhatsApp tooling for Indian sellers.
 - Indian BSPs adding a cheap "AI replies" tier aimed at home businesses (Gupshup, Kaleyra, BiteSpeed, Kwik and similar).
 - Changes to Meta's India rate card (service vs utility vs marketing conversations) that move the cost gap.

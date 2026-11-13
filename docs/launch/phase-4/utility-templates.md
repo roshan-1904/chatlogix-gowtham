@@ -1,5 +1,8 @@
 # Utility templates
 
+> **PO review 2026-11-13** · commit `8f1a0e5` · **Status: Not started (waiting by design)** · Competitive role: Later
+> Verified: task 11 has no code yet (`CustomerDetailsPanel.tsx:345-352` is still the inert block), so the first precondition is unmet. Changed in this review: nothing but this block.
+
 Phase 4. This note is a reason to wait. It is not a build spec.
 
 ## Why it waits

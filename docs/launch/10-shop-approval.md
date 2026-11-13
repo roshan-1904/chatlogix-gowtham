@@ -1,5 +1,8 @@
 # 10. Shop approval
 
+> **PO review 2026-11-13** · commit `8f1a0e5` · **Status: Not started** · Competitive role: none (ChatLogix's own gate) · Priority: Phase 3, order 10 (unchanged)
+> Verified: the `?? 'approved'` fallback (`frontend_v2/apps/web-vendor/src/components/auth/ProtectedRoute.tsx:48`); auto-approve (`backend/src/services/vendorOnboardingService.ts:246-249`); no approve or reject route under `backend/src/routes`; the Waiting card copy (`frontend_v2/apps/web-admin/src/pages/Dashboard.tsx:77-95`). Not verifiable from the repo: Lumina's row. Missing: all seven steps. Changed in this review: section 7 links the locked decision this task stays inside.
+
 ## 1. Phase and why this task is in it
 
 Phase 3. Ibell is already approved, so this does not block Phase 2. A new shop has to finish signup and land on the dashboard, and a shop that is actually waiting (`pending_approval`) has to be decidable. Lumina Fragrances is the waiting shop.
@@ -58,4 +61,4 @@ No pricing doc change. No conversation flow change.
 
 ## 7. Dependencies
 
-Phase 2's exit check. Task 2 is what makes the new shop's catalog the one admin sees. Signup does not depend on tasks 11–13.
+Phase 2's exit check. Task 2 is what makes the new shop's catalog the one admin sees. Signup does not depend on tasks 11–13. [`docs/admin-portal/DECISIONS.md`](../admin-portal/DECISIONS.md) decision 1 is Locked on auto-approve. This task stays inside it: no review step at signup, and no queue.

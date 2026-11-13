@@ -1,5 +1,8 @@
 # Reorder nudges
 
+> **PO review 2026-11-13** · commit `8f1a0e5` · **Status: Not started (waiting by design)** · Competitive role: Later
+> Verified: the "same as last time" rule is in the prompt (`backend/src/conversation/llm/prompts.ts:280`). Tasks 6 and 9 are not finished, so the preconditions are unmet. Changed in this review: nothing but this block.
+
 Phase 4. This note is a reason to wait. It is not a build spec.
 
 ## Why it waits

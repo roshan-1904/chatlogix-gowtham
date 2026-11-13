@@ -1,5 +1,8 @@
 # 8. I'll reply
 
+> **PO review 2026-11-13** · commit `8f1a0e5` · **Status: Not started** · Competitive role: Parity · Priority: Phase 2, order 8 (unchanged)
+> Verified: the composer mounts only when paused (`frontend_v2/apps/web-vendor/src/pages/Conversations.tsx:273-274`); `handleToggleAIPause` (`:135-160`); the textarea has no ref (`MessageInput.tsx:61`); the paused early return (`backend/src/conversation/pipeline.ts:367-369`). Missing: all seven steps. Changed in this review: section 3 records that a complaint handoff pauses a thread by itself; section 6 adds that case. Meta's Business AI page says the owner can take over a chat from the assistant, so this control is now expected by any shop that has seen the WhatsApp Business app.
+
 ## 1. Phase and why this task is in it
 
 Phase 2. Ibell's owner has to correct a wrong or stuck answer in the thread they already have. The pause control exists. The composer does not appear until the owner finds it. Quick replies are Phase 3 (task 11). This task is the handoff only.
@@ -17,6 +20,8 @@ A bad answer stays up until the owner discovers Pause AI. For Ibell that is a bl
 `pipeline.ts` `processMessage`, after the inbound message is stored: if `conversation.aiPaused`, it logs and returns. No LLM, no debit, no reply. `templates.ts` documents that `aiPaused` has no customer-facing template. The customer waits until the owner sends from the dashboard.
 
 `ConversationView.tsx` duplicates the pause toggle and is mounted from `CustomerConversationModal.tsx` on the order page. The inbox page does not use `ConversationView`. Both surfaces need the same handoff or the order-page modal stays on the old pattern.
+
+The owner is not the only one who pauses. `triggerHandoff` in `backend/src/conversation/handoff.ts` calls `humanHandoffService.executeHandoff`, which sets `Conversation.aiPaused = true` on a complaint, and then notifies the vendor. Nothing resumes a paused thread except the owner. Paused chats are findable today: `ConversationList.tsx` has an "AI Paused" filter, and `buildNeedsAttentionItems` puts "N conversations with AI paused" on the home screen from a count that ignores the date chip.
 
 `CustomerDetailsPanel.tsx` still says "Quick Replies (coming soon)". Leave that block for task 11.
 
@@ -45,6 +50,7 @@ Quick replies stay out. Vendor notes stay "coming soon".
 - On an Ibell thread the owner chooses, or a fixture thread if they do not want a live pause that day: one click shows the composer and focuses it. The next inbound is stored and the assistant does not answer until resume.
 - Resume hides the composer and the assistant answers the following inbound.
 - While the composer is hidden, the thread shows the one line.
+- A thread the assistant paused through `triggerHandoff` opens with the composer visible and "Back to assistant" available. The owner did not click "I'll reply" on that thread.
 - Negative case: clicking "I'll reply" does not send a message. Send still requires the send button (`handleSendMessage`).
 - Negative case: a failed `PUT` restores the previous `aiPaused` value and does not leave the composer open on a thread the server still considers running.
 
