@@ -81,6 +81,8 @@ Meta WhatsApp conversation fees are **not billed to vendors yet** (`whatsappCost
 
 Sidebar: `components/layout/Sidebar.tsx`.
 
+**Not on screen yet.** Shipping (`/shipping`) is specified in [shipping/README.md](../shipping/README.md): staff enable carriers, set a markup (basis points plus an optional flat fee), flip the platform and COD switches, see the aggregator balance, and clear stuck bookings. Aggregator secrets stay in env. Vendors never use this page.
+
 ## API with no admin screen yet
 
 Mounted from `backend/src/index.ts`. Admin calls use `requireRole('admin')` or `requireVendorAccess` (admin bypass in `middleware/authorize.ts`).

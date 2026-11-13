@@ -119,6 +119,8 @@ model Vendor {
   whatsappNumbers                WhatsAppNumber[]
   customerQueries                CustomerQuery[]
   productMedia                   ProductMedia[]
+  staffCases                     StaffCase[]
+  staffAuditLogs                 StaffAuditLog[]
 
   @@map("Vendor")
 }
@@ -156,6 +158,7 @@ model Conversation {
   qualityMetrics     QualityMetrics[]
   stageExecutionLogs StageExecutionLog[]
   customerQueries    CustomerQuery[]
+  staffCases         StaffCase[]
 
   @@index([vendorId, createdAt(sort: Desc)], map: "idx_conversation_vendor_created")
   @@index([vendorId, status], map: "idx_conversation_vendor_status")
@@ -1198,6 +1201,58 @@ model ProductMedia {
   @@index([productId, variantSku, isActive])
   @@index([vendorId])
   @@map("ProductMedia")
+}
+
+// Decision 3. Closed-case retention is 1 year after resolvedAt (purge job deferred).
+model StaffCase {
+  id             String          @id @default(dbgenerated("(gen_random_uuid())::text"))
+  vendorId       String
+  subject        String          @db.VarChar(140)
+  status         String          @default("open")
+  conversationId String?
+  openedBy       String
+  resolvedAt     DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  vendor         Vendor          @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  conversation   Conversation?   @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  notes          StaffCaseNote[]
+
+  @@index([status, updatedAt(sort: Desc)])
+  @@index([vendorId, createdAt(sort: Desc)])
+  @@index([conversationId])
+  @@index([resolvedAt])
+  @@map("StaffCase")
+}
+
+// Append-only. Notes are removed only when the parent case is deleted.
+model StaffCaseNote {
+  id        String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  caseId    String
+  authorId  String
+  body      String
+  createdAt DateTime  @default(now())
+  case      StaffCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([caseId, createdAt])
+  @@map("StaffCaseNote")
+}
+
+// Immutable staff audit. Retention is 1 year from createdAt (purge job deferred).
+model StaffAuditLog {
+  id        String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  actorId   String
+  action    String
+  vendorId  String?
+  summary   String
+  metadata  Json?
+  createdAt DateTime @default(now())
+  vendor    Vendor?  @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt(sort: Desc)])
+  @@index([vendorId, createdAt(sort: Desc)])
+  @@index([action, createdAt(sort: Desc)])
+  @@map("StaffAuditLog")
 }
 
 enum MessageProcessingStatus {

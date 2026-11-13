@@ -238,17 +238,13 @@ Storing link state needs a schema decision: columns on `Order` versus a `Payment
 
 ### 5.2 P1.2 — Shipping
 
+**Spec.** [docs/shipping/README.md](./shipping/README.md) (revised 2026-10-21). **Plan:** [docs/shipping/02-implementation-plan.md](./shipping/02-implementation-plan.md), phases 0–9. The bot checks the customer's pincode and adds a shipping line to the order. The vendor packs the order, picks a carrier from a rate list (price and delivery date), and prints the label. Freight is debited from the AI wallet. ChatLogix holds one aggregator account, raises the pickup, and carrier webhooks update the customer, including a WhatsApp flow for failed deliveries. Shipping is a per-vendor flag, off by default. Manual AWB entry and a rider run-sheet are not v1.
+
 **Problem.** `ShippingModal` collects weight and dimensions for an endpoint that returns 501. Every shipping route is a stub.
 
-**Evidence.** `backend/src/routes/shipping.ts:19-43` — all four endpoints 501: create shipment, rates, label, track. `src/services/shipping.ts:55-166` maps each to a "not yet available" message. Frontend state (`OrderDetails.tsx:30-32`) is local-only.
+**Evidence.** `backend/src/routes/shipping.ts:19-43` — all four endpoints 501: create shipment, rates, label, track. `src/services/shipping.ts:55-166` maps each to a "not yet available" message. Frontend state (`OrderDetails.tsx:30-32`) is local-only. There is no `Shipment` model and no pincode column. `sendShippingUpdate()` in `whatsappTemplateService.ts` already queues the customer WhatsApp.
 
-**Decision needed first.** Shipping is only meaningful for vendors who ship; local delivery vendors (the current bakery/food profile) do not need it. Options: integrate an aggregator (Shiprocket, Delhivery), support manual tracking entry (vendor pastes courier + AWB, ChatLogix sends the update via the existing `sendShippingUpdate()` at `whatsappTemplateService.ts:422`), or hide shipping for vendors whose category does not ship.
-
-**Manual tracking is the cheap 80%:** it needs one endpoint plus a `Shipment` record and reuses the notification path that already exists.
-
-**Interim behaviour (do this even if shipping is deferred).** Replace `window.alert('This action is not available yet.')` with a disabled control and a tooltip explaining why, and stop opening a modal whose submit cannot succeed.
-
-**Effort.** ~1 day manual tracking, ~1 week aggregator integration.
+**Interim behaviour (until the rate list exists).** Replace `window.alert('This action is not available yet.')` with a disabled control and a tooltip explaining why, and stop opening a modal whose submit cannot succeed.
 
 ---
 
